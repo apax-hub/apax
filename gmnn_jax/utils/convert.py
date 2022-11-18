@@ -1,5 +1,6 @@
 from typing import List
 
+import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
 
@@ -22,3 +23,8 @@ def convert_atoms_to_arrays(atoms_list: List[Atoms]):
     }
     labels = {"energy": np.stack(energy), "forces": np.stack(forces)}
     return inputs, labels
+
+
+def tf_to_jax_dict(data_dict):
+    data_dict = {k: jnp.asarray(v) for k, v in data_dict.items()}
+    return data_dict
