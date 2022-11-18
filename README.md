@@ -1,7 +1,7 @@
 ## Roadmap
 
-- [ ] basic loading of fixed size ASE structures into `tf.data.Dataset`
-- [ ] basic linear regressor atomic number -> energy
+- [x] basic loading of fixed size ASE structures into `tf.data.Dataset`
+- [x] basic linear regressor atomic number -> energy
 - [ ] basic training loop
   - [ ] metrics
   - [ ] model checkpoints
