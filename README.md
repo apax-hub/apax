@@ -6,6 +6,7 @@
   - [ ] metrics
   - [ ] model checkpoints
   - [ ] restart
+- [ ] dataset statistics
 - [ ] precomputing neighborlists with `jax_md`
 - [ ] GMNN energy model with `jax_md`
 - [ ] force model
