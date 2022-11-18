@@ -20,5 +20,5 @@ def convert_atoms_to_arrays(atoms_list: List[Atoms]):
         "positions": np.stack(positions),
         "numbers": np.stack(numbers),
     }
-    labels = {"energy": np.vstack(energy), "forces": np.stack(forces)}
+    labels = {"energy": np.stack(energy), "forces": np.stack(forces)}
     return inputs, labels
