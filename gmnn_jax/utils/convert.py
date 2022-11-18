@@ -1,6 +1,8 @@
+from typing import List
+
 import numpy as np
 from ase import Atoms
-from typing import List
+
 
 def convert_atoms_to_arrays(atoms_list: List[Atoms]):
     positions = []
@@ -12,9 +14,11 @@ def convert_atoms_to_arrays(atoms_list: List[Atoms]):
         numbers.append(atoms.get_atomic_numbers())
         energy.append(atoms.get_total_energy())
 
-    data = {
+    inputs = {
         "positions": np.stack(positions),
         "numbers": np.stack(numbers),
+    }
+    labels = {
         "energy": np.vstack(energy),
     }
-    return data
+    return inputs, labels
