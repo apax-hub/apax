@@ -1,0 +1,5 @@
+
+[flake8]
+ignore = W503, E203, E402, C901, I001
+max-line-length = 90
+exclude = .git,__pycache__,examples,tmp

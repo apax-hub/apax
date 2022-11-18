@@ -32,6 +32,9 @@ black = "^22.10.0"
 mkdocs = "^1.4.2"
 coverage = {extras = ["toml"], version = "^6.4.2"}
 matplotlib = "^3.6.2"
+pre-commit = "^2.20.0"
+isort = "^5.10.1"
+flake8 = "^5.0.4"
 
 [[tool.poetry.source]]
 name = "jax"
