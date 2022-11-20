@@ -53,6 +53,7 @@ coverage.xml
 raw_data/
 model_files/
 main.py
+*csv
 
 
 # Translations
