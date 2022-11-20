@@ -54,6 +54,7 @@ raw_data/
 model_files/
 main.py
 *csv
+tmp/
 
 
 # Translations
