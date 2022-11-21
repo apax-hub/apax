@@ -1,6 +1,8 @@
 import jax
 import jax.numpy as jnp
+import logging
 
+log = logging.getLogger(__name__)
 
 @jax.jit
 def extract_nl(neighbors, positions):
@@ -14,6 +16,7 @@ def dataset_neighborlist(neighbor_fn, positions, extra_capacity=5):
 
     neighbors = neighbor_fn.allocate(positions[0], extra_capacity=extra_capacity)
 
+    log.info("Precomputing neighborlists")
     idx = []
     for i in range(0, num_data):
         neighbors = extract_nl(neighbors, positions[i])
