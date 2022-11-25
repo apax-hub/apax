@@ -52,8 +52,6 @@ class GMNN(hk.Module):
         self.scale_shift = PerElementScaleShift(
             scale=2.0, shift=1.0, n_species=n_species, name="scale_shift"
         )
-        # TODO scale shift layers
-        # TODO layer names
 
     def __call__(self, R, Z, neighbor):
         gm = self.descriptor(R, Z, neighbor)
