@@ -67,4 +67,4 @@ class RadialFunction(hk.Module):
         cutoff = einops.repeat(cutoff, "neighbors -> neighbors 1")
         radial_function = radial_function * cutoff
 
-        return radial_function.shape
+        return radial_function
