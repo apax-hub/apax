@@ -27,3 +27,44 @@ class GaussianBasis(hk.Module):
         basis = self.rad_norm * basis
 
         return basis
+
+
+class RadialFunction(hk.Module):
+    def __init__(
+        self,
+        n_species,
+        n_basis,
+        n_radial,
+        r_min,
+        r_max,
+        emb_init=None,
+        name: Optional[str] = None,
+    ):
+        super().__init__(name)
+
+        self.basis_fn = GaussianBasis(n_basis, r_min, r_max)
+
+        self.embed_norm = 1.0 / np.sqrt(n_basis)
+        self.embeddings = hk.get_parameter(
+            "atomic_type_embedding",
+            shape=(n_species, n_species, n_radial, n_basis),
+            init=hk.initializers.RandomUniform(0.0, 1.0),
+        )
+
+    def __call__(self, dr, Z_i, Z_j, cutoff):
+        # basis shape: neighbors x n_basis
+        basis = self.basis_fn(dr)
+
+        # coeffs shape: n_radialx n_basis
+        species_pair_coeffs = self.embeddings[Z_i, Z_j, ...]
+        species_pair_coeffs = self.embed_norm * species_pair_coeffs
+
+        # radial shape: neighbors x n_radial
+        radial_function = einops.einsum(
+            species_pair_coeffs, basis, "nbrs radial basis, nbrs basis -> nbrs radial"
+        )
+
+        cutoff = einops.repeat(cutoff, "neighbors -> neighbors 1")
+        radial_function = radial_function * cutoff
+
+        return radial_function.shape
