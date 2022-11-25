@@ -28,7 +28,7 @@ class GaussianMomentDescriptor(hk.Module):
         self.n_atoms = n_atoms
         self.r_max = r_max
         self.radial_fn = RadialFunction(
-            n_species, n_basis, n_radial, r_min, r_max, emb_init=None
+            n_species, n_basis, n_radial, r_min, r_max, emb_init=None, name="radial_fn"
         )
         self.displacement = space.map_bond(displacement)
         self.metric = space.map_bond(
