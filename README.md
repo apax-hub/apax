@@ -3,6 +3,7 @@
 - [x] basic loading of fixed size ASE structures into `tf.data.Dataset`
 - [x] basic linear regressor atomic number -> energy
 - [ ] per-example model + `vmap utiliation`
+- [ ] loading model parameters from TF GMNN
 - [x] basic training loop
   - [x] basic metrics
   - [x] hooks / tensorboard
