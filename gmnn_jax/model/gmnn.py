@@ -54,10 +54,13 @@ class GMNN(hk.Module):
         )
 
     def __call__(self, R, Z, neighbor):
+        # print(R) check
         gm = self.descriptor(R, Z, neighbor)
 
         output = jax.vmap(self.dense)(gm)  # why is hk.vmap not required here?
+        print(output[:3])
 
         output = self.scale_shift(output, Z)
+        # print(output)
 
         return output

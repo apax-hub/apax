@@ -54,17 +54,28 @@ class RadialFunction(hk.Module):
     def __call__(self, dr, Z_i, Z_j, cutoff):
         # basis shape: neighbors x n_basis
         basis = self.basis_fn(dr)
+        # print(basis.shape)
 
         # coeffs shape: n_radialx n_basis
-        species_pair_coeffs = self.embeddings[Z_i, Z_j, ...]
+        species_pair_coeffs = self.embeddings[
+            Z_j, Z_i, ...
+        ]  # reverse convention to match original
         species_pair_coeffs = self.embed_norm * species_pair_coeffs
+        # print("PAIR COEFFS")
+        # print(Z_j[0], Z_i[0])
+        # print(self.embeddings[Z_j[0], Z_i[0], ...])
+        # print(species_pair_coeffs)
 
         # radial shape: neighbors x n_radial
+        # radial_function = einops.einsum(
+        #     species_pair_coeffs, basis, "nbrs radial basis, nbrs basis -> nbrs radial"
+        # )
         radial_function = einops.einsum(
             species_pair_coeffs, basis, "nbrs radial basis, nbrs basis -> nbrs radial"
         )
-
+        # print(radial_function)
         cutoff = einops.repeat(cutoff, "neighbors -> neighbors 1")
         radial_function = radial_function * cutoff
+        # print(radial_function)
 
         return radial_function
