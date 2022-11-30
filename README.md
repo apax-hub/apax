@@ -3,7 +3,7 @@
 - [x] basic loading of fixed size ASE structures into `tf.data.Dataset`
 - [x] basic linear regressor atomic number -> energy
 - [ ] per-example model + `vmap utiliation`
-- [ ] loading model parameters from TF GMNN
+- [x] loading model parameters from TF GMNN
 - [x] basic training loop
   - [x] basic metrics
   - [x] hooks / tensorboard
@@ -20,5 +20,5 @@
 - [ ] generalize to differently sized molecules
 - [ ] Optimizer with different lr for different parameter groups
 - [ ] GMNN energy model with `jax_md`
-- [ ] force model
+- [x] force model
 - [ ] running MD with GMNN
