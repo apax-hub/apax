@@ -16,25 +16,22 @@ def transfer_parameters(params, tf_params):
     params_mutable["gmnn/~/scale_shift"]["shift_per_element"] = trained_params[
         "gmnn/energy_prediction/scale_shift_output/shift:0"
     ]
-
-    params_mutable["gmnn/~/readout/~/linear_0"]["w"] = trained_params[
+    params_mutable['gmnn/~/dense1']["w"] = trained_params[
         "gmnn/sequential_layer_1/linear_layer_2/linear_weight:0"
     ]
-    params_mutable["gmnn/~/readout/~/linear_0"]["b"] = trained_params[
+    params_mutable['gmnn/~/dense1']["b"] = trained_params[
         "gmnn/sequential_layer_1/linear_layer_2/linear_bias:0"
     ]
-
-    params_mutable["gmnn/~/readout/~/linear_1"]["w"] = trained_params[
+    params_mutable['gmnn/~/dense2']["w"] = trained_params[
         "gmnn/energy_prediction/sequential_layer/linear_layer/linear_weight:0"
     ]
-    params_mutable["gmnn/~/readout/~/linear_1"]["b"] = trained_params[
+    params_mutable['gmnn/~/dense2']["b"] = trained_params[
         "gmnn/energy_prediction/sequential_layer/linear_layer/linear_bias:0"
     ]
-
-    params_mutable["gmnn/~/readout/~/linear_2"]["w"] = trained_params[
+    params_mutable['gmnn/~/dense3']["w"] = trained_params[
         "gmnn/energy_prediction/sequential_layer/linear_layer_1/linear_weight:0"
     ]
-    params_mutable["gmnn/~/readout/~/linear_2"]["b"] = trained_params[
+    params_mutable['gmnn/~/dense3']["b"] = trained_params[
         "gmnn/energy_prediction/sequential_layer/linear_layer_1/linear_bias:0"
     ]
 
