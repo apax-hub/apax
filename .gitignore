@@ -55,6 +55,8 @@ model_files/
 main.py
 *csv
 tmp/
+.npz
+.traj
 
 
 # Translations
