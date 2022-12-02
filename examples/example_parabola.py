@@ -54,7 +54,7 @@ def get_model(hidden=3):
     return model.init, model.apply
 
 
-data = np.load("./raw_data/parabola.npz")
+data = np.load("./parabola.npz")
 x = data["x"][:, None]  # Add batch dim
 y = data["y"][:, None]
 # print(x.shape, y.shape)
@@ -131,10 +131,14 @@ if checkpoints_exist:
 
 print(f"start epoch: {start_epoch}, num epochs: {num_epochs}")
 callbacks.on_train_begin()
+
+# batch_loss = AverageLoss.empty()
+
 epoch_losses = []
 for epoch in range(start_epoch, num_epochs):
     print(f"EPOCH {epoch}")
     callbacks.on_epoch_begin(epoch=epoch)
+    batch_loss = AverageLoss.empty()
 
     batch_idx = 0
     for inputs, labels in ds:
@@ -144,12 +148,8 @@ for epoch in range(start_epoch, num_epochs):
         params, opt_state, loss, prediction = step(
             model, params, opt_state, inputs, labels
         )
-
-        if batch_idx == 0:
-            batch_loss = AverageLoss.from_model_output(loss=loss)
-        else:
-            new_batch_loss = AverageLoss.from_model_output(loss=loss)
-            batch_loss = batch_loss.merge(new_batch_loss)
+        new_batch_loss = AverageLoss.from_model_output(loss=loss)
+        batch_loss = batch_loss.merge(new_batch_loss)
 
         batch_idx += 1
 
@@ -173,8 +173,8 @@ for epoch in range(start_epoch, num_epochs):
 
 import matplotlib.pyplot as plt
 
-plt.plot(x, y)
+plt.scatter(x, y)
 
 preds = model(params, x)
-plt.plot(x, preds)
+plt.scatter(x, preds)
 plt.show()
