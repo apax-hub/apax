@@ -1,9 +1,9 @@
 import logging
 
-import jax.numpy as jnp
 import numpy as np
 
 log = logging.getLogger(__name__)
+
 
 def energy_per_element(atoms_list, lambd=1.0):
     log.info("Computing per element energy regression.")
@@ -33,14 +33,13 @@ def energy_per_element(atoms_list, lambd=1.0):
         E_sub_mean = energies[i] - mean_energy * numbers[i].shape[0]
         y[i] = E_sub_mean
         mean_err_sse += E_sub_mean**2 / numbers[i].shape[0]
-    XTX = X.T @ X    
+    XTX = X.T @ X
     reg_term = lambd * np.eye(XTX.shape[0])
-    
+
     result = np.linalg.lstsq(XTX + reg_term, X.T @ y, rcond=-1)
     elemental_energies_mean = result[0]
     elemental_energies_mean += mean_energy
 
-    elemental_energies_std = np.sqrt(mean_err_sse / num_atoms)   
+    elemental_energies_std = np.sqrt(mean_err_sse / num_atoms)
 
     return elemental_energies_mean, elemental_energies_std
-
