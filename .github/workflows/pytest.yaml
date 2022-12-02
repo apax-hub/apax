@@ -28,7 +28,7 @@ jobs:
 
     - name: Unit Tests
       run: |
-        poetry run coverage run -m pytest test/test_unit
+        poetry run coverage run -m pytest test/unit_tests
         poetry run coverage report
 
     - name: Coverage Report
