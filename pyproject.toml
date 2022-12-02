@@ -54,6 +54,10 @@ preview = true
 profile = 'black'
 multi_line_output = 3
 
+[tool.coverage.run]
+branch = true
+source = ["gmnn_jax"]
+
 [tool.coverage.html]
 directory = "coverage_html_report"
 
