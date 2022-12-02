@@ -1,0 +1,40 @@
+name: pytest
+
+on:
+  push:
+  schedule:
+    - cron: '14 3 * * 1'  # at 03:14 on Monday.
+  
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+
+    - name: Run Poetry Image
+      uses: abatilo/actions-poetry@v2.0.0
+      with:
+        poetry-version: 1.2.2
+
+    - name: Install package
+      run: |
+        poetry --version
+        poetry install
+
+    - name: Unit Tests
+      run: |
+        poetry run coverage run -m pytest test/test_unit
+        poetry run coverage report
+
+    - name: Coverage Report
+      run: |
+        poetry run coverage report -m >> $GITHUB_STEP_SUMMARY
+
+#    - name: Regression Tests
+#      run: |
+#        poetry run coverage run -m pytest test/test_regression
