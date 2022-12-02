@@ -97,14 +97,16 @@ def loss_fn(params, model, inputs, labels):
 
 
 @partial(jax.jit, static_argnames=["model"])
-def step(model, params, opt_state, inputs, labels):
+def step(model, params, opt_state, inputs, labels, batch_loss):
     grad_fn = jax.value_and_grad(loss_fn, 0, has_aux=True)
     (loss, prediction), grads = grad_fn(params, model, inputs, labels)
 
     updates, opt_state = optimizer.update(grads, opt_state, params)
     params = optax.apply_updates(params, updates)
 
-    return params, opt_state, loss, prediction
+    new_batch_loss = AverageLoss.from_model_output(loss=loss)
+    batch_loss = batch_loss.merge(new_batch_loss)
+    return params, opt_state, loss, prediction, batch_loss
 
 
 start_epoch = 0
@@ -132,8 +134,6 @@ if checkpoints_exist:
 print(f"start epoch: {start_epoch}, num epochs: {num_epochs}")
 callbacks.on_train_begin()
 
-# batch_loss = AverageLoss.empty()
-
 epoch_losses = []
 for epoch in range(start_epoch, num_epochs):
     print(f"EPOCH {epoch}")
@@ -145,11 +145,9 @@ for epoch in range(start_epoch, num_epochs):
         inputs = jnp.asarray(inputs)
         labels = jnp.asarray(labels)
 
-        params, opt_state, loss, prediction = step(
-            model, params, opt_state, inputs, labels
+        params, opt_state, loss, prediction, batch_loss = step(
+            model, params, opt_state, inputs, labels, batch_loss
         )
-        new_batch_loss = AverageLoss.from_model_output(loss=loss)
-        batch_loss = batch_loss.merge(new_batch_loss)
 
         batch_idx += 1
 
