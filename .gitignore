@@ -138,3 +138,11 @@ dmypy.json
 
 # VSCode project settings
 settings.json
+.vscode
+
+# iOS files
+.DS_Store
+
+# logs
+*.csv
+tb_logs/

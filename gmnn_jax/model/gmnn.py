@@ -2,14 +2,13 @@ from typing import Optional
 
 import haiku as hk
 import jax
-import jax.numpy as jnp
 
 from gmnn_jax.layers.activation import swish
+from gmnn_jax.layers.compat_linear import CompatLinear
 from gmnn_jax.layers.descriptor.gaussian_moment_descriptor import (
     GaussianMomentDescriptor,
 )
 from gmnn_jax.layers.scaling import PerElementScaleShift
-from gmnn_jax.layers.compat_linear import CompatLinear
 
 
 class GMNN(hk.Module):
@@ -50,9 +49,9 @@ class GMNN(hk.Module):
         #     b_init=NTKBias(),
         #     name="readout",
         # )
-        self.dense1 = CompatLinear(units[0],name="dense1")
-        self.dense2 = CompatLinear(units[1],name="dense2")
-        self.dense3 = CompatLinear(1,name="dense3")
+        self.dense1 = CompatLinear(units[0], name="dense1")
+        self.dense2 = CompatLinear(units[1], name="dense2")
+        self.dense3 = CompatLinear(1, name="dense3")
 
         self.scale_shift = PerElementScaleShift(
             scale=2.0, shift=1.0, n_species=n_species, name="scale_shift"
