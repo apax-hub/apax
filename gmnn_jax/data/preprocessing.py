@@ -1,8 +1,10 @@
-import jax
-import jax.numpy as jnp
 import logging
 
+import jax
+import jax.numpy as jnp
+
 log = logging.getLogger(__name__)
+
 
 @jax.jit
 def extract_nl(neighbors, positions):
