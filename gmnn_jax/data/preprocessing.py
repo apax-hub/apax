@@ -14,11 +14,10 @@ def extract_nl(neighbors, positions):
 
 
 def dataset_neighborlist(neighbor_fn, positions, extra_capacity=5):
-    num_data = positions.shape[0]
-
-    neighbors = neighbor_fn.allocate(positions[0], extra_capacity=extra_capacity)
-
     log.info("Precomputing neighborlists")
+
+    num_data = positions.shape[0]
+    neighbors = neighbor_fn.allocate(positions[0], extra_capacity=extra_capacity)
     idx = []
     for i in range(0, num_data):
         neighbors = extract_nl(neighbors, positions[i])

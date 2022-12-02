@@ -1,8 +1,12 @@
+import logging
+
 import jax.numpy as jnp
 import numpy as np
 
+log = logging.getLogger(__name__)
 
 def energy_per_element(atoms_list, lambd=1.0):
+    log.info("Computing per element energy regression.")
     energies = [atoms.get_potential_energy() for atoms in atoms_list]
     numbers = [atoms.numbers for atoms in atoms_list]
     system_sizes = [num.shape[0] for num in numbers]
