@@ -69,15 +69,21 @@ model_init, model = get_model(**config)
 
 rng_key = jax.random.PRNGKey(42)
 params = model_init(rng=rng_key, x=sample_inputs)
-# print(params)
-# print(type(params))
+
+
 schedule = optax.linear_schedule(
-    init_value=1e-3, end_value=1e-5, transition_begin=128 * 2, transition_steps=128 * 5
+    init_value=1e-1, end_value=1e-1, transition_begin=128 * 2, transition_steps=128 * 5
 )
-optimizer = optax.adamw(learning_rate=1e-3)
-opt_state = optimizer.init(params)
+
+is_bias_mask_fn = partial(hk.data_structures.map, lambda mname, name, val: name != 'b')
+not_bias_mask_fn = partial(hk.data_structures.map, lambda mname, name, val: name == 'b')
+
+tx = optax.chain(
+    optax.masked(optax.sgd(learning_rate=schedule), is_bias_mask_fn),
+    optax.masked(optax.adam(learning_rate=0.01), not_bias_mask_fn))
 
 
+opt_state = tx.init(params)
 AverageLoss = metrics.Average.from_output("loss")
 
 
@@ -101,7 +107,7 @@ def step(model, params, opt_state, inputs, labels, batch_loss):
     grad_fn = jax.value_and_grad(loss_fn, 0, has_aux=True)
     (loss, prediction), grads = grad_fn(params, model, inputs, labels)
 
-    updates, opt_state = optimizer.update(grads, opt_state, params)
+    updates, opt_state = tx.update(grads, opt_state, params)
     params = optax.apply_updates(params, updates)
 
     new_batch_loss = AverageLoss.from_model_output(loss=loss)
@@ -121,14 +127,14 @@ if checkpoints_exist:
     empty_state = train_state.TrainState.create(
         apply_fn=model,
         params=params,
-        tx=optimizer,
+        tx=tx,
     )
     target = {"model": empty_state, "config": None, "epoch": 0}
 
     state_restored = checkpoints.restore_checkpoint(ckpt_dir, target=target, step=None)
     start_epoch = state_restored["epoch"] + 1
     params = state_restored["model"].params
-    # TODO How to restore optimizer state correctly?
+    # TODO How to restore tx state correctly?
     # opt_state = state_restored["model"].tx
 
 print(f"start epoch: {start_epoch}, num epochs: {num_epochs}")
@@ -161,7 +167,7 @@ for epoch in range(start_epoch, num_epochs):
     epoch_losses.append(epoch_loss)
 
     # Checkpoints
-    state = train_state.TrainState.create(apply_fn=model, params=params, tx=optimizer)
+    state = train_state.TrainState.create(apply_fn=model, params=params, tx=tx)
 
     ckpt = {"model": state, "config": config, "epoch": epoch}
     checkpoints.save_checkpoint(
