@@ -2,6 +2,9 @@ from typing import Optional
 
 import haiku as hk
 import jax
+import jax.numpy as jnp
+from jax_md import partition
+from jax_md.util import high_precision_sum
 
 from gmnn_jax.layers.activation import swish
 from gmnn_jax.layers.compat_linear import CompatLinear
@@ -69,3 +72,48 @@ class GMNN(hk.Module):
         output = self.scale_shift(h, Z)
 
         return output
+
+
+def get_gmnn_model(
+    atomic_numbers,
+    units,
+    displacement,
+    box_size: float = 10.0,
+    cutoff_distance=6.0,
+    n_basis=7,
+    n_radial=5,
+    dr_threshold=0.5,
+    nl_format: partition.NeighborListFormat = partition.Sparse,
+    **neighbor_kwargs
+):
+    neighbor_fn = partition.neighbor_list(
+        displacement,
+        box_size,
+        cutoff_distance,
+        dr_threshold,
+        fractional_coordinates=False,
+        format=nl_format,
+        **neighbor_kwargs
+    )
+
+    n_atoms = atomic_numbers.shape[0]
+    Z = jnp.asarray(atomic_numbers)
+    n_species = jnp.max(Z)
+
+    @hk.without_apply_rng
+    @hk.transform
+    def model(R, neighbor):
+        gmnn = GMNN(
+            units,
+            displacement,
+            n_atoms=n_atoms,
+            n_basis=n_basis,
+            n_radial=n_radial,
+            n_species=n_species,
+        )
+        out = gmnn(R, Z, neighbor)
+        # mask = partition.neighbor_list_mask(neighbor)
+        # out = out * mask
+        return high_precision_sum(out)  # jnp.sum(out)
+
+    return neighbor_fn, model.init, model.apply
