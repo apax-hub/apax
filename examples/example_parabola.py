@@ -2,7 +2,7 @@ import os
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 from functools import partial
-from typing import NamedTuple
+
 import haiku as hk
 import jax
 import jax.numpy as jnp
@@ -54,42 +54,46 @@ def get_model(hidden=3):
     return model.init, model.apply
 
 
-data = np.load("./parabola.npz")
-x = data["x"][:, None]  # Add batch dim
-y = data["y"][:, None]
+def load_dataset():
+    data = np.load("./parabola.npz")
+    x = data["x"][:, None]  # Add batch dim
+    y = data["y"][:, None]
 
-ds = tf.data.Dataset.from_tensor_slices((x, y))
-sample_inputs, _ = next(ds.take(1).as_numpy_iterator())
-ds = ds.batch(8)
+    ds = tf.data.Dataset.from_tensor_slices((x, y))
+    return ds
 
-config = {"hidden": 32}
-model_init, model = get_model(**config)
-
-rng_key = jax.random.PRNGKey(42)
-params = model_init(rng=rng_key, x=sample_inputs)
-
-
-schedule = optax.linear_schedule(
-    init_value=1e-1, end_value=1e-1, transition_begin=128 * 2, transition_steps=128 * 5
-)
-
-is_bias_mask_fn = partial(hk.data_structures.map, lambda mname, name, val: name != 'b')
-not_bias_mask_fn = partial(hk.data_structures.map, lambda mname, name, val: name == 'b')
-
-tx = optax.chain(
-    optax.masked(optax.sgd(learning_rate=schedule), is_bias_mask_fn),
-    optax.masked(optax.adam(learning_rate=0.01), not_bias_mask_fn))
-
-
-AverageLoss = metrics.Average.from_output("loss")
 
 @dataclasses.dataclass
 class TFModelSpoof:
     stop_training = False
 
 
-callback = CSVLogger("log.csv", append=True)
-callbacks = tf.keras.callbacks.CallbackList([callback], model=TFModelSpoof())
+def init_callbacks(path=None):
+    callback = CSVLogger("log.csv", append=True)
+    callbacks = tf.keras.callbacks.CallbackList([callback], model=TFModelSpoof())
+    return callbacks
+
+
+def get_opt():
+    schedule = optax.linear_schedule(
+        init_value=1e-1,
+        end_value=1e-1,
+        transition_begin=128 * 2,
+        transition_steps=128 * 5,
+    )
+
+    is_bias_mask_fn = partial(
+        hk.data_structures.map, lambda mname, name, val: name != "b"
+    )
+    not_bias_mask_fn = partial(
+        hk.data_structures.map, lambda mname, name, val: name == "b"
+    )
+
+    tx = optax.chain(
+        optax.masked(optax.sgd(learning_rate=schedule), is_bias_mask_fn),
+        optax.masked(optax.adam(learning_rate=0.01), not_bias_mask_fn),
+    )
+    return tx
 
 
 def loss_fn(params, model, inputs, labels):
@@ -110,24 +114,46 @@ def step(model, state, inputs, labels, batch_loss):
     return new_state, loss, prediction, batch_loss
 
 
+def load_state(ckpt_dir, start_epoch):
+    checkpoints_exist = Path(ckpt_dir).is_dir()
+    print(checkpoints_exist)
+    state = train_state.TrainState.create(
+        apply_fn=model,
+        params=params,
+        tx=tx,
+    )
+    target = {"model": state, "config": config, "epoch": 0}
+
+    if checkpoints_exist:
+        raw_restored = checkpoints.restore_checkpoint(ckpt_dir, target=target, step=None)
+        state = raw_restored["model"]
+        start_epoch = raw_restored["epoch"] + 1
+
+    return state, start_epoch
+
+
+ds = load_dataset()
+sample_inputs, _ = next(ds.take(1).as_numpy_iterator())
+ds = ds.batch(8)
+
+rng_key = jax.random.PRNGKey(42)
+
+
+config = {"hidden": 32}
+model_init, model = get_model(**config)
+params = model_init(rng=rng_key, x=sample_inputs)
+
+tx = get_opt()
+
+AverageLoss = metrics.Average.from_output("loss")
+callbacks = init_callbacks()
+
 start_epoch = 0
 num_epochs = 5
 
 ckpt_dir = "tmp/checkpoints"
 
-checkpoints_exist = Path(ckpt_dir).is_dir()
-print(checkpoints_exist)
-state = train_state.TrainState.create(
-    apply_fn=model,
-    params=params,
-    tx=tx,
-)
-target = {"model": state, "config": config, "epoch":0}
-
-if checkpoints_exist:
-    raw_restored = checkpoints.restore_checkpoint(ckpt_dir, target=target, step=None)
-    state = raw_restored["model"]
-    start_epoch = raw_restored["epoch"] + 1
+state, start_epoch = load_state(ckpt_dir, start_epoch)
 
 print(f"start epoch: {start_epoch}, num epochs: {num_epochs}")
 callbacks.on_train_begin()
@@ -146,17 +172,14 @@ for epoch in range(start_epoch, num_epochs):
         state, loss, prediction, batch_loss = step(
             model, state, inputs, labels, batch_loss
         )
-
         batch_idx += 1
 
     # Metrics
     epoch_loss = batch_loss.compute()
-
     metrics_dict = {"loss": np.asarray(epoch_loss)}
     callbacks.on_epoch_end(epoch=epoch, logs=metrics_dict)
-    print(epoch_loss)
-
     epoch_losses.append(epoch_loss)
+    print(epoch_loss)
 
     ckpt = {"model": state, "config": config, "epoch": epoch}
     checkpoints.save_checkpoint(
@@ -166,6 +189,9 @@ for epoch in range(start_epoch, num_epochs):
 
 import matplotlib.pyplot as plt
 
+data = np.load("./parabola.npz")
+x = data["x"][:, None]
+y = data["y"][:, None]
 plt.scatter(x, y)
 
 preds = model(state.params, x)
