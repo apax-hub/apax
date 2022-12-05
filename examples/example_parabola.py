@@ -23,6 +23,10 @@ from clu import metrics
 from flax.training import checkpoints, train_state
 from tensorflow.keras.callbacks import CSVLogger
 
+from gmnn_jax.utils.random import seed_py_np_tf
+
+seed_py_np_tf()
+
 
 class MyLayer(hk.Module):
     def __init__(self, hidden, name: Optional[str] = None):
@@ -186,7 +190,7 @@ for epoch in range(start_epoch, num_epochs):
         step=epoch,
         overwrite=True,
         keep=2,
-        async_manager=async_manager
+        async_manager=async_manager,
     )
 
 
