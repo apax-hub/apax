@@ -20,7 +20,9 @@ class Loss:
         elif self.loss_type == "vibrations":
             divisor = label["n_atoms"]
 
-        loss = weighted_squared_error(label[self.key], prediction[self.key], divisor=divisor)
+        loss = weighted_squared_error(
+            label[self.key], prediction[self.key], divisor=divisor
+        )
         # TODO add stress multiplication with cell volume as dataset.map
 
         return self.weight * loss
