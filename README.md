@@ -18,7 +18,7 @@
 - [ ] tests
 - [ ] documentation
 - [ ] generalize to differently sized molecules
-- [ ] Optimizer with different lr for different parameter groups
+- [x] Optimizer with different lr for different parameter groups
 - [ ] GMNN energy model with `jax_md`
 - [x] force model
 - [ ] running MD with GMNN

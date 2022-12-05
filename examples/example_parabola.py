@@ -154,7 +154,7 @@ num_epochs = 5
 ckpt_dir = "tmp/checkpoints"
 
 state, start_epoch = load_state(ckpt_dir, start_epoch)
-
+async_manager = checkpoints.AsyncManager()
 print(f"start epoch: {start_epoch}, num epochs: {num_epochs}")
 callbacks.on_train_begin()
 
@@ -183,7 +183,12 @@ for epoch in range(start_epoch, num_epochs):
 
     ckpt = {"model": state, "config": config, "epoch": epoch}
     checkpoints.save_checkpoint(
-        ckpt_dir=ckpt_dir, target=ckpt, step=epoch, overwrite=True, keep=2
+        ckpt_dir=ckpt_dir,
+        target=ckpt,
+        step=epoch,
+        overwrite=True,
+        keep=2,
+        async_manager=async_manager
     )
 
 
