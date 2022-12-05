@@ -35,12 +35,3 @@ def test_get_opt():
     assert flat_params[-2] > flat_params[1]
     assert flat_params[0] < flat_params[1]
     assert flat_params[-1] < flat_params[1]
-
-
-
-test_get_opt()
-
-
-
-
-
