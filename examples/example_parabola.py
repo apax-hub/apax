@@ -115,15 +115,13 @@ def step(model, state, inputs, labels, batch_loss):
 
 
 def load_state(ckpt_dir, start_epoch):
-    checkpoints_exist = Path(ckpt_dir).is_dir()
-    print(checkpoints_exist)
     state = train_state.TrainState.create(
         apply_fn=model,
         params=params,
         tx=tx,
     )
     target = {"model": state, "config": config, "epoch": 0}
-
+    checkpoints_exist = Path(ckpt_dir).is_dir()
     if checkpoints_exist:
         raw_restored = checkpoints.restore_checkpoint(ckpt_dir, target=target, step=None)
         state = raw_restored["model"]
