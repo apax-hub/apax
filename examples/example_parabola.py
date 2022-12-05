@@ -78,6 +78,18 @@ def init_callbacks(path=None):
     return callbacks
 
 
+def map_nested_fn(fn):
+    """Recursively apply `fn` to the key-value pairs of a nested dict"""
+
+    def map_fn(nested_dict):
+        return {
+            k: (map_fn(v) if isinstance(v, dict) else fn(k, v))
+            for k, v in nested_dict.items()
+        }
+
+    return map_fn
+
+
 def get_opt():
     schedule = optax.linear_schedule(
         init_value=1e-1,
@@ -85,17 +97,9 @@ def get_opt():
         transition_begin=128 * 2,
         transition_steps=128 * 5,
     )
-
-    is_bias_mask_fn = partial(
-        hk.data_structures.map, lambda mname, name, val: name != "b"
-    )
-    not_bias_mask_fn = partial(
-        hk.data_structures.map, lambda mname, name, val: name == "b"
-    )
-
-    tx = optax.chain(
-        optax.masked(optax.sgd(learning_rate=schedule), is_bias_mask_fn),
-        optax.masked(optax.adam(learning_rate=0.01), not_bias_mask_fn),
+    label_fn = map_nested_fn(lambda k, _: k)
+    tx = optax.multi_transform(
+        {"w": optax.adam(0.01), "b": optax.sgd(schedule)}, label_fn
     )
     return tx
 
