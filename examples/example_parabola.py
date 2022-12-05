@@ -2,7 +2,7 @@ import os
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 from functools import partial
-
+from typing import NamedTuple
 import haiku as hk
 import jax
 import jax.numpy as jnp
@@ -57,10 +57,8 @@ def get_model(hidden=3):
 data = np.load("./parabola.npz")
 x = data["x"][:, None]  # Add batch dim
 y = data["y"][:, None]
-# print(x.shape, y.shape)
 
 ds = tf.data.Dataset.from_tensor_slices((x, y))
-# print(ds.element_spec)
 sample_inputs, _ = next(ds.take(1).as_numpy_iterator())
 ds = ds.batch(8)
 
@@ -83,9 +81,7 @@ tx = optax.chain(
     optax.masked(optax.adam(learning_rate=0.01), not_bias_mask_fn))
 
 
-opt_state = tx.init(params)
 AverageLoss = metrics.Average.from_output("loss")
-
 
 @dataclasses.dataclass
 class TFModelSpoof:
@@ -103,16 +99,15 @@ def loss_fn(params, model, inputs, labels):
 
 
 @partial(jax.jit, static_argnames=["model"])
-def step(model, params, opt_state, inputs, labels, batch_loss):
+def step(model, state, inputs, labels, batch_loss):
     grad_fn = jax.value_and_grad(loss_fn, 0, has_aux=True)
-    (loss, prediction), grads = grad_fn(params, model, inputs, labels)
+    (loss, prediction), grads = grad_fn(state.params, model, inputs, labels)
 
-    updates, opt_state = tx.update(grads, opt_state, params)
-    params = optax.apply_updates(params, updates)
+    new_state = state.apply_gradients(grads=grads)
 
     new_batch_loss = AverageLoss.from_model_output(loss=loss)
     batch_loss = batch_loss.merge(new_batch_loss)
-    return params, opt_state, loss, prediction, batch_loss
+    return new_state, loss, prediction, batch_loss
 
 
 start_epoch = 0
@@ -122,20 +117,17 @@ ckpt_dir = "tmp/checkpoints"
 
 checkpoints_exist = Path(ckpt_dir).is_dir()
 print(checkpoints_exist)
-if checkpoints_exist:
-    # Empty state to tell flax the layout of what to restore
-    empty_state = train_state.TrainState.create(
-        apply_fn=model,
-        params=params,
-        tx=tx,
-    )
-    target = {"model": empty_state, "config": None, "epoch": 0}
+state = train_state.TrainState.create(
+    apply_fn=model,
+    params=params,
+    tx=tx,
+)
+target = {"model": state, "config": config, "epoch":0}
 
-    state_restored = checkpoints.restore_checkpoint(ckpt_dir, target=target, step=None)
-    start_epoch = state_restored["epoch"] + 1
-    params = state_restored["model"].params
-    # TODO How to restore tx state correctly?
-    # opt_state = state_restored["model"].tx
+if checkpoints_exist:
+    raw_restored = checkpoints.restore_checkpoint(ckpt_dir, target=target, step=None)
+    state = raw_restored["model"]
+    start_epoch = raw_restored["epoch"] + 1
 
 print(f"start epoch: {start_epoch}, num epochs: {num_epochs}")
 callbacks.on_train_begin()
@@ -151,8 +143,8 @@ for epoch in range(start_epoch, num_epochs):
         inputs = jnp.asarray(inputs)
         labels = jnp.asarray(labels)
 
-        params, opt_state, loss, prediction, batch_loss = step(
-            model, params, opt_state, inputs, labels, batch_loss
+        state, loss, prediction, batch_loss = step(
+            model, state, inputs, labels, batch_loss
         )
 
         batch_idx += 1
@@ -166,9 +158,6 @@ for epoch in range(start_epoch, num_epochs):
 
     epoch_losses.append(epoch_loss)
 
-    # Checkpoints
-    state = train_state.TrainState.create(apply_fn=model, params=params, tx=tx)
-
     ckpt = {"model": state, "config": config, "epoch": epoch}
     checkpoints.save_checkpoint(
         ckpt_dir=ckpt_dir, target=ckpt, step=epoch, overwrite=True, keep=2
@@ -179,6 +168,6 @@ import matplotlib.pyplot as plt
 
 plt.scatter(x, y)
 
-preds = model(params, x)
+preds = model(state.params, x)
 plt.scatter(x, preds)
 plt.show()
