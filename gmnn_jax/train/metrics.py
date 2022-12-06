@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Any, List
+from typing import List
 
 import jax.numpy as jnp
 from clu import metrics
@@ -12,6 +12,7 @@ class RootAverage(metrics.Average):
     Modifies the `compute` method of `metrics.Average` to obtain the root of the average.
     Meant to be used with `mse_fn`.
     """
+
     def compute(self) -> jnp.array:
         return jnp.sqrt(self.total / self.count)
 
@@ -30,7 +31,9 @@ def mse_fn(label: dict[jnp.array], prediction: dict[jnp.array], key: str) -> jnp
     return jnp.mean((label[key] - prediction[key]) ** 2)
 
 
-def cosine_sim(label: dict[jnp.array], prediction: dict[jnp.array], key: str) -> jnp.array:
+def cosine_sim(
+    label: dict[jnp.array], prediction: dict[jnp.array], key: str
+) -> jnp.array:
     """
     Computes the cosine similarity of two arrays.
     """
@@ -41,7 +44,8 @@ def cosine_sim(label: dict[jnp.array], prediction: dict[jnp.array], key: str) ->
 
 def make_single_metric(key: str, reduction: str) -> metrics.Average:
     """
-    Builds a single `clu` metric where the key picks out the quantity fromthe model predictions dict.
+    Builds a single `clu` metric where the key picks out the quantity from
+    the model predictions dict.
     Metric functions (like `mae_fn`) are curried with the `key`.
     """
     reduction_fns = {
