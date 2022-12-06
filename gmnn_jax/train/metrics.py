@@ -4,6 +4,8 @@ from typing import Any, List
 import jax.numpy as jnp
 from clu import metrics
 
+from gmnn_jax.utils.math import normed_dotp
+
 
 class RootAverage(metrics.Average):
     """
@@ -32,13 +34,7 @@ def cosine_sim(label: dict[jnp.array], prediction: dict[jnp.array], key: str) ->
     """
     Computes the cosine similarity of two arrays.
     """
-    F_0_norm = jnp.linalg.norm(label[key], ord=2, axis=2, keepdims=True)
-    F_p_norm = jnp.linalg.norm(prediction[key], ord=2, axis=2, keepdims=True)
-
-    F_0_n = label[key] / F_0_norm
-    F_p_n = prediction[key] / F_p_norm
-
-    dotp = jnp.einsum("bai, bai -> ba", F_0_n, F_p_n)
+    dotp = normed_dotp(label[key], prediction[key])
     F_angle_loss = jnp.mean(1.0 - dotp)
     return F_angle_loss
 
