@@ -11,7 +11,7 @@
   - [x] restart
 - [ ] advanced training loop
   - [ ] MLIP metrics
-  - [ ] async checkpoints
+  - [x] async checkpoints
   - [ ] jit compiled metrics
 - [ ] dataset statistics
 - [x] precomputing neighborlists with `jax_md`

@@ -1,10 +1,10 @@
-from typing import Optional
+from typing import Callable, List, Optional, Tuple
 
 import haiku as hk
 import jax
 import jax.numpy as jnp
 from jax_md import partition
-from jax_md.util import high_precision_sum
+from jax_md.util import Array, high_precision_sum
 
 from gmnn_jax.layers.activation import swish
 from gmnn_jax.layers.compat_linear import CompatLinear
@@ -13,19 +13,22 @@ from gmnn_jax.layers.descriptor.gaussian_moment_descriptor import (
 )
 from gmnn_jax.layers.scaling import PerElementScaleShift
 
+DisplacementFn = Callable[[Array, Array], Array]
+MDModel = Tuple[partition.NeighborFn, Callable, Callable]
+
 
 class GMNN(hk.Module):
     def __init__(
         self,
-        units,
-        displacement,
-        n_basis=5,
-        n_radial=4,
-        n_species=10,
-        n_atoms=3,
-        r_min=0.5,
-        r_max=6.0,
-        use_all_features=True,
+        units: List[int],
+        displacement: DisplacementFn,
+        n_basis: int = 5,
+        n_radial: int = 4,
+        n_species: int = 10,
+        n_atoms: int = 3,
+        r_min: float = 0.5,
+        r_max: float = 6.0,
+        use_all_features: bool = True,
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -60,7 +63,7 @@ class GMNN(hk.Module):
             scale=2.0, shift=1.0, n_species=n_species, name="scale_shift"
         )
 
-    def __call__(self, R, Z, neighbor):
+    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList) -> Array:
         gm = self.descriptor(R, Z, neighbor)
 
         h = jax.vmap(self.dense1)(gm)  # why is hk.vmap not required here?
@@ -75,17 +78,17 @@ class GMNN(hk.Module):
 
 
 def get_gmnn_model(
-    atomic_numbers,
-    units,
-    displacement,
+    atomic_numbers: Array,
+    units: List[int],
+    displacement: DisplacementFn,
     box_size: float = 10.0,
-    cutoff_distance=6.0,
-    n_basis=7,
-    n_radial=5,
-    dr_threshold=0.5,
+    cutoff_distance: float = 6.0,
+    n_basis: int = 7,
+    n_radial: int = 5,
+    dr_threshold: float = 0.5,
     nl_format: partition.NeighborListFormat = partition.Sparse,
     **neighbor_kwargs
-):
+) -> MDModel:
     neighbor_fn = partition.neighbor_list(
         displacement,
         box_size,
