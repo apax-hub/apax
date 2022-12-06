@@ -47,7 +47,7 @@ def convert_atoms_to_arrays(
         inputs["ragged"]["positions"].append(atoms.positions)
         inputs["ragged"]["numbers"].append(atoms.numbers)
         inputs["fixed"]["n_atoms"].append(len(atoms))
-        if atoms.pbc.any() == True:
+        if atoms.pbc.any() is True:
             cell = np.array(atoms.cell).diagonal()
             inputs["fixed"]["cell"].append(list(cell))
 
@@ -56,7 +56,7 @@ def convert_atoms_to_arrays(
                 labels["ragged"][key].append(val)
             else:
                 labels["fixed"][key].append(val)
-    
+
     inputs["ragged"] = {
         key: val for key, val in inputs["ragged"].items() if len(val) != 0
     }

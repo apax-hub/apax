@@ -6,7 +6,6 @@ import numpy as np
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import tensorflow as tf
-from ase import Atoms
 from ase.io import read
 from jax_md import partition, space
 
@@ -125,7 +124,10 @@ def input_pipeline(
         displacement_fn, _ = space.free()
 
     neighbor_fn = partition.neighbor_list(
-        displacement_or_metric=displacement_fn, box=cubic_box_size, r_cutoff=cutoff, format=nl_format
+        displacement_or_metric=displacement_fn,
+        box=cubic_box_size,
+        r_cutoff=cutoff,
+        format=nl_format,
     )
 
     idx = dataset_neighborlist(

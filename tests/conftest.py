@@ -1,4 +1,3 @@
-import random
 from typing import List
 
 import numpy as np
@@ -42,7 +41,8 @@ def example_atoms(num_data: int, pbc: bool, calc_results: List[str]) -> Atoms:
 
         additional_data = {}
         additional_data["pbc"] = pbc
-        # lattice = random.choice(["free", "sc", "fcc", "bcc"]) at the moment we can only work with cubic cells
+        # lattice = random.choice(["free", "sc", "fcc", "bcc"])
+        # at the moment we can only work with cubic cells
         lattice = "sc"
         additional_data["cell"] = create_cell(cell_const, lattice)
 
@@ -65,6 +65,7 @@ def example_atoms(num_data: int, pbc: bool, calc_results: List[str]) -> Atoms:
         atoms_list.append(atoms)
 
     return atoms_list
+
 
 @pytest.fixture(scope="session")
 def get_tmp_path(tmp_path_factory):
