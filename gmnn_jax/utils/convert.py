@@ -1,30 +1,86 @@
-from typing import List
-
 import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
 
 
-def convert_atoms_to_arrays(atoms_list: List[Atoms]):
-    positions = []
-    numbers = []
-    energy = []
-    forces = []
+def convert_atoms_to_arrays(
+    atoms_list: list[Atoms],
+) -> tuple[dict[str, dict[str, list]], dict[str, dict[str, list]]]:
+    """Converts an list of ASE atoms to two dicts where all inputs and labels
+    are sorted by there shape (ragged/fixed), and proberty.
+
+
+    Parameters
+    ----------
+    atoms_list :
+        List of all structures. Enties are ASE atoms objects.
+
+    Returns
+    -------
+    inputs :
+        Inputs are untrainable system-determining properties.
+    labels :
+        Labels are trainable system properties.
+
+    """
+    inputs = {
+        "ragged": {
+            "positions": [],
+            "numbers": [],
+        },
+        "fixed": {
+            "n_atoms": [],
+            "cell": [],
+        },
+    }
+
+    labels = {
+        "ragged": {
+            "forces": [],
+        },
+        "fixed": {
+            "energy": [],
+        },
+    }
 
     for atoms in atoms_list:
-        positions.append(atoms.get_positions())
-        numbers.append(atoms.get_atomic_numbers())
-        energy.append(atoms.get_total_energy())
-        forces.append(atoms.get_forces())
+        inputs["ragged"]["positions"].append(atoms.positions)
+        inputs["ragged"]["numbers"].append(atoms.numbers)
+        inputs["fixed"]["n_atoms"].append(len(atoms))
+        if atoms.pbc.any() == True:
+            cell = np.array(atoms.cell).diagonal()
+            inputs["fixed"]["cell"].append(list(cell))
 
-    inputs = {
-        "positions": np.stack(positions),
-        "numbers": np.stack(numbers),
+        for key, val in atoms.calc.results.items():
+            if type(val) is np.ndarray and np.shape(val)[0] == len(atoms):
+                labels["ragged"][key].append(val)
+            else:
+                labels["fixed"][key].append(val)
+    
+    inputs["ragged"] = {
+        key: val for key, val in inputs["ragged"].items() if len(val) != 0
     }
-    labels = {"energy": np.stack(energy), "forces": np.stack(forces)}
+    inputs["fixed"] = {key: val for key, val in inputs["fixed"].items() if len(val) != 0}
+    labels["ragged"] = {
+        key: val for key, val in labels["ragged"].items() if len(val) != 0
+    }
+    labels["fixed"] = {key: val for key, val in labels["fixed"].items() if len(val) != 0}
     return inputs, labels
 
 
-def tf_to_jax_dict(data_dict):
+def tf_to_jax_dict(data_dict: dict[str, list]) -> dict:
+    """Converts a dict of tf.Tensors to a dict of jax.numpy.arrays.
+    tf.Tensors musst be padded
+
+    Parameters
+    ----------
+    data_dict :
+        dict padded of tf.Tensors
+
+    Returns
+    -------
+    data_dict :
+        dict of jax.numpy.arrays
+    """
     data_dict = {k: jnp.asarray(v) for k, v in data_dict.items()}
     return data_dict
