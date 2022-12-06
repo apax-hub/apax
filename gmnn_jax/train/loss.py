@@ -7,29 +7,24 @@ import einops
 from gmnn_jax.utils.math import normed_dotp
 
 def weighted_squared_error(label, prediction, divisor=1.0):
-    return jnp.sum((label - prediction) ** 2 / divisor)
+    return (label - prediction) ** 2 / divisor
 
 
 def force_angle_loss(label, prediction, divisor=1):
     dotp = normed_dotp(label, prediction)
-    F_angle_loss = jnp.sum(1.0 - dotp)
-    return F_angle_loss
+    return 1.0 - dotp
 
 
 def force_angle_div_force_label(label, prediction, divisor=1.0):
     dotp = normed_dotp(label, prediction)
-    F_0_norm = jnp.linalg.norm(label, ord=2, axis=2, keepdims=True)
-
-    F_angle_loss = jnp.sum((1.0 - dotp) / F_0_norm)
-    return F_angle_loss
+    F_0_norm = jnp.linalg.norm(label, ord=2, axis=2, keepdims=False)
+    return (1.0 - dotp) / F_0_norm
 
 
 def force_angle_exponential_weight(label, prediction, divisor=1.0):
     dotp = normed_dotp(label, prediction)
-    F_0_norm = jnp.linalg.norm(label, ord=2, axis=2, keepdims=True)
-
-    F_angle_loss = jnp.sum((1.0 - dotp) * jnp.exp(F_0_norm))
-    return F_angle_loss
+    F_0_norm = jnp.linalg.norm(label, ord=2, axis=2, keepdims=False)
+    return (1.0 - dotp) * jnp.exp(F_0_norm)
 
 
 @dataclasses.dataclass
@@ -51,13 +46,13 @@ class Loss:
 
     def __call__(self, prediction: dict, label: dict) -> float:
         # TODO add stress multiplication with cell volume as dataset.map
-        
+        # TODO we may want to insert an additional `mask` argument for this method
         divisor = self.determine_divisor(label["n_atoms"])
     
         loss = self.loss_fn(
             label[self.key], prediction[self.key], divisor=divisor
         )
-        return self.weight * loss
+        return self.weight * jnp.sum(loss)
 
     def determine_divisor(self, n_atoms: jnp.array) -> jnp.array:
         
