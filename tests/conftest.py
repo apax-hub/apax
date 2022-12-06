@@ -35,9 +35,9 @@ def example_atoms(num_data: int, pbc: bool, calc_results: List[str]) -> Atoms:
     atoms_list = []
 
     for _ in range(num_data):
-        num_atoms = np.random.randint(2, 10)
+        num_atoms = np.random.randint(10, 15)
         numbers = np.random.randint(1, 119, size=num_atoms)
-        cell_const = np.random.uniform(low=4.0, high=6.0)
+        cell_const = np.random.uniform(low=10.0, high=12.0)
         positions = np.random.uniform(low=0.0, high=cell_const, size=(num_atoms, 3))
 
         additional_data = {}

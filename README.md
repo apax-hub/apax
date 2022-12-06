@@ -11,14 +11,14 @@
   - [x] restart
 - [ ] advanced training loop
   - [ ] MLIP metrics
-  - [ ] async checkpoints
+  - [x] async checkpoints
   - [ ] jit compiled metrics
 - [ ] dataset statistics
 - [x] precomputing neighborlists with `jax_md`
 - [ ] tests
 - [ ] documentation
 - [ ] generalize to differently sized molecules
-- [ ] Optimizer with different lr for different parameter groups
+- [x] Optimizer with different lr for different parameter groups
 - [ ] GMNN energy model with `jax_md`
 - [x] force model
 - [ ] running MD with GMNN
