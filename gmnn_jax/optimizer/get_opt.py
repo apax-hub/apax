@@ -1,11 +1,13 @@
 from typing import Any, Callable
+
 import optax
 
 
 def map_nested_fn(fn: Callable[[str, Any], dict]) -> Callable[[dict], dict]:
     """
     Recursively apply `fn` to the key-value pairs of a nested dict
-    See `https://optax.readthedocs.io/en/latest/api.html?highlight=multitransform#multi-transform`
+    See
+    https://optax.readthedocs.io/en/latest/api.html?highlight=multitransform#multi-transform
     """
 
     def map_fn(nested_dict):
@@ -17,7 +19,9 @@ def map_nested_fn(fn: Callable[[str, Any], dict]) -> Callable[[dict], dict]:
     return map_fn
 
 
-def get_schedule(lr: float, transition_begin: int, transition_steps: int) -> optax._src.base.Schedule:
+def get_schedule(
+    lr: float, transition_begin: int, transition_steps: int
+) -> optax._src.base.Schedule:
     """
     builds a linear learning rate schedule.
     """
@@ -33,12 +37,12 @@ def get_schedule(lr: float, transition_begin: int, transition_steps: int) -> opt
 def get_opt(
     transition_begin: int,
     transition_steps: int,
-    emb_lr: float=0.02,
-    nn_lr: float=0.03,
-    scale_lr: float=0.001,
-    shift_lr: float=0.05,
-    opt_name:str="adam",
-    opt_kwargs:dict={},
+    emb_lr: float = 0.02,
+    nn_lr: float = 0.03,
+    scale_lr: float = 0.001,
+    shift_lr: float = 0.05,
+    opt_name: str = "adam",
+    opt_kwargs: dict = {},
 ) -> optax._src.base.GradientTransformation:
     """
     Builds an optimizer with different learning rates for each parameter group.

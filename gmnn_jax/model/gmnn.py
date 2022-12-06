@@ -1,11 +1,10 @@
-from typing import List, Optional, Callable, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import haiku as hk
 import jax
 import jax.numpy as jnp
 from jax_md import partition
-from jax_md.util import high_precision_sum
-from jax_md.util import Array
+from jax_md.util import Array, high_precision_sum
 
 from gmnn_jax.layers.activation import swish
 from gmnn_jax.layers.compat_linear import CompatLinear
@@ -14,22 +13,22 @@ from gmnn_jax.layers.descriptor.gaussian_moment_descriptor import (
 )
 from gmnn_jax.layers.scaling import PerElementScaleShift
 
-
 DisplacementFn = Callable[[Array, Array], Array]
 MDModel = Tuple[partition.NeighborFn, Callable, Callable]
+
 
 class GMNN(hk.Module):
     def __init__(
         self,
         units: List[int],
         displacement: DisplacementFn,
-        n_basis: int=5,
-        n_radial: int=4,
-        n_species: int=10,
-        n_atoms: int=3,
-        r_min: float=0.5,
-        r_max: float=6.0,
-        use_all_features: bool=True,
+        n_basis: int = 5,
+        n_radial: int = 4,
+        n_species: int = 10,
+        n_atoms: int = 3,
+        r_min: float = 0.5,
+        r_max: float = 6.0,
+        use_all_features: bool = True,
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -83,10 +82,10 @@ def get_gmnn_model(
     units: List[int],
     displacement: DisplacementFn,
     box_size: float = 10.0,
-    cutoff_distance: float=6.0,
-    n_basis: int =7,
-    n_radial: int =5,
-    dr_threshold: float =0.5,
+    cutoff_distance: float = 6.0,
+    n_basis: int = 7,
+    n_radial: int = 5,
+    dr_threshold: float = 0.5,
     nl_format: partition.NeighborListFormat = partition.Sparse,
     **neighbor_kwargs
 ) -> MDModel:
