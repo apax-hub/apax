@@ -58,7 +58,7 @@ def test_initialize_metrics_collection():
     batch_metrics = Metrics.single_from_model_output(label=label, prediction=prediction)
 
     epoch_metrics = batch_metrics.compute()
-    # print(epoch_metrics)
+
     assert abs(epoch_metrics["energy_mae"] - 0.5) < 1e-6
     assert abs(epoch_metrics["energy_rmse"] - jnp.sqrt(0.5)) < 1e-6
     assert abs(epoch_metrics["forces_mae"] - 1 / 3) < 1e-6
