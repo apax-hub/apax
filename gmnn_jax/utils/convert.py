@@ -56,7 +56,7 @@ def convert_atoms_to_arrays(
                 labels["ragged"][key].append(val)
             else:
                 labels["fixed"][key].append(val)
-    
+
     inputs["ragged"] = {
         key: val for key, val in inputs["ragged"].items() if len(val) != 0
     }
