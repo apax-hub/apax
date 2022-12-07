@@ -8,6 +8,7 @@ import yaml
 from keras.callbacks import CSVLogger, TensorBoard
 
 from gmnn_jax.config import Config
+from gmnn_jax.data.statistics import energy_per_element
 from gmnn_jax.model.gmnn import get_training_model
 from gmnn_jax.optimizer import get_opt
 from gmnn_jax.train.loss import Loss, LossCollection
@@ -98,7 +99,13 @@ def run(user_config):
 
     log.info("Running Input Pipeline")
     # input pipeline
+    # read atoms_list
+    atoms_list = None
     datasets = None
+    elemental_energies_mean, elemental_energies_std = energy_per_element(
+        atoms_list,
+        lambd=config.data.energy_regularisation
+    )
 
     # preliminary, needs to be retrievable from the ds
     n_atoms = datasets.n_atoms
@@ -108,6 +115,8 @@ def run(user_config):
         n_atoms=n_atoms,
         n_species=n_species,
         displacement_fn=displacement_fn,
+        elemental_energies_mean=elemental_energies_mean,
+        elemental_energies_std=elemental_energies_std,
         **config.model.dict()
     )
     # sample_inputs, _ = next(train_ds.take(1).as_numpy_iterator())

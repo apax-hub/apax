@@ -32,6 +32,8 @@ class GMNN(hk.Module):
         n_species: int = 119,
         r_min: float = 0.5,
         r_max: float = 6.0,
+        elemental_energies_mean: Optional[Array] = None,
+        elemental_energies_std: Optional[Array] = None,
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -62,7 +64,10 @@ class GMNN(hk.Module):
         self.dense3 = CompatLinear(1, name="dense3")
 
         self.scale_shift = PerElementScaleShift(
-            scale=2.0, shift=1.0, n_species=n_species, name="scale_shift"
+            scale=elemental_energies_std,
+            shift=elemental_energies_mean,
+            n_species=n_species,
+            name="scale_shift"
         )
 
     def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList) -> Array:
@@ -138,6 +143,8 @@ def get_training_model(
     n_radial: int = 5,
     r_min: float = 0.5,
     r_max: float = 6.0,
+    elemental_energies_mean: Optional[Array]=None,
+    elemental_energies_std: Optional[Array]=None,
 ) -> Tuple[Callable, Callable]:
     log.info("Initializing Model")
 
@@ -153,6 +160,8 @@ def get_training_model(
             n_species=n_species,
             r_min=r_min,
             r_max=r_max,
+            elemental_energies_mean=elemental_energies_mean,
+            elemental_energies_std=elemental_energies_std,
         )
         neighbor = NeighborSpoof(idx)
 
