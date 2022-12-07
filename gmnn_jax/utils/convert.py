@@ -21,7 +21,6 @@ def convert_atoms_to_arrays(
         Inputs are untrainable system-determining properties.
     labels :
         Labels are trainable system properties.
-
     """
     inputs = {
         "ragged": {

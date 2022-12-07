@@ -93,7 +93,7 @@ def input_pipeline(
     Raises
     ------
     ValueError
-        If no inputs and labels are defined.
+        Raises if no inputs and labels are defined.
     """
 
     if data_path is not None and atoms_list is None:
@@ -101,7 +101,7 @@ def input_pipeline(
             atoms_list = read(data_path, index=":")
             # TODO read non-ASE labels from file
             log.info("Get data from file")
-        except Exception:
+        except IOError:
             log.error(f"data_path ({data_path}) is not leading to file")
 
     elif type(atoms_list) == list:
