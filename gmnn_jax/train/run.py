@@ -8,6 +8,7 @@ import yaml
 from keras.callbacks import CSVLogger, TensorBoard
 
 from gmnn_jax.config import Config
+from gmnn_jax.model.gmnn import get_training_model
 from gmnn_jax.optimizer import get_opt
 from gmnn_jax.train.loss import Loss, LossCollection
 from gmnn_jax.train.metrics import initialize_metrics
@@ -83,13 +84,7 @@ def run(user_config):
     model_version_path = init_directories(config.data.model_name, config.data.model_path)
     config.dump_config(model_version_path)
 
-    # init model
-    model = None
-    transition_steps = 5  # preliminary, need to get steps per epoch from ds
-    tx = get_opt(transition_steps=transition_steps, **config.optimizer.dict())
-
     callbacks = initialize_callbacks(config, model_version_path)
-    # init checkpoints? maybe in trainer
 
     loss_fn = initialize_loss_fn(config)
 
@@ -105,6 +100,28 @@ def run(user_config):
     # input pipeline
     datasets = None
 
+    # preliminary, needs to be retrievable from the ds
+    n_atoms = datasets.n_atoms
+    n_species = datasets.n_species
+    displacement_fn = datasets.displacement_fn
+    model_init, model = get_training_model(
+        n_atoms=n_atoms,
+        n_species=n_species,
+        displacement_fn=displacement_fn,
+        **config.model.dict()
+    )
+    # sample_inputs, _ = next(train_ds.take(1).as_numpy_iterator())
+    # rng_key, model_rng_key = jax.random.split(rng_key, num=2)
+    # params = model_init(model_rng_key, sample_data)
+
+    # preliminary, need to get steps per epoch from ds
+    n_steps = datasets.steps_per_epoch
+    n_epochs = config.num_epochs
+    n_warmup = config.optimizer.transition_begin
+    transition_steps = n_steps * n_epochs - n_warmup
+    tx = get_opt(transition_steps=transition_steps, **config.optimizer.dict())
+
     log.info("Begining Training")
+    # , params # needs to be passed to trainer
     trainer = Trainer(model, tx, datasets, loss_fn, Metrics, callbacks)
     trainer.fit()
