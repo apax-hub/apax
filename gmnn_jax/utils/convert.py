@@ -69,17 +69,17 @@ def convert_atoms_to_arrays(
 
 def tf_to_jax_dict(data_dict: dict[str, list]) -> dict:
     """Converts a dict of tf.Tensors to a dict of jax.numpy.arrays.
-    tf.Tensors musst be padded
+    tf.Tensors must be padded.
 
     Parameters
     ----------
     data_dict :
-        dict padded of tf.Tensors
+        Dict padded of tf.Tensors
 
     Returns
     -------
     data_dict :
-        dict of jax.numpy.arrays
+        Dict of jax.numpy.arrays
     """
     data_dict = {k: jnp.asarray(v) for k, v in data_dict.items()}
     return data_dict

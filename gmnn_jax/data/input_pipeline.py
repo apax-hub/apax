@@ -4,7 +4,6 @@ from typing import Type
 
 import numpy as np
 
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import tensorflow as tf
 from ase.io import read
 from jax_md import partition, space
@@ -18,9 +17,9 @@ log = logging.getLogger(__name__)
 def pad_to_largest_element(
     r_inputs: dict, f_inputs: dict, r_labels: dict, f_labels: dict
 ) -> tuple[dict, dict]:
-    """Funktino is pedding all input and label dicts that values are of type ragged
-    to lages element in batch. Aferwards distinction between ragged and fixed
-    inputs/labels is not needed and all inputs/labels are updated to one list.
+    """Function is padding all input and label dicts that values are of type ragged
+        to largest element in the batch. Afterward, the distinction between ragged and fixed
+        inputs/labels is not needed and all inputs/labels are updated to one list.
 
     Parameters
     ----------
@@ -63,7 +62,7 @@ def input_pipeline(
     buffer_size: int = 1000,
 ) -> Type[tf.data.Dataset]:
     """Processes all inputs and labels and prepares them for the training cycle.
-    Inputs and Labels are padded to largest element in batch.
+    Inputs and Labels are padded to the largest element in the batch.
 
     Parameters
     ----------
@@ -73,22 +72,22 @@ def input_pipeline(
         Number of strictures in one batch
     data_path :
         Path to the ASE readable file that includes all structures. By default None.
-        IMPORTENT: Eighter data_path ore atoms_list have to be defined, if both are
+        IMPORTANT: Eighter data_path ore atoms_list have to be defined if both are
         defined atoms_list is primarily.
     atoms_list :
-        List of all structures. Enties are ASE atoms objects. By default None.
-        IMPORTENT: Eighter data_path ore atoms_list have to be defined,
+        List of all structures. Entries are ASE atoms objects. By default None.
+        IMPORTANT: Eighter data_path ore atoms_list have to be defined
         if both are defined atoms_list is primarily.
     buffer_size : optional
-        Number of structures that are shuffeld choosing the batches. Should be
-        significantly larger than the batch size. It is recomented to use the default
+        The number of structures that are shuffled for choosing the batches. Should be
+        significantly larger than the batch size. It is recommended to use the default
         value.
 
     Returns
     -------
     ds :
-        Dataset that includes all data prepared for training, e.g. splitted in
-        batches and padded. Dataset contain tf.Tensors.
+        A dataset that includes all data prepared for training e.g. split into
+        batches and padded. The dataset contains tf.Tensors.
 
     Raises
     ------
