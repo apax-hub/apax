@@ -1,5 +1,4 @@
 import pytest
-from ase import Atoms
 
 from gmnn_jax.utils.convert import convert_atoms_to_arrays
 
@@ -22,7 +21,7 @@ def test_convert_atoms_to_arrays(example_atoms, pbc):
 
     assert "positions" in inputs["ragged"]
     assert len(inputs["ragged"]["positions"]) == len(example_atoms)
-    
+
     assert "numbers" in inputs["ragged"]
     assert len(inputs["ragged"]["numbers"]) == len(example_atoms)
 
@@ -37,6 +36,6 @@ def test_convert_atoms_to_arrays(example_atoms, pbc):
 
     assert "energy" in labels["fixed"]
     assert len(labels["fixed"]["energy"]) == len(example_atoms)
-    
+
     assert "forces" in labels["ragged"]
     assert len(labels["ragged"]["forces"]) == len(example_atoms)
