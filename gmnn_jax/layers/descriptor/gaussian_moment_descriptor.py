@@ -24,7 +24,6 @@ class GaussianMomentDescriptor(hk.Module):
         n_atoms,
         r_min,
         r_max,
-        use_all_features=True,
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -35,6 +34,8 @@ class GaussianMomentDescriptor(hk.Module):
         self.radial_fn = RadialFunction(
             n_species, n_basis, n_radial, r_min, r_max, emb_init=None, name="radial_fn"
         )
+        # TODO maybe move the radial func into call and get
+        # n_species and n_atoms from the first input batch
         self.displacement = space.map_bond(displacement)
         self.metric = space.map_bond(
             space.canonicalize_displacement_or_metric(displacement)
