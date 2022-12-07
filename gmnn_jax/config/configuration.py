@@ -4,6 +4,7 @@ from typing import List, Optional, Union
 import yaml
 from pydantic import BaseModel, Extra, PositiveFloat, PositiveInt
 
+
 class DataConfig(BaseModel):
     model_path: str
     model_name: str
@@ -17,6 +18,7 @@ class DataConfig(BaseModel):
     batch_size: PositiveInt = 32
     valid_batch_size: PositiveInt = 100
     shuffle_buffer_size: PositiveInt = 1000
+
 
 class DescriptorConfig(BaseModel, frozen=False):
     n_radial: Union[PositiveInt, List[int]] = 5
@@ -62,6 +64,7 @@ class LossConfig(BaseModel, extra=Extra.forbid):
     name: str
     loss_type: str = "molecules"
     weight: PositiveFloat = 1.0
+
 
 class CallbackConfig(BaseModel, frozen=True, extra=Extra.allow):
     name: str

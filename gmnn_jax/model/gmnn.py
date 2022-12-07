@@ -1,5 +1,5 @@
-from typing import Callable, List, Optional, Tuple
 import logging
+from typing import Callable, List, Optional, Tuple
 
 import haiku as hk
 import jax
@@ -18,6 +18,7 @@ DisplacementFn = Callable[[Array, Array], Array]
 MDModel = Tuple[partition.NeighborFn, Callable, Callable]
 
 log = logging.getLogger(__name__)
+
 
 class GMNN(hk.Module):
     def __init__(
@@ -132,6 +133,7 @@ def get_training_model(
     cutoff_distance: float = 6.0,
 ) -> Tuple[Callable, Callable]:
     log.info("Initializing Model")
+
     @hk.without_apply_rng
     @hk.transform
     def model(R, Z, neighbor):
@@ -146,6 +148,7 @@ def get_training_model(
         out = gmnn(R, Z, neighbor)
         # mask = partition.neighbor_list_mask(neighbor)
         # out = out * mask
-        return high_precision_sum(out) 
+        # prediction = {"energy":, "forces":}
+        return high_precision_sum(out)
 
     return model.init, model.apply

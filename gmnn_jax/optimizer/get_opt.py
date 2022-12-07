@@ -5,6 +5,7 @@ import optax
 
 log = logging.getLogger(__name__)
 
+
 def map_nested_fn(fn: Callable[[str, Any], dict]) -> Callable[[dict], dict]:
     """
     Recursively apply `fn` to the key-value pairs of a nested dict
