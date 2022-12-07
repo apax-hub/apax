@@ -1,7 +1,9 @@
+import logging
 from typing import Any, Callable
 
 import optax
 
+log = logging.getLogger(__name__)
 
 def map_nested_fn(fn: Callable[[str, Any], dict]) -> Callable[[dict], dict]:
     """
@@ -48,6 +50,7 @@ def get_opt(
     Builds an optimizer with different learning rates for each parameter group.
     Every optimizer in `optax` is supported.
     """
+    log.info("Initializing Optimizer")
     opt = getattr(optax, opt_name)
 
     emb_schedule = get_schedule(emb_lr, transition_begin, transition_steps)

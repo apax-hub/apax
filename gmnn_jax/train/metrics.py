@@ -1,10 +1,13 @@
 from functools import partial
 from typing import List
+import logging
 
 import jax.numpy as jnp
 from clu import metrics
 
 from gmnn_jax.utils.math import normed_dotp
+
+log = logging.getLogger(__name__)
 
 
 class RootAverage(metrics.Average):
@@ -71,6 +74,7 @@ def initialize_metrics(keys: List[str], reductions: List[str]) -> metrics.Collec
     the metrics are named according to `key_reduction`.
     See `make_single_metric` for details on the individual metrics.
     """
+    log.info("Initializing Metrics")
     metric_dict = {}
     for key, reduction in zip(keys, reductions):
         metric = make_single_metric(key, reduction)

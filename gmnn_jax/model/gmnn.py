@@ -1,4 +1,5 @@
 from typing import Callable, List, Optional, Tuple
+import logging
 
 import haiku as hk
 import jax
@@ -16,6 +17,7 @@ from gmnn_jax.layers.scaling import PerElementScaleShift
 DisplacementFn = Callable[[Array, Array], Array]
 MDModel = Tuple[partition.NeighborFn, Callable, Callable]
 
+log = logging.getLogger(__name__)
 
 class GMNN(hk.Module):
     def __init__(
@@ -77,7 +79,7 @@ class GMNN(hk.Module):
         return output
 
 
-def get_gmnn_model(
+def get_md_model(
     atomic_numbers: Array,
     units: List[int],
     displacement: DisplacementFn,
@@ -115,8 +117,35 @@ def get_gmnn_model(
             n_species=n_species,
         )
         out = gmnn(R, Z, neighbor)
-        # mask = partition.neighbor_list_mask(neighbor)
-        # out = out * mask
-        return high_precision_sum(out)  # jnp.sum(out)
+        return high_precision_sum(out)
 
     return neighbor_fn, model.init, model.apply
+
+
+def get_training_model(
+    n_species: int,
+    n_atoms: int,
+    units: List[int],
+    displacement: DisplacementFn,
+    n_basis: int = 7,
+    n_radial: int = 5,
+    cutoff_distance: float = 6.0,
+) -> Tuple[Callable, Callable]:
+    log.info("Initializing Model")
+    @hk.without_apply_rng
+    @hk.transform
+    def model(R, Z, neighbor):
+        gmnn = GMNN(
+            units,
+            displacement,
+            n_atoms=n_atoms,
+            n_basis=n_basis,
+            n_radial=n_radial,
+            n_species=n_species,
+        )
+        out = gmnn(R, Z, neighbor)
+        # mask = partition.neighbor_list_mask(neighbor)
+        # out = out * mask
+        return high_precision_sum(out) 
+
+    return model.init, model.apply
