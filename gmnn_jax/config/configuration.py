@@ -19,6 +19,8 @@ class DataConfig(BaseModel):
     valid_batch_size: PositiveInt = 100
     shuffle_buffer_size: PositiveInt = 1000
 
+    energy_regularisation: PositiveFloat = 1.0
+
 
 class ModelConfig(BaseModel, extra=Extra.forbid):
     n_basis: PositiveInt = 7
