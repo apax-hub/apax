@@ -1,7 +1,8 @@
 import logging
 
 import jax
-import jax.numpy as jnp
+import numpy as np
+from jax_md.partition import NeighborFn
 
 log = logging.getLogger(__name__)
 
@@ -13,21 +14,41 @@ def extract_nl(neighbors, positions):
     return neighbors
 
 
-def dataset_neighborlist(neighbor_fn, positions, extra_capacity=5):
+def dataset_neighborlist(
+    neighbor_fn: NeighborFn, positions: np.array, n_atoms: list[int]
+) -> list[int]:
+    """Calculates the neighbor list of all systems within positions using
+    a jax_md.partition.NeighborFn.
+
+    Parameters
+    ----------
+    neighbor_fn :
+        Neighbor list function (jax_md.partition.NeighborFn).
+    positions :
+        Cartesian coordinates of all atoms in all structures.
+    n_atoms :
+        List of number of Atoms per structure.
+
+    Returns
+    -------
+    idx :
+        Neighbor list of all structures.
+    """
     log.info("Precomputing neighborlists")
 
-    num_data = positions.shape[0]
-    neighbors = neighbor_fn.allocate(positions[0], extra_capacity=extra_capacity)
+    neighbors = neighbor_fn.allocate(positions[0])
     idx = []
-    for i in range(0, num_data):
-        neighbors = extract_nl(neighbors, positions[i])
+    num_atoms = n_atoms[0]
+    for i, position in enumerate(positions):
+        if n_atoms[i] != num_atoms:
+            neighbors = neighbor_fn.allocate(position)
+            num_atoms = n_atoms[i]
+
+        neighbors = extract_nl(neighbors, position)
         if neighbors.did_buffer_overflow:
-            print("Neighbor list overflowed, reallocating.")
-            neighbors = neighbor_fn.allocate(positions[i])
+            log.info("Neighbor list overflowed, reallocating.")
+            neighbors = neighbor_fn.allocate(position)
 
         idx.append(neighbors.idx)
 
-    # TODO this currently doesn't work if the NL needs to be reallocated
-    # idx needs to be padded before stacking
-    # To Do this, I need to figure out how padding / masking works in jaxmd
-    return jnp.stack(idx, axis=0)
+    return idx
