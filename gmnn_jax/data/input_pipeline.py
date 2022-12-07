@@ -1,9 +1,7 @@
 import logging
-import os
 from typing import Type
 
 import numpy as np
-
 import tensorflow as tf
 from ase.io import read
 from jax_md import partition, space
@@ -18,8 +16,9 @@ def pad_to_largest_element(
     r_inputs: dict, f_inputs: dict, r_labels: dict, f_labels: dict
 ) -> tuple[dict, dict]:
     """Function is padding all input and label dicts that values are of type ragged
-        to largest element in the batch. Afterward, the distinction between ragged and fixed
-        inputs/labels is not needed and all inputs/labels are updated to one list.
+        to largest element in the batch. Afterward, the distinction between ragged
+        and fixed inputs/labels is not needed and all inputs/labels are updated to
+        one list.
 
     Parameters
     ----------
