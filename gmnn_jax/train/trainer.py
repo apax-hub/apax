@@ -26,8 +26,8 @@ def fit(
             f"max_epoch <= current epoch from checkpoint ({self.max_epoch} <= {epoch})"
         )
 
-    start_epoch = time.time()
-    while epoch < max_epoch:
+    epoch_start_time = time.time()
+    for epoch in range(max_epoch):
         callbacks.on_epoch_begin(epoch=epoch)
 
         epoch += 1
@@ -74,8 +74,8 @@ def fit(
         }
         epoch_metrics = {**train_epoch_metrics, **val_epoch_metrics, **epoch_loss}
 
-        end_epoch = time.time()
-        epoch_metrics.update({"epoch_time": end_epoch - start_epoch})
+        epoch_end_time = time.time()
+        epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
 
         callbacks.on_epoch_end(epoch=epoch, logs=epoch_metrics)
 
