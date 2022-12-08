@@ -1,16 +1,17 @@
-from ase.io import read
 import logging
-import numpy as np
 
+import numpy as np
+from ase.io import read
 
 log = logging.getLogger(__name__)
+
 
 def load_data(data_path):
     """_summary_
 
     Parameters
     ----------
-    data_path : 
+    data_path :
         Path to the ASE readable file that includes all structures.
 
     Returns
@@ -27,6 +28,7 @@ def load_data(data_path):
         log.error(f"data_path ({data_path}) is not leading to file")
 
     return atoms_list
+
 
 def split_list(list, length1, length2):
     """Schuffles and splits a list in two resulting lists
