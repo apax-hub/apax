@@ -65,8 +65,8 @@ def get_opt(
             "w": opt(emb_schedule, **opt_kwargs),
             "b": opt(emb_schedule, **opt_kwargs),
             "atomic_type_embedding": opt(nn_schedule, **opt_kwargs),
-            "scale": opt(scale_schedule, **opt_kwargs),
-            "shift": opt(shift_schedule, **opt_kwargs),
+            "scale_per_element": opt(scale_schedule, **opt_kwargs),
+            "shift_per_element": opt(shift_schedule, **opt_kwargs),
         },
         label_fn,
     )
