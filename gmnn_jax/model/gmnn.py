@@ -67,7 +67,7 @@ class GMNN(hk.Module):
             scale=elemental_energies_std,
             shift=elemental_energies_mean,
             n_species=n_species,
-            name="scale_shift"
+            name="scale_shift",
         )
 
     def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList) -> Array:
@@ -137,23 +137,23 @@ class NeighborSpoof:
 def get_training_model(
     n_atoms: int,
     n_species: int,
-    displacement: DisplacementFn,
+    displacement_fn: DisplacementFn,
     nn: List[int],
     n_basis: int = 7,
     n_radial: int = 5,
     r_min: float = 0.5,
     r_max: float = 6.0,
-    elemental_energies_mean: Optional[Array]=None,
-    elemental_energies_std: Optional[Array]=None,
+    elemental_energies_mean: Optional[Array] = None,
+    elemental_energies_std: Optional[Array] = None,
 ) -> Tuple[Callable, Callable]:
-    log.info("Initializing Model")
+    log.info("Bulding Model")
 
     @hk.without_apply_rng
     @hk.transform
     def model(R, Z, idx):
         gmnn = GMNN(
             nn,
-            displacement,
+            displacement_fn,
             n_atoms=n_atoms,
             n_basis=n_basis,
             n_radial=n_radial,
@@ -172,7 +172,8 @@ def get_training_model(
             energy = high_precision_sum(out)
             return energy
 
-        energy, forces = -jax.value_and_grad(energy_fn)(R, Z, neighbor)
+        energy, neg_forces = jax.value_and_grad(energy_fn)(R, Z, neighbor)
+        forces = -neg_forces
         prediction = {"energy": energy, "forces": forces}
         return prediction
 
