@@ -1,11 +1,14 @@
 from typing import Optional
 
+import einops
 import haiku as hk
 
 
 class PerElementScaleShift(hk.Module):
     def __init__(self, scale, shift, n_species, name: Optional[str] = None):
         super().__init__(name)
+        shift = einops.repeat(shift, "atoms -> atoms 1")
+
         self.scale = hk.get_parameter(
             "scale_per_element",
             shape=(n_species, 1),
