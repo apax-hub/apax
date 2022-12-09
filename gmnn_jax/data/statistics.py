@@ -1,8 +1,17 @@
+import dataclasses
 import logging
 
 import numpy as np
 
 log = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass
+class DatasetStats:
+    elemental_shift: np.array
+    elemental_scale: float
+    n_atoms: int
+    n_species: int
 
 
 def energy_per_element(atoms_list, lambd=1.0):
@@ -15,9 +24,9 @@ def energy_per_element(atoms_list, lambd=1.0):
     system_sizes = np.array(system_sizes)
 
     ds_energy = np.sum(energies)
-    num_atoms = np.sum(system_sizes)
+    n_atoms_total = np.sum(system_sizes)
 
-    mean_energy = ds_energy / num_atoms
+    mean_energy = ds_energy / n_atoms_total
     n_species = max([max(n) for n in numbers]) + 1
 
     mean_err_sse = 0.0
@@ -40,6 +49,9 @@ def energy_per_element(atoms_list, lambd=1.0):
     elemental_energies_mean = result[0]
     elemental_energies_mean += mean_energy
 
-    elemental_energies_std = np.sqrt(mean_err_sse / num_atoms)
+    elemental_energies_std = np.sqrt(mean_err_sse / n_atoms_total)
 
-    return elemental_energies_mean, elemental_energies_std
+    ds_stats = DatasetStats(
+        elemental_energies_mean, elemental_energies_std, np.max(system_sizes), n_species
+    )
+    return ds_stats
