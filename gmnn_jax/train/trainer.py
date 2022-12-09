@@ -17,7 +17,7 @@ def fit(
     max_epoch,
     val_ds=None,
 ):
-    step_fn = get_step_fn(loss_fn)
+    train_step_fn = get_train_step_fn(loss_fn)
     callbacks.on_train_begin()
     # TODO epoch from load state / state
     epoch = 0
@@ -42,7 +42,7 @@ def fit(
             inputs = tf_to_jax_dict(inputs)
             labels = tf_to_jax_dict(labels)
 
-            train_batch_metrics, batch_loss, state = step_fn(
+            train_batch_metrics, batch_loss, state = train_step_fn(
                 model, state, Metrics, inputs, labels, train_batch_metrics
             )
             epoch_loss["train_loss"] += batch_loss
@@ -57,12 +57,9 @@ def fit(
                 inputs = tf_to_jax_dict(inputs)
                 labels = tf_to_jax_dict(labels)
 
-                batch_loss, predictions = get_loss(
-                    model, state, Metrics, inputs, labels, loss_fn
-                )
+                batch_loss, val_batch_metrics = val_step(model, state, Metrics, inputs, labels, val_batch_metrics, loss_fn)
+
                 epoch_loss["val_loss"] += batch_loss
-                new_val_metrics = Metrics.single_from_model_output(labels, predictions)
-                val_batch_metrics = val_batch_metrics.merge(new_val_metrics)
                 val_batch_step = batch_idx
             epoch_loss["val_loss"] /= val_batch_step
 
@@ -86,11 +83,19 @@ def get_loss(model, params, inputs, labels, loss_fn):
     return loss, predictions
 
 
-def get_step_fn(loss_fn):
+def val_step(model, state, Metrics, inputs, labels, batch_metrics, loss_fn):
+    batch_loss, predictions = get_loss(
+        model, state, Metrics, inputs, labels, loss_fn
+    )
+    new_metrics = Metrics.single_from_model_output(labels, predictions)
+    batch_metrics = batch_metrics.merge(new_metrics)
+    return batch_loss, batch_metrics
+
+def get_train_step_fn(loss_fn):
     get_loss_fn = partial(get_loss, loss_fn=loss_fn)
 
     @partial(jax.jit, static_argnames=["model"])
-    def step(model, state, Metrics, inputs, labels, batch_metrics):
+    def train_step(model, state, Metrics, inputs, labels, batch_metrics):
         grad_fn = jax.grad(get_loss_fn, 1, has_aux=True)
         loss, predictions, grads = grad_fn(model, state.params, inputs, labels)
 
@@ -100,4 +105,4 @@ def get_step_fn(loss_fn):
         batch_metrics = batch_metrics.merge(new_batch_metrics)
         return batch_metrics, loss, new_state
 
-    return step
+    return train_step
