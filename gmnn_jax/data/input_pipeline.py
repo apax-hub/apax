@@ -131,5 +131,6 @@ def input_pipeline(
         .batch(batch_size=batch_size)
         .map(pad_to_largest_element)
     )
+    # TODO ds needs to be shuffled every epoch
 
     return ds, displacement_fn
