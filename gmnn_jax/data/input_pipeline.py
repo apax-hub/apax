@@ -51,15 +51,15 @@ def pad_to_largest_element(
 
     return inputs, labels
 
-class InputPipeline():
+
+class InputPipeline:
     def __init__(
         self,
         cutoff: float,
         atoms_list: list,
         batch_size: int,
         buffer_size: int = 1000,
-        ) -> Type[tf.data.Dataset]:
-        
+    ) -> Type[tf.data.Dataset]:
         self.batch_size = batch_size
         self.buffer_size = buffer_size
 
