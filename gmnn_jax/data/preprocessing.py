@@ -1,11 +1,11 @@
+import collections
+import itertools
 import logging
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 from jax_md.partition import NeighborFn
-import collections
-import itertools
 
 log = logging.getLogger(__name__)
 
@@ -55,8 +55,6 @@ def dataset_neighborlist(
         idx.append(neighbors.idx)
 
     return idx
-
-
 
 
 def prefetch_to_single_device(iterator, size):

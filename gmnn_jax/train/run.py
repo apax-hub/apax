@@ -96,14 +96,14 @@ def run(user_config):
 
     callbacks = initialize_callbacks(config, model_version_path)
 
-    
     maximize_l2_cache = True
     if maximize_l2_cache:
         import ctypes
-        _libcudart = ctypes.CDLL('libcudart.so')
+
+        _libcudart = ctypes.CDLL("libcudart.so")
         # Set device limit on the current device
         # cudaLimitMaxL2FetchGranularity = 0x05
-        pValue = ctypes.cast((ctypes.c_int*1)(), ctypes.POINTER(ctypes.c_int))
+        pValue = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
         _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
         _libcudart.cudaDeviceGetLimit(pValue, ctypes.c_int(0x05))
         assert pValue.contents.value == 128
