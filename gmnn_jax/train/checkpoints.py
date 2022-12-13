@@ -1,7 +1,10 @@
 from pathlib import Path
+
 from flax.training import checkpoints, train_state
 
-def load_state(model, params, tx, ckpt_dir, start_epoch=0):
+
+def load_state(model, params, tx, ckpt_dir):
+    start_epoch = 0
     state = train_state.TrainState.create(
         apply_fn=model,
         params=params,
@@ -15,15 +18,3 @@ def load_state(model, params, tx, ckpt_dir, start_epoch=0):
         start_epoch = raw_restored["epoch"] + 1
 
     return state, start_epoch
-
-
-# TODO add this to trainer
-# ckpt = {"model": state, "epoch": epoch}
-# checkpoints.save_checkpoint(
-#     ckpt_dir=ckpt_dir,
-#     target=ckpt,
-#     step=epoch,
-#     overwrite=True,
-#     keep=2,
-#     async_manager=async_manager,
-# )

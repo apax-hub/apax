@@ -3,7 +3,6 @@ from typing import Type
 
 import numpy as np
 import tensorflow as tf
-from ase.io import read
 from jax_md import partition, space
 
 from gmnn_jax.data.preprocessing import dataset_neighborlist
@@ -56,8 +55,7 @@ def pad_to_largest_element(
 def input_pipeline(
     cutoff: float,
     batch_size: int,
-    data_path: str = None,
-    atoms_list: str = None,
+    atoms_list: list,
     buffer_size: int = 1000,
 ) -> Type[tf.data.Dataset]:
     """Processes all inputs and labels and prepares them for the training cycle.
@@ -66,17 +64,11 @@ def input_pipeline(
     Parameters
     ----------
     cutoff :
-        Radial cutoff in angstrom for the neighbor list
+        Radial cutoff in angstrom for the neighbor list.
     batch_size :
-        Number of strictures in one batch
-    data_path :
-        Path to the ASE readable file that includes all structures. By default None.
-        IMPORTANT: Eighter data_path ore atoms_list have to be defined if both are
-        defined atoms_list is primarily.
+        Number of strictures in one batch.
     atoms_list :
-        List of all structures. Entries are ASE atoms objects. By default None.
-        IMPORTANT: Eighter data_path ore atoms_list have to be defined
-        if both are defined atoms_list is primarily.
+        List of all structures. Entries are ASE atoms objects.
     buffer_size : optional
         The number of structures that are shuffled for choosing the batches. Should be
         significantly larger than the batch size. It is recommended to use the default
@@ -87,29 +79,7 @@ def input_pipeline(
     ds :
         A dataset that includes all data prepared for training e.g. split into
         batches and padded. The dataset contains tf.Tensors.
-
-    Raises
-    ------
-    ValueError
-        Raises if no inputs and labels are defined.
     """
-
-    if data_path is not None and atoms_list is None:
-        try:
-            atoms_list = read(data_path, index=":")
-            # TODO read non-ASE labels from file
-            log.info("Get data from file")
-        except IOError:
-            log.error(f"data_path ({data_path}) is not leading to file")
-
-    elif type(atoms_list) == list:
-        log.info("Get atoms directly as ASE atoms objects")
-        # TODO get non-ASE labels from dict
-    else:
-        raise ValueError(
-            "Input data and labels are missing eigther define a data_path or an"
-            " atoms_list (ASE atoms objects)"
-        )
 
     inputs, labels = convert_atoms_to_arrays(atoms_list)
     cubic_box_size = 100
@@ -161,5 +131,6 @@ def input_pipeline(
         .batch(batch_size=batch_size)
         .map(pad_to_largest_element)
     )
+    # TODO ds needs to be shuffled every epoch
 
-    return ds
+    return ds, displacement_fn

@@ -13,8 +13,6 @@ from gmnn_jax.data.input_pipeline import input_pipeline, pad_to_largest_element
 )
 def test_input_pipeline(example_atoms, pbc):
     batch_size = 2
-    with pytest.raises(ValueError):
-        input_pipeline(cutoff=6.0, batch_size=batch_size)
 
     ds = input_pipeline(cutoff=6.0, batch_size=batch_size, atoms_list=example_atoms)
 

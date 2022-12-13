@@ -32,7 +32,7 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
 
 
 class OptimizerConfig(BaseModel, frozen=True, extra=Extra.allow):
-    name: str = "adam"
+    opt_name: str = "adam"
     emb_lr: PositiveFloat = 0.02
     nn_lr: PositiveFloat = 0.03
     scale_lr: PositiveFloat = 0.001
@@ -57,7 +57,7 @@ class CallbackConfig(BaseModel, frozen=True, extra=Extra.allow):
 
 
 class Config(BaseModel, frozen=True, extra=Extra.forbid):
-    num_epochs: PositiveInt = 100
+    n_epochs: PositiveInt = 100
     seed: int = 1
 
     data: DataConfig

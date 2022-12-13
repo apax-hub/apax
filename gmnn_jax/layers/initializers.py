@@ -15,6 +15,7 @@ class NTKWeights(hk.initializers.Initializer):
         """Constructs a :class:`NTKWeights` initializer.
         Args:
         """
+        # TODO NEEDS TO BE CHECKED FOR CORRECTNESS
         self.raw_weight_factor = raw_weight_factor
 
     def __call__(self, shape: Sequence[int], dtype: Any) -> jnp.ndarray:
@@ -33,6 +34,7 @@ class NTKBias(hk.initializers.Initializer):
         """Constructs a :class:`NTKBias` initializer.
         Args:
         """
+        # TODO NEEDS TO BE CHECKED FOR CORRECTNESS
         self.bias_factor = bias_factor
 
     def __call__(self, shape: Sequence[int], dtype: Any) -> jnp.ndarray:
