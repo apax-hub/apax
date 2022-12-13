@@ -107,10 +107,10 @@ def calc_loss(model, params, inputs, labels, loss_fn):
     return loss, predictions
 
 
-@partial(jax.jit, static_argnames=["model"])
 def make_step_fns(loss_fn, Metrics, model):
     loss_calculator = partial(calc_loss, model=model, loss_fn=loss_fn)
 
+    @jax.jit
     def train_step(state, inputs, labels, batch_metrics):
         grad_fn = jax.value_and_grad(loss_calculator, 1, has_aux=True)
         (loss, predictions), grads = grad_fn(state.params, inputs, labels)
@@ -123,6 +123,7 @@ def make_step_fns(loss_fn, Metrics, model):
         batch_metrics = batch_metrics.merge(new_batch_metrics)
         return batch_metrics, loss, new_state
 
+    @jax.jit
     def val_step(state, inputs, labels, batch_metrics):
         loss, predictions = loss_calculator(state.params, inputs, labels)
 
