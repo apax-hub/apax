@@ -53,6 +53,21 @@ def pad_to_largest_element(
 
 
 class InputPipeline:
+    """Processes all inputs and labels and prepares them for the training cycle.
+    Parameters
+    ----------
+    cutoff :
+        Radial cutoff in angstrom for the neighbor list.
+    batch_size :
+        Number of strictures in one batch.
+    atoms_list :
+        List of all structures. Entries are ASE atoms objects.
+    buffer_size : optional
+        The number of structures that are shuffled for choosing the batches. Should be
+        significantly larger than the batch size. It is recommended to use the default
+        value.
+    """
+
     def __init__(
         self,
         cutoff: float,
@@ -60,6 +75,19 @@ class InputPipeline:
         batch_size: int,
         buffer_size: int = 1000,
     ) -> Type[tf.data.Dataset]:
+        """_summary_
+
+        Parameters
+        ----------
+        cutoff : _type_
+            _description_
+        atoms_list : _type_
+            _description_
+        batch_size : _type_
+            _description_
+        buffer_size : _type_, optional
+            _description_, by default 1000
+        """
         self.batch_size = batch_size
         self.buffer_size = buffer_size
 
@@ -112,6 +140,15 @@ class InputPipeline:
         return self.displacement_fn
 
     def __call__(self):
+        """Inputs and Labels are shuffled, padded (to the largest element in the batch),
+        and returned.
+
+        Returns
+        -------
+        ds :
+            A dataset that includes all data prepared for training e.g. split into
+            batches and padded. The dataset contains tf.Tensors.
+        """
         shuffled_ds = (
             self.ds.shuffle(buffer_size=self.buffer_size)
             .batch(batch_size=self.batch_size)
