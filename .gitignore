@@ -146,3 +146,6 @@ settings.json
 # logs
 *.csv
 tb_logs/
+*.pb
+ckpt*
+checkpoint*
