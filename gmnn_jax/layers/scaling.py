@@ -1,13 +1,20 @@
 from typing import Optional
 
 import einops
+import jax.numpy as jnp
 import haiku as hk
 
 
 class PerElementScaleShift(hk.Module):
     def __init__(self, scale, shift, n_species, name: Optional[str] = None):
         super().__init__(name)
-        shift = einops.repeat(shift, "atoms -> atoms 1")
+        if type(scale) == None:
+            scale = 1.0
+        if type(shift) == None:
+            shift = jnp.zeros(n_species)
+
+
+        shift = einops.repeat(shift, "species -> species 1")
 
         self.scale = hk.get_parameter(
             "scale_per_element",
