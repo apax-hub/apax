@@ -68,5 +68,5 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
     callbacks: List[CallbackConfig] = [CallbackConfig(name="csv")]
 
     def dump_config(self, save_path):
-        with open(os.path.join(save_path, "parameters.yaml"), "w") as conf:
+        with open(os.path.join(save_path, "config.yaml"), "w") as conf:
             yaml.dump(self.dict(), conf, default_flow_style=False)
