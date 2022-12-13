@@ -24,7 +24,7 @@ def fit(
     val_ds=None,
 ):
     log.info("Begining Training")
-    step_fn = get_step_fn(loss_fn, Metrics)
+    train_step, val_step = make_step_fns(loss_fn, Metrics)
     callbacks.on_train_begin()
     state, start_epoch = load_state(model, params, tx, ckpt_dir)
     async_manager = checkpoints.AsyncManager()
@@ -50,7 +50,7 @@ def fit(
             inputs = tf_to_jax_dict(inputs)
             labels = tf_to_jax_dict(labels)
 
-            train_batch_metrics, batch_loss, state = step_fn(
+            train_batch_metrics, batch_loss, state = train_step(
                 model, state, inputs, labels, train_batch_metrics
             )
             epoch_loss["train_loss"] += batch_loss
@@ -88,7 +88,7 @@ def fit(
         checkpoints.save_checkpoint(
             ckpt_dir=ckpt_dir,
             target=ckpt,
-            step=epoch,  # Should we use the true step here?
+            step=epoch,  # Should we use the true step here? Can we save both?
             overwrite=True,
             keep=2,
             async_manager=async_manager,
@@ -98,30 +98,19 @@ def fit(
         callbacks.on_epoch_end(epoch=epoch, logs=epoch_metrics)
 
 
-def get_loss(model, params, inputs, labels, loss_fn):
+def calc_loss(model, params, inputs, labels, loss_fn):
     R, Z, idx = inputs["positions"], inputs["numbers"], inputs["idx"]
     predictions = model(params, R, Z, idx)
     loss = loss_fn(inputs, labels, predictions)
     return loss, predictions
 
+@partial(jax.jit, static_argnames=["model"])
+def make_step_fns(loss_fn, Metrics, model):
+    loss_calculator = partial(calc_loss,  model=model, loss_fn=loss_fn)
 
-def val_step(model, state, Metrics, inputs, labels, batch_metrics, loss_fn):
-    batch_loss, predictions = get_loss(
-        model, state, Metrics, inputs, labels, loss_fn
-    )
-    new_metrics = Metrics.single_from_model_output(labels, predictions)
-    batch_metrics = batch_metrics.merge(new_metrics)
-    return batch_loss, batch_metrics
-
-def get_step_fn(loss_fn, Metrics):
-    # MS: I would suggest to rename these from get_* to something else
-    # as to not cause confusion with getter methods
-    get_loss_fn = partial(get_loss, loss_fn=loss_fn)
-
-    @partial(jax.jit, static_argnames=["model"])
-    def step(model, state, inputs, labels, batch_metrics):
-        grad_fn = jax.value_and_grad(get_loss_fn, 1, has_aux=True)
-        (loss, predictions), grads = grad_fn(model, state.params, inputs, labels)
+    def train_step(state, inputs, labels, batch_metrics):
+        grad_fn = jax.value_and_grad(loss_calculator, 1, has_aux=True)
+        (loss, predictions), grads = grad_fn(state.params, inputs, labels)
 
         new_state = state.apply_gradients(grads=grads)
 
@@ -131,4 +120,14 @@ def get_step_fn(loss_fn, Metrics):
         batch_metrics = batch_metrics.merge(new_batch_metrics)
         return batch_metrics, loss, new_state
 
-    return step
+
+    def val_step(state, inputs, labels, batch_metrics):
+        loss, predictions = loss_calculator(state.params, inputs, labels)
+        
+        new_batch_metrics = Metrics.single_from_model_output(
+            label=labels, prediction=predictions
+        )
+        batch_metrics = batch_metrics.merge(new_batch_metrics)
+        return batch_metrics, loss
+
+    return train_step, val_step
