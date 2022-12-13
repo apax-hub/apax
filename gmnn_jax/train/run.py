@@ -4,6 +4,7 @@ import os
 import uuid
 
 import jax
+import jax.numpy as jnp
 import tensorflow as tf
 import yaml
 from keras.callbacks import CSVLogger, TensorBoard
@@ -144,9 +145,9 @@ def run(user_config):
     log.info("Initializing Model")
     sample_inputs, _ = next(train_ds.take(1).as_numpy_iterator())
     R, Z, idx = (
-        sample_inputs["positions"][0],
-        sample_inputs["numbers"][0],
-        sample_inputs["idx"][0],
+        jnp.asarray(sample_inputs["positions"][0]),
+        jnp.asarray(sample_inputs["numbers"][0]),
+        jnp.asarray(sample_inputs["idx"][0]),
     )
 
     rng_key, model_rng_key = jax.random.split(rng_key, num=2)
