@@ -93,7 +93,7 @@ def input_pipeline(
 
     neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
-        box_size=cubic_box_size,
+        box=cubic_box_size,
         r_cutoff=cutoff,
         format=nl_format,
     )

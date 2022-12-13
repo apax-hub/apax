@@ -14,7 +14,7 @@ from gmnn_jax.data.input_pipeline import input_pipeline, pad_to_largest_element
 def test_input_pipeline(example_atoms, pbc):
     batch_size = 2
 
-    ds = input_pipeline(cutoff=6.0, batch_size=batch_size, atoms_list=example_atoms)
+    ds, _ = input_pipeline(cutoff=6.0, batch_size=batch_size, atoms_list=example_atoms)
 
     sample_inputs, sample_labels = next(ds.take(1).as_numpy_iterator())
     if pbc:
