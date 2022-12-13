@@ -21,22 +21,22 @@ def load_data(data_path):
     """
     # TODO get non-ASE labels from dict
     try:
+        log.info("Loading data from file")
         atoms_list = read(data_path, index=":")
         # TODO read non-ASE labels from file
-        log.info("Get data from file")
     except IOError:
         log.error(f"data_path ({data_path}) is not leading to file")
 
     return atoms_list
 
 
-def split_list(list, length1, length2):
+def split_list(data_list, length1, length2):
     """Schuffles and splits a list in two resulting lists
     of the length length1 and length2.
 
     Parameters
     ----------
-    list :
+    data_list :
         A list.
     length1 :
         Length of the first resulting list.
@@ -50,8 +50,8 @@ def split_list(list, length1, length2):
     splitted_list2
         List of random structures from atoms_list of the length length2.
     """
-    np.random.shuffle(list)
-    splitted_list1 = list[:length1]
-    splitted_list2 = list[length1:length2]
+    np.random.shuffle(data_list)
+    splitted_list1 = data_list[:length1]
+    splitted_list2 = data_list[length1 : length1 + length2]
 
     return splitted_list1, splitted_list2

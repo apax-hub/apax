@@ -1,17 +1,22 @@
+import dataclasses
 import logging
 import os
 import uuid
-from pathlib import Path
 
 import jax
+import tensorflow as tf
 import yaml
 from keras.callbacks import CSVLogger, TensorBoard
 
 from gmnn_jax.config import Config
+from gmnn_jax.data.input_pipeline import input_pipeline
+from gmnn_jax.data.statistics import energy_per_element
+from gmnn_jax.model.gmnn import get_training_model
 from gmnn_jax.optimizer import get_opt
 from gmnn_jax.train.loss import Loss, LossCollection
 from gmnn_jax.train.metrics import initialize_metrics
-from gmnn_jax.train.trainer import Trainer
+from gmnn_jax.train.trainer import fit
+from gmnn_jax.utils.data import load_data, split_list
 from gmnn_jax.utils.random import seed_py_np_tf
 
 log = logging.getLogger(__name__)
@@ -28,6 +33,11 @@ def init_directories(model_name, model_path):
     model_version_path = os.path.join(model_path, directory)
     os.makedirs(model_version_path, exist_ok=True)
     return model_version_path
+
+
+@dataclasses.dataclass
+class TFModelSpoof:
+    stop_training = False
 
 
 def initialize_callbacks(config, model_version_path):
@@ -58,7 +68,7 @@ def initialize_callbacks(config, model_version_path):
         callback = callback_info["class"](**path, **kwargs)
         callbacks.append(callback)
 
-    return callbacks
+    return tf.keras.callbacks.CallbackList([callback], model=TFModelSpoof())
 
 
 def initialize_loss_fn(config):
@@ -83,13 +93,7 @@ def run(user_config):
     model_version_path = init_directories(config.data.model_name, config.data.model_path)
     config.dump_config(model_version_path)
 
-    # init model
-    model = None
-    transition_steps = 5  # preliminary, need to get steps per epoch from ds
-    tx = get_opt(transition_steps=transition_steps, **config.optimizer.dict())
-
     callbacks = initialize_callbacks(config, model_version_path)
-    # init checkpoints? maybe in trainer
 
     loss_fn = initialize_loss_fn(config)
 
@@ -102,9 +106,70 @@ def run(user_config):
     Metrics = initialize_metrics(keys, reductions)
 
     log.info("Running Input Pipeline")
-    # input pipeline
-    datasets = None
+    atoms_list = load_data(config.data.data_path)
+    train_val_tuple = split_list(atoms_list, config.data.n_train, config.data.n_valid)
+    train_atoms_list, val_atoms_list = train_val_tuple
 
-    log.info("Begining Training")
-    trainer = Trainer(model, tx, datasets, loss_fn, Metrics, callbacks)
-    trainer.fit()
+    ds_stats = energy_per_element(
+        train_atoms_list, lambd=config.data.energy_regularisation
+    )
+
+    train_ds, displacement_fn = input_pipeline(
+        config.model.r_max,
+        config.data.batch_size,
+        train_atoms_list,
+        config.data.shuffle_buffer_size,
+    )
+    val_ds, _ = input_pipeline(
+        config.model.r_max,
+        config.data.valid_batch_size,
+        val_atoms_list,
+        config.data.shuffle_buffer_size,
+    )
+
+    n_atoms = ds_stats.n_atoms
+    n_species = ds_stats.n_species
+    displacement_fn = displacement_fn
+    model_init, model = get_training_model(
+        n_atoms=n_atoms,
+        # ^This is going to make problems when training on differently sized molecules.
+        # we may need to check batch shapes and manually initialize a new model
+        # when a new size is encountered...
+        n_species=n_species,
+        displacement_fn=displacement_fn,
+        elemental_energies_mean=ds_stats.elemental_shift,
+        elemental_energies_std=ds_stats.elemental_scale,
+        **config.model.dict()
+    )
+    log.info("Initializing Model")
+    sample_inputs, _ = next(train_ds.take(1).as_numpy_iterator())
+    R, Z, idx = (
+        sample_inputs["positions"][0],
+        sample_inputs["numbers"][0],
+        sample_inputs["idx"][0],
+    )
+
+    rng_key, model_rng_key = jax.random.split(rng_key, num=2)
+    params = model_init(model_rng_key, R, Z, idx)
+    batched_model = jax.vmap(model, in_axes=(None, 0, 0, 0))
+
+    # preliminary, need to get steps per epoch from ds
+    steps_per_epoch = config.data.n_train // config.data.batch_size
+    # TODO check out dataset drop last
+    n_epochs = config.n_epochs
+    n_warmup = config.optimizer.transition_begin
+    transition_steps = steps_per_epoch * n_epochs - n_warmup
+    tx = get_opt(transition_steps=transition_steps, **config.optimizer.dict())
+
+    fit(
+        batched_model,
+        params,
+        tx,
+        train_ds,
+        loss_fn,
+        Metrics,
+        callbacks,
+        n_epochs,
+        ckpt_dir=config.data.model_path,
+        val_ds=val_ds,
+    )

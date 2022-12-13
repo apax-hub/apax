@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 from typing import Callable, List, Optional, Tuple
 
@@ -25,13 +26,14 @@ class GMNN(hk.Module):
         self,
         units: List[int],
         displacement: DisplacementFn,
-        n_basis: int = 5,
-        n_radial: int = 4,
-        n_species: int = 10,
-        n_atoms: int = 3,
+        n_atoms: int,
+        n_basis: int = 7,
+        n_radial: int = 5,
+        n_species: int = 119,
         r_min: float = 0.5,
         r_max: float = 6.0,
-        use_all_features: bool = True,
+        elemental_energies_mean: Optional[Array] = None,
+        elemental_energies_std: Optional[Array] = None,
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -44,7 +46,6 @@ class GMNN(hk.Module):
             n_atoms,
             r_min,
             r_max,
-            use_all_features=use_all_features,
             name="descriptor",
         )
 
@@ -63,13 +64,17 @@ class GMNN(hk.Module):
         self.dense3 = CompatLinear(1, name="dense3")
 
         self.scale_shift = PerElementScaleShift(
-            scale=2.0, shift=1.0, n_species=n_species, name="scale_shift"
+            scale=elemental_energies_std,
+            shift=elemental_energies_mean,
+            n_species=n_species,
+            name="scale_shift",
         )
 
     def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList) -> Array:
         gm = self.descriptor(R, Z, neighbor)
 
-        h = jax.vmap(self.dense1)(gm)  # why is hk.vmap not required here?
+        # why is hk.vmap not required here?
+        h = jax.vmap(self.dense1)(gm)
         h = swish(h)
         h = jax.vmap(self.dense2)(h)
         h = swish(h)
@@ -82,10 +87,10 @@ class GMNN(hk.Module):
 
 def get_md_model(
     atomic_numbers: Array,
-    units: List[int],
     displacement: DisplacementFn,
+    nn: List[int],
     box_size: float = 10.0,
-    cutoff_distance: float = 6.0,
+    r_max: float = 6.0,
     n_basis: int = 7,
     n_radial: int = 5,
     dr_threshold: float = 0.5,
@@ -95,7 +100,7 @@ def get_md_model(
     neighbor_fn = partition.neighbor_list(
         displacement,
         box_size,
-        cutoff_distance,
+        r_max,
         dr_threshold,
         fractional_coordinates=False,
         format=nl_format,
@@ -110,12 +115,13 @@ def get_md_model(
     @hk.transform
     def model(R, neighbor):
         gmnn = GMNN(
-            units,
+            nn,
             displacement,
             n_atoms=n_atoms,
             n_basis=n_basis,
             n_radial=n_radial,
             n_species=n_species,
+            r_max=r_max,
         )
         out = gmnn(R, Z, neighbor)
         return high_precision_sum(out)
@@ -123,32 +129,52 @@ def get_md_model(
     return neighbor_fn, model.init, model.apply
 
 
+@dataclasses.dataclass
+class NeighborSpoof:
+    idx: jnp.array
+
+
 def get_training_model(
-    n_species: int,
     n_atoms: int,
-    units: List[int],
-    displacement: DisplacementFn,
+    n_species: int,
+    displacement_fn: DisplacementFn,
+    nn: List[int],
     n_basis: int = 7,
     n_radial: int = 5,
-    cutoff_distance: float = 6.0,
+    r_min: float = 0.5,
+    r_max: float = 6.0,
+    elemental_energies_mean: Optional[Array] = None,
+    elemental_energies_std: Optional[Array] = None,
 ) -> Tuple[Callable, Callable]:
-    log.info("Initializing Model")
+    log.info("Bulding Model")
 
     @hk.without_apply_rng
     @hk.transform
-    def model(R, Z, neighbor):
+    def model(R, Z, idx):
         gmnn = GMNN(
-            units,
-            displacement,
+            nn,
+            displacement_fn,
             n_atoms=n_atoms,
             n_basis=n_basis,
             n_radial=n_radial,
             n_species=n_species,
+            r_min=r_min,
+            r_max=r_max,
+            elemental_energies_mean=elemental_energies_mean,
+            elemental_energies_std=elemental_energies_std,
         )
-        out = gmnn(R, Z, neighbor)
-        # mask = partition.neighbor_list_mask(neighbor)
-        # out = out * mask
-        # prediction = {"energy":, "forces":}
-        return high_precision_sum(out)
+        neighbor = NeighborSpoof(idx)
+
+        def energy_fn(R, Z, neighbor):
+            out = gmnn(R, Z, neighbor)
+            # mask = partition.neighbor_list_mask(neighbor)
+            # out = out * mask
+            energy = high_precision_sum(out)
+            return energy
+
+        energy, neg_forces = jax.value_and_grad(energy_fn)(R, Z, neighbor)
+        forces = -neg_forces
+        prediction = {"energy": energy, "forces": forces}
+        return prediction
 
     return model.init, model.apply

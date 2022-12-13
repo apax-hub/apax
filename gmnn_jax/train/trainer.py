@@ -1,36 +1,44 @@
+import logging
 import time
 from functools import partial
 
 import jax
+from flax.training import checkpoints
 
+from gmnn_jax.train.checkpoints import load_state
 from gmnn_jax.utils.convert import tf_to_jax_dict
+
+log = logging.getLogger(__name__)
 
 
 def fit(
-    self,
     model,
+    params,
     tx,
     train_ds,
     loss_fn,
     Metrics,
     callbacks,
-    max_epoch,
+    n_epochs,
+    ckpt_dir,
     val_ds=None,
 ):
-    train_step_fn = get_train_step_fn(loss_fn)
+    log.info("Begining Training")
+    step_fn = get_step_fn(loss_fn, Metrics)
     callbacks.on_train_begin()
-    # TODO epoch from load state / state
-    epoch = 0
-    if epoch >= self.max_epoch:
+    state, start_epoch = load_state(model, params, tx, ckpt_dir)
+    async_manager = checkpoints.AsyncManager()
+
+    if start_epoch >= n_epochs:
         raise ValueError(
-            f"max_epoch <= current epoch from checkpoint ({self.max_epoch} <= {epoch})"
+            f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
 
-    epoch_start_time = time.time()
-    for epoch in range(max_epoch):
+    for epoch in range(start_epoch, n_epochs):
+        epoch_start_time = time.time()
+        print("EPOCH", epoch)
         callbacks.on_epoch_begin(epoch=epoch)
 
-        epoch += 1
         train_batch_metrics = Metrics.empty()
         val_batch_metrics = Metrics.empty()
         epoch_loss = {"train_loss": 0, "val_loss": 0}
@@ -42,14 +50,15 @@ def fit(
             inputs = tf_to_jax_dict(inputs)
             labels = tf_to_jax_dict(labels)
 
-            train_batch_metrics, batch_loss, state = train_step_fn(
-                model, state, Metrics, inputs, labels, train_batch_metrics
+            train_batch_metrics, batch_loss, state = step_fn(
+                model, state, inputs, labels, train_batch_metrics
             )
             epoch_loss["train_loss"] += batch_loss
 
             train_batch_step = batch_idx
             callbacks.on_train_batch_end(batch=batch_idx)
         epoch_loss["train_loss"] /= train_batch_step
+        epoch_loss["train_loss"] = float(epoch_loss["train_loss"])
 
         if val_ds is not None:
             for batch_idx, data in enumerate(val_ds):
@@ -64,22 +73,35 @@ def fit(
             epoch_loss["val_loss"] /= val_batch_step
 
         train_epoch_metrics = {
-            f"train_{key}": val for key, val in train_batch_metrics.compute().items()
+            f"train_{key}": float(val)
+            for key, val in train_batch_metrics.compute().items()
         }
         val_epoch_metrics = {
-            f"val_{key}": val for key, val in val_batch_metrics.compute().items()
+            f"val_{key}": float(val) for key, val in val_batch_metrics.compute().items()
         }
         epoch_metrics = {**train_epoch_metrics, **val_epoch_metrics, **epoch_loss}
 
         epoch_end_time = time.time()
         epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
 
+        ckpt = {"model": state, "epoch": epoch}
+        checkpoints.save_checkpoint(
+            ckpt_dir=ckpt_dir,
+            target=ckpt,
+            step=epoch,  # Should we use the true step here?
+            overwrite=True,
+            keep=2,
+            async_manager=async_manager,
+        )
+        # TODO Save best
+        print(epoch_metrics)
         callbacks.on_epoch_end(epoch=epoch, logs=epoch_metrics)
 
 
 def get_loss(model, params, inputs, labels, loss_fn):
-    predictions = model(params, inputs)
-    loss = loss_fn(labels, predictions)
+    R, Z, idx = inputs["positions"], inputs["numbers"], inputs["idx"]
+    predictions = model(params, R, Z, idx)
+    loss = loss_fn(inputs, labels, predictions)
     return loss, predictions
 
 
@@ -91,18 +113,22 @@ def val_step(model, state, Metrics, inputs, labels, batch_metrics, loss_fn):
     batch_metrics = batch_metrics.merge(new_metrics)
     return batch_loss, batch_metrics
 
-def get_train_step_fn(loss_fn):
+def get_step_fn(loss_fn, Metrics):
+    # MS: I would suggest to rename these from get_* to something else
+    # as to not cause confusion with getter methods
     get_loss_fn = partial(get_loss, loss_fn=loss_fn)
 
     @partial(jax.jit, static_argnames=["model"])
-    def train_step(model, state, Metrics, inputs, labels, batch_metrics):
-        grad_fn = jax.grad(get_loss_fn, 1, has_aux=True)
-        loss, predictions, grads = grad_fn(model, state.params, inputs, labels)
+    def step(model, state, inputs, labels, batch_metrics):
+        grad_fn = jax.value_and_grad(get_loss_fn, 1, has_aux=True)
+        (loss, predictions), grads = grad_fn(model, state.params, inputs, labels)
 
         new_state = state.apply_gradients(grads=grads)
 
-        new_batch_metrics = Metrics.single_from_model_output(labels, predictions)
+        new_batch_metrics = Metrics.single_from_model_output(
+            label=labels, prediction=predictions
+        )
         batch_metrics = batch_metrics.merge(new_batch_metrics)
         return batch_metrics, loss, new_state
 
-    return train_step
+    return step

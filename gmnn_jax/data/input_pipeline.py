@@ -93,7 +93,7 @@ def input_pipeline(
 
     neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
-        box=cubic_box_size,
+        box_size=cubic_box_size,
         r_cutoff=cutoff,
         format=nl_format,
     )
@@ -132,4 +132,4 @@ def input_pipeline(
         .map(pad_to_largest_element)
     )
 
-    return ds
+    return ds, displacement_fn
