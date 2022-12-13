@@ -43,7 +43,8 @@ def fit(
         val_batch_metrics = Metrics.empty()
         epoch_loss = {"train_loss": 0, "val_loss": 0}
 
-        for batch_idx, data in enumerate(train_ds):
+        batch_train_ds = train_ds()
+        for batch_idx, data in enumerate(batch_train_ds):
             callbacks.on_train_batch_begin(batch=batch_idx)
 
             inputs, labels = data
@@ -61,7 +62,8 @@ def fit(
         epoch_loss["train_loss"] = float(epoch_loss["train_loss"])
 
         if val_ds is not None:
-            for batch_idx, data in enumerate(val_ds):
+            batch_val_ds = val_ds()
+            for batch_idx, data in enumerate(batch_val_ds):
                 inputs, labels = data
                 inputs = tf_to_jax_dict(inputs)
                 labels = tf_to_jax_dict(labels)

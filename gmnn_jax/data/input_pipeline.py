@@ -51,85 +51,70 @@ def pad_to_largest_element(
 
     return inputs, labels
 
+class InputPipeline():
+    def __init__(
+        self,
+        cutoff: float,
+        atoms_list: list,
+        batch_size: int,
+        buffer_size: int = 1000,
+        ) -> Type[tf.data.Dataset]:
+        
+        self.batch_size = batch_size
+        self.buffer_size = buffer_size
 
-def input_pipeline(
-    cutoff: float,
-    batch_size: int,
-    atoms_list: list,
-    buffer_size: int = 1000,
-) -> Type[tf.data.Dataset]:
-    """Processes all inputs and labels and prepares them for the training cycle.
-    Inputs and Labels are padded to the largest element in the batch.
+        inputs, labels = convert_atoms_to_arrays(atoms_list)
+        cubic_box_size = 100
 
-    Parameters
-    ----------
-    cutoff :
-        Radial cutoff in angstrom for the neighbor list.
-    batch_size :
-        Number of strictures in one batch.
-    atoms_list :
-        List of all structures. Entries are ASE atoms objects.
-    buffer_size : optional
-        The number of structures that are shuffled for choosing the batches. Should be
-        significantly larger than the batch size. It is recommended to use the default
-        value.
+        nl_format = partition.Sparse
+        if "cell" in inputs["fixed"]:
+            cubic_box_size = inputs["fixed"]["cell"][0][0]
+            self.displacement_fn, _ = space.periodic(cubic_box_size)
+        else:
+            self.displacement_fn, _ = space.free()
 
-    Returns
-    -------
-    ds :
-        A dataset that includes all data prepared for training e.g. split into
-        batches and padded. The dataset contains tf.Tensors.
-    """
-
-    inputs, labels = convert_atoms_to_arrays(atoms_list)
-    cubic_box_size = 100
-
-    nl_format = partition.Sparse
-    if "cell" in inputs["fixed"]:
-        cubic_box_size = inputs["fixed"]["cell"][0][0]
-        displacement_fn, _ = space.periodic(cubic_box_size)
-    else:
-        displacement_fn, _ = space.free()
-
-    neighbor_fn = partition.neighbor_list(
-        displacement_or_metric=displacement_fn,
-        box=cubic_box_size,
-        r_cutoff=cutoff,
-        format=nl_format,
-    )
-
-    idx = dataset_neighborlist(
-        neighbor_fn,
-        inputs["ragged"]["positions"],
-        inputs["fixed"]["n_atoms"],
-    )
-    inputs["ragged"]["idx"] = []
-    for i in idx:
-        inputs["ragged"]["idx"].append(np.array(i))
-
-    for key, val in inputs["ragged"].items():
-        inputs["ragged"][key] = tf.ragged.constant(val)
-    for key, val in inputs["fixed"].items():
-        inputs["fixed"][key] = tf.constant(val)
-
-    for key, val in labels["ragged"].items():
-        labels["ragged"][key] = tf.ragged.constant(val)
-    for key, val in labels["fixed"].items():
-        labels["fixed"][key] = tf.constant(val)
-
-    ds = tf.data.Dataset.from_tensor_slices(
-        (
-            inputs["ragged"],
-            inputs["fixed"],
-            labels["ragged"],
-            labels["fixed"],
+        neighbor_fn = partition.neighbor_list(
+            displacement_or_metric=self.displacement_fn,
+            box=cubic_box_size,
+            r_cutoff=cutoff,
+            format=nl_format,
         )
-    )
 
-    ds = (
-        ds.shuffle(buffer_size=buffer_size)
-        .batch(batch_size=batch_size)
-        .map(pad_to_largest_element)
-    )
+        idx = dataset_neighborlist(
+            neighbor_fn,
+            inputs["ragged"]["positions"],
+            inputs["fixed"]["n_atoms"],
+        )
+        inputs["ragged"]["idx"] = []
+        for i in idx:
+            inputs["ragged"]["idx"].append(np.array(i))
 
-    return ds, displacement_fn
+        for key, val in inputs["ragged"].items():
+            inputs["ragged"][key] = tf.ragged.constant(val)
+        for key, val in inputs["fixed"].items():
+            inputs["fixed"][key] = tf.constant(val)
+
+        for key, val in labels["ragged"].items():
+            labels["ragged"][key] = tf.ragged.constant(val)
+        for key, val in labels["fixed"].items():
+            labels["fixed"][key] = tf.constant(val)
+
+        self.ds = tf.data.Dataset.from_tensor_slices(
+            (
+                inputs["ragged"],
+                inputs["fixed"],
+                labels["ragged"],
+                labels["fixed"],
+            )
+        )
+
+    def get_displacement_fn(self):
+        return self.displacement_fn
+
+    def __call__(self):
+        shuffled_ds = (
+            self.ds.shuffle(buffer_size=self.buffer_size)
+            .batch(batch_size=self.batch_size)
+            .map(pad_to_largest_element)
+        )
+        return shuffled_ds

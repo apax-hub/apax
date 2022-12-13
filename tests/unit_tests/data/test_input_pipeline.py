@@ -1,7 +1,7 @@
 import pytest
 import tensorflow as tf
 
-from gmnn_jax.data.input_pipeline import input_pipeline, pad_to_largest_element
+from gmnn_jax.data.input_pipeline import InputPipeline, pad_to_largest_element
 
 
 @pytest.mark.parametrize(
@@ -14,9 +14,10 @@ from gmnn_jax.data.input_pipeline import input_pipeline, pad_to_largest_element
 def test_input_pipeline(example_atoms, pbc):
     batch_size = 2
 
-    ds, _ = input_pipeline(cutoff=6.0, batch_size=batch_size, atoms_list=example_atoms)
+    ds = InputPipeline(cutoff=6.0, batch_size=batch_size, atoms_list=example_atoms)
 
-    sample_inputs, sample_labels = next(ds.take(1).as_numpy_iterator())
+    sample_inputs, sample_labels = next(ds().take(1).as_numpy_iterator())
+
     if pbc:
         assert "cell" in sample_inputs
         assert len(sample_inputs["cell"]) == batch_size
@@ -47,6 +48,8 @@ def test_input_pipeline(example_atoms, pbc):
     for i in range(batch_size):
         assert len(sample_labels["forces"][i]) == max(sample_inputs["n_atoms"])
 
+    sample_inputs2, _ = next(ds().take(1).as_numpy_iterator())
+    assert (sample_inputs["positions"][0][0] != sample_inputs2["positions"][0][0]).all()
 
 def test_pad_to_largest_element():
     r_inp = {"idx": tf.ragged.constant([[1, 4, 3], [4, 5, 2, 3, 1]])}

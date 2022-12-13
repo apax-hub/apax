@@ -9,7 +9,7 @@ import yaml
 from keras.callbacks import CSVLogger, TensorBoard
 
 from gmnn_jax.config import Config
-from gmnn_jax.data.input_pipeline import input_pipeline
+from gmnn_jax.data.input_pipeline import InputPipeline
 from gmnn_jax.data.statistics import energy_per_element
 from gmnn_jax.model.gmnn import get_training_model
 from gmnn_jax.optimizer import get_opt
@@ -114,13 +114,13 @@ def run(user_config):
         train_atoms_list, lambd=config.data.energy_regularisation
     )
 
-    train_ds, displacement_fn = input_pipeline(
+    train_ds = InputPipeline(
         config.model.r_max,
         config.data.batch_size,
         train_atoms_list,
         config.data.shuffle_buffer_size,
     )
-    val_ds, _ = input_pipeline(
+    val_ds = InputPipeline(
         config.model.r_max,
         config.data.valid_batch_size,
         val_atoms_list,
@@ -129,7 +129,7 @@ def run(user_config):
 
     n_atoms = ds_stats.n_atoms
     n_species = ds_stats.n_species
-    displacement_fn = displacement_fn
+    displacement_fn = train_ds.get_displacement_fn()
     model_init, model = get_training_model(
         n_atoms=n_atoms,
         # ^This is going to make problems when training on differently sized molecules.
