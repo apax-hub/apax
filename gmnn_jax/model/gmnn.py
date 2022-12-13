@@ -5,6 +5,7 @@ from typing import Callable, List, Optional, Tuple
 import haiku as hk
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax_md import partition
 from jax_md.util import Array, high_precision_sum
 
@@ -109,7 +110,9 @@ def get_md_model(
 
     n_atoms = atomic_numbers.shape[0]
     Z = jnp.asarray(atomic_numbers)
-    n_species = jnp.max(Z)
+    # casting ot python int prevents n_species from becoming a tracer,
+    # which causes issues in the NVT `apply_fn`
+    n_species = int(np.max(Z) + 1)
 
     @hk.without_apply_rng
     @hk.transform
