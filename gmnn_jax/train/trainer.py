@@ -66,7 +66,9 @@ def fit(
                 inputs = tf_to_jax_dict(inputs)
                 labels = tf_to_jax_dict(labels)
 
-                batch_loss, val_batch_metrics = val_step(model, state, Metrics, inputs, labels, val_batch_metrics, loss_fn)
+                batch_loss, val_batch_metrics = val_step(
+                    model, state, Metrics, inputs, labels, val_batch_metrics, loss_fn
+                )
 
                 epoch_loss["val_loss"] += batch_loss
                 val_batch_step = batch_idx
@@ -104,9 +106,10 @@ def calc_loss(model, params, inputs, labels, loss_fn):
     loss = loss_fn(inputs, labels, predictions)
     return loss, predictions
 
+
 @partial(jax.jit, static_argnames=["model"])
 def make_step_fns(loss_fn, Metrics, model):
-    loss_calculator = partial(calc_loss,  model=model, loss_fn=loss_fn)
+    loss_calculator = partial(calc_loss, model=model, loss_fn=loss_fn)
 
     def train_step(state, inputs, labels, batch_metrics):
         grad_fn = jax.value_and_grad(loss_calculator, 1, has_aux=True)
@@ -120,10 +123,9 @@ def make_step_fns(loss_fn, Metrics, model):
         batch_metrics = batch_metrics.merge(new_batch_metrics)
         return batch_metrics, loss, new_state
 
-
     def val_step(state, inputs, labels, batch_metrics):
         loss, predictions = loss_calculator(state.params, inputs, labels)
-        
+
         new_batch_metrics = Metrics.single_from_model_output(
             label=labels, prediction=predictions
         )
