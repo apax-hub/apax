@@ -58,7 +58,7 @@ class GaussianMomentDescriptor(hk.Module):
         # dr shape: neighbors
         dr = self.metric(R[neighbor.idx[0]], R[neighbor.idx[1]])
 
-        dr_repeated = einops.repeat(dr, "neighbors -> neighbors 1")
+        dr_repeated = einops.repeat(dr + 1e-5, "neighbors -> neighbors 1")
         # normalized distance vectors, shape neighbors x 3
         dn = dr_vec / dr_repeated
 

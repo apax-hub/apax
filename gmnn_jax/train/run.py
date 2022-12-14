@@ -4,6 +4,7 @@ import os
 import uuid
 
 import jax
+import jax.numpy as jnp
 import tensorflow as tf
 import yaml
 from keras.callbacks import CSVLogger, TensorBoard
@@ -95,6 +96,18 @@ def run(user_config):
 
     callbacks = initialize_callbacks(config, model_version_path)
 
+    
+    maximize_l2_cache = True
+    if maximize_l2_cache:
+        import ctypes
+        _libcudart = ctypes.CDLL('libcudart.so')
+        # Set device limit on the current device
+        # cudaLimitMaxL2FetchGranularity = 0x05
+        pValue = ctypes.cast((ctypes.c_int*1)(), ctypes.POINTER(ctypes.c_int))
+        _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
+        _libcudart.cudaDeviceGetLimit(pValue, ctypes.c_int(0x05))
+        assert pValue.contents.value == 128
+
     loss_fn = initialize_loss_fn(config)
 
     keys = []
@@ -144,9 +157,9 @@ def run(user_config):
     log.info("Initializing Model")
     sample_inputs, _ = next(train_ds.take(1).as_numpy_iterator())
     R, Z, idx = (
-        sample_inputs["positions"][0],
-        sample_inputs["numbers"][0],
-        sample_inputs["idx"][0],
+        jnp.asarray(sample_inputs["positions"][0]),
+        jnp.asarray(sample_inputs["numbers"][0]),
+        jnp.asarray(sample_inputs["idx"][0]),
     )
 
     rng_key, model_rng_key = jax.random.split(rng_key, num=2)

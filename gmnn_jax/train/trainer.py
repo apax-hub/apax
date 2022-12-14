@@ -6,7 +6,7 @@ import jax
 from flax.training import checkpoints
 
 from gmnn_jax.train.checkpoints import load_state
-from gmnn_jax.utils.convert import tf_to_jax_dict
+from gmnn_jax.data.preprocessing import prefetch_to_single_device
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ def fit(
     callbacks.on_train_begin()
     state, start_epoch = load_state(model, params, tx, ckpt_dir)
     async_manager = checkpoints.AsyncManager()
-
+    
     if start_epoch >= n_epochs:
         raise ValueError(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
@@ -36,29 +36,30 @@ def fit(
 
     for epoch in range(start_epoch, n_epochs):
         epoch_start_time = time.time()
-        print("EPOCH", epoch)
         callbacks.on_epoch_begin(epoch=epoch)
 
         train_batch_metrics = Metrics.empty()
         val_batch_metrics = Metrics.empty()
         epoch_loss = {"train_loss": 0, "val_loss": 0}
 
-        batch_train_ds = train_ds()
-        for batch_idx, data in enumerate(batch_train_ds):
-            callbacks.on_train_batch_begin(batch=batch_idx)
+        epoch_train_ds = train_ds()
+#        epoch_train_ds = prefetch_to_single_device(epoch_train_ds, 2)
 
+        
+        for batch_idx, data in enumerate(epoch_train_ds):
+
+            callbacks.on_train_batch_begin(batch=batch_idx)
             inputs, labels = data
-            inputs = tf_to_jax_dict(inputs)
-            labels = tf_to_jax_dict(labels)
 
             train_batch_metrics, batch_loss, state = train_step(
                 model, state, inputs, labels, train_batch_metrics
             )
-            epoch_loss["train_loss"] += batch_loss
+            # print(batch_idx, batch_loss)
+            epoch_loss["train_loss"] = epoch_loss["train_loss"] + batch_loss
 
-            train_batch_step = batch_idx
             callbacks.on_train_batch_end(batch=batch_idx)
-        epoch_loss["train_loss"] /= train_batch_step
+
+        epoch_loss["train_loss"] /= batch_idx
         epoch_loss["train_loss"] = float(epoch_loss["train_loss"])
 
         if val_ds is not None:
@@ -80,10 +81,11 @@ def fit(
             f"train_{key}": float(val)
             for key, val in train_batch_metrics.compute().items()
         }
-        val_epoch_metrics = {
-            f"val_{key}": float(val) for key, val in val_batch_metrics.compute().items()
-        }
-        epoch_metrics = {**train_epoch_metrics, **val_epoch_metrics, **epoch_loss}
+        # val_epoch_metrics = {
+        #     f"val_{key}": float(val) for key, val in val_batch_metrics.compute().items()
+        # }
+        # **val_epoch_metrics
+        epoch_metrics = {**train_epoch_metrics, **epoch_loss}
 
         epoch_end_time = time.time()
         epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
@@ -98,7 +100,6 @@ def fit(
             async_manager=async_manager,
         )
         # TODO Save best
-        print(epoch_metrics)
         callbacks.on_epoch_end(epoch=epoch, logs=epoch_metrics)
 
 
