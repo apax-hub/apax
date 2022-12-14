@@ -12,6 +12,7 @@ from ase.io import read
 from ase.io.trajectory import TrajectoryWriter
 from flax.training import checkpoints
 from jax_md import simulate, space
+from jax_md.util import Array
 
 from gmnn_jax.config import Config, MDConfig
 from gmnn_jax.md.md_checkpoint import load_md_state, look_for_checkpoints
@@ -21,23 +22,61 @@ log = logging.getLogger(__name__)
 
 
 def run_nvt(
-    R,
-    atomic_numbers,
-    masses,
-    box,
+    R: Array,
+    atomic_numbers: Array,
+    masses: Array,
+    box: float,
     energy_fn,
     neighbor_fn,
     shift_fn,
-    dt,
-    temperature,
-    n_steps,
-    n_inner,
-    extra_capacity,
-    rng_key,
-    restart=True,
-    sim_dir=".",
-    traj_name="nvt.traj",
+    dt: float,
+    temperature: float,
+    n_steps: int,
+    n_inner: int,
+    extra_capacity: int,
+    rng_key: int,
+    restart: bool=True,
+    sim_dir: str=".",
+    traj_name: str="nvt.traj",
 ):
+    """
+    Performs NVT MD.
+
+    Parameters
+    ----------
+    R:
+        Initial positions in Angstrom.
+    atomic_numbers:
+        Atomic numbers of the system.
+    masses:
+        Atomic masses in ASE units.
+    box:
+        Side length of the cubic box.
+    energy_fn:
+        Interatomic potential.
+    neighbor_fn:
+        Neighborlist function.
+    shift_fn:
+        Shift function for the integrator.
+    dt:
+        Time step in fs.
+    temperature:
+        Temperature of the system in K.
+    n_steps:
+        Total time steps.
+    n_inner:
+        JIT compiled inner loop. Also determines the dump interval.
+    extra_capacity:
+        Extra capacity for the neighborlist.
+    rng_key:
+        RNG key used to initialize the simulation.
+    restart:
+        Whether a checkpoint should be loaded. No implemented yet.
+    sim_dir:
+        Directory where the trajectory and (soon) simulation checkpoints will be saved.
+    traj_name:
+        File name of the ASE trajectory.
+    """
     sim_time = dt * n_steps
     K_B = 8.617e-5
     dt = dt * units.fs
@@ -104,7 +143,35 @@ def run_nvt(
     log.info("simulation finished after elapsed time: %.2f s", elapsed_time)
 
 
-def md_setup(model_config, md_config):
+def md_setup(model_config: Config, md_config: MDConfig):
+    """
+    Sets up the energy and neighborlist functions for an MD simulation,
+    loads the initial structure.
+
+    Parameters
+    ----------
+    model_config:
+        Configuration of the model used as an interatomic potential.
+    md_config:
+        configuration of the MD simulation.
+
+    Returns
+    -------
+    R:
+        Initial positions in Angstrom.
+    atomic_numbers:
+        Atomic numbers of the system.
+    masses:
+        Atomic masses in ASE units.
+    box:
+        Side length of the cubic box.
+    energy_fn:
+        Interatomic potential.
+    neighbor_fn:
+        Neighborlist function.
+    shift_fn:
+        Shift function for the integrator.
+    """
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
 
@@ -137,7 +204,18 @@ def md_setup(model_config, md_config):
     return R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn
 
 
-def run_md(model_config, md_config):
+def run_md(model_config: Config, md_config: MDConfig):
+    """
+    Utiliy function to start NVT molecualr dynamics simulations from
+    a previousy trained model.
+
+    Parameters
+    ----------
+    model_config:
+        Configuration of the model used as an interatomic potential.
+    md_config:
+        configuration of the MD simulation.
+    """
     log.info("loading configs for md")
     if isinstance(model_config, str):
         with open(model_config, "r") as stream:
