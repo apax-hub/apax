@@ -5,7 +5,6 @@ from pydantic import BaseModel, Extra, PositiveFloat, PositiveInt
 
 
 class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
-    ckpt_dir: str
     seed: int = 1
 
     temperature: PositiveFloat
