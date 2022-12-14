@@ -1,5 +1,7 @@
 import glob
+
 from flax.training import checkpoints
+
 
 def look_for_checkpoints(sim_dir):
     checkpoints_exist = glob.glob(sim_dir, "checkpoint*")
@@ -15,4 +17,3 @@ def load_md_state(sim_dir):
     state = raw_restored["state"]
     step = raw_restored["step"]
     return state, step
-

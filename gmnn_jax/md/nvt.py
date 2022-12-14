@@ -14,8 +14,8 @@ from flax.training import checkpoints
 from jax_md import simulate, space
 
 from gmnn_jax.config import Config, MDConfig
-from gmnn_jax.model.gmnn import get_md_model
 from gmnn_jax.md.md_checkpoint import load_md_state, look_for_checkpoints
+from gmnn_jax.model.gmnn import get_md_model
 
 log = logging.getLogger(__name__)
 
@@ -43,13 +43,13 @@ def run_nvt(
     dt = dt * units.fs
     kT = K_B * temperature
     step = 0
-    checkpoint_interval = 10 # TODO will be supplied in the future
+    checkpoint_interval = 10  # TODO will be supplied in the future
 
     log.info("initializing simulation")
     neighbor = neighbor_fn.allocate(R, extra_capacity=extra_capacity)
     init_fn, apply_fn = simulate.nvt_nose_hoover(energy_fn, shift_fn, dt, kT)
     # async_manager = checkpoints.AsyncManager()
-    restart = False # TODO needs to be implemented
+    restart = False  # TODO needs to be implemented
     if restart:
         log.info("looking for checkpoints")
         ckpts_exist = look_for_checkpoints(sim_dir)
@@ -57,7 +57,7 @@ def run_nvt(
             log.info("loading previous md state")
             state, step = load_md_state(sim_dir)
         else:
-            state = init_fn(rng_key, R, masses, neighbor=neighbor)    
+            state = init_fn(rng_key, R, masses, neighbor=neighbor)
     else:
         state = init_fn(rng_key, R, masses, neighbor=neighbor)
     # TODO capability to restart md.
@@ -105,7 +105,6 @@ def run_nvt(
 
 
 def md_setup(model_config, md_config):
-
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
 
@@ -154,8 +153,10 @@ def run_md(model_config, md_config):
     rng_key = jax.random.PRNGKey(md_config.seed)
     md_init_rng_key, rng_key = jax.random.split(rng_key, 2)
 
-    R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn = md_setup(model_config, md_config)
-    
+    R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn = md_setup(
+        model_config, md_config
+    )
+
     run_nvt(
         R=R,
         atomic_numbers=atomic_numbers,
