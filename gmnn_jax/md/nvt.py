@@ -28,7 +28,7 @@ def run_nvt(
     neighbor_fn,
     shift_fn,
     dt,
-    T,
+    temperature,
     n_steps,
     n_inner,
     extra_capacity,
@@ -38,7 +38,7 @@ def run_nvt(
     sim_time = dt * n_steps
     K_B = 8.617e-5
     dt = dt * units.fs
-    kT = K_B * T
+    kT = K_B * temperature
 
     log.info("initializing simulation")
     neighbor = neighbor_fn.allocate(R, extra_capacity=extra_capacity)
@@ -138,7 +138,7 @@ def run_md(model_config, md_config):
         neighbor_fn=neighbor_fn,
         shift_fn=shift_fn,
         dt=md_config.dt,
-        T=md_config.T,
+        temperature=md_config.temperature,
         n_steps=md_config.n_steps,
         n_inner=md_config.n_inner,
         extra_capacity=md_config.extra_capacity,

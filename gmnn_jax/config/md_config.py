@@ -8,7 +8,7 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
     ckpt_dir: str
     seed: int = 1
 
-    T: PositiveFloat
+    temperature: PositiveFloat
     dt: PositiveFloat = 0.5
     n_steps: PositiveInt
     n_inner: PositiveInt = 4
@@ -18,6 +18,7 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
     initial_structure: str
     sim_dir: str = "."
     traj_name: str = "md.traj"
+    restart: bool = True
 
     def dump_config(self):
         with open(os.path.join(self.sim_dir, "md_config.yaml"), "w") as conf:
