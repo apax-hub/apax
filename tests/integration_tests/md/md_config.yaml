@@ -1,0 +1,3 @@
+temperature: 100
+n_steps: 4
+n_inner: 2

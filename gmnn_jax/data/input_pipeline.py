@@ -125,6 +125,18 @@ class InputPipeline:
         )
         return input
 
+    def displacement_func(self):
+        return self.displacement_fn
+
+    def steps_per_epoch(self):
+        return self.n_data // self.batch_size
+
+    def init_input(self):
+        input = next(
+            self.ds.batch(1).map(pad_to_largest_element).take(1).as_numpy_iterator()
+        )
+        return input
+
     def shuffle_and_batch(self):
         shuffled_ds = (
             self.ds.shuffle(buffer_size=self.buffer_size)

@@ -5,6 +5,7 @@ from typing import Callable, List, Optional, Tuple
 import haiku as hk
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax_md import partition
 from jax_md.util import Array, high_precision_sum
 
@@ -88,7 +89,7 @@ class GMNN(hk.Module):
 def get_md_model(
     atomic_numbers: Array,
     displacement: DisplacementFn,
-    nn: List[int],
+    nn: List[int] = [512, 512],
     box_size: float = 10.0,
     r_max: float = 6.0,
     n_basis: int = 7,
@@ -109,7 +110,9 @@ def get_md_model(
 
     n_atoms = atomic_numbers.shape[0]
     Z = jnp.asarray(atomic_numbers)
-    n_species = jnp.max(Z)
+    # casting ot python int prevents n_species from becoming a tracer,
+    # which causes issues in the NVT `apply_fn`
+    n_species = int(np.max(Z) + 1)
 
     @hk.without_apply_rng
     @hk.transform

@@ -66,7 +66,8 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()
     callbacks: List[CallbackConfig] = [CallbackConfig(name="csv")]
+    maximize_l2_cache: bool = True
 
     def dump_config(self, save_path):
-        with open(os.path.join(save_path, "parameters.yaml"), "w") as conf:
+        with open(os.path.join(save_path, "config.yaml"), "w") as conf:
             yaml.dump(self.dict(), conf, default_flow_style=False)
