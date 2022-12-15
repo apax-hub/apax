@@ -35,9 +35,9 @@ def run_nvt(
     n_inner: int,
     extra_capacity: int,
     rng_key: int,
-    restart: bool=True,
-    sim_dir: str=".",
-    traj_name: str="nvt.traj",
+    restart: bool = True,
+    sim_dir: str = ".",
+    traj_name: str = "nvt.traj",
 ):
     """
     Performs NVT MD.
