@@ -20,10 +20,11 @@ def test_energy_per_element():
         energies.append(energy)
         atoms.calc = SinglePointCalculator(atoms, energy=energy)
 
-    elemental_energies_mean, elemental_energies_std = energy_per_element(atoms_list, 0.0)
+    ds_stats = energy_per_element(atoms_list, 0.0)
+    elemental_shift = ds_stats.elemental_shift
     regression_energies = []
     for atoms in atoms_list:
-        energy = np.sum(elemental_energies_mean[atoms.numbers])
+        energy = np.sum(elemental_shift[atoms.numbers])
         regression_energies.append(energy)
 
     assert np.allclose(energies, regression_energies, atol=1e-4)
