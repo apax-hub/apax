@@ -96,7 +96,7 @@ def run(user_config):
 
     callbacks = initialize_callbacks(config, model_version_path)
 
-    maximize_l2_cache = True
+    maximize_l2_cache = False
     if maximize_l2_cache:
         import ctypes
 
@@ -157,7 +157,7 @@ def run(user_config):
         **config.model.dict()
     )
     log.info("Initializing Model")
-    init_input = train_ds.init_input()
+    init_input, _ = train_ds.init_input()
     R, Z, idx = (
         jnp.asarray(init_input["positions"][0]),
         jnp.asarray(init_input["numbers"][0]),
