@@ -11,12 +11,17 @@ from gmnn_jax.data.input_pipeline import InputPipeline, pad_to_largest_element
         [5, True, ["energy", "forces"]],
     ),
 )
-def test_input_pipeline(example_atoms, pbc):
+def test_input_pipeline(example_atoms, pbc, num_data):
     batch_size = 2
 
-    ds = InputPipeline(cutoff=6.0, batch_size=batch_size, atoms_list=example_atoms)
+    ds = InputPipeline(
+        cutoff=6.0, batch_size=batch_size, atoms_list=example_atoms, n_epoch=1
+    )
+    assert ds.steps_per_epoch() == num_data // batch_size
 
-    sample_inputs, sample_labels = next(ds().take(1).as_numpy_iterator())
+    ds = ds.shuffle_and_batch()
+
+    sample_inputs, sample_labels = next(ds)
 
     if pbc:
         assert "cell" in sample_inputs
@@ -48,8 +53,9 @@ def test_input_pipeline(example_atoms, pbc):
     for i in range(batch_size):
         assert len(sample_labels["forces"][i]) == max(sample_inputs["n_atoms"])
 
-    sample_inputs2, _ = next(ds().take(1).as_numpy_iterator())
+    sample_inputs2, _ = next(ds)
     assert (sample_inputs["positions"][0][0] != sample_inputs2["positions"][0][0]).all()
+
 
 def test_pad_to_largest_element():
     r_inp = {"idx": tf.ragged.constant([[1, 4, 3], [4, 5, 2, 3, 1]])}
