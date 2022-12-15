@@ -1,11 +1,10 @@
 import logging
-from typing import Type
 
 import numpy as np
 import tensorflow as tf
 from jax_md import partition, space
 
-from gmnn_jax.data.preprocessing import dataset_neighborlist
+from gmnn_jax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
 from gmnn_jax.utils.convert import convert_atoms_to_arrays
 
 log = logging.getLogger(__name__)
@@ -18,7 +17,6 @@ def pad_to_largest_element(
         to largest element in the batch. Afterward, the distinction between ragged
         and fixed inputs/labels is not needed and all inputs/labels are updated to
         one list.
-
     Parameters
     ----------
     r_inputs :
@@ -29,7 +27,6 @@ def pad_to_largest_element(
         Labels of ragged shape. Trainable system properties.
     f_labels :
         Labels of fixed shape. Trainable system properties.
-
     Returns
     -------
     inputs:
@@ -52,85 +49,111 @@ def pad_to_largest_element(
     return inputs, labels
 
 
-def input_pipeline(
-    cutoff: float,
-    batch_size: int,
-    atoms_list: list,
-    buffer_size: int = 1000,
-) -> Type[tf.data.Dataset]:
-    """Processes all inputs and labels and prepares them for the training cycle.
-    Inputs and Labels are padded to the largest element in the batch.
+class InputPipeline:
+    def __init__(
+        self,
+        cutoff: float,
+        n_epoch: int,
+        batch_size: int,
+        atoms_list: list,
+        buffer_size: int = 1000,
+    ) -> None:
+        self.n_epoch = n_epoch
+        self.batch_size = batch_size
+        self.buffer_size = buffer_size
 
-    Parameters
-    ----------
-    cutoff :
-        Radial cutoff in angstrom for the neighbor list.
-    batch_size :
-        Number of strictures in one batch.
-    atoms_list :
-        List of all structures. Entries are ASE atoms objects.
-    buffer_size : optional
-        The number of structures that are shuffled for choosing the batches. Should be
-        significantly larger than the batch size. It is recommended to use the default
-        value.
+        inputs, labels = convert_atoms_to_arrays(atoms_list)
 
-    Returns
-    -------
-    ds :
-        A dataset that includes all data prepared for training e.g. split into
-        batches and padded. The dataset contains tf.Tensors.
-    """
+        self.n_data = len(inputs["fixed"]["n_atoms"])
 
-    inputs, labels = convert_atoms_to_arrays(atoms_list)
-    cubic_box_size = 100
+        cubic_box_size = 100
 
-    nl_format = partition.Sparse
-    if "cell" in inputs["fixed"]:
-        cubic_box_size = inputs["fixed"]["cell"][0][0]
-        displacement_fn, _ = space.periodic(cubic_box_size)
-    else:
-        displacement_fn, _ = space.free()
+        nl_format = partition.Sparse
 
-    neighbor_fn = partition.neighbor_list(
-        displacement_or_metric=displacement_fn,
-        box=cubic_box_size,
-        r_cutoff=cutoff,
-        format=nl_format,
-    )
+        if "cell" in inputs["fixed"]:
+            cubic_box_size = inputs["fixed"]["cell"][0][0]
+            displacement_fn, _ = space.periodic(cubic_box_size)
+        else:
+            displacement_fn, _ = space.free()
+        self.displacement_fn = displacement_fn
 
-    idx = dataset_neighborlist(
-        neighbor_fn,
-        inputs["ragged"]["positions"],
-        inputs["fixed"]["n_atoms"],
-    )
-    inputs["ragged"]["idx"] = []
-    for i in idx:
-        inputs["ragged"]["idx"].append(np.array(i))
-
-    for key, val in inputs["ragged"].items():
-        inputs["ragged"][key] = tf.ragged.constant(val)
-    for key, val in inputs["fixed"].items():
-        inputs["fixed"][key] = tf.constant(val)
-
-    for key, val in labels["ragged"].items():
-        labels["ragged"][key] = tf.ragged.constant(val)
-    for key, val in labels["fixed"].items():
-        labels["fixed"][key] = tf.constant(val)
-
-    ds = tf.data.Dataset.from_tensor_slices(
-        (
-            inputs["ragged"],
-            inputs["fixed"],
-            labels["ragged"],
-            labels["fixed"],
+        neighbor_fn = partition.neighbor_list(
+            displacement_or_metric=self.displacement_fn,
+            box=cubic_box_size,
+            r_cutoff=cutoff,
+            format=nl_format,
         )
-    )
 
-    ds = (
-        ds.shuffle(buffer_size=buffer_size)
-        .batch(batch_size=batch_size)
-        .map(pad_to_largest_element)
-    )
-    # TODO ds needs to be shuffled every epoch
+        idx = dataset_neighborlist(
+            neighbor_fn,
+            inputs["ragged"]["positions"],
+            inputs["fixed"]["n_atoms"],
+        )
 
-    return ds, displacement_fn
+        inputs["ragged"]["idx"] = []
+        for i in idx:
+            inputs["ragged"]["idx"].append(np.array(i))
+
+        for key, val in inputs["ragged"].items():
+            inputs["ragged"][key] = tf.ragged.constant(val)
+        for key, val in inputs["fixed"].items():
+            inputs["fixed"][key] = tf.constant(val)
+
+        for key, val in labels["ragged"].items():
+            labels["ragged"][key] = tf.ragged.constant(val)
+        for key, val in labels["fixed"].items():
+            labels["fixed"][key] = tf.constant(val)
+
+        self.ds = tf.data.Dataset.from_tensor_slices(
+            (
+                inputs["ragged"],
+                inputs["fixed"],
+                labels["ragged"],
+                labels["fixed"],
+            )
+        )
+
+    def displacement_func(self):
+        return self.displacement_fn
+
+    def steps_per_epoch(self):
+        return self.n_data // self.batch_size
+
+    def init_input(self):
+        input = next(
+            self.ds.batch(1).map(pad_to_largest_element).take(1).as_numpy_iterator()
+        )
+        return input
+
+    def shuffle_and_batch(self):
+        shuffled_ds = (
+            self.ds.shuffle(buffer_size=self.buffer_size)
+            .repeat(self.n_epoch)
+            .batch(batch_size=self.batch_size)
+            .map(pad_to_largest_element)
+        )
+
+        shuffled_ds = prefetch_to_single_device(shuffled_ds.as_numpy_iterator(), 2)
+        return shuffled_ds
+
+
+#     """Processes all inputs and labels and prepares them for the training cycle.
+#     Inputs and Labels are padded to the largest element in the batch.
+#     Parameters
+#     ----------
+#     cutoff :
+#         Radial cutoff in angstrom for the neighbor list.
+#     batch_size :
+#         Number of strictures in one batch.
+#     atoms_list :
+#         List of all structures. Entries are ASE atoms objects.
+#     buffer_size : optional
+#         The number of structures that are shuffled for choosing the batches. Should be
+#         significantly larger than the batch size. It is recommended to use the default
+#         value.
+#     Returns
+#     -------
+#     ds :
+#         A dataset that includes all data prepared for training e.g. split into
+#         batches and padded. The dataset contains tf.Tensors.
+#     """

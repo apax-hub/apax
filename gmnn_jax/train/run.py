@@ -10,7 +10,7 @@ import yaml
 from keras.callbacks import CSVLogger, TensorBoard
 
 from gmnn_jax.config import Config
-from gmnn_jax.data.input_pipeline import input_pipeline
+from gmnn_jax.data.input_pipeline import InputPipeline
 from gmnn_jax.data.statistics import energy_per_element
 from gmnn_jax.model.gmnn import get_training_model
 from gmnn_jax.optimizer import get_opt
@@ -119,21 +119,24 @@ def run(user_config):
 
     log.info("Running Input Pipeline")
     atoms_list = load_data(config.data.data_path)
-    train_val_tuple = split_list(atoms_list, config.data.n_train, config.data.n_valid)
-    train_atoms_list, val_atoms_list = train_val_tuple
+    train_atoms_list, val_atoms_list = split_list(
+        atoms_list, config.data.n_train, config.data.n_valid
+    )
 
     ds_stats = energy_per_element(
         train_atoms_list, lambd=config.data.energy_regularisation
     )
 
-    train_ds, displacement_fn = input_pipeline(
+    train_ds = InputPipeline(
         config.model.r_max,
+        config.n_epochs,
         config.data.batch_size,
         train_atoms_list,
         config.data.shuffle_buffer_size,
     )
-    val_ds, _ = input_pipeline(
+    val_ds = InputPipeline(
         config.model.r_max,
+        config.n_epochs,
         config.data.valid_batch_size,
         val_atoms_list,
         config.data.shuffle_buffer_size,
@@ -141,33 +144,30 @@ def run(user_config):
 
     n_atoms = ds_stats.n_atoms
     n_species = ds_stats.n_species
-    displacement_fn = displacement_fn
     model_init, model = get_training_model(
         n_atoms=n_atoms,
         # ^This is going to make problems when training on differently sized molecules.
         # we may need to check batch shapes and manually initialize a new model
         # when a new size is encountered...
         n_species=n_species,
-        displacement_fn=displacement_fn,
+        displacement_fn=train_ds.displacement_func(),
         elemental_energies_mean=ds_stats.elemental_shift,
         elemental_energies_std=ds_stats.elemental_scale,
         **config.model.dict()
     )
     log.info("Initializing Model")
-    sample_inputs, _ = next(train_ds.take(1).as_numpy_iterator())
+    init_input, _ = train_ds.init_input()
     R, Z, idx = (
-        jnp.asarray(sample_inputs["positions"][0]),
-        jnp.asarray(sample_inputs["numbers"][0]),
-        jnp.asarray(sample_inputs["idx"][0]),
+        jnp.asarray(init_input["positions"][0]),
+        jnp.asarray(init_input["numbers"][0]),
+        jnp.asarray(init_input["idx"][0]),
     )
 
     rng_key, model_rng_key = jax.random.split(rng_key, num=2)
     params = model_init(model_rng_key, R, Z, idx)
     batched_model = jax.vmap(model, in_axes=(None, 0, 0, 0))
 
-    # preliminary, need to get steps per epoch from ds
-    steps_per_epoch = config.data.n_train // config.data.batch_size
-    # TODO check out dataset drop last
+    steps_per_epoch = train_ds.steps_per_epoch()
     n_epochs = config.n_epochs
     n_warmup = config.optimizer.transition_begin
     transition_steps = steps_per_epoch * n_epochs - n_warmup
