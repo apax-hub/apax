@@ -14,17 +14,21 @@ from gmnn_jax.model.gmnn import get_training_model
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
-def test_run_md():
+def test_run_md(get_tmp_path):
     model_confg_path = TEST_PATH / "config.yaml"
     md_confg_path = TEST_PATH / "md_config.yaml"
     
     with open(model_confg_path.as_posix(), "r") as stream:
-        model_config = yaml.safe_load(stream)    
+        model_config_dict = yaml.safe_load(stream)    
     with open(md_confg_path.as_posix(), "r") as stream:
-        md_config = yaml.safe_load(stream)
+        md_config_dict = yaml.safe_load(stream)
 
-    model_config = Config.parse_obj(model_config)
-    md_config = MDConfig.parse_obj(md_config)
+    model_config_dict["data"]["model_path"] = get_tmp_path.as_posix()
+    md_config_dict["sim_dir"] = get_tmp_path.as_posix()
+    md_config_dict["initial_structure"] = get_tmp_path.as_posix() + "/atoms.extxyz"
+
+    model_config = Config.parse_obj(model_config_dict)
+    md_config = MDConfig.parse_obj(md_config_dict)
 
     cell_size = 10.
     positions = np.array([
@@ -35,7 +39,7 @@ def test_run_md():
     atomic_numbers = np.array([1,1,8])
     cell = np.diag([cell_size]*3)
     atoms = Atoms(atomic_numbers, positions, cell=cell)
-    write("atoms.extxyz", atoms)
+    write(md_config.initial_structure, atoms)
 
     n_atoms = 3
     n_species = int(np.max(atomic_numbers) + 1)
@@ -66,7 +70,7 @@ def test_run_md():
         overwrite=True,
     )
 
-    run_md(model_confg_path.as_posix(), md_confg_path.as_posix())
+    run_md(model_config_dict, md_config_dict)
 
     traj = read(md_config.sim_dir + "/" + md_config.traj_name, index=":")
     n_outer = int(md_config.n_steps // md_config.n_inner)
