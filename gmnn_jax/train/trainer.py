@@ -5,8 +5,8 @@ from functools import partial
 import jax
 from flax.training import checkpoints
 
-from gmnn_jax.train.checkpoints import load_state
 from gmnn_jax.data.preprocessing import prefetch_to_single_device
+from gmnn_jax.train.checkpoints import load_state
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ def fit(
     callbacks.on_train_begin()
     state, start_epoch = load_state(model, params, tx, ckpt_dir)
     async_manager = checkpoints.AsyncManager()
-    
+
     if start_epoch >= n_epochs:
         raise ValueError(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
@@ -46,7 +46,6 @@ def fit(
         epoch_train_ds = prefetch_to_single_device(epoch_train_ds, 2)
 
         for batch_idx, data in enumerate(epoch_train_ds):
-
             callbacks.on_train_batch_begin(batch=batch_idx)
             inputs, labels = data
 
