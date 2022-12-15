@@ -45,7 +45,6 @@ def fit(
         )
 
     for epoch in range(start_epoch, n_epochs):
-        epoch += 1
         epoch_start_time = time.time()
         callbacks.on_epoch_begin(epoch=epoch)
         epoch_loss.update({"train_loss": 0.0})
@@ -106,9 +105,7 @@ def fit(
             keep=2,
             async_manager=async_manager,
         )
-        print()
         # TODO Save best
-        print(epoch_metrics)
         callbacks.on_epoch_end(epoch=epoch, logs=epoch_metrics)
 
 
