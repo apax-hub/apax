@@ -4,6 +4,7 @@ from functools import partial
 
 import jax
 from flax.training import checkpoints
+
 from gmnn_jax.train.checkpoints import load_state
 
 log = logging.getLogger(__name__)
