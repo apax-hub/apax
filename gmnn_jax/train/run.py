@@ -96,8 +96,7 @@ def run(user_config):
 
     callbacks = initialize_callbacks(config, model_version_path)
 
-    maximize_l2_cache = True
-    if maximize_l2_cache:
+    if config.maximize_l2_cache:
         import ctypes
 
         _libcudart = ctypes.CDLL("libcudart.so")
