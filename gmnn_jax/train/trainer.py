@@ -44,7 +44,7 @@ def fit(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
 
-    for epoch in range(start_epoch, n_epochs):
+    for epoch in range(start_epoch, n_epochs+1):
         epoch_start_time = time.time()
         callbacks.on_epoch_begin(epoch=epoch)
         epoch_loss.update({"train_loss": 0.0})
