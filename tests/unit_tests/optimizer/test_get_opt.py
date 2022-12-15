@@ -12,8 +12,8 @@ def test_get_opt():
             "atomic_type_embedding": jnp.ones((3, 3)),
         },
         "my_scale_shift": {
-            "scale": jnp.ones((3,)),
-            "shift": jnp.ones((3,)),
+            "scale_per_element": jnp.ones((3,)),
+            "shift_per_element": jnp.ones((3,)),
         },
     }
 
