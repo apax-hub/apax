@@ -3,8 +3,8 @@ import glob
 from flax.training import checkpoints
 
 
-def look_for_checkpoints(sim_dir):
-    checkpoints_exist = glob.glob(sim_dir, "checkpoint*")
+def look_for_checkpoints(directory):
+    checkpoints_exist = glob.glob(f"{directory}/checkpoint*")
     if checkpoints_exist:
         return True
     else:
