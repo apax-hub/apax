@@ -2,6 +2,7 @@ import pathlib
 
 import jax
 import numpy as np
+import jax.numpy as jnp
 import yaml
 from ase import Atoms
 from ase.io import read, write
@@ -64,7 +65,7 @@ def test_run_md(get_tmp_path):
         **model_config.model.dict()
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
-    params = model_init(rng_key, positions, atomic_numbers, neighbors.idx)
+    params = model_init(rng_key, jnp.asarray(positions), jnp.asarray(atomic_numbers), neighbors.idx)
     ckpt = {"model": {"params": params}, "epoch": 0}
     checkpoints.save_checkpoint(
         ckpt_dir=model_config.data.model_path,
