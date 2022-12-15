@@ -1,3 +1,4 @@
+import pathlib
 from gmnn_jax.md import run_md
 from gmnn_jax.config import Config, MDConfig
 from ase.io import read, write
@@ -11,18 +12,21 @@ from ase import Atoms
 
 from gmnn_jax.model.gmnn import get_training_model
 
+TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
 def test_run_md():
-    cell_size = 0.
+    model_confg_path = TEST_PATH / "config.yaml"
+    md_confg_path = TEST_PATH / "md_config.yaml"
     
-    with open("config.yaml", "r") as stream:
+    with open(model_confg_path.as_posix(), "r") as stream:
         model_config = yaml.safe_load(stream)    
-    with open("md_config.yaml", "r") as stream:
+    with open(md_confg_path.as_posix(), "r") as stream:
         md_config = yaml.safe_load(stream)
 
     model_config = Config.parse_obj(model_config)
     md_config = MDConfig.parse_obj(md_config)
 
+    cell_size = 10.
     positions = np.array([
         [1.0,0.0,0.0],
         [0.0,1.0,0.0],
@@ -62,9 +66,8 @@ def test_run_md():
         overwrite=True,
     )
 
-    run_md("config.yaml", "md_config.yaml")
+    run_md(model_confg_path.as_posix(), md_confg_path.as_posix())
 
     traj = read(md_config.sim_dir + "/" + md_config.traj_name, index=":")
-    print([atoms.positions for atoms in traj])
     n_outer = int(md_config.n_steps // md_config.n_inner)
     assert len(traj) == n_outer
