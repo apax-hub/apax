@@ -38,7 +38,8 @@ def dataset_neighborlist(
         Neighbor list of all structures.
     """
     log.info("Precomputing neighborlists")
-
+    # The JaxMD NL throws an error if np arrays are passed to it in the CPU version
+    positions = [jnp.asarray(pos) for pos in positions]
     neighbors = neighbor_fn.allocate(positions[0])
     idx = []
     num_atoms = n_atoms[0]

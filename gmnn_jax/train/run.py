@@ -182,6 +182,6 @@ def run(user_config):
         Metrics,
         callbacks,
         n_epochs,
-        ckpt_dir=config.data.model_path,
+        ckpt_dir=os.path.join(config.data.model_path, config.data.model_name),
         val_ds=val_ds,
     )

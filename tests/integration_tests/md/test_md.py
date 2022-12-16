@@ -1,3 +1,4 @@
+import os
 import pathlib
 
 import jax
@@ -69,8 +70,11 @@ def test_run_md(get_tmp_path):
         rng_key, jnp.asarray(positions), jnp.asarray(atomic_numbers), neighbors.idx
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
+    best_dir = os.path.join(
+        model_config.data.model_path, model_config.data.model_name, "best"
+    )
     checkpoints.save_checkpoint(
-        ckpt_dir=model_config.data.model_path,
+        ckpt_dir=best_dir,
         target=ckpt,
         step=0,
         overwrite=True,

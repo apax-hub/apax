@@ -3,6 +3,7 @@ import time
 from functools import partial
 
 import jax
+import numpy as np
 from flax.training import checkpoints
 
 from gmnn_jax.train.checkpoints import load_state
@@ -25,9 +26,13 @@ def fit(
     log.info("Begining Training")
     callbacks.on_train_begin()
 
+    latest_dir = ckpt_dir + "/latest"
+    best_dir = ckpt_dir + "/best"
+    best_loss = np.inf
+
     train_step, val_step = make_step_fns(loss_fn, Metrics, model=model)
 
-    state, start_epoch = load_state(model, params, tx, ckpt_dir)
+    state, start_epoch = load_state(model, params, tx, latest_dir)
 
     train_steps_per_epoch = train_ds.steps_per_epoch()
     batch_train_ds = train_ds.shuffle_and_batch()
@@ -98,14 +103,25 @@ def fit(
 
         ckpt = {"model": state, "epoch": epoch}
         checkpoints.save_checkpoint(
-            ckpt_dir=ckpt_dir,
+            ckpt_dir=latest_dir,
             target=ckpt,
             step=epoch,
             overwrite=True,
             keep=2,
             async_manager=async_manager,
         )
-        # TODO Save best
+
+        if epoch_metrics["val_loss"] < best_loss:
+            best_loss = epoch_metrics["val_loss"]
+            checkpoints.save_checkpoint(
+                ckpt_dir=best_dir,
+                target=ckpt,
+                step=epoch,
+                overwrite=True,
+                keep=2,
+                async_manager=async_manager,
+            )
+
         callbacks.on_epoch_end(epoch=epoch, logs=epoch_metrics)
 
 
