@@ -118,10 +118,19 @@ def run(user_config):
     Metrics = initialize_metrics(keys, reductions)
 
     log.info("Running Input Pipeline")
-    atoms_list = load_data(config.data.data_path)
-    train_atoms_list, val_atoms_list = split_list(
-        atoms_list, config.data.n_train, config.data.n_valid
-    )
+    if config.data.data_path is not None:
+        log.info(f"Read data file {config.data.data_path}")
+        atoms_list = load_data(config.data.data_path)
+        train_atoms_list, val_atoms_list = split_list(
+            atoms_list, config.data.n_train, config.data.n_valid
+        )
+    elif config.data.train_data_path and config.data.val_data_path is not None:
+        log.info(f"Read training data file {config.data.train_data_path}")
+        log.info(f"Read validation data file {config.data.val_data_path}")
+        train_atoms_list = load_data(config.data.train_data_path)
+        val_atoms_list = load_data(config.data.val_data_path)
+    else:
+        raise ValueError("input data path/paths not defined")
 
     ds_stats = energy_per_element(
         train_atoms_list, lambd=config.data.energy_regularisation
@@ -153,7 +162,7 @@ def run(user_config):
         displacement_fn=train_ds.displacement_func(),
         elemental_energies_mean=ds_stats.elemental_shift,
         elemental_energies_std=ds_stats.elemental_scale,
-        **config.model.dict()
+        **config.model.dict(),
     )
     log.info("Initializing Model")
     init_input, _ = train_ds.init_input()
