@@ -195,9 +195,10 @@ def md_setup(model_config: Config, md_config: MDConfig):
     os.makedirs(md_config.sim_dir, exist_ok=True)
 
     log.info("loading model parameters")
-    raw_restored = checkpoints.restore_checkpoint(
-        model_config.data.model_path, target=None, step=None
+    best_dir = os.path.join(
+        model_config.data.model_path, model_config.data.model_name, "best"
     )
+    raw_restored = checkpoints.restore_checkpoint(best_dir, target=None, step=None)
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
     energy_fn = partial(model, params)
 
