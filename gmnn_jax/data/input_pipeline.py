@@ -113,9 +113,6 @@ class InputPipeline:
             )
         )
 
-    def displacement_func(self):
-        return self.displacement_fn
-
     def steps_per_epoch(self):
         return self.n_data // self.batch_size
 
