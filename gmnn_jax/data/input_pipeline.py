@@ -50,6 +50,8 @@ def pad_to_largest_element(
 
 
 class InputPipeline:
+    """Class processes inputs/labels and makes them accessible for training."""
+
     def __init__(
         self,
         cutoff: float,
@@ -58,6 +60,23 @@ class InputPipeline:
         atoms_list: list,
         buffer_size: int = 1000,
     ) -> None:
+        """Processes inputs/labels and makes them accessible for training.
+
+        Parameters
+        ----------
+        cutoff :
+            Radial cutoff in angstrom for the neighbor list.
+        n_epoch :
+            Number of epochs
+        batch_size :
+            Number of strictures in one batch.
+        atoms_list :
+            List of all structures. Entries are ASE atoms objects.
+        buffer_size : optional
+            The number of structures that are shuffled for choosing the batches. Should be
+            significantly larger than the batch size. It is recommended to use the default
+            value.
+        """
         self.n_epoch = n_epoch
         self.batch_size = batch_size
         self.buffer_size = buffer_size
@@ -113,19 +132,30 @@ class InputPipeline:
             )
         )
 
-    def displacement_func(self):
-        return self.displacement_fn
-
-    def steps_per_epoch(self):
+    def steps_per_epoch(self) -> int:
+        """Returns the number of steps per epoch dependent on the number of data and the
+        batch size. Steps per epoch are calculated in a way that all epochs have the same
+        number of steps, and all batches have the same length. To do so some training
+        data are dropped in each epoch.
+        """
         return self.n_data // self.batch_size
 
     def init_input(self):
+        """Returns first batch of inputs and labels to init the model."""
         input = next(
             self.ds.batch(1).map(pad_to_largest_element).take(1).as_numpy_iterator()
         )
         return input
 
     def shuffle_and_batch(self):
+        """Shuffles, batches, and pads the inputs/labels. This function prepares the
+        inputs and labels for the whole training and prefetches the data.
+
+        Returns
+        -------
+        shuffled_ds :
+            Iterator that returns inputs and labels of one batch in each step.
+        """
         shuffled_ds = (
             self.ds.shuffle(buffer_size=self.buffer_size)
             .repeat(self.n_epoch)
@@ -135,25 +165,3 @@ class InputPipeline:
 
         shuffled_ds = prefetch_to_single_device(shuffled_ds.as_numpy_iterator(), 2)
         return shuffled_ds
-
-
-#     """Processes all inputs and labels and prepares them for the training cycle.
-#     Inputs and Labels are padded to the largest element in the batch.
-#     Parameters
-#     ----------
-#     cutoff :
-#         Radial cutoff in angstrom for the neighbor list.
-#     batch_size :
-#         Number of strictures in one batch.
-#     atoms_list :
-#         List of all structures. Entries are ASE atoms objects.
-#     buffer_size : optional
-#         The number of structures that are shuffled for choosing the batches. Should be
-#         significantly larger than the batch size. It is recommended to use the default
-#         value.
-#     Returns
-#     -------
-#     ds :
-#         A dataset that includes all data prepared for training e.g. split into
-#         batches and padded. The dataset contains tf.Tensors.
-#     """

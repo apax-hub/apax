@@ -159,7 +159,7 @@ def run(user_config):
         # we may need to check batch shapes and manually initialize a new model
         # when a new size is encountered...
         n_species=n_species,
-        displacement_fn=train_ds.displacement_func(),
+        displacement_fn=train_ds.displacement_fn,
         elemental_energies_mean=ds_stats.elemental_shift,
         elemental_energies_std=ds_stats.elemental_scale,
         **config.model.dict(),
