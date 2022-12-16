@@ -50,8 +50,8 @@ def pad_to_largest_element(
 
 
 class InputPipeline:
-    """Class processes inputs/labels and makes them accessible for training.
-    """
+    """Class processes inputs/labels and makes them accessible for training."""
+
     def __init__(
         self,
         cutoff: float,
@@ -133,23 +133,23 @@ class InputPipeline:
         )
 
     def steps_per_epoch(self) -> int:
-        """Returns the number of steps per epoch dependent on the number of data and the batch size.
-            Steps per epoch are calculated in a way that all epochs have the same number of steps, and
-            all batches have the same length. To do so some training data are dropped in each epoch.
+        """Returns the number of steps per epoch dependent on the number of data and the
+        batch size. Steps per epoch are calculated in a way that all epochs have the same
+        number of steps, and all batches have the same length. To do so some training
+        data are dropped in each epoch.
         """
         return self.n_data // self.batch_size
 
     def init_input(self):
-        """Returns first batch of inputs and labels to init the model.
-        """
+        """Returns first batch of inputs and labels to init the model."""
         input = next(
             self.ds.batch(1).map(pad_to_largest_element).take(1).as_numpy_iterator()
         )
         return input
 
     def shuffle_and_batch(self):
-        """Shuffles, batches, and pads the inputs/labels. This function prepares the inputs and
-            labels for the whole training and prefetches the data. 
+        """Shuffles, batches, and pads the inputs/labels. This function prepares the
+        inputs and labels for the whole training and prefetches the data.
 
         Returns
         -------
