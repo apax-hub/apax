@@ -79,6 +79,6 @@ class ASECalculator(Calculator):
             energy, forces, self.neighbors = self.step(atoms.positions, self.neighbors)
 
         self.results = {
-            "energy": np.asarray(energy),
-            "forces": np.asarray(forces),
+            "energy": np.array(energy, dtype=np.float64).item(),
+            "forces": np.array(forces, dtype=np.float64),
         }
