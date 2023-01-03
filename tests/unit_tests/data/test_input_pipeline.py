@@ -15,7 +15,7 @@ def test_input_pipeline(example_atoms, pbc, num_data):
     batch_size = 2
 
     ds = InputPipeline(
-        cutoff=6.0, batch_size=batch_size, atoms_list=example_atoms, n_epoch=1
+        cutoff=6.0, batch_size=batch_size, atoms_list=example_atoms, n_epoch=1, external_labels=None
     )
     assert ds.steps_per_epoch() == num_data // batch_size
 
