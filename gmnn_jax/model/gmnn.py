@@ -10,7 +10,7 @@ from jax_md import partition
 from jax_md.util import Array, high_precision_sum
 
 from gmnn_jax.layers.activation import swish
-from gmnn_jax.layers.compat_linear import NTKLinear
+from gmnn_jax.layers.ntk_linear import NTKLinear
 from gmnn_jax.layers.descriptor.gaussian_moment_descriptor import (
     GaussianMomentDescriptor,
 )
