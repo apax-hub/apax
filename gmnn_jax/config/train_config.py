@@ -29,6 +29,7 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
     r_max: PositiveFloat = 6.0
 
     nn: List[PositiveInt] = [512, 512]
+    b_init: str = "normal"
 
 
 class OptimizerConfig(BaseModel, frozen=True, extra=Extra.allow):
