@@ -152,3 +152,8 @@ checkpoint*
 config.yaml
 parameters.yaml
 md_config.yaml
+
+# data
+*.extxyz
+*.traj
+*.npz
