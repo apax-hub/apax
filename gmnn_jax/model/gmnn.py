@@ -33,6 +33,7 @@ class GMNN(hk.Module):
         n_species: int = 119,
         r_min: float = 0.5,
         r_max: float = 6.0,
+        b_init: str = "normal",
         elemental_energies_mean: Optional[Array] = None,
         elemental_energies_std: Optional[Array] = None,
         name: Optional[str] = None,
@@ -50,9 +51,9 @@ class GMNN(hk.Module):
             name="descriptor",
         )
 
-        self.dense1 = NTKLinear(units[0], name="dense1")
-        self.dense2 = NTKLinear(units[1], name="dense2")
-        self.dense3 = NTKLinear(1, name="dense3")
+        self.dense1 = NTKLinear(units[0], b_init=b_init, name="dense1")
+        self.dense2 = NTKLinear(units[1], b_init=b_init, name="dense2")
+        self.dense3 = NTKLinear(1, b_init=b_init, name="dense3")
 
         self.scale_shift = PerElementScaleShift(
             scale=elemental_energies_std,
@@ -136,6 +137,7 @@ def get_training_model(
     n_radial: int = 5,
     r_min: float = 0.5,
     r_max: float = 6.0,
+    b_init: str = "normal",
     elemental_energies_mean: Optional[Array] = None,
     elemental_energies_std: Optional[Array] = None,
 ) -> Tuple[Callable, Callable]:
@@ -153,6 +155,7 @@ def get_training_model(
             n_species=n_species,
             r_min=r_min,
             r_max=r_max,
+            b_init=b_init,
             elemental_energies_mean=elemental_energies_mean,
             elemental_energies_std=elemental_energies_std,
         )
