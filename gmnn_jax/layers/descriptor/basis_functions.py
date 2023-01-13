@@ -48,7 +48,7 @@ class RadialFunction(hk.Module):
         self.embeddings = hk.get_parameter(
             "atomic_type_embedding",
             shape=(n_species, n_species, n_radial, n_basis),
-            init=hk.initializers.RandomUniform(0.0, 1.0),
+            init=hk.initializers.RandomUniform(-1.0, 1.0),
         )
 
     def __call__(self, dr, Z_i, Z_j, cutoff):
