@@ -2,8 +2,7 @@ from typing import Optional
 
 import haiku as hk
 import jax.numpy as jnp
-
-from haiku.initializers import RandomNormal, Constant
+from haiku.initializers import Constant, RandomNormal
 
 
 class NTKLinear(hk.Module):
@@ -18,7 +17,9 @@ class NTKLinear(hk.Module):
         elif b_init == "zeros":
             self.b_init = Constant(constant=0.0)
         else:
-            raise NotImplementedError("Only random normal and zeros intialization of the bias is supported.")
+            raise NotImplementedError(
+                "Only random normal and zeros intialization of the bias is supported."
+            )
 
     def __call__(self, inputs):
         w = hk.get_parameter("w", shape=(inputs.shape[0], self.units), init=self.w_init)
