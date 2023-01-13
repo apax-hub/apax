@@ -50,16 +50,6 @@ class GMNN(hk.Module):
             name="descriptor",
         )
 
-        # Hopefully we can soon go back to using a regular MLP
-        # units = units + [1]
-        # self.dense = hk.nets.MLP(
-        #     units,
-        #     activation=swish,
-        #     activate_final=False,
-        #     w_init=NTKWeights(),
-        #     b_init=NTKBias(),
-        #     name="readout",
-        # )
         self.dense1 = NTKLinear(units[0], name="dense1")
         self.dense2 = NTKLinear(units[1], name="dense2")
         self.dense3 = NTKLinear(1, name="dense3")
