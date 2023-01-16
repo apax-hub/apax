@@ -39,18 +39,21 @@ class ASECalculator(Calculator):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, model_dir, dr_threshold=0.5, **kwargs):
+    def __init__(self, model_config, dr_threshold=0.5, **kwargs):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
 
-        model_config = os.path.join(model_dir,"config.yaml")
-        ckpt_dir = os.path.join(model_dir,"best")
+        # model_config = os.path.join(model_dir,"config.yaml")
 
         if isinstance(model_config, str):
             with open(model_config, "r") as stream:
                 model_config = yaml.safe_load(stream)
 
         self.model_config = Config.parse_obj(model_config)
+
+        ckpt_dir = os.path.join(
+            self.model_config.data.model_path, self.model_config.data.model_name, "best"
+        )
 
         ckpt_exists = look_for_checkpoints(ckpt_dir)
         assert ckpt_exists
