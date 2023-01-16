@@ -58,7 +58,7 @@ class InputPipeline:
         n_epoch: int,
         batch_size: int,
         atoms_list: list,
-        external_labels: dict,
+        external_labels: dict = {},
         buffer_size: int = 1000,
     ) -> None:
         """Processes inputs/labels and makes them accessible for training.
@@ -84,9 +84,9 @@ class InputPipeline:
 
         inputs, labels = convert_atoms_to_arrays(atoms_list)
 
-        if external_labels is not None:
-            for shape in labels.keys():
-                labels[shape].update(external_labels[shape])
+        if external_labels:
+            for shape, label in external_labels.items():
+                labels[shape].update(label)
 
         self.n_data = len(inputs["fixed"]["n_atoms"])
 

@@ -1,4 +1,3 @@
-import csv
 import logging
 from os.path import splitext
 
@@ -9,8 +8,23 @@ log = logging.getLogger(__name__)
 
 
 def load_data(data_path):
-    """_summary_
+    """Non ASE compatibel parameters have to be saved in an exta file that has the same
+        name as the datapath but with the extention '_labels.npz'.
+        example for the npz-file:
+                dipole = np.random.rand(3, 1)
+                charge = np.random.rand(3, 2)
+                mat = np.random.rand(4)
+                shape = ['ragged', 'ragged', 'fixed']
 
+                np.savez(
+                    "data_path_labels.npz",
+                    dipole=dipole,
+                    charge=charge,
+                    mat=mat,
+                    shape=shape
+                )
+
+        shape has to be in the same order than the parameters
     Parameters
     ----------
     data_path :
@@ -21,30 +35,31 @@ def load_data(data_path):
     atoms_list
         List of all structures where entries are ASE atoms objects.
     """
-    atoms_list = None
-    label_dict = None
+    label_dict = {}
+
     try:
-        log.info("Loading data from file")
+        log.info(f"Loading data from {data_path}")
         atoms_list = read(data_path, index=":")
-
-        system_name = splitext("data_path")[0]
-        label_path = f"{system_name}_labels.csv"
-
-        if label_path.is_file():
-            log.info("Loading non ASE labels from file")
-            label_dict = {
-                "ragged": {},
-                "fixed": {},
-            }
-            with open(label_path, "r") as file:
-                reader = csv.DictReader(file)
-                for label in reader:
-                    label_dict[label["shape"]].update(
-                        {label["name"]: np.array(label["value"])}
-                    )
-
     except IOError:
         log.error(f"data_path ({data_path}) is not leading to file")
+
+    system_name = splitext("data_path")[0]
+    label_path = f"{system_name}_labels.npz"
+
+    if label_path.is_file():
+        log.info(f"Loading non ASE labels from {label_path}")
+
+        dict = np.load(label_path, allow_pickle=True)
+
+        unique_shape = np.unique(dict["shape"])
+        for shape in unique_shape:
+            label_dict.update({shape: {}})
+
+        i = 0
+        for key, val in dict.items():
+            if key != "shape":
+                label_dict[dict["shape"][i]].update({key: val})
+                i += 1
 
     return atoms_list, label_dict
 

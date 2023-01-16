@@ -1,21 +1,24 @@
 import pytest
 import tensorflow as tf
+import numpy as np
 
 from gmnn_jax.data.input_pipeline import InputPipeline, pad_to_largest_element
 
 
 @pytest.mark.parametrize(
-    "num_data, pbc, calc_results",
+    "num_data, pbc, calc_results, external_labels",
     (
-        [5, False, ["energy", "forces"]],
-        [5, True, ["energy", "forces"]],
+        [5, False, ["energy"], None],
+        [5, False, ["energy", "forces"], None],
+        [5, True, ["energy", "forces"], None],
+        [5, True, ["energy", "forces"], {"fixed": {"ma_tensors": np.random.uniform(low=-1.0, high=1.0, size=(5, 3, 3))}}],
     ),
 )
-def test_input_pipeline(example_atoms, pbc, num_data):
+def test_input_pipeline(example_atoms, pbc, calc_results, num_data, external_labels):
     batch_size = 2
 
     ds = InputPipeline(
-        cutoff=6.0, batch_size=batch_size, atoms_list=example_atoms, n_epoch=1, external_labels=None
+        cutoff=6.0, batch_size=batch_size, atoms_list=example_atoms, n_epoch=1, external_labels=external_labels
     )
     assert ds.steps_per_epoch() == num_data // batch_size
 
@@ -48,14 +51,18 @@ def test_input_pipeline(example_atoms, pbc, num_data):
     assert "energy" in sample_labels
     assert len(sample_labels["energy"]) == batch_size
 
-    assert "forces" in sample_labels
-    assert len(sample_labels["forces"][0][0]) == 3
-    for i in range(batch_size):
-        assert len(sample_labels["forces"][i]) == max(sample_inputs["n_atoms"])
+    if 'forces' in calc_results:
+        assert "forces" in sample_labels
+        assert len(sample_labels["forces"][0][0]) == 3
+        for i in range(batch_size):
+            assert len(sample_labels["forces"][i]) == max(sample_inputs["n_atoms"])
+
+    if external_labels:
+        assert 'ma_tensors' in sample_labels
+        assert len(sample_labels["ma_tensors"]) == batch_size
 
     sample_inputs2, _ = next(ds)
     assert (sample_inputs["positions"][0][0] != sample_inputs2["positions"][0][0]).all()
-
 
 def test_pad_to_largest_element():
     r_inp = {"idx": tf.ragged.constant([[1, 4, 3], [4, 5, 2, 3, 1]])}
