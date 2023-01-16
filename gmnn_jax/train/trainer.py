@@ -11,6 +11,21 @@ from gmnn_jax.train.checkpoints import load_state
 log = logging.getLogger(__name__)
 
 
+class CheckpointManager:
+    def __init__(self) -> None:
+        self.async_manager = checkpoints.AsyncManager()
+
+    def save_checkpoint(self, ckpt, epoch: int, path: str) -> None:
+        checkpoints.save_checkpoint(
+            ckpt_dir=path,
+            target=ckpt,
+            step=epoch,
+            overwrite=True,
+            keep=2,
+            async_manager=self.async_manager,
+        )
+
+
 def fit(
     model,
     params,
@@ -28,7 +43,7 @@ def fit(
 
     latest_dir = ckpt_dir + "/latest"
     best_dir = ckpt_dir + "/best"
-    best_loss = np.inf
+    ckpt_manager = CheckpointManager()
 
     train_step, val_step = make_step_fns(loss_fn, Metrics, model=model)
 
@@ -45,8 +60,7 @@ def fit(
         val_steps_per_epoch = val_ds.steps_per_epoch()
         batch_val_ds = val_ds.shuffle_and_batch()
 
-    async_manager = checkpoints.AsyncManager()
-
+    best_loss = np.inf
     epoch_loss = {}
     for epoch in range(start_epoch, n_epochs):
         epoch_start_time = time.time()
@@ -101,25 +115,11 @@ def fit(
         epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
 
         ckpt = {"model": state, "epoch": epoch}
-        checkpoints.save_checkpoint(
-            ckpt_dir=latest_dir,
-            target=ckpt,
-            step=epoch,
-            overwrite=True,
-            keep=2,
-            async_manager=async_manager,
-        )
+        ckpt_manager.save_checkpoint(ckpt, epoch, latest_dir)
 
         if epoch_metrics["val_loss"] < best_loss:
             best_loss = epoch_metrics["val_loss"]
-            checkpoints.save_checkpoint(
-                ckpt_dir=best_dir,
-                target=ckpt,
-                step=epoch,
-                overwrite=True,
-                keep=2,
-                async_manager=async_manager,
-            )
+            ckpt_manager.save_checkpoint(ckpt, epoch, best_dir)
 
         callbacks.on_epoch_end(epoch=epoch, logs=epoch_metrics)
 
