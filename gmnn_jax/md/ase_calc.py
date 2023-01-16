@@ -1,4 +1,5 @@
 from functools import partial
+import os
 
 import jax
 import jax.numpy as jnp
@@ -6,12 +7,14 @@ import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from flax.training import checkpoints
 from jax_md import space
+import yaml
+from gmnn_jax.config.train_config import Config
 
 from gmnn_jax.md.md_checkpoint import look_for_checkpoints
 from gmnn_jax.model.gmnn import get_md_model
 
 
-def build_energy_neighbor_fns(atoms, params, dr_threshold):
+def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     atomic_numbers = jnp.asarray(atoms.numbers)
     box = jnp.asarray(atoms.get_cell().lengths())
 
@@ -23,6 +26,7 @@ def build_energy_neighbor_fns(atoms, params, dr_threshold):
         displacement=displacement_fn,
         box_size=box,
         dr_threshold=dr_threshold,
+        **config.model.dict(),
     )
     energy_fn = partial(model, params)
     return energy_fn, neighbor_fn
@@ -35,9 +39,18 @@ class ASECalculator(Calculator):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, ckpt_dir, dr_threshold=0.5, **kwargs):
+    def __init__(self, model_dir, dr_threshold=0.5, **kwargs):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
+
+        model_config = os.path.join(model_dir,"config.yaml")
+        ckpt_dir = os.path.join(model_dir,"best")
+
+        if isinstance(model_config, str):
+            with open(model_config, "r") as stream:
+                model_config = yaml.safe_load(stream)
+
+        self.model_config = Config.parse_obj(model_config)
 
         ckpt_exists = look_for_checkpoints(ckpt_dir)
         assert ckpt_exists
@@ -50,7 +63,7 @@ class ASECalculator(Calculator):
 
     def initialize(self, atoms):
         energy_fn, neighbor_fn = build_energy_neighbor_fns(
-            atoms, self.params, self.dr_threshold
+            atoms, self.model_config, self.params, self.dr_threshold
         )
 
         @jax.jit
