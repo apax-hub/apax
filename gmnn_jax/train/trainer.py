@@ -33,10 +33,13 @@ def fit(
     train_step, val_step = make_step_fns(loss_fn, Metrics, model=model)
 
     state, start_epoch = load_state(model, params, tx, latest_dir)
+    if start_epoch >= n_epochs:
+        raise ValueError(
+            f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
+        )
 
     train_steps_per_epoch = train_ds.steps_per_epoch()
     batch_train_ds = train_ds.shuffle_and_batch()
-    epoch_loss = {}
 
     if val_ds is not None:
         val_steps_per_epoch = val_ds.steps_per_epoch()
@@ -44,17 +47,12 @@ def fit(
 
     async_manager = checkpoints.AsyncManager()
 
-    if start_epoch >= n_epochs:
-        raise ValueError(
-            f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
-        )
-
+    epoch_loss = {}
     for epoch in range(start_epoch, n_epochs):
-        epoch += 1
         epoch_start_time = time.time()
-        callbacks.on_epoch_begin(epoch=epoch)
-        epoch_loss.update({"train_loss": 0.0})
+        callbacks.on_epoch_begin(epoch=epoch + 1)
 
+        epoch_loss.update({"train_loss": 0.0})
         train_batch_metrics = Metrics.empty()
 
         for batch_idx in range(train_steps_per_epoch):
