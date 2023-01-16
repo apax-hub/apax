@@ -154,4 +154,4 @@ def test_ase_calc(get_tmp_path):
     F = atoms.get_forces()
 
     assert E != 0
-    assert F.shape == (3,3)
+    assert F.shape == (3, 3)

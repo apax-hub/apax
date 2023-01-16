@@ -1,15 +1,15 @@
-from functools import partial
 import os
+from functools import partial
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+import yaml
 from ase.calculators.calculator import Calculator, all_changes
 from flax.training import checkpoints
 from jax_md import space
-import yaml
-from gmnn_jax.config.train_config import Config
 
+from gmnn_jax.config.train_config import Config
 from gmnn_jax.md.md_checkpoint import look_for_checkpoints
 from gmnn_jax.model.gmnn import get_md_model
 
