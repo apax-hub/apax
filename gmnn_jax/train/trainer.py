@@ -6,7 +6,7 @@ import jax
 import numpy as np
 from tqdm import trange
 
-from gmnn_jax.train.checkpoints import load_state, CheckpointManager
+from gmnn_jax.train.checkpoints import CheckpointManager, load_state
 
 log = logging.getLogger(__name__)
 
@@ -49,12 +49,7 @@ def fit(
     best_loss = np.inf
     epoch_loss = {}
     with trange(
-        start_epoch,
-        n_epochs,
-        desc="Epochs",
-        ncols=100,
-        disable=disable_pbar,
-        leave=True
+        start_epoch, n_epochs, desc="Epochs", ncols=100, disable=disable_pbar, leave=True
     ) as epoch_pbar:
         for epoch in range(start_epoch, n_epochs):
             epoch_start_time = time.time()

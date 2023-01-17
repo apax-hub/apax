@@ -11,10 +11,9 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read
 from ase.io.trajectory import TrajectoryWriter
 from flax.training import checkpoints
-from jax_md import simulate, space
+from jax_md import quantity, simulate, space
 from jax_md.util import Array
 from tqdm import trange
-from jax_md import quantity
 
 from gmnn_jax.config import Config, MDConfig
 from gmnn_jax.md.md_checkpoint import load_md_state, look_for_checkpoints
@@ -125,12 +124,7 @@ def run_nvt(
     # TODO: log starting time when epoch loaded
     log.info("running nvt for %.1f fs", sim_time)
     with trange(
-        0,
-        n_steps,
-        desc="Simulation",
-        ncols=100,
-        disable=disable_pbar,
-        leave=True
+        0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
     ) as sim_pbar:
         while step < n_outer:
             new_state, neighbor = sim(state, neighbor)
@@ -147,7 +141,7 @@ def run_nvt(
                 if step % checkpoint_interval == 0:
                     log.info("saving checkpoint at step: %d", step)
                     log.info("checkpoints not yet implemented")
-                
+
                 current_temperature = quantity.temperature(momentum=state.momentum)
                 sim_pbar.set_postfix(T=f"{(current_temperature / kT):.1f} K")
                 sim_pbar.update(n_inner)
@@ -204,7 +198,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         displacement=displacement_fn,
         box_size=box,
         dr_threshold=md_config.dr_threshold,
-        **model_config.model.dict()
+        **model_config.model.dict(),
     )
 
     os.makedirs(md_config.sim_dir, exist_ok=True)

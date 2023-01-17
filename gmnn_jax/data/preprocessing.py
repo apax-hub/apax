@@ -19,7 +19,10 @@ def extract_nl(neighbors, positions):
 
 
 def dataset_neighborlist(
-    neighbor_fn: NeighborFn, positions: np.array, n_atoms: list[int], disable_pbar: bool=False
+    neighbor_fn: NeighborFn,
+    positions: np.array,
+    n_atoms: list[int],
+    disable_pbar: bool = False,
 ) -> list[int]:
     """Calculates the neighbor list of all systems within positions using
     a jax_md.partition.NeighborFn.
@@ -51,7 +54,7 @@ def dataset_neighborlist(
         desc="Precomputing NL",
         ncols=100,
         disable=disable_pbar,
-        leave=True
+        leave=True,
     ) as nl_pbar:
         for i, position in enumerate(positions):
             if n_atoms[i] != num_atoms:
@@ -64,7 +67,7 @@ def dataset_neighborlist(
                 neighbors = neighbor_fn.allocate(position)
 
             idx.append(neighbors.idx)
-            if i % pbar_update_freq ==0:
+            if i % pbar_update_freq == 0:
                 nl_pbar.update(pbar_update_freq)
 
     return idx
