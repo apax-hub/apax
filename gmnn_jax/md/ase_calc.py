@@ -1,5 +1,6 @@
 import os
 from functools import partial
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
@@ -39,15 +40,13 @@ class ASECalculator(Calculator):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, model_config, dr_threshold=0.5, **kwargs):
+    def __init__(self, model_dir: Path, dr_threshold: float=0.5, **kwargs):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
 
-        # model_config = os.path.join(model_dir,"config.yaml")
-
-        if isinstance(model_config, str):
-            with open(model_config, "r") as stream:
-                model_config = yaml.safe_load(stream)
+        model_config = Path(model_dir) / "config.yaml"
+        with open(model_config, "r") as stream:
+            model_config = yaml.safe_load(stream)
 
         self.model_config = Config.parse_obj(model_config)
 

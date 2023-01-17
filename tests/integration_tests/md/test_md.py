@@ -98,6 +98,7 @@ def test_ase_calc(get_tmp_path):
     model_config_dict["data"]["model_path"] = get_tmp_path.as_posix()
 
     model_config = Config.parse_obj(model_config_dict)
+    model_config.dump_config(model_config_dict["data"]["model_path"])
 
     cell_size = 10.0
     positions = np.array(
@@ -147,7 +148,7 @@ def test_ase_calc(get_tmp_path):
     )
 
     atoms = read(initial_structure_path.as_posix())
-    calc = ASECalculator(model_config_dict)
+    calc = ASECalculator(model_config_dict["data"]["model_path"])
 
     atoms.calc = calc
     E = atoms.get_potential_energy()
