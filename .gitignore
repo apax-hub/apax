@@ -50,6 +50,14 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+raw_data/
+model_files/
+main.py
+*csv
+tmp/
+.npz
+.traj
+
 
 # Translations
 *.mo
@@ -127,3 +135,25 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# VSCode project settings
+settings.json
+.vscode
+
+# iOS files
+.DS_Store
+
+# logs
+*.csv
+tb_logs/
+*.pb
+ckpt*
+checkpoint*
+config.yaml
+parameters.yaml
+md_config.yaml
+
+# data
+*.extxyz
+*.traj
+*.npz
