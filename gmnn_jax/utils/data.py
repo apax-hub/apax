@@ -84,7 +84,7 @@ def split_list(data_list, external_labels, length1, length2):
     splitted_list2
         List of random structures from atoms_list of the length length2.
     """
-
+    sp_label_dict1, sp_label_dict2 = ({}, {})
     if external_labels:
         idx = np.arrange(len(data_list))
         np.random.shuffle(idx)
@@ -94,8 +94,6 @@ def split_list(data_list, external_labels, length1, length2):
         sp_data_list1 = [data_list[i] for i in idx1]
         sp_data_list2 = [data_list[i] for i in idx2]
 
-        sp_label_dict1 = {}
-        sp_label_dict2 = {}
         for shape, labels in external_labels.items():
             sp_label_dict1.update({shape: {}})
             sp_label_dict2.update({shape: {}})
@@ -108,12 +106,9 @@ def split_list(data_list, external_labels, length1, length2):
                         "number of external labels is not metching the number of data"
                         f" (strucktures) {len(data_list)} != {len(vals)}."
                     )
-
     else:
         np.random.shuffle(data_list)
         sp_data_list1 = data_list[:length1]
         sp_data_list2 = data_list[length1 : length1 + length2]
-
-        sp_label_dict1, sp_label_dict2 = ({}, {})
 
     return sp_data_list1, sp_data_list2, sp_label_dict1, sp_label_dict2
