@@ -86,7 +86,7 @@ class Loss:
         elif self.name == "energy" and self.loss_type == "vibrations":
             divisor = n_atoms
         elif self.name == "forces" and self.loss_type == "structures":
-            divisor = einops.repeat(n_atoms, "batch atoms -> batch atoms 1")
+            divisor = einops.repeat(n_atoms, "batch -> batch 1 1")
         else:
             divisor = jnp.array(1.0)
 

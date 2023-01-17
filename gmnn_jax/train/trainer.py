@@ -4,9 +4,9 @@ from functools import partial
 
 import jax
 import numpy as np
-from flax.training import checkpoints
+from tqdm import trange
 
-from gmnn_jax.train.checkpoints import load_state
+from gmnn_jax.train.checkpoints import CheckpointManager, load_state
 
 log = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ def fit(
     callbacks,
     n_epochs,
     ckpt_dir,
+    disable_pbar=False,
     val_ds=None,
 ):
     log.info("Begining Training")
@@ -28,102 +29,91 @@ def fit(
 
     latest_dir = ckpt_dir + "/latest"
     best_dir = ckpt_dir + "/best"
-    best_loss = np.inf
+    ckpt_manager = CheckpointManager()
 
     train_step, val_step = make_step_fns(loss_fn, Metrics, model=model)
 
     state, start_epoch = load_state(model, params, tx, latest_dir)
-
-    train_steps_per_epoch = train_ds.steps_per_epoch()
-    batch_train_ds = train_ds.shuffle_and_batch()
-    epoch_loss = {}
-
-    if val_ds is not None:
-        val_steps_per_epoch = val_ds.steps_per_epoch()
-        batch_val_ds = val_ds.shuffle_and_batch()
-
-    async_manager = checkpoints.AsyncManager()
-
     if start_epoch >= n_epochs:
         raise ValueError(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
 
-    for epoch in range(start_epoch, n_epochs):
-        epoch += 1
-        epoch_start_time = time.time()
-        callbacks.on_epoch_begin(epoch=epoch)
-        epoch_loss.update({"train_loss": 0.0})
+    train_steps_per_epoch = train_ds.steps_per_epoch()
+    batch_train_ds = train_ds.shuffle_and_batch()
 
-        train_batch_metrics = Metrics.empty()
+    if val_ds is not None:
+        val_steps_per_epoch = val_ds.steps_per_epoch()
+        batch_val_ds = val_ds.shuffle_and_batch()
 
-        for batch_idx in range(train_steps_per_epoch):
-            callbacks.on_train_batch_begin(batch=batch_idx)
+    best_loss = np.inf
+    epoch_loss = {}
+    with trange(
+        start_epoch, n_epochs, desc="Epochs", ncols=100, disable=disable_pbar, leave=True
+    ) as epoch_pbar:
+        for epoch in range(start_epoch, n_epochs):
+            epoch_start_time = time.time()
+            callbacks.on_epoch_begin(epoch=epoch + 1)
 
-            inputs, labels = next(batch_train_ds)
-            train_batch_metrics, batch_loss, state = train_step(
-                state, inputs, labels, train_batch_metrics
-            )
+            epoch_loss.update({"train_loss": 0.0})
+            train_batch_metrics = Metrics.empty()
 
-            epoch_loss["train_loss"] += batch_loss
-            callbacks.on_train_batch_end(batch=batch_idx)
+            for batch_idx in range(train_steps_per_epoch):
+                callbacks.on_train_batch_begin(batch=batch_idx)
 
-        epoch_loss["train_loss"] /= train_steps_per_epoch
-        epoch_loss["train_loss"] = float(epoch_loss["train_loss"])
-
-        epoch_metrics = {
-            f"train_{key}": float(val)
-            for key, val in train_batch_metrics.compute().items()
-        }
-
-        if val_ds is not None:
-            epoch_loss.update({"val_loss": 0.0})
-            val_batch_metrics = Metrics.empty()
-            for batch_idx in range(val_steps_per_epoch):
-                inputs, labels = next(batch_val_ds)
-
-                val_batch_metrics, batch_loss = val_step(
-                    state, inputs, labels, val_batch_metrics
+                inputs, labels = next(batch_train_ds)
+                train_batch_metrics, batch_loss, state = train_step(
+                    state, inputs, labels, train_batch_metrics
                 )
-                epoch_loss["val_loss"] += batch_loss
 
-            epoch_loss["val_loss"] /= val_steps_per_epoch
-            epoch_loss["val_loss"] = float(epoch_loss["val_loss"])
+                epoch_loss["train_loss"] += batch_loss
+                callbacks.on_train_batch_end(batch=batch_idx)
 
-            epoch_metrics.update(
-                {
-                    f"val_{key}": float(val)
-                    for key, val in val_batch_metrics.compute().items()
-                }
-            )
+            epoch_loss["train_loss"] /= train_steps_per_epoch
+            epoch_loss["train_loss"] = float(epoch_loss["train_loss"])
 
-        epoch_metrics.update({**epoch_loss})
+            epoch_metrics = {
+                f"train_{key}": float(val)
+                for key, val in train_batch_metrics.compute().items()
+            }
 
-        epoch_end_time = time.time()
-        epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
+            if val_ds is not None:
+                epoch_loss.update({"val_loss": 0.0})
+                val_batch_metrics = Metrics.empty()
+                for batch_idx in range(val_steps_per_epoch):
+                    inputs, labels = next(batch_val_ds)
 
-        ckpt = {"model": state, "epoch": epoch}
-        checkpoints.save_checkpoint(
-            ckpt_dir=latest_dir,
-            target=ckpt,
-            step=epoch,
-            overwrite=True,
-            keep=2,
-            async_manager=async_manager,
-        )
+                    val_batch_metrics, batch_loss = val_step(
+                        state, inputs, labels, val_batch_metrics
+                    )
+                    epoch_loss["val_loss"] += batch_loss
 
-        if epoch_metrics["val_loss"] < best_loss:
-            best_loss = epoch_metrics["val_loss"]
-            checkpoints.save_checkpoint(
-                ckpt_dir=best_dir,
-                target=ckpt,
-                step=epoch,
-                overwrite=True,
-                keep=2,
-                async_manager=async_manager,
-            )
+                epoch_loss["val_loss"] /= val_steps_per_epoch
+                epoch_loss["val_loss"] = float(epoch_loss["val_loss"])
 
-        callbacks.on_epoch_end(epoch=epoch, logs=epoch_metrics)
+                epoch_metrics.update(
+                    {
+                        f"val_{key}": float(val)
+                        for key, val in val_batch_metrics.compute().items()
+                    }
+                )
+
+            epoch_metrics.update({**epoch_loss})
+
+            epoch_end_time = time.time()
+            epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
+
+            ckpt = {"model": state, "epoch": epoch}
+            ckpt_manager.save_checkpoint(ckpt, epoch, latest_dir)
+
+            if epoch_metrics["val_loss"] < best_loss:
+                best_loss = epoch_metrics["val_loss"]
+                ckpt_manager.save_checkpoint(ckpt, epoch, best_dir)
+
+            callbacks.on_epoch_end(epoch=epoch, logs=epoch_metrics)
+
+            epoch_pbar.set_postfix(val_loss=epoch_metrics["val_loss"])
+            epoch_pbar.update()
 
 
 def calc_loss(params, inputs, labels, loss_fn, model):

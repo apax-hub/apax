@@ -18,6 +18,7 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
     sim_dir: str = "."
     traj_name: str = "md.traj"
     restart: bool = True
+    disable_pbar: bool = False
 
     def dump_config(self):
         with open(os.path.join(self.sim_dir, "md_config.yaml"), "w") as conf:

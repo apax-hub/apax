@@ -51,10 +51,11 @@ def convert_atoms_to_arrays(
             inputs["fixed"]["cell"].append(list(cell))
 
         for key, val in atoms.calc.results.items():
-            if type(val) is np.ndarray and np.shape(val)[0] == len(atoms):
-                labels["ragged"][key].append(val)
-            else:
-                labels["fixed"][key].append(val)
+            if key in ["energy", "forces"]:
+                if type(val) is np.ndarray and np.shape(val)[0] == len(atoms):
+                    labels["ragged"][key].append(val)
+                else:
+                    labels["fixed"][key].append(val)
 
     inputs["ragged"] = {
         key: val for key, val in inputs["ragged"].items() if len(val) != 0
