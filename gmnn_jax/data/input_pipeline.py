@@ -59,6 +59,7 @@ class InputPipeline:
         batch_size: int,
         atoms_list: list,
         buffer_size: int = 1000,
+        disable_pbar=False,
     ) -> None:
         """Processes inputs/labels and makes them accessible for training.
 
@@ -107,6 +108,7 @@ class InputPipeline:
             neighbor_fn,
             inputs["ragged"]["positions"],
             inputs["fixed"]["n_atoms"],
+            disable_pbar=disable_pbar,
         )
 
         inputs["ragged"]["idx"] = []

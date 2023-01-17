@@ -57,6 +57,11 @@ class CallbackConfig(BaseModel, frozen=True, extra=Extra.allow):
     name: str
 
 
+class TrainProgressbarConfig(BaseModel, extra=Extra.forbid):
+    disable_epoch_pbar: bool = False
+    disable_nl_pbar: bool = False
+
+
 class Config(BaseModel, frozen=True, extra=Extra.forbid):
     n_epochs: PositiveInt = 100
     seed: int = 1
@@ -67,6 +72,7 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()
     callbacks: List[CallbackConfig] = [CallbackConfig(name="csv")]
+    progress_bar: TrainProgressbarConfig = TrainProgressbarConfig()
     maximize_l2_cache: bool = False
 
     def dump_config(self, save_path):

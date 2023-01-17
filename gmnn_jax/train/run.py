@@ -142,6 +142,7 @@ def run(user_config):
         config.data.batch_size,
         train_atoms_list,
         config.data.shuffle_buffer_size,
+        disable_pbar=config.progress_bar.disable_nl_pbar,
     )
     val_ds = InputPipeline(
         config.model.r_max,
@@ -149,6 +150,7 @@ def run(user_config):
         config.data.valid_batch_size,
         val_atoms_list,
         config.data.shuffle_buffer_size,
+        disable_pbar=config.progress_bar.disable_nl_pbar,
     )
 
     n_atoms = ds_stats.n_atoms
@@ -193,4 +195,5 @@ def run(user_config):
         n_epochs,
         ckpt_dir=os.path.join(config.data.model_path, config.data.model_name),
         val_ds=val_ds,
+        disable_pbar=config.progress_bar.disable_epoch_pbar,
     )
