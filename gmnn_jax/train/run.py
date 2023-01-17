@@ -120,15 +120,15 @@ def run(user_config):
     log.info("Running Input Pipeline")
     if config.data.data_path is not None:
         log.info(f"Read data file {config.data.data_path}")
-        atoms_list = load_data(config.data.data_path)
-        train_atoms_list, val_atoms_list = split_list(
-            atoms_list, config.data.n_train, config.data.n_valid
+        atoms_list, label_dict = load_data(config.data.data_path)
+        train_atoms_list, val_atoms_list, train_label_dict, val_label_dict = split_list(
+            atoms_list, label_dict, config.data.n_train, config.data.n_valid
         )
     elif config.data.train_data_path and config.data.val_data_path is not None:
         log.info(f"Read training data file {config.data.train_data_path}")
         log.info(f"Read validation data file {config.data.val_data_path}")
-        train_atoms_list = load_data(config.data.train_data_path)
-        val_atoms_list = load_data(config.data.val_data_path)
+        train_atoms_list, train_label_dict = load_data(config.data.train_data_path)
+        val_atoms_list, val_label_dict = load_data(config.data.val_data_path)
     else:
         raise ValueError("input data path/paths not defined")
 
@@ -141,6 +141,7 @@ def run(user_config):
         config.n_epochs,
         config.data.batch_size,
         train_atoms_list,
+        train_label_dict,
         config.data.shuffle_buffer_size,
         disable_pbar=config.progress_bar.disable_nl_pbar,
     )
@@ -149,6 +150,7 @@ def run(user_config):
         config.n_epochs,
         config.data.valid_batch_size,
         val_atoms_list,
+        val_label_dict,
         config.data.shuffle_buffer_size,
         disable_pbar=config.progress_bar.disable_nl_pbar,
     )
