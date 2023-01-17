@@ -11,7 +11,9 @@ data:
   shuffle_buffer_size: 4
 
 model:
-  nn: [512,512]
+  nn: [32,32]
+  n_basis: 5
+  n_radial: 3
 
 metrics:
   - name: energy

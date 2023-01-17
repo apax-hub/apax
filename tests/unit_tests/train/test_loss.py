@@ -79,7 +79,7 @@ def test_force_loss():
     loss_type = "structures"
     weight = 1
     inputs = {
-        "n_atoms": jnp.array([[2]]),
+        "n_atoms": jnp.array([2]),
     }
     label = {
         name: jnp.array(
