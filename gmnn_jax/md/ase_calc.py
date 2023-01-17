@@ -40,7 +40,7 @@ class ASECalculator(Calculator):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, model_dir: Path, dr_threshold: float=0.5, **kwargs):
+    def __init__(self, model_dir: Path, dr_threshold: float = 0.5, **kwargs):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
 
