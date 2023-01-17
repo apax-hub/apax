@@ -18,3 +18,18 @@ def load_state(model, params, tx, ckpt_dir):
         start_epoch = raw_restored["epoch"] + 1
 
     return state, start_epoch
+
+
+class CheckpointManager:
+    def __init__(self) -> None:
+        self.async_manager = checkpoints.AsyncManager()
+
+    def save_checkpoint(self, ckpt, epoch: int, path: str) -> None:
+        checkpoints.save_checkpoint(
+            ckpt_dir=path,
+            target=ckpt,
+            step=epoch,
+            overwrite=True,
+            keep=2,
+            async_manager=self.async_manager,
+        )

@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax_md.partition import NeighborFn
+from tqdm import trange
 
 log = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ def extract_nl(neighbors, positions):
 
 
 def dataset_neighborlist(
-    neighbor_fn: NeighborFn, positions: np.array, n_atoms: list[int]
+    neighbor_fn: NeighborFn, positions: np.array, n_atoms: list[int], disable_pbar: bool=False
 ) -> list[int]:
     """Calculates the neighbor list of all systems within positions using
     a jax_md.partition.NeighborFn.
@@ -43,17 +44,28 @@ def dataset_neighborlist(
     neighbors = neighbor_fn.allocate(positions[0])
     idx = []
     num_atoms = n_atoms[0]
-    for i, position in enumerate(positions):
-        if n_atoms[i] != num_atoms:
-            neighbors = neighbor_fn.allocate(position)
-            num_atoms = n_atoms[i]
 
-        neighbors = extract_nl(neighbors, position)
-        if neighbors.did_buffer_overflow:
-            log.info("Neighbor list overflowed, reallocating.")
-            neighbors = neighbor_fn.allocate(position)
+    pbar_update_freq = 10
+    with trange(
+        len(positions),
+        desc="Precomputing NL",
+        ncols=100,
+        disable=disable_pbar,
+        leave=True
+    ) as nl_pbar:
+        for i, position in enumerate(positions):
+            if n_atoms[i] != num_atoms:
+                neighbors = neighbor_fn.allocate(position)
+                num_atoms = n_atoms[i]
 
-        idx.append(neighbors.idx)
+            neighbors = extract_nl(neighbors, position)
+            if neighbors.did_buffer_overflow:
+                log.info("Neighbor list overflowed, reallocating.")
+                neighbors = neighbor_fn.allocate(position)
+
+            idx.append(neighbors.idx)
+            if i % pbar_update_freq ==0:
+                nl_pbar.update(pbar_update_freq)
 
     return idx
 
