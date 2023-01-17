@@ -13,6 +13,8 @@ from ase.io.trajectory import TrajectoryWriter
 from flax.training import checkpoints
 from jax_md import simulate, space
 from jax_md.util import Array
+from tqdm import trange
+from jax_md import quantity
 
 from gmnn_jax.config import Config, MDConfig
 from gmnn_jax.md.md_checkpoint import load_md_state, look_for_checkpoints
@@ -38,6 +40,7 @@ def run_nvt(
     restart: bool = True,
     sim_dir: str = ".",
     traj_name: str = "nvt.traj",
+    disable_pbar: bool = False,
 ):
     """
     Performs NVT MD.
@@ -121,21 +124,33 @@ def run_nvt(
     start = time.time()
     # TODO: log starting time when epoch loaded
     log.info("running nvt for %.1f fs", sim_time)
-    while step < n_outer:
-        new_state, neighbor = sim(state, neighbor)
-        if neighbor.did_buffer_overflow:
-            log.info("step %d: neighbor list overflowed, reallocating.", step)
-            neighbor = neighbor_fn.allocate(state.position)
-        else:
-            state = new_state
-            step += 1
-            new_atoms = Atoms(atomic_numbers, state.position, cell=box)
-            new_atoms.calc = SinglePointCalculator(new_atoms, forces=state.force)
-            traj.write(new_atoms)
+    with trange(
+        0,
+        n_steps,
+        desc="Simulation",
+        ncols=100,
+        disable=disable_pbar,
+        leave=True
+    ) as sim_pbar:
+        while step < n_outer:
+            new_state, neighbor = sim(state, neighbor)
+            if neighbor.did_buffer_overflow:
+                log.info("step %d: neighbor list overflowed, reallocating.", step)
+                neighbor = neighbor_fn.allocate(state.position)
+            else:
+                state = new_state
+                step += 1
+                new_atoms = Atoms(atomic_numbers, state.position, cell=box)
+                new_atoms.calc = SinglePointCalculator(new_atoms, forces=state.force)
+                traj.write(new_atoms)
 
-            if step % checkpoint_interval == 0:
-                log.info("saving checkpoint at step: %d", step)
-                log.info("checkpoints not yet implemented")
+                if step % checkpoint_interval == 0:
+                    log.info("saving checkpoint at step: %d", step)
+                    log.info("checkpoints not yet implemented")
+                
+                current_temperature = quantity.temperature(momentum=state.momentum)
+                sim_pbar.set_postfix(T=f"{(current_temperature / kT):.1f} K")
+                sim_pbar.update(n_inner)
     traj.close()
 
     end = time.time()
