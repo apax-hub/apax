@@ -121,7 +121,7 @@ def run(user_config):
     if config.data.data_path is not None:
         log.info(f"Read data file {config.data.data_path}")
         atoms_list, label_dict = load_data(config.data.data_path)
-        train_atoms_list, val_atoms_list = split_list(
+        train_atoms_list, val_atoms_list, train_label_dict, val_label_dict = split_list(
             atoms_list, label_dict, config.data.n_train, config.data.n_valid
         )
     elif config.data.train_data_path and config.data.val_data_path is not None:

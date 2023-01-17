@@ -13,7 +13,7 @@ def load_data(data_path):
         example for the npz-file:
                 dipole = np.random.rand(3, 1)
                 charge = np.random.rand(3, 2)
-                mat = np.random.rand(4)
+                mat = np.random.rand(3, 1)
                 shape = ['ragged', 'ragged', 'fixed']
 
                 np.savez(
@@ -35,7 +35,7 @@ def load_data(data_path):
     atoms_list
         List of all structures where entries are ASE atoms objects.
     """
-    label_dict = {}
+    external_labels = {}
 
     try:
         log.info(f"Loading data from {data_path}")
@@ -53,18 +53,18 @@ def load_data(data_path):
 
         unique_shape = np.unique(dict["shape"])
         for shape in unique_shape:
-            label_dict.update({shape: {}})
+            external_labels.update({shape: {}})
 
         i = 0
         for key, val in dict.items():
             if key != "shape":
-                label_dict[dict["shape"][i]].update({key: val})
+                external_labels[dict["shape"][i]].update({key: val})
                 i += 1
 
-    return atoms_list, label_dict
+    return atoms_list, external_labels
 
 
-def split_list(data_list, label_dict, length1, length2):
+def split_list(data_list, external_labels, length1, length2):
     """Schuffles and splits a list in two resulting lists
     of the length length1 and length2.
 
@@ -85,11 +85,35 @@ def split_list(data_list, label_dict, length1, length2):
         List of random structures from atoms_list of the length length2.
     """
 
-    # TODO shuffle label_dict values the same way
-    if label_dict is not None:
-        raise NotImplementedError("External labels can not be shuffled at the moment")
+    if external_labels:
+        idx = np.arrange(len(data_list))
+        np.random.shuffle(idx)
+        idx1 = idx[:length1]
+        idx2 = idx[length1 : length1 + length2]
+
+        sp_data_list1 = [data_list[i] for i in idx1]
+        sp_data_list2 = [data_list[i] for i in idx2]
+
+        sp_label_dict1 = {}
+        sp_label_dict2 = {}
+        for shape, labels in external_labels.items():
+            sp_label_dict1.update({shape: {}})
+            sp_label_dict2.update({shape: {}})
+            for label, vals in labels.items():
+                if len(data_list) == len(vals):
+                    sp_label_dict1[shape].update({label: vals[idx1]})
+                    sp_label_dict2[shape].update({label: vals[idx2]})
+                else:
+                    raise ValueError(
+                        "number of external labels is not metching the number of data"
+                        f" (strucktures) {len(data_list)} != {len(vals)}."
+                    )
+
     else:
         np.random.shuffle(data_list)
-        splitted_list1 = data_list[:length1]
-        splitted_list2 = data_list[length1 : length1 + length2]
-        return splitted_list1, splitted_list2
+        sp_data_list1 = data_list[:length1]
+        sp_data_list2 = data_list[length1 : length1 + length2]
+
+        sp_label_dict1, sp_label_dict2 = ({}, {})
+
+    return sp_data_list1, sp_data_list2, sp_label_dict1, sp_label_dict2
