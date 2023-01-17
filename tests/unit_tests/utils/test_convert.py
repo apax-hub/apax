@@ -13,8 +13,6 @@ from gmnn_jax.utils.convert import convert_atoms_to_arrays
 def test_convert_atoms_to_arrays(example_atoms, pbc):
     inputs, labels = convert_atoms_to_arrays(example_atoms)
 
-    print(inputs, labels)
-
     assert "fixed" in inputs
     assert "ragged" in inputs
     assert "fixed" or "ragged" in labels

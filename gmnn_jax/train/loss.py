@@ -54,11 +54,11 @@ def force_angle_exponential_weight(
 @dataclasses.dataclass
 class Loss:
     """
-    Represents a single weighted loss function that is constructed from a `key`
+    Represents a single weighted loss function that is constructed from a `name`
     and a type of comparisson metric.
     """
 
-    key: str
+    name: str
     loss_type: str
     weight: float = 1.0
 
@@ -72,21 +72,21 @@ class Loss:
         else:
             self.loss_fn = weighted_squared_error
 
-    def __call__(self, prediction: dict, label: dict) -> float:
+    def __call__(self, inputs: dict, prediction: dict, label: dict) -> float:
         # TODO add stress multiplication with cell volume as dataset.map
         # TODO we may want to insert an additional `mask` argument for this method
-        divisor = self.determine_divisor(label["n_atoms"])
+        divisor = self.determine_divisor(inputs["n_atoms"])
 
-        loss = self.loss_fn(label[self.key], prediction[self.key], divisor=divisor)
+        loss = self.loss_fn(label[self.name], prediction[self.name], divisor=divisor)
         return self.weight * jnp.sum(loss)
 
     def determine_divisor(self, n_atoms: jnp.array) -> jnp.array:
-        if self.key == "energy" and self.loss_type == "structures":
+        if self.name == "energy" and self.loss_type == "structures":
             divisor = n_atoms**2
-        elif self.key == "energy" and self.loss_type == "vibrations":
+        elif self.name == "energy" and self.loss_type == "vibrations":
             divisor = n_atoms
-        elif self.key == "forces" and self.loss_type == "structures":
-            divisor = einops.repeat(n_atoms, "batch atoms -> batch atoms 1")
+        elif self.name == "forces" and self.loss_type == "structures":
+            divisor = einops.repeat(n_atoms, "batch -> batch 1 1")
         else:
             divisor = jnp.array(1.0)
 
@@ -97,10 +97,10 @@ class Loss:
 class LossCollection:
     loss_list: List[Loss]
 
-    def __call__(self, predictions: dict, labels: dict) -> float:
+    def __call__(self, inputs: dict, predictions: dict, labels: dict) -> float:
         total_loss = 0.0
         for single_loss_fn in self.loss_list:
-            loss = single_loss_fn(predictions, labels)
+            loss = single_loss_fn(inputs, predictions, labels)
             total_loss = total_loss + loss
 
         return total_loss

@@ -1,0 +1,24 @@
+n_epochs: 2
+
+data:
+  model_name: gmnn_dummy
+  data_path: dummy_ds  # ds.extxyz #ethanol.traj # ds.extxyz #
+
+  n_train: 4
+  n_valid: 2
+  batch_size: 2
+  valid_batch_size: 2
+  shuffle_buffer_size: 4
+
+model:
+  nn: [32,32]
+  n_basis: 5
+  n_radial: 3
+
+metrics:
+  - name: energy
+    reductions: [mae]
+
+loss:
+  - name: energy
+  - name: forces

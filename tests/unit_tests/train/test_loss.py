@@ -75,11 +75,14 @@ def test_force_angle_loss():
 
 
 def test_force_loss():
-    key = "forces"
+    name = "forces"
     loss_type = "structures"
     weight = 1
+    inputs = {
+        "n_atoms": jnp.array([2]),
+    }
     label = {
-        key: jnp.array(
+        name: jnp.array(
             [
                 [
                     [0.4, 0.2, 0.5],
@@ -87,11 +90,10 @@ def test_force_loss():
                 ]
             ]
         ),
-        "n_atoms": jnp.array([[2]]),
     }
 
     pred = {
-        key: jnp.array(
+        name: jnp.array(
             [
                 [
                     [0.4, 0.2, 0.5],
@@ -100,14 +102,14 @@ def test_force_loss():
             ]
         ),
     }
-    loss_func = Loss(key=key, loss_type=loss_type, weight=weight)
-    loss = loss_func(label=label, prediction=pred)
+    loss_func = Loss(name=name, loss_type=loss_type, weight=weight)
+    loss = loss_func(inputs=inputs, label=label, prediction=pred)
     ref_loss = 0.0
     assert loss.shape == ()
     assert abs(loss - ref_loss) < 1e-6
 
     pred = {
-        key: jnp.array(
+        name: jnp.array(
             [
                 [
                     [0.4, 0.2, 0.5],
@@ -116,13 +118,13 @@ def test_force_loss():
             ]
         ),
     }
-    loss_func = Loss(key=key, loss_type=loss_type, weight=weight)
-    loss = loss_func(label=label, prediction=pred)
+    loss_func = Loss(name=name, loss_type=loss_type, weight=weight)
+    loss = loss_func(inputs=inputs, label=label, prediction=pred)
     ref_loss = 0.125
     assert abs(loss - ref_loss) < 1e-6
 
     weight = 2
-    loss_func = Loss(key=key, loss_type=loss_type, weight=weight)
-    loss = loss_func(label=label, prediction=pred)
+    loss_func = Loss(name=name, loss_type=loss_type, weight=weight)
+    loss = loss_func(inputs=inputs, label=label, prediction=pred)
     ref_loss = 0.25
     assert abs(loss - ref_loss) < 1e-6

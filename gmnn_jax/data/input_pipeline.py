@@ -1,12 +1,10 @@
 import logging
-from typing import Type
 
 import numpy as np
 import tensorflow as tf
-from ase.io import read
 from jax_md import partition, space
 
-from gmnn_jax.data.preprocessing import dataset_neighborlist
+from gmnn_jax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
 from gmnn_jax.utils.convert import convert_atoms_to_arrays
 
 log = logging.getLogger(__name__)
@@ -19,7 +17,6 @@ def pad_to_largest_element(
         to largest element in the batch. Afterward, the distinction between ragged
         and fixed inputs/labels is not needed and all inputs/labels are updated to
         one list.
-
     Parameters
     ----------
     r_inputs :
@@ -30,7 +27,6 @@ def pad_to_largest_element(
         Labels of ragged shape. Trainable system properties.
     f_labels :
         Labels of fixed shape. Trainable system properties.
-
     Returns
     -------
     inputs:
@@ -53,113 +49,126 @@ def pad_to_largest_element(
     return inputs, labels
 
 
-def input_pipeline(
-    cutoff: float,
-    batch_size: int,
-    data_path: str = None,
-    atoms_list: str = None,
-    buffer_size: int = 1000,
-) -> Type[tf.data.Dataset]:
-    """Processes all inputs and labels and prepares them for the training cycle.
-    Inputs and Labels are padded to the largest element in the batch.
+class InputPipeline:
+    """Class processes inputs/labels and makes them accessible for training."""
 
-    Parameters
-    ----------
-    cutoff :
-        Radial cutoff in angstrom for the neighbor list
-    batch_size :
-        Number of strictures in one batch
-    data_path :
-        Path to the ASE readable file that includes all structures. By default None.
-        IMPORTANT: Eighter data_path ore atoms_list have to be defined if both are
-        defined atoms_list is primarily.
-    atoms_list :
-        List of all structures. Entries are ASE atoms objects. By default None.
-        IMPORTANT: Eighter data_path ore atoms_list have to be defined
-        if both are defined atoms_list is primarily.
-    buffer_size : optional
-        The number of structures that are shuffled for choosing the batches. Should be
-        significantly larger than the batch size. It is recommended to use the default
-        value.
+    def __init__(
+        self,
+        cutoff: float,
+        n_epoch: int,
+        batch_size: int,
+        atoms_list: list,
+        external_labels: dict = {},
+        buffer_size: int = 1000,
+        disable_pbar=False,
+    ) -> None:
+        """Processes inputs/labels and makes them accessible for training.
 
-    Returns
-    -------
-    ds :
-        A dataset that includes all data prepared for training e.g. split into
-        batches and padded. The dataset contains tf.Tensors.
+        Parameters
+        ----------
+        cutoff :
+            Radial cutoff in angstrom for the neighbor list.
+        n_epoch :
+            Number of epochs
+        batch_size :
+            Number of strictures in one batch.
+        atoms_list :
+            List of all structures. Entries are ASE atoms objects.
+        buffer_size : optional
+            The number of structures that are shuffled for choosing the batches. Should be
+            significantly larger than the batch size. It is recommended to use the default
+            value.
+        """
+        self.n_epoch = n_epoch
+        self.batch_size = batch_size
+        self.buffer_size = buffer_size
 
-    Raises
-    ------
-    ValueError
-        Raises if no inputs and labels are defined.
-    """
+        inputs, labels = convert_atoms_to_arrays(atoms_list)
 
-    if data_path is not None and atoms_list is None:
-        try:
-            atoms_list = read(data_path, index=":")
-            # TODO read non-ASE labels from file
-            log.info("Get data from file")
-        except IOError:
-            log.error(f"data_path ({data_path}) is not leading to file")
+        if external_labels:
+            for shape, label in external_labels.items():
+                labels[shape].update(label)
 
-    elif type(atoms_list) == list:
-        log.info("Get atoms directly as ASE atoms objects")
-        # TODO get non-ASE labels from dict
-    else:
-        raise ValueError(
-            "Input data and labels are missing eigther define a data_path or an"
-            " atoms_list (ASE atoms objects)"
+        self.n_data = len(inputs["fixed"]["n_atoms"])
+
+        cubic_box_size = 100
+
+        nl_format = partition.Sparse
+
+        if "cell" in inputs["fixed"]:
+            cubic_box_size = inputs["fixed"]["cell"][0][0]
+            displacement_fn, _ = space.periodic(cubic_box_size)
+        else:
+            displacement_fn, _ = space.free()
+        self.displacement_fn = displacement_fn
+
+        neighbor_fn = partition.neighbor_list(
+            displacement_or_metric=self.displacement_fn,
+            box=cubic_box_size,
+            r_cutoff=cutoff,
+            format=nl_format,
         )
 
-    inputs, labels = convert_atoms_to_arrays(atoms_list)
-    cubic_box_size = 100
-
-    nl_format = partition.Sparse
-    if "cell" in inputs["fixed"]:
-        cubic_box_size = inputs["fixed"]["cell"][0][0]
-        displacement_fn, _ = space.periodic(cubic_box_size)
-    else:
-        displacement_fn, _ = space.free()
-
-    neighbor_fn = partition.neighbor_list(
-        displacement_or_metric=displacement_fn,
-        box=cubic_box_size,
-        r_cutoff=cutoff,
-        format=nl_format,
-    )
-
-    idx = dataset_neighborlist(
-        neighbor_fn,
-        inputs["ragged"]["positions"],
-        inputs["fixed"]["n_atoms"],
-    )
-    inputs["ragged"]["idx"] = []
-    for i in idx:
-        inputs["ragged"]["idx"].append(np.array(i))
-
-    for key, val in inputs["ragged"].items():
-        inputs["ragged"][key] = tf.ragged.constant(val)
-    for key, val in inputs["fixed"].items():
-        inputs["fixed"][key] = tf.constant(val)
-
-    for key, val in labels["ragged"].items():
-        labels["ragged"][key] = tf.ragged.constant(val)
-    for key, val in labels["fixed"].items():
-        labels["fixed"][key] = tf.constant(val)
-
-    ds = tf.data.Dataset.from_tensor_slices(
-        (
-            inputs["ragged"],
-            inputs["fixed"],
-            labels["ragged"],
-            labels["fixed"],
+        idx = dataset_neighborlist(
+            neighbor_fn,
+            inputs["ragged"]["positions"],
+            inputs["fixed"]["n_atoms"],
+            disable_pbar=disable_pbar,
         )
-    )
 
-    ds = (
-        ds.shuffle(buffer_size=buffer_size)
-        .batch(batch_size=batch_size)
-        .map(pad_to_largest_element)
-    )
+        inputs["ragged"]["idx"] = []
+        for i in idx:
+            inputs["ragged"]["idx"].append(np.array(i))
 
-    return ds
+        for key, val in inputs["ragged"].items():
+            inputs["ragged"][key] = tf.ragged.constant(val)
+        for key, val in inputs["fixed"].items():
+            inputs["fixed"][key] = tf.constant(val)
+
+        for key, val in labels["ragged"].items():
+            labels["ragged"][key] = tf.ragged.constant(val)
+        for key, val in labels["fixed"].items():
+            labels["fixed"][key] = tf.constant(val)
+
+        self.ds = tf.data.Dataset.from_tensor_slices(
+            (
+                inputs["ragged"],
+                inputs["fixed"],
+                labels["ragged"],
+                labels["fixed"],
+            )
+        )
+
+    def steps_per_epoch(self) -> int:
+        """Returns the number of steps per epoch dependent on the number of data and the
+        batch size. Steps per epoch are calculated in a way that all epochs have the same
+        number of steps, and all batches have the same length. To do so some training
+        data are dropped in each epoch.
+        """
+        return self.n_data // self.batch_size
+
+    def init_input(self):
+        """Returns first batch of inputs and labels to init the model."""
+        input = next(
+            self.ds.batch(1).map(pad_to_largest_element).take(1).as_numpy_iterator()
+        )
+        return input
+
+    def shuffle_and_batch(self):
+        """Shuffles, batches, and pads the inputs/labels. This function prepares the
+        inputs and labels for the whole training and prefetches the data.
+
+        Returns
+        -------
+        shuffled_ds :
+            Iterator that returns inputs and labels of one batch in each step.
+        """
+        shuffled_ds = (
+            self.ds.shuffle(buffer_size=self.buffer_size)
+            .repeat(self.n_epoch)
+            .batch(batch_size=self.batch_size)
+            .map(pad_to_largest_element)
+        )
+
+        shuffled_ds = prefetch_to_single_device(shuffled_ds.as_numpy_iterator(), 2)
+        return shuffled_ds

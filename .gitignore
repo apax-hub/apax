@@ -146,3 +146,14 @@ settings.json
 # logs
 *.csv
 tb_logs/
+*.pb
+ckpt*
+checkpoint*
+config.yaml
+parameters.yaml
+md_config.yaml
+
+# data
+*.extxyz
+*.traj
+*.npz
