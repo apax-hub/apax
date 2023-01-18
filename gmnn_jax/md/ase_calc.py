@@ -81,7 +81,7 @@ class ASECalculator(Calculator):
     def calculate(self, atoms, properties=["energy"], system_changes=all_changes):
         Calculator.calculate(self, atoms, properties, system_changes)
 
-        if self.step is None:
+        if self.step is None or "numbers" in system_changes or "cell" in all_changes:
             self.initialize(atoms)
             self.neighbors = self.neighbor_fn.allocate(atoms.positions)
             energy, forces, self.neighbors = self.step(atoms.positions, self.neighbors)
