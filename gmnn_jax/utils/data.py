@@ -1,5 +1,5 @@
 import logging
-from os.path import splitext
+from pathlib import Path
 
 import numpy as np
 from ase.io import read
@@ -41,24 +41,24 @@ def load_data(data_path):
         log.info(f"Loading data from {data_path}")
         atoms_list = read(data_path, index=":")
     except IOError:
-        log.error(f"data_path ({data_path}) is not leading to file")
+        log.error(f"data path ({data_path}) does not exist.")
 
-    system_name = splitext("data_path")[0]
-    label_path = f"{system_name}_labels.npz"
+    label_path = Path(data_path)
+    label_path = label_path.with_stem(label_path.stem + "_label").with_suffix(".npz")
 
     if label_path.is_file():
-        log.info(f"Loading non ASE labels from {label_path}")
+        log.info(f"Loading non ASE labels from {label_path.as_posix()}")
 
-        dict = np.load(label_path, allow_pickle=True)
+        label_dict = np.load(label_path.as_posix(), allow_pickle=True)
 
-        unique_shape = np.unique(dict["shape"])
+        unique_shape = np.unique(label_dict["shape"])
         for shape in unique_shape:
             external_labels.update({shape: {}})
 
         i = 0
-        for key, val in dict.items():
+        for key, val in label_dict.items():
             if key != "shape":
-                external_labels[dict["shape"][i]].update({key: val})
+                external_labels[label_dict["shape"][i]].update({key: val})
                 i += 1
 
     return atoms_list, external_labels
