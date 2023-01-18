@@ -10,20 +10,29 @@ app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
 
 @app.command()
 def train(
-    train_config_path: Path,
+    train_config_path: Path = typer.Argument(..., help="Training configuration YAML file."),
     log_level: int = typer.Option(3, help="Sets the training logging level."),
     log_file: str = typer.Option("train.log", help="Specifies the name of the log file"),
 ):
     """
     Starts the training of a GMNN model with parameters provided by a configuration file.
     """
-    print("md_config_path", train_config_path)
-    print("log_level", log_level)
+    # TODO select log level with argument
+    logging.basicConfig(filename='main.log', level=logging.INFO)
+
+    import tensorflow as tf
+    tf.config.experimental.set_visible_devices([], "GPU")
+    from jax.config import config
+    config.update("jax_enable_x64", True)
+    from gmnn_jax.train.run import run
+
+    run(train_config_path)
 
 
 @app.command()
 def md(
-    md_config_path: Path,
+    train_config_path: Path = typer.Argument(..., help="Configuration YAML file that was used to train a model."),
+    md_config_path: Path = typer.Argument(..., help="MD configuration YAML file."),
     log_level: int = typer.Option(3, help="Sets the training logging level."),
     log_file: str = typer.Option("train.log", help="Specifies the name of the log file"),
 ):
