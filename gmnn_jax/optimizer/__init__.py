@@ -1,3 +1,3 @@
-from gmnn_jax.optimizer.get_opt import get_opt
+from gmnn_jax.optimizer.get_optimizer import get_opt
 
 __all__ = [get_opt]
