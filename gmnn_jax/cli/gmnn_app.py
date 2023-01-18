@@ -11,14 +11,23 @@ app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
 @app.command()
 def train(
     train_config_path: Path = typer.Argument(..., help="Training configuration YAML file."),
-    log_level: int = typer.Option(3, help="Sets the training logging level."),
+    log_level: str = typer.Option("off", help="Sets the training logging level."),
     log_file: str = typer.Option("train.log", help="Specifies the name of the log file"),
 ):
     """
     Starts the training of a GMNN model with parameters provided by a configuration file.
     """
-    # TODO select log level with argument
-    logging.basicConfig(filename='main.log', level=logging.INFO)
+    
+
+    if not log_level is "off":
+        log_levels = {
+            "debug":  logging.DEBUG, 
+            "info": logging.INFO, 
+            "warning": logging.WARNING, 
+            "error":  logging.ERROR, 
+            "critical": logging.CRITICAL, 
+        }
+        logging.basicConfig(filename=log_file, level=log_levels[log_level])
 
     import tensorflow as tf
     tf.config.experimental.set_visible_devices([], "GPU")
