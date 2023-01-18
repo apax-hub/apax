@@ -82,7 +82,7 @@ def initialize_loss_fn(config):
 
 def run(user_config):
     log.info("Loading user config")
-    if isinstance(user_config, str):
+    if isinstance(user_config, (str, os.PathLike)):
         with open(user_config, "r") as stream:
             user_config = yaml.safe_load(stream)
 

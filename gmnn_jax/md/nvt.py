@@ -227,11 +227,11 @@ def run_md(model_config: Config, md_config: MDConfig):
         configuration of the MD simulation.
     """
     log.info("loading configs for md")
-    if isinstance(model_config, str):
+    if isinstance(model_config, (str, os.PathLike)):
         with open(model_config, "r") as stream:
             model_config = yaml.safe_load(stream)
 
-    if isinstance(md_config, str):
+    if isinstance(md_config, (str, os.PathLike)):
         with open(md_config, "r") as stream:
             md_config = yaml.safe_load(stream)
 
