@@ -17,9 +17,8 @@ def train(
     """
     Starts the training of a GMNN model with parameters provided by a configuration file.
     """
-    
 
-    if not log_level is "off":
+    if log_level != "off":
         log_levels = {
             "debug":  logging.DEBUG, 
             "info": logging.INFO, 
@@ -42,14 +41,24 @@ def train(
 def md(
     train_config_path: Path = typer.Argument(..., help="Configuration YAML file that was used to train a model."),
     md_config_path: Path = typer.Argument(..., help="MD configuration YAML file."),
-    log_level: int = typer.Option(3, help="Sets the training logging level."),
+    log_level: str = typer.Option("off", help="Sets the training logging level."),
     log_file: str = typer.Option("train.log", help="Specifies the name of the log file"),
 ):
     """
     Starts performing a molecular dynamics simulation (currently only NHC thermostat)
     with paramters provided by a configuration file.
     """
-    print("md_config_path", md_config_path)
+    if log_level != "off":
+        log_levels = {
+            "debug":  logging.DEBUG, 
+            "info": logging.INFO, 
+            "warning": logging.WARNING, 
+            "error":  logging.ERROR, 
+            "critical": logging.CRITICAL, 
+        }
+        logging.basicConfig(filename=log_file, level=log_levels[log_level])
+    from gmnn_jax.md import run_md
+    run_md(train_config_path, md_config_path)
 
 
 @app.command()
