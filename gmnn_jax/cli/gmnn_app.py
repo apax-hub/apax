@@ -1,16 +1,18 @@
-import typer
-from pathlib import Path
 import importlib.metadata
 import logging
-from rich import print
+from pathlib import Path
 
+import typer
+from rich import print
 
 app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
 
 
 @app.command()
 def train(
-    train_config_path: Path = typer.Argument(..., help="Training configuration YAML file."),
+    train_config_path: Path = typer.Argument(
+        ..., help="Training configuration YAML file."
+    ),
     log_level: str = typer.Option("off", help="Sets the training logging level."),
     log_file: str = typer.Option("train.log", help="Specifies the name of the log file"),
 ):
@@ -20,17 +22,19 @@ def train(
 
     if log_level != "off":
         log_levels = {
-            "debug":  logging.DEBUG, 
-            "info": logging.INFO, 
-            "warning": logging.WARNING, 
-            "error":  logging.ERROR, 
-            "critical": logging.CRITICAL, 
+            "debug": logging.DEBUG,
+            "info": logging.INFO,
+            "warning": logging.WARNING,
+            "error": logging.ERROR,
+            "critical": logging.CRITICAL,
         }
         logging.basicConfig(filename=log_file, level=log_levels[log_level])
 
     import tensorflow as tf
+
     tf.config.experimental.set_visible_devices([], "GPU")
     from jax.config import config
+
     config.update("jax_enable_x64", True)
     from gmnn_jax.train.run import run
 
@@ -39,7 +43,9 @@ def train(
 
 @app.command()
 def md(
-    train_config_path: Path = typer.Argument(..., help="Configuration YAML file that was used to train a model."),
+    train_config_path: Path = typer.Argument(
+        ..., help="Configuration YAML file that was used to train a model."
+    ),
     md_config_path: Path = typer.Argument(..., help="MD configuration YAML file."),
     log_level: str = typer.Option("off", help="Sets the training logging level."),
     log_file: str = typer.Option("train.log", help="Specifies the name of the log file"),
@@ -50,14 +56,15 @@ def md(
     """
     if log_level != "off":
         log_levels = {
-            "debug":  logging.DEBUG, 
-            "info": logging.INFO, 
-            "warning": logging.WARNING, 
-            "error":  logging.ERROR, 
-            "critical": logging.CRITICAL, 
+            "debug": logging.DEBUG,
+            "info": logging.INFO,
+            "warning": logging.WARNING,
+            "error": logging.ERROR,
+            "critical": logging.CRITICAL,
         }
         logging.basicConfig(filename=log_file, level=log_levels[log_level])
     from gmnn_jax.md import run_md
+
     run_md(train_config_path, md_config_path)
 
 
