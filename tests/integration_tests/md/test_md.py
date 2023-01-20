@@ -85,7 +85,7 @@ def test_run_md(get_tmp_path):
 
     traj = read(md_config.sim_dir + "/" + md_config.traj_name, index=":")
     n_outer = int(md_config.n_steps // md_config.n_inner)
-    assert len(traj) == n_outer
+    assert len(traj) == n_outer + 1
 
 
 def test_ase_calc(get_tmp_path):

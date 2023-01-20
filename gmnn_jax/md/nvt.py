@@ -119,6 +119,8 @@ def run_nvt(
 
     traj_path = os.path.join(sim_dir, traj_name)
     traj = TrajectoryWriter(traj_path, mode="w")
+    new_atoms = Atoms(atomic_numbers, R, cell=box)
+    traj.write(new_atoms)
     n_outer = int(n_steps // n_inner)
 
     start = time.time()
