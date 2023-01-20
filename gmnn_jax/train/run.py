@@ -80,7 +80,16 @@ def initialize_loss_fn(config):
     return LossCollection(loss_funcs)
 
 
-def run(user_config):
+def run(user_config, log_file="train.log", log_level="error"):
+    log_levels = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+    }
+    logging.basicConfig(filename=log_file, level=log_levels[log_level])
+
     log.info("Loading user config")
     if isinstance(user_config, (str, os.PathLike)):
         with open(user_config, "r") as stream:
@@ -196,6 +205,7 @@ def run(user_config):
         callbacks,
         n_epochs,
         ckpt_dir=os.path.join(config.data.model_path, config.data.model_name),
+        ckpt_interval=config.checkpoints.ckpt_interval,
         val_ds=val_ds,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
     )
