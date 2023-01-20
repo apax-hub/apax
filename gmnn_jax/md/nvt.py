@@ -5,6 +5,7 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import yaml
 from ase import Atoms, units
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -14,7 +15,6 @@ from flax.training import checkpoints
 from jax_md import quantity, simulate, space
 from jax_md.util import Array
 from tqdm import trange
-import numpy as np
 
 from gmnn_jax.config import Config, MDConfig
 from gmnn_jax.md.md_checkpoint import load_md_state, look_for_checkpoints
@@ -133,7 +133,9 @@ def run_nvt(
             else:
                 state = new_state
                 step += 1
-                new_atoms = Atoms(atomic_numbers, state.position, momenta=state.momentum, cell=box)
+                new_atoms = Atoms(
+                    atomic_numbers, state.position, momenta=state.momentum, cell=box
+                )
                 new_atoms.calc = SinglePointCalculator(new_atoms, forces=state.force)
                 traj.write(new_atoms)
 
@@ -141,7 +143,9 @@ def run_nvt(
                     log.info("saving checkpoint at step: %d", step)
                     log.info("checkpoints not yet implemented")
 
-                current_temperature = quantity.temperature(velocity=state.velocity, mass=state.mass)
+                current_temperature = quantity.temperature(
+                    velocity=state.velocity, mass=state.mass
+                )
                 if np.any(np.isnan(new_atoms.positions)):
                     raise ValueError("Simulation Unstable, aborting")
                 sim_pbar.set_postfix(T=f"{(current_temperature / units.kB):.1f} K")
