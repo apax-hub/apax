@@ -214,7 +214,9 @@ def md_setup(model_config: Config, md_config: MDConfig):
     return R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn
 
 
-def run_md(model_config: Config, md_config: MDConfig):
+def run_md(
+    model_config: Config, md_config: MDConfig, log_file="md.log", log_level="error"
+):
     """
     Utiliy function to start NVT molecualr dynamics simulations from
     a previousy trained model.
@@ -226,6 +228,15 @@ def run_md(model_config: Config, md_config: MDConfig):
     md_config:
         configuration of the MD simulation.
     """
+    log_levels = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+    }
+    logging.basicConfig(filename=log_file, level=log_levels[log_level])
+
     log.info("loading configs for md")
     if isinstance(model_config, (str, os.PathLike)):
         with open(model_config, "r") as stream:

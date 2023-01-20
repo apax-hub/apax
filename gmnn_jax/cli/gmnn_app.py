@@ -1,5 +1,4 @@
 import importlib.metadata
-import logging
 from pathlib import Path
 
 import typer
@@ -26,7 +25,7 @@ def train(
     from jax.config import config
 
     config.update("jax_enable_x64", True)
-    
+
     from gmnn_jax.train.run import run
 
     run(train_config_path, log_file, log_level)
@@ -45,17 +44,9 @@ def md(
     Starts performing a molecular dynamics simulation (currently only NHC thermostat)
     with paramters provided by a configuration file.
     """
-    log_levels = {
-        "debug": logging.DEBUG,
-        "info": logging.INFO,
-        "warning": logging.WARNING,
-        "error": logging.ERROR,
-        "critical": logging.CRITICAL,
-    }
-    logging.basicConfig(filename=log_file, level=log_levels[log_level])
     from gmnn_jax.md import run_md
 
-    run_md(train_config_path, md_config_path)
+    run_md(train_config_path, md_config_path, log_file, log_level)
 
 
 @app.command()
