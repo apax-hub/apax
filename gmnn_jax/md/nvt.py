@@ -5,6 +5,7 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import yaml
 from ase import Atoms, units
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -189,7 +190,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     masses = jnp.asarray(atoms.get_masses())
     box = jnp.asarray(atoms.get_cell().lengths())
 
-    if box[0] == 0:
+    if np.all(box == 0.0):
         displacement_fn, shift_fn = space.free()
     else:
         log.info("initializing model")
