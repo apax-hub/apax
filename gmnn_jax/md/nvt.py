@@ -147,7 +147,7 @@ def run_nvt(
                     velocity=state.velocity, mass=state.mass
                 )
                 if np.any(np.isnan(new_atoms.positions)):
-                    raise ValueError("Simulation Unstable, aborting")
+                    raise ValueError(f"Simulation failed after {step * n_inner} steps. Unable to compute positions.")
                 sim_pbar.set_postfix(T=f"{(current_temperature / units.kB):.1f} K")
                 sim_pbar.update(n_inner)
     traj.close()
