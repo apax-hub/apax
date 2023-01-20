@@ -14,6 +14,7 @@ from flax.training import checkpoints
 from jax_md import quantity, simulate, space
 from jax_md.util import Array
 from tqdm import trange
+import numpy as np
 
 from gmnn_jax.config import Config, MDConfig
 from gmnn_jax.md.md_checkpoint import load_md_state, look_for_checkpoints
@@ -141,6 +142,8 @@ def run_nvt(
                     log.info("checkpoints not yet implemented")
 
                 current_temperature = quantity.temperature(velocity=state.velocity, mass=state.mass)
+                if np.any(np.isnan(new_atoms.positions)):
+                    raise ValueError("Simulation Unstable, aborting")
                 sim_pbar.set_postfix(T=f"{(current_temperature / units.kB):.1f} K")
                 sim_pbar.update(n_inner)
     traj.close()
