@@ -189,8 +189,11 @@ def md_setup(model_config: Config, md_config: MDConfig):
     masses = jnp.asarray(atoms.get_masses())
     box = jnp.asarray(atoms.get_cell().lengths())
 
-    log.info("initializing model")
-    displacement_fn, shift_fn = space.periodic(box)
+    if box[0] == 0:
+        displacement_fn, shift_fn = space.free()
+    else:
+        log.info("initializing model")
+        displacement_fn, shift_fn = space.periodic(box)
 
     neighbor_fn, _, model = get_md_model(
         atomic_numbers=atomic_numbers,

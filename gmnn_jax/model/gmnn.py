@@ -81,7 +81,7 @@ def get_md_model(
     atomic_numbers: Array,
     displacement: DisplacementFn,
     nn: List[int] = [512, 512],
-    box_size: float = 10.0,
+    box_size: float = 100.0,
     r_max: float = 6.0,
     n_basis: int = 7,
     n_radial: int = 5,
