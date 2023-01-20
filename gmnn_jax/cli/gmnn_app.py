@@ -13,32 +13,23 @@ def train(
     train_config_path: Path = typer.Argument(
         ..., help="Training configuration YAML file."
     ),
-    log_level: str = typer.Option("off", help="Sets the training logging level."),
+    log_level: str = typer.Option("error", help="Sets the training logging level."),
     log_file: str = typer.Option("train.log", help="Specifies the name of the log file"),
 ):
     """
     Starts the training of a GMNN model with parameters provided by a configuration file.
     """
-
-    if log_level != "off":
-        log_levels = {
-            "debug": logging.DEBUG,
-            "info": logging.INFO,
-            "warning": logging.WARNING,
-            "error": logging.ERROR,
-            "critical": logging.CRITICAL,
-        }
-        logging.basicConfig(filename=log_file, level=log_levels[log_level])
-
     import tensorflow as tf
 
     tf.config.experimental.set_visible_devices([], "GPU")
+
     from jax.config import config
 
     config.update("jax_enable_x64", True)
+    
     from gmnn_jax.train.run import run
 
-    run(train_config_path)
+    run(train_config_path, log_file, log_level)
 
 
 @app.command()
@@ -54,15 +45,14 @@ def md(
     Starts performing a molecular dynamics simulation (currently only NHC thermostat)
     with paramters provided by a configuration file.
     """
-    if log_level != "off":
-        log_levels = {
-            "debug": logging.DEBUG,
-            "info": logging.INFO,
-            "warning": logging.WARNING,
-            "error": logging.ERROR,
-            "critical": logging.CRITICAL,
-        }
-        logging.basicConfig(filename=log_file, level=log_levels[log_level])
+    log_levels = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+    }
+    logging.basicConfig(filename=log_file, level=log_levels[log_level])
     from gmnn_jax.md import run_md
 
     run_md(train_config_path, md_config_path)
