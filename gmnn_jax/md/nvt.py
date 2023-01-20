@@ -5,6 +5,7 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import yaml
 from ase import Atoms, units
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -80,9 +81,8 @@ def run_nvt(
         File name of the ASE trajectory.
     """
     sim_time = dt * n_steps
-    K_B = 8.617e-5
     dt = dt * units.fs
-    kT = K_B * temperature
+    kT = units.kB * temperature
     step = 0
     checkpoint_interval = 10  # TODO will be supplied in the future
 
@@ -121,7 +121,6 @@ def run_nvt(
     n_outer = int(n_steps // n_inner)
 
     start = time.time()
-    # TODO: log starting time when epoch loaded
     log.info("running nvt for %.1f fs", sim_time)
     with trange(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
@@ -134,7 +133,9 @@ def run_nvt(
             else:
                 state = new_state
                 step += 1
-                new_atoms = Atoms(atomic_numbers, state.position, cell=box)
+                new_atoms = Atoms(
+                    atomic_numbers, state.position, momenta=state.momentum, cell=box
+                )
                 new_atoms.calc = SinglePointCalculator(new_atoms, forces=state.force)
                 traj.write(new_atoms)
 
@@ -142,8 +143,15 @@ def run_nvt(
                     log.info("saving checkpoint at step: %d", step)
                     log.info("checkpoints not yet implemented")
 
-                current_temperature = quantity.temperature(momentum=state.momentum)
-                sim_pbar.set_postfix(T=f"{(current_temperature / kT):.1f} K")
+                current_temperature = quantity.temperature(
+                    velocity=state.velocity, mass=state.mass
+                )
+                if np.any(np.isnan(new_atoms.positions)):
+                    raise ValueError(
+                        f"Simulation failed after {step * n_inner} steps. Unable to"
+                        " compute positions."
+                    )
+                sim_pbar.set_postfix(T=f"{(current_temperature / units.kB):.1f} K")
                 sim_pbar.update(n_inner)
     traj.close()
 
