@@ -196,6 +196,7 @@ def run(user_config):
         callbacks,
         n_epochs,
         ckpt_dir=os.path.join(config.data.model_path, config.data.model_name),
+        ckpt_interval=config.checkpoints.ckpt_interval,
         val_ds=val_ds,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
     )

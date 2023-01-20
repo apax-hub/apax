@@ -47,7 +47,7 @@ def md(
         ..., help="Configuration YAML file that was used to train a model."
     ),
     md_config_path: Path = typer.Argument(..., help="MD configuration YAML file."),
-    log_level: str = typer.Option("off", help="Sets the training logging level."),
+    log_level: str = typer.Option("error", help="Sets the training logging level."),
     log_file: str = typer.Option("train.log", help="Specifies the name of the log file"),
 ):
     """
