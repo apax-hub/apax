@@ -3,7 +3,7 @@ from pathlib import Path
 
 import typer
 import yaml
-
+from pydantic import ValidationError
 from rich.console import Console
 
 console = Console(highlight=False)
@@ -85,10 +85,14 @@ def validate_train_config(
     with open(config_path, "r") as stream:
         user_config = yaml.safe_load(stream)
 
-    _ = Config.parse_obj(user_config)
-
-    console.print("Success!", style="green3")
-    console.print(f"{config_path} is a valid training config.")
+    try:
+        _ = Config.parse_obj(user_config)
+    except ValidationError as e:
+        print(e)
+        console.print("Configuration Invalid!", style="red3")
+    else:
+        console.print("Success!", style="green3")
+        console.print(f"{config_path} is a valid training config.")
 
 
 @validate_app.command("md")
@@ -109,10 +113,14 @@ def validate_md_config(
     with open(config_path, "r") as stream:
         user_config = yaml.safe_load(stream)
 
-    _ = MDConfig.parse_obj(user_config)
-
-    console.print("Success!", style="green3")
-    console.print(f"{config_path} is a valid MD config.")
+    try:
+        _ = MDConfig.parse_obj(user_config)
+    except ValidationError as e:
+        print(e)
+        console.print("Configuration Invalid!", style="red3")
+    else:
+        console.print("Success!", style="green3")
+        console.print(f"{config_path} is a valid MD config.")
 
 
 def version_callback(value: bool) -> None:
