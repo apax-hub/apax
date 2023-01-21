@@ -7,7 +7,6 @@ from pydantic import ValidationError
 from rich.console import Console
 
 console = Console(highlight=False)
-
 app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
 validate_app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
@@ -123,9 +122,22 @@ def validate_md_config(
         console.print(f"{config_path} is a valid MD config.")
 
 
+logo = """
+[bold white]  /######  /##      /## /##   /## /##   /##[bold turquoise2]            /#####  /######  /##   /##
+[bold white] /##__  ##| ###    /###| ### | ##| ### | ##[bold turquoise2]           |__  ## /##__  ##| ##  / ##
+[bold white]| ##  \__/| ####  /####| ####| ##| ####| ##[bold turquoise2]              | ##| ##  \ ##|  ##/ ##/
+[bold white]| ## /####| ## ##/## ##| ## ## ##| ## ## ##[bold turquoise2] /######      | ##| ######## \  ####/ 
+[bold white]| ##|_  ##| ##  ###| ##| ##  ####| ##  ####[bold turquoise2]|______/ /##  | ##| ##__  ##  >##  ## 
+[bold white]| ##  \ ##| ##\  # | ##| ##\  ###| ##\  ###[bold turquoise2]        | ##  | ##| ##  | ## /##/\  ##
+[bold white]|  ######/| ## \/  | ##| ## \  ##| ## \  ##[bold turquoise2]        |  ######/| ##  | ##| ##  \ ##
+[bold white] \______/ |__/     |__/|__/  \__/|__/  \__/[bold turquoise2]         \______/ |__/  |__/|__/  |__/
+"""  # noqa: E501, W605, W291, E261, E303
+
+
 def version_callback(value: bool) -> None:
     """Get the installed gmnn-jax version."""
     if value:
+        console.print(logo)
         console.print(f"gmnn-jax {importlib.metadata.version('gmnn-jax')}")
         raise typer.Exit()
 
