@@ -201,5 +201,12 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
     maximize_l2_cache: bool = False
 
     def dump_config(self, save_path):
+        """
+        Writes the current config file to the specified directory.
+
+        Parameters
+        ----------
+        save_path: Path to the directory.
+        """
         with open(os.path.join(save_path, "config.yaml"), "w") as conf:
             yaml.dump(self.dict(), conf, default_flow_style=False)
