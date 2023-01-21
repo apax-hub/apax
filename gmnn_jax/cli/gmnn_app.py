@@ -3,7 +3,10 @@ from pathlib import Path
 
 import typer
 import yaml
-from rich import print
+
+from rich.console import Console
+
+console = Console(highlight=False)
 
 app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
 validate_app = typer.Typer(
@@ -60,7 +63,7 @@ def docs():
     """
     Opens the documentation website in your browser.
     """
-    print("Opening gmnn-jax's docs at https://github.com/GM-NN/gmnn-jax")
+    console.print("Opening gmnn-jax's docs at https://github.com/GM-NN/gmnn-jax")
     typer.launch("https://github.com/GM-NN/gmnn-jax")
 
 
@@ -84,8 +87,8 @@ def validate_train_config(
 
     _ = Config.parse_obj(user_config)
 
-    print("Success!")
-    print(f"{config_path} is a valid training config.")
+    console.print("Success!", style="green3")
+    console.print(f"{config_path} is a valid training config.")
 
 
 @validate_app.command("md")
@@ -108,14 +111,14 @@ def validate_md_config(
 
     _ = MDConfig.parse_obj(user_config)
 
-    print("Success!")
-    print(f"{config_path} is a valid MD config.")
+    console.print("Success!", style="green3")
+    console.print(f"{config_path} is a valid MD config.")
 
 
 def version_callback(value: bool) -> None:
     """Get the installed gmnn-jax version."""
     if value:
-        print(f"gmnn-jax {importlib.metadata.version('gmnn-jax')}")
+        console.print(f"gmnn-jax {importlib.metadata.version('gmnn-jax')}")
         raise typer.Exit()
 
 
