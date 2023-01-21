@@ -2,9 +2,15 @@ import importlib.metadata
 from pathlib import Path
 
 import typer
+import yaml
 from rich import print
 
 app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
+validate_app = typer.Typer(
+    context_settings={"help_option_names": ["-h", "--help"]},
+    help="Validate training or MD config files.",
+)
+app.add_typer(validate_app, name="validate")
 
 
 @app.command()
@@ -56,6 +62,54 @@ def docs():
     """
     print("Opening gmnn-jax's docs at https://github.com/GM-NN/gmnn-jax")
     typer.launch("https://github.com/GM-NN/gmnn-jax")
+
+
+@validate_app.command("train")
+def validate_train_config(
+    config_path: Path = typer.Argument(
+        ..., help="Configuration YAML file to be validated."
+    ),
+):
+    """
+    Validates a training configuration file.
+
+    Parameters
+    ----------
+    config_path: Path to the training configruation file.
+    """
+    from gmnn_jax.config import Config
+
+    with open(config_path, "r") as stream:
+        user_config = yaml.safe_load(stream)
+
+    _ = Config.parse_obj(user_config)
+
+    print("Success!")
+    print(f"{config_path} is a valid training config.")
+
+
+@validate_app.command("md")
+def validate_md_config(
+    config_path: Path = typer.Argument(
+        ..., help="Configuration YAML file to be validated."
+    ),
+):
+    """
+    Validates a molecular dynamics configuration file.
+
+    Parameters
+    ----------
+    config_path: Path to the molecular dynamics  configruation file.
+    """
+    from gmnn_jax.config import MDConfig
+
+    with open(config_path, "r") as stream:
+        user_config = yaml.safe_load(stream)
+
+    _ = MDConfig.parse_obj(user_config)
+
+    print("Success!")
+    print(f"{config_path} is a valid MD config.")
 
 
 def version_callback(value: bool) -> None:
