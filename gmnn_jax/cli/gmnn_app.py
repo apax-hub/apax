@@ -42,7 +42,7 @@ def md(
     ),
     md_config_path: Path = typer.Argument(..., help="MD configuration YAML file."),
     log_level: str = typer.Option("error", help="Sets the training logging level."),
-    log_file: str = typer.Option("train.log", help="Specifies the name of the log file"),
+    log_file: str = typer.Option("md.log", help="Specifies the name of the log file"),
 ):
     """
     Starts performing a molecular dynamics simulation (currently only NHC thermostat)
