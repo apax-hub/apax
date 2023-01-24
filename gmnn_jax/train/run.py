@@ -8,6 +8,7 @@ import jax.numpy as jnp
 import tensorflow as tf
 import yaml
 from keras.callbacks import CSVLogger, TensorBoard
+from jax.config import config as jax_config
 
 from gmnn_jax.config import Config
 from gmnn_jax.data.input_pipeline import InputPipeline
@@ -89,6 +90,8 @@ def run(user_config, log_file="train.log", log_level="error"):
         "critical": logging.CRITICAL,
     }
     logging.basicConfig(filename=log_file, level=log_levels[log_level])
+
+    jax_config.update("jax_enable_x64", config.enable_fp64)
 
     log.info("Loading user config")
     if isinstance(user_config, (str, os.PathLike)):

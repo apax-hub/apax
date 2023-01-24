@@ -199,6 +199,7 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
     progress_bar: TrainProgressbarConfig = TrainProgressbarConfig()
     checkpoints: CheckpointConfig = CheckpointConfig()
     maximize_l2_cache: bool = False
+    enable_fp64 = True
 
     def dump_config(self, save_path):
         """
