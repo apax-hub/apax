@@ -30,10 +30,6 @@ def train(
 
     tf.config.experimental.set_visible_devices([], "GPU")
 
-    from jax.config import config
-
-    config.update("jax_enable_x64", True)
-
     from gmnn_jax.train.run import run
 
     run(train_config_path, log_file, log_level)

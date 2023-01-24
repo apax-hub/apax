@@ -7,8 +7,8 @@ import jax
 import jax.numpy as jnp
 import tensorflow as tf
 import yaml
-from keras.callbacks import CSVLogger, TensorBoard
 from jax.config import config as jax_config
+from keras.callbacks import CSVLogger, TensorBoard
 
 from gmnn_jax.config import Config
 from gmnn_jax.data.input_pipeline import InputPipeline
@@ -91,14 +91,13 @@ def run(user_config, log_file="train.log", log_level="error"):
     }
     logging.basicConfig(filename=log_file, level=log_levels[log_level])
 
-    jax_config.update("jax_enable_x64", config.enable_fp64)
-
     log.info("Loading user config")
     if isinstance(user_config, (str, os.PathLike)):
         with open(user_config, "r") as stream:
             user_config = yaml.safe_load(stream)
 
     config = Config.parse_obj(user_config)
+    jax_config.update("jax_enable_x64", config.enable_fp64)
 
     seed_py_np_tf(config.seed)
     rng_key = jax.random.PRNGKey(config.seed)

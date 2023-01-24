@@ -12,6 +12,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read
 from ase.io.trajectory import TrajectoryWriter
 from flax.training import checkpoints
+from jax.config import config as jax_config
 from jax_md import quantity, simulate, space
 from jax_md.util import Array
 from tqdm import trange
@@ -261,6 +262,8 @@ def run_md(
 
     model_config = Config.parse_obj(model_config)
     md_config = MDConfig.parse_obj(md_config)
+
+    jax_config.update("jax_enable_x64", md_config.enable_fp64)
 
     rng_key = jax.random.PRNGKey(md_config.seed)
     md_init_rng_key, rng_key = jax.random.split(rng_key, 2)
