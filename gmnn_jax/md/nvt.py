@@ -80,7 +80,6 @@ def run_nvt(
     traj_name:
         File name of the ASE trajectory.
     """
-    sim_time = dt * n_steps
     dt = dt * units.fs
     kT = units.kB * temperature
     step = 0
@@ -120,9 +119,10 @@ def run_nvt(
     traj = TrajectoryWriter(traj_path, mode="w")
     new_atoms = Atoms(atomic_numbers, R, cell=box)
     traj.write(new_atoms)
-    n_outer = int(n_steps // n_inner)
+    n_outer = int(np.ceil(n_steps / n_inner))
 
     start = time.time()
+    sim_time = n_outer * dt
     log.info("running nvt for %.1f fs", sim_time)
     with trange(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
@@ -268,6 +268,7 @@ def run_md(
     R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn = md_setup(
         model_config, md_config
     )
+    n_steps = int(np.ceil(md_config.duration / md_config.dt))
 
     run_nvt(
         R=R,
@@ -279,7 +280,7 @@ def run_md(
         shift_fn=shift_fn,
         dt=md_config.dt,
         temperature=md_config.temperature,
-        n_steps=md_config.n_steps,
+        n_steps=n_steps,
         n_inner=md_config.n_inner,
         extra_capacity=md_config.extra_capacity,
         rng_key=md_init_rng_key,
