@@ -58,17 +58,17 @@ def test_run_md(get_tmp_path):
         r_cutoff=model_config.model.r_max,
         format=partition.Sparse,
     )
-    neighbors = neighbor_fn.allocate(positions)
+    neighbors = neighbor_fn.allocate(jnp.asarray(positions, dtype=jnp.float32))
 
     model_init, _ = get_training_model(
         n_atoms=n_atoms,
         n_species=n_species,
         displacement_fn=displacement_fn,
-        **model_config.model.dict()
+        **model_config.model.get_dict()
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
     params = model_init(
-        rng_key, jnp.asarray(positions), jnp.asarray(atomic_numbers), neighbors.idx
+        rng_key, jnp.asarray(positions, dtype=jnp.float32), jnp.asarray(atomic_numbers), neighbors.idx
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = os.path.join(
@@ -124,17 +124,17 @@ def test_ase_calc(get_tmp_path):
         r_cutoff=model_config.model.r_max,
         format=partition.Sparse,
     )
-    neighbors = neighbor_fn.allocate(positions)
+    neighbors = neighbor_fn.allocate(jnp.asarray(positions, dtype=jnp.float32))
 
     model_init, _ = get_training_model(
         n_atoms=n_atoms,
         n_species=n_species,
         displacement_fn=displacement_fn,
-        **model_config.model.dict()
+        **model_config.model.get_dict()
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
     params = model_init(
-        rng_key, jnp.asarray(positions), jnp.asarray(atomic_numbers), neighbors.idx
+        rng_key, jnp.asarray(positions, dtype=jnp.float32), jnp.asarray(atomic_numbers), neighbors.idx
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = os.path.join(
