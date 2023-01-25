@@ -173,6 +173,8 @@ def run(user_config, log_file="train.log", log_level="error"):
 
     n_atoms = ds_stats.n_atoms
     n_species = ds_stats.n_species
+    model_dict = config.model.get_dict()
+
     model_init, model = get_training_model(
         n_atoms=n_atoms,
         # ^This is going to make problems when training on differently sized molecules.
@@ -182,7 +184,7 @@ def run(user_config, log_file="train.log", log_level="error"):
         displacement_fn=train_ds.displacement_fn,
         elemental_energies_mean=ds_stats.elemental_shift,
         elemental_energies_std=ds_stats.elemental_scale,
-        **config.model.dict(),
+        **model_dict,
     )
     log.info("Initializing Model")
     init_input, _ = train_ds.init_input()

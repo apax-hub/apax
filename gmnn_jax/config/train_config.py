@@ -71,6 +71,20 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
     nn: List[PositiveInt] = [512, 512]
     b_init: str = "normal"
 
+    descriptor_dtype: str = "fp32"
+    readout_dtype: str = "fp32"
+    scale_shift_dtype: str = "fp32"
+
+    def get_dict(self):
+        import jax.numpy as jnp
+        model_dict = self.dict()
+        prec_dict = {"fp32": jnp.float32, "fp64": jnp.float64}
+        model_dict["descriptor_dtype"] = prec_dict[model_dict["descriptor_dtype"]]
+        model_dict["readout_dtype"] = prec_dict[model_dict["readout_dtype"]]
+        model_dict["scale_shift_dtype"] = prec_dict[model_dict["scale_shift_dtype"]]
+
+        return model_dict
+
 
 class OptimizerConfig(BaseModel, frozen=True, extra=Extra.allow):
     """
