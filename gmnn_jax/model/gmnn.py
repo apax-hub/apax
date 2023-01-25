@@ -51,9 +51,13 @@ class GMNN(hk.Module):
             name="descriptor",
         )
 
-        self.dense1 = NTKLinear(units[0], b_init=b_init, name="dense1")
-        self.dense2 = NTKLinear(units[1], b_init=b_init, name="dense2")
-        self.dense3 = NTKLinear(1, b_init=b_init, name="dense3")
+        units = units + [1]
+        dense = []
+        for ii, n_hidden in enumerate(units):
+            dense.append(NTKLinear(n_hidden, b_init=b_init, name=f"dense_{ii}"))
+            if ii < len(units) - 1:
+                dense.append(swish)
+        self.readout = hk.Sequential(dense, name="readout")
 
         self.scale_shift = PerElementScaleShift(
             scale=elemental_energies_std,
@@ -64,14 +68,7 @@ class GMNN(hk.Module):
 
     def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList) -> Array:
         gm = self.descriptor(R, Z, neighbor)
-
-        # why is hk.vmap not required here?
-        h = jax.vmap(self.dense1)(gm)
-        h = swish(h)
-        h = jax.vmap(self.dense2)(h)
-        h = swish(h)
-        h = jax.vmap(self.dense3)(h)
-
+        h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
 
         return output
@@ -87,7 +84,7 @@ def get_md_model(
     n_radial: int = 5,
     dr_threshold: float = 0.5,
     nl_format: partition.NeighborListFormat = partition.Sparse,
-    **neighbor_kwargs
+    **neighbor_kwargs,
 ) -> MDModel:
     neighbor_fn = partition.neighbor_list(
         displacement,
@@ -96,7 +93,7 @@ def get_md_model(
         dr_threshold,
         fractional_coordinates=False,
         format=nl_format,
-        **neighbor_kwargs
+        **neighbor_kwargs,
     )
 
     n_atoms = atomic_numbers.shape[0]
