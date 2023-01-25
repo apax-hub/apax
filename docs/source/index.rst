@@ -25,11 +25,18 @@ Contents
 
 ..    tutorials/...
 
+Package
+=======
 .. toctree::
    :maxdepth: 2
    :caption: Package
 
-   modules/index
+Config
+=====================
+.. automodule:: gmnn_jax.config
+   :members:
+
+   .. modules/index
 
 
 Indices and Tables
