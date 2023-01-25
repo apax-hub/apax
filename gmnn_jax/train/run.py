@@ -1,5 +1,11 @@
 import dataclasses
 import logging
+import warnings
+warnings.filterwarnings(
+    action='ignore',
+    category=FutureWarning,
+    module=r'jax.*scatter'
+)
 import os
 import uuid
 
@@ -8,6 +14,8 @@ import jax.numpy as jnp
 import tensorflow as tf
 import yaml
 from jax.config import config as jax_config
+jax_config.update("jax_enable_x64", True)
+
 from keras.callbacks import CSVLogger, TensorBoard
 
 from gmnn_jax.config import Config
@@ -97,7 +105,6 @@ def run(user_config, log_file="train.log", log_level="error"):
             user_config = yaml.safe_load(stream)
 
     config = Config.parse_obj(user_config)
-    jax_config.update("jax_enable_x64", config.enable_fp64)
 
     seed_py_np_tf(config.seed)
     rng_key = jax.random.PRNGKey(config.seed)
