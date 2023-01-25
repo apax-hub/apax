@@ -19,7 +19,10 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     atomic_numbers = jnp.asarray(atoms.numbers)
     box = jnp.asarray(atoms.get_cell().lengths())
 
-    displacement_fn, _ = space.periodic(box)
+    if np.all(box < 1e-6):
+        displacement_fn, _ = space.free()
+    else:
+        displacement_fn, _ = space.periodic(box)
 
     neighbor_fn, _, model = get_md_model(
         atomic_numbers=atomic_numbers,

@@ -83,6 +83,9 @@ class InputPipeline:
         self.batch_size = batch_size
         self.buffer_size = buffer_size
 
+        if batch_size > len(atoms_list):
+            raise ValueError("batch size is larger than the number of data points!")
+
         inputs, labels = convert_atoms_to_arrays(atoms_list)
 
         if external_labels:

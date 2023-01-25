@@ -21,7 +21,8 @@ def fit(
     callbacks,
     n_epochs,
     ckpt_dir,
-    disable_pbar=False,
+    ckpt_interval: int = 1,
+    disable_pbar: bool = False,
     val_ds=None,
 ):
     log.info("Begining Training")
@@ -104,7 +105,8 @@ def fit(
             epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
 
             ckpt = {"model": state, "epoch": epoch}
-            ckpt_manager.save_checkpoint(ckpt, epoch, latest_dir)
+            if epoch % ckpt_interval == 0:
+                ckpt_manager.save_checkpoint(ckpt, epoch, latest_dir)
 
             if epoch_metrics["val_loss"] < best_loss:
                 best_loss = epoch_metrics["val_loss"]
