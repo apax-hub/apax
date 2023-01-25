@@ -12,7 +12,12 @@ validate_app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     help="Validate training or MD config files.",
 )
+# visualize_app = typer.Typer(
+#     context_settings={"help_option_names": ["-h", "--help"]},
+#     help="Visualize a model based on a model config.",
+# )
 app.add_typer(validate_app, name="validate")
+# app.add_typer(visualize_app, name="visualize")
 
 
 @app.command()
@@ -120,6 +125,28 @@ def validate_md_config(
     else:
         console.print("Success!", style="green3")
         console.print(f"{config_path} is a valid MD config.")
+
+
+@app.command("visualize")
+def visualize_model(
+    config_path: Path = typer.Argument(
+        ..., help="Training configuration file to be visualized."
+    )
+):
+    """
+    Visualize a model based on a model config.
+    """
+    import haiku as hk
+    import jax.numpy as jnp
+    def f(x):
+        return hk.nets.MLP([300, 100, 10])(x)
+
+    f = hk.transform(f)
+    x = jnp.ones([8, 28 * 28])
+
+    from gmnn_jax.visualize import model_tabular
+
+    model_tabular(f, x)
 
 
 logo = """
