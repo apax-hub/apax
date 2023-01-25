@@ -169,7 +169,7 @@ class CheckpointConfig(BaseModel, extra=Extra.forbid):
 
 class Config(BaseModel, frozen=True, extra=Extra.forbid):
     """
-    Main configuration of a GMNN trianing run.
+    Main configuration of a GMNN training run.
 
     Parameters
     ----------
