@@ -130,11 +130,12 @@ def validate_md_config(
 @app.command("visualize")
 def visualize_model(
     config_path: Path = typer.Argument(
-        ..., help="Training configuration file to be visualized."
+        ..., help="Training configuration file to be visualized. A CO molecule is taken as sample input."
     )
 ):
     """
     Visualize a model based on a configuration file.
+    A CO molecule is taken as sample input (influences number of atoms, number of species is set to 10).
 
     Parameters
     ----------
