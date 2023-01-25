@@ -18,7 +18,6 @@ Contents
    :caption: Getting Started
 
    getting_started/install
-   getting_started/parameters
 
 .. .. toctree:: TODO
 ..    :maxdepth: 1
@@ -32,7 +31,6 @@ Contents
 
    modules/index
 
-   license
 
 Indices and Tables
 ==================
