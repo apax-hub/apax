@@ -82,7 +82,7 @@ def validate_train_config(
 
     Parameters
     ----------
-    config_path: Path to the training configruation file.
+    config_path: Path to the training configuration file.
     """
     from gmnn_jax.config import Config
 
@@ -110,7 +110,7 @@ def validate_md_config(
 
     Parameters
     ----------
-    config_path: Path to the molecular dynamics  configruation file.
+    config_path: Path to the molecular dynamics configuration file.
     """
     from gmnn_jax.config import MDConfig
 
@@ -134,7 +134,11 @@ def visualize_model(
     )
 ):
     """
-    Visualize a model based on a model config.
+    Visualize a model based on a configuration file.
+
+    Parameters
+    ----------
+    config_path: Path to the training configuration file.
     """
     from jax_md.partition import space
 
