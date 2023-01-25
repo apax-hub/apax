@@ -166,7 +166,7 @@ def run(user_config, log_file="train.log", log_level="error"):
 
     n_atoms = ds_stats.n_atoms
     n_species = ds_stats.n_species
-    model_init, model = get_training_model(
+    gmnn = get_training_model(
         n_atoms=n_atoms,
         # ^This is going to make problems when training on differently sized molecules.
         # we may need to check batch shapes and manually initialize a new model
@@ -186,8 +186,8 @@ def run(user_config, log_file="train.log", log_level="error"):
     )
 
     rng_key, model_rng_key = jax.random.split(rng_key, num=2)
-    params = model_init(model_rng_key, R, Z, idx)
-    batched_model = jax.vmap(model, in_axes=(None, 0, 0, 0))
+    params = gmnn.init(model_rng_key, R, Z, idx)
+    batched_model = jax.vmap(gmnn.apply, in_axes=(None, 0, 0, 0))
 
     steps_per_epoch = train_ds.steps_per_epoch()
     n_epochs = config.n_epochs
