@@ -55,6 +55,8 @@ class GaussianMomentDescriptor(hk.Module):
         self.dtype = dtype
 
     def __call__(self, R, Z, neighbor):
+        # if R.dtype != self.dtype:
+        R = R.astype(self.dtype)
         # R shape n_atoms x 3
         # Z shape n_atoms
 
