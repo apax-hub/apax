@@ -12,12 +12,7 @@ validate_app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     help="Validate training or MD config files.",
 )
-# visualize_app = typer.Typer(
-#     context_settings={"help_option_names": ["-h", "--help"]},
-#     help="Visualize a model based on a model config.",
-# )
 app.add_typer(validate_app, name="validate")
-# app.add_typer(visualize_app, name="visualize")
 
 
 @app.command()
