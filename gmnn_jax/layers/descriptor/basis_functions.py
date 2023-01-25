@@ -4,10 +4,12 @@ import einops
 import haiku as hk
 import jax.numpy as jnp
 import numpy as np
-import jax
+
 
 class GaussianBasis(hk.Module):
-    def __init__(self, n_basis, r_min, r_max, dtype=jnp.float32, name: Optional[str] = None):
+    def __init__(
+        self, n_basis, r_min, r_max, dtype=jnp.float32, name: Optional[str] = None
+    ):
         super().__init__(name)
 
         self.betta = n_basis**2 / r_max**2

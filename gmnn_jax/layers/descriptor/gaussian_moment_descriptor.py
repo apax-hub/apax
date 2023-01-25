@@ -13,6 +13,7 @@ from gmnn_jax.layers.descriptor.triangular_indices import (
     tril_3d_indices,
 )
 
+
 class GaussianMomentDescriptor(hk.Module):
     def __init__(
         self,
@@ -32,7 +33,14 @@ class GaussianMomentDescriptor(hk.Module):
         self.n_radial = n_radial
         self.r_max = r_max
         self.radial_fn = RadialFunction(
-            n_species, n_basis, n_radial, r_min, r_max, emb_init=None, dtype=dtype, name="radial_fn"
+            n_species,
+            n_basis,
+            n_radial,
+            r_min,
+            r_max,
+            emb_init=None,
+            dtype=dtype,
+            name="radial_fn",
         )
         # TODO maybe move the radial func into call and get
         # n_species and n_atoms from the first input batch

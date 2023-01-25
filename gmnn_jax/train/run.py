@@ -1,11 +1,8 @@
 import dataclasses
 import logging
 import warnings
-warnings.filterwarnings(
-    action='ignore',
-    category=FutureWarning,
-    module=r'jax.*scatter'
-)
+
+warnings.filterwarnings(action="ignore", category=FutureWarning, module=r"jax.*scatter")
 import os
 import uuid
 
@@ -14,6 +11,7 @@ import jax.numpy as jnp
 import tensorflow as tf
 import yaml
 from jax.config import config as jax_config
+
 jax_config.update("jax_enable_x64", True)
 
 from keras.callbacks import CSVLogger, TensorBoard

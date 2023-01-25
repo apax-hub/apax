@@ -1,13 +1,10 @@
 import logging
 import os
 import time
-from functools import partial
 import warnings
-warnings.filterwarnings(
-    action='ignore',
-    category=FutureWarning,
-    module=r'jax.*scatter'
-)
+from functools import partial
+
+warnings.filterwarnings(action="ignore", category=FutureWarning, module=r"jax.*scatter")
 
 import jax
 import jax.numpy as jnp
