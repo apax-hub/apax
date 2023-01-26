@@ -203,7 +203,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
 
     R = jnp.asarray(atoms.positions, dtype=jnp.float32)
     atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
-    masses = jnp.asarray(atoms.get_masses())
+    masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float32)
     box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float32)
 
     if np.all(box < 1e-6):

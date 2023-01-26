@@ -17,7 +17,7 @@ from gmnn_jax.model.gmnn import get_md_model
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     atomic_numbers = jnp.asarray(atoms.numbers)
-    box = jnp.asarray(atoms.get_cell().lengths())
+    box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float32)
 
     if np.all(box < 1e-6):
         displacement_fn, _ = space.free()
