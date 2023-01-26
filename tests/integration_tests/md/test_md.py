@@ -60,14 +60,14 @@ def test_run_md(get_tmp_path):
     )
     neighbors = neighbor_fn.allocate(positions)
 
-    model_init, _ = get_training_model(
+    gmnn = get_training_model(
         n_atoms=n_atoms,
         n_species=n_species,
         displacement_fn=displacement_fn,
         **model_config.model.dict()
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
-    params = model_init(
+    params = gmnn.init(
         rng_key, jnp.asarray(positions), jnp.asarray(atomic_numbers), neighbors.idx
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
@@ -125,14 +125,14 @@ def test_ase_calc(get_tmp_path):
     )
     neighbors = neighbor_fn.allocate(positions)
 
-    model_init, _ = get_training_model(
+    gmnn = get_training_model(
         n_atoms=n_atoms,
         n_species=n_species,
         displacement_fn=displacement_fn,
         **model_config.model.dict()
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
-    params = model_init(
+    params = gmnn.init(
         rng_key, jnp.asarray(positions), jnp.asarray(atomic_numbers), neighbors.idx
     )
     ckpt = {"model": {"params": params}, "epoch": 0}

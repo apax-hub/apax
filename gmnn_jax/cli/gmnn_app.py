@@ -77,7 +77,7 @@ def validate_train_config(
 
     Parameters
     ----------
-    config_path: Path to the training configruation file.
+    config_path: Path to the training configuration file.
     """
     from gmnn_jax.config import Config
 
@@ -105,7 +105,7 @@ def validate_md_config(
 
     Parameters
     ----------
-    config_path: Path to the molecular dynamics  configruation file.
+    config_path: Path to the molecular dynamics configuration file.
     """
     from gmnn_jax.config import MDConfig
 
@@ -120,6 +120,53 @@ def validate_md_config(
     else:
         console.print("Success!", style="green3")
         console.print(f"{config_path} is a valid MD config.")
+
+
+@app.command("visualize")
+def visualize_model(
+    config_path: Path = typer.Argument(
+        ...,
+        help=(
+            "Training configuration file to be visualized. A CO molecule is taken as"
+            " sample input."
+        ),
+    )
+):
+    """
+    Visualize a model based on a configuration file.
+    A CO molecule is taken as sample input (influences number of atoms,
+    number of species is set to 10).
+
+    Parameters
+    ----------
+    config_path: Path to the training configuration file.
+    """
+    from jax_md.partition import space
+
+    from gmnn_jax.config import Config
+    from gmnn_jax.model import get_training_model
+    from gmnn_jax.utils.data import make_minimal_input
+    from gmnn_jax.visualize import model_tabular
+
+    with open(config_path, "r") as stream:
+        user_config = yaml.safe_load(stream)
+
+    try:
+        config = Config.parse_obj(user_config)
+    except ValidationError as e:
+        print(e)
+        console.print("Configuration Invalid!", style="red3")
+
+    displacement_fn, _ = space.free()
+    R, Z, idx = make_minimal_input()
+
+    gmnn = get_training_model(
+        n_atoms=2,
+        n_species=10,
+        displacement_fn=displacement_fn,
+        **config.model.dict(),
+    )
+    model_tabular(gmnn, R, Z, idx)
 
 
 logo = """

@@ -117,7 +117,7 @@ def get_md_model(
         out = gmnn(R, Z, neighbor)
         return high_precision_sum(out)
 
-    return neighbor_fn, model.init, model.apply
+    return neighbor_fn, model
 
 
 @dataclasses.dataclass
@@ -170,4 +170,4 @@ def get_training_model(
         prediction = {"energy": energy, "forces": forces}
         return prediction
 
-    return model.init, model.apply
+    return model
