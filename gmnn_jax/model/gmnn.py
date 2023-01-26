@@ -57,7 +57,11 @@ class GMNN(hk.Module):
         units = units + [1]
         dense = []
         for ii, n_hidden in enumerate(units):
-            dense.append(NTKLinear(n_hidden, b_init=b_init, dtype=readout_dtype, name=f"dense_{ii}"))
+            dense.append(
+                NTKLinear(
+                    n_hidden, b_init=b_init, dtype=readout_dtype, name=f"dense_{ii}"
+                )
+            )
             if ii < len(units) - 1:
                 dense.append(swish)
         self.readout = hk.Sequential(dense, name="readout")

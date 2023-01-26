@@ -68,7 +68,10 @@ def test_run_md(get_tmp_path):
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
     params = model_init(
-        rng_key, jnp.asarray(positions, dtype=jnp.float32), jnp.asarray(atomic_numbers), neighbors.idx
+        rng_key,
+        jnp.asarray(positions, dtype=jnp.float32),
+        jnp.asarray(atomic_numbers),
+        neighbors.idx,
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = os.path.join(
@@ -134,7 +137,10 @@ def test_ase_calc(get_tmp_path):
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
     params = model_init(
-        rng_key, jnp.asarray(positions, dtype=jnp.float32), jnp.asarray(atomic_numbers), neighbors.idx
+        rng_key,
+        jnp.asarray(positions, dtype=jnp.float32),
+        jnp.asarray(atomic_numbers),
+        neighbors.idx,
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = os.path.join(

@@ -6,7 +6,9 @@ import jax.numpy as jnp
 
 
 class PerElementScaleShift(hk.Module):
-    def __init__(self, scale, shift, n_species, dtype=jnp.float32, name: Optional[str] = None):
+    def __init__(
+        self, scale, shift, n_species, dtype=jnp.float32, name: Optional[str] = None
+    ):
         super().__init__(name)
         if scale is None:
             scale = 1.0
@@ -26,7 +28,7 @@ class PerElementScaleShift(hk.Module):
             "shift_per_element",
             shape=(n_species, 1),
             init=hk.initializers.Constant(shift),
-            dtype=dtype
+            dtype=dtype,
         )
 
         self.dtype = dtype

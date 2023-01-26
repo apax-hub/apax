@@ -77,6 +77,7 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
 
     def get_dict(self):
         import jax.numpy as jnp
+
         model_dict = self.dict()
         prec_dict = {"fp32": jnp.float32, "fp64": jnp.float64}
         model_dict["descriptor_dtype"] = prec_dict[model_dict["descriptor_dtype"]]

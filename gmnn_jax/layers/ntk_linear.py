@@ -6,7 +6,9 @@ from haiku.initializers import Constant, RandomNormal
 
 
 class NTKLinear(hk.Module):
-    def __init__(self, units, b_init="normal", dtype=jnp.float32, name: Optional[str] = None):
+    def __init__(
+        self, units, b_init="normal", dtype=jnp.float32, name: Optional[str] = None
+    ):
         super().__init__(name)
         self.units = units
 
@@ -23,7 +25,9 @@ class NTKLinear(hk.Module):
         self.dtype = dtype
 
     def __call__(self, inputs):
-        w = hk.get_parameter("w", shape=(inputs.shape[0], self.units), init=self.w_init, dtype=self.dtype)
+        w = hk.get_parameter(
+            "w", shape=(inputs.shape[0], self.units), init=self.w_init, dtype=self.dtype
+        )
         b = hk.get_parameter("b", shape=[self.units], init=self.b_init, dtype=self.dtype)
 
         bias_factor = 0.1
