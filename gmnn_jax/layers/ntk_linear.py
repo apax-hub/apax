@@ -25,6 +25,7 @@ class NTKLinear(hk.Module):
         self.dtype = dtype
 
     def __call__(self, inputs):
+        inputs = inputs.astype(self.dtype)
         w = hk.get_parameter(
             "w", shape=(inputs.shape[0], self.units), init=self.w_init, dtype=self.dtype
         )

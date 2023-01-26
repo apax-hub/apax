@@ -80,7 +80,6 @@ class GMNN(hk.Module):
         gm = self.descriptor(R, Z, neighbor)
         h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
-        # jax.debug.breakpoint()
 
         assert output.dtype == self.scale_shift_dtype
         return output

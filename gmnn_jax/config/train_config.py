@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional, Literal
+from typing import List, Literal, Optional
 
 import yaml
 from pydantic import BaseModel, Extra, PositiveFloat, PositiveInt

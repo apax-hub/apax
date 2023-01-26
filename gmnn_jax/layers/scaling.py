@@ -37,6 +37,7 @@ class PerElementScaleShift(hk.Module):
         # x shape: n_atoms x 1
         # Z shape: n_atoms
         # scale[Z] shape: n_atoms x 1
+        x = x.astype(self.dtype)
         out = self.scale[Z] * x + self.shift[Z]
 
         assert out.dtype == self.dtype
