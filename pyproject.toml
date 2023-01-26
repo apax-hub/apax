@@ -39,6 +39,7 @@ matplotlib = "^3.6.2"
 pre-commit = "^2.20.0"
 isort = "^5.10.1"
 flake8 = "^5.0.4"
+sphinx-autodoc-typehints = "^1.21.8"
 
 [[tool.poetry.source]]
 name = "jax"

@@ -1447,6 +1447,22 @@ lint = ["docutils-stubs", "flake8 (>=3.5.0)", "flake8-bugbear", "flake8-comprehe
 test = ["cython", "html5lib", "pytest (>=4.6)", "typed_ast"]
 
 [[package]]
+name = "sphinx-autodoc-typehints"
+version = "1.21.8"
+description = "Type hints (PEP 484) support for the Sphinx autodoc extension"
+category = "dev"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+sphinx = ">=5.3"
+
+[package.extras]
+docs = ["furo (>=2022.12.7)", "sphinx (>=6.1.3)", "sphinx-autodoc-typehints (>=1.21)"]
+testing = ["covdefaults (>=2.2.2)", "coverage (>=7.0.5)", "diff-cover (>=7.3)", "nptyping (>=2.4.1)", "pytest (>=7.2.1)", "pytest-cov (>=4)", "sphobjinv (>=2.3.1)", "typing-extensions (>=4.4)"]
+type-comment = ["typed-ast (>=1.5.4)"]
+
+[[package]]
 name = "sphinx-rtd-theme"
 version = "1.1.1"
 description = "Read the Docs theme for Sphinx"
@@ -1909,7 +1925,7 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9, <3.11"
-content-hash = "099a59022e4dcd6eedcc9efac05d611294177ebb3524c0df1ba1c825a75d78ba"
+content-hash = "5ad5e56f714152aef1f833fe31be08b515d3e56fcb94f269cf28acdfd03c9cf1"
 
 [metadata.files]
 absl-py = [
@@ -3085,6 +3101,10 @@ snowballstemmer = [
 sphinx = [
     {file = "Sphinx-5.3.0.tar.gz", hash = "sha256:51026de0a9ff9fc13c05d74913ad66047e104f56a129ff73e174eb5c3ee794b5"},
     {file = "sphinx-5.3.0-py3-none-any.whl", hash = "sha256:060ca5c9f7ba57a08a1219e547b269fadf125ae25b06b9fa7f66768efb652d6d"},
+]
+sphinx-autodoc-typehints = [
+    {file = "sphinx_autodoc_typehints-1.21.8-py3-none-any.whl", hash = "sha256:b8d15c05ced5e9fbe46a6dfd2ff194b6e508a64c9229bc7eaa08ee7089b9e6d3"},
+    {file = "sphinx_autodoc_typehints-1.21.8.tar.gz", hash = "sha256:68e7136403ca67359d7beaab4d358cea518623abe749cc4e0639609aebf2f5c7"},
 ]
 sphinx-rtd-theme = [
     {file = "sphinx_rtd_theme-1.1.1-py2.py3-none-any.whl", hash = "sha256:31faa07d3e97c8955637fc3f1423a5ab2c44b74b8cc558a51498c202ce5cbda7"},
