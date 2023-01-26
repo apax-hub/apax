@@ -24,7 +24,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     else:
         displacement_fn, _ = space.periodic(box)
 
-    neighbor_fn, _, model = get_md_model(
+    neighbor_fn, gmnn = get_md_model(
         atomic_numbers=atomic_numbers,
         displacement_fn=displacement_fn,
         displacement=displacement_fn,
@@ -32,7 +32,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
         dr_threshold=dr_threshold,
         **config.model.get_dict(),
     )
-    energy_fn = partial(model, params)
+    energy_fn = partial(gmnn.apply, params)
     return energy_fn, neighbor_fn
 
 

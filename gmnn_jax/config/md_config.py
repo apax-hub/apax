@@ -12,10 +12,9 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
     seed: Random seed for momentum initialization.
     temperature: Temperature of the simulation in Kelvin.
     dt: Time step in fs.
-    n_steps: Total number of simulation steps. Will be replaced with
-        simulation time in the future.
+    duration: Total simulation time in fs.
     n_inner: Number of compiled simulation steps (i.e. number of iterations of the
-        `jax.lax.fori_loop` loop). Currently also determines sampling interval.
+        `jax.lax.fori_loop` loop). Also determines sampling interval.
     dr_threshold: Skin of the neighborlist.
     extra_capacity: JaxMD allocates a maximal number of neighbors.
         This argument lets you add additional capacity to avoid recompilation.
@@ -33,7 +32,7 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
 
     temperature: PositiveFloat
     dt: PositiveFloat = 0.5
-    n_steps: PositiveInt
+    duration: PositiveFloat
     n_inner: PositiveInt = 4
     dr_threshold: PositiveFloat = 0.5
     extra_capacity: PositiveInt = 0
