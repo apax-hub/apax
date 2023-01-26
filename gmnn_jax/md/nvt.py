@@ -205,7 +205,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         log.info("initializing model")
         displacement_fn, shift_fn = space.periodic(box)
 
-    neighbor_fn, _, model = get_md_model(
+    neighbor_fn, gmnn = get_md_model(
         atomic_numbers=atomic_numbers,
         displacement_fn=displacement_fn,
         displacement=displacement_fn,
@@ -222,7 +222,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     )
     raw_restored = checkpoints.restore_checkpoint(best_dir, target=None, step=None)
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
-    energy_fn = partial(model, params)
+    energy_fn = partial(gmnn.apply, params)
 
     return R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn
 

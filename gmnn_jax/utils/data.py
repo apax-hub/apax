@@ -1,10 +1,20 @@
 import logging
 from pathlib import Path
 
+import jax.numpy as jnp
 import numpy as np
 from ase.io import read
 
 log = logging.getLogger(__name__)
+
+
+def make_minimal_input():
+    R, Z, idx = (
+        jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=jnp.float32),
+        jnp.array([6, 8]),
+        jnp.array([[1], [0]]),
+    )
+    return R, Z, idx
 
 
 def load_data(data_path):
