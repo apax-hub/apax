@@ -10,12 +10,12 @@ from gmnn_jax.config.train_config import (
 )
 
 __all__ = [
-    Config,
-    DataConfig,
-    LossConfig,
-    CallbackConfig,
-    ModelConfig,
-    OptimizerConfig,
-    MetricsConfig,
-    MDConfig,
+    "Config",
+    "DataConfig",
+    "LossConfig",
+    "CallbackConfig",
+    "ModelConfig",
+    "OptimizerConfig",
+    "MetricsConfig",
+    "MDConfig",
 ]
