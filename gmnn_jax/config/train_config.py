@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 import yaml
 from pydantic import BaseModel, Extra, PositiveFloat, PositiveInt
@@ -69,11 +69,11 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
     r_max: PositiveFloat = 6.0
 
     nn: List[PositiveInt] = [512, 512]
-    b_init: str = "normal"
+    b_init: Literal["normal", "zeros"] = "normal"
 
-    descriptor_dtype: str = "fp32"
-    readout_dtype: str = "fp32"
-    scale_shift_dtype: str = "fp32"
+    descriptor_dtype: Literal["fp32", "fp64"] = "fp32"
+    readout_dtype: Literal["fp32", "fp64"] = "fp32"
+    scale_shift_dtype: Literal["fp32", "fp64"] = "fp32"
 
     def get_dict(self):
         import jax.numpy as jnp
