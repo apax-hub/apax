@@ -5,6 +5,8 @@ import tensorflow as tf
 from gmnn_jax.data.input_pipeline import InputPipeline, pad_to_largest_element
 from gmnn_jax.utils.data import split_atoms
 from gmnn_jax.utils.random import seed_py_np_tf
+
+
 @pytest.mark.parametrize(
     "num_data, pbc, calc_results, external_labels",
     (
@@ -104,7 +106,6 @@ def test_pad_to_largest_element():
         [10, True, ["energy", "forces"]],
     ),
 )
-
 def test_split_data(example_atoms):
     seed_py_np_tf(1)
     train_atoms1, val_atoms1, train_idxs1, val_idxs1 = split_atoms(example_atoms, 4, 2)
