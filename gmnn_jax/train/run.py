@@ -5,6 +5,7 @@ import uuid
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import tensorflow as tf
 import yaml
 from keras.callbacks import CSVLogger, TensorBoard
@@ -17,7 +18,7 @@ from gmnn_jax.optimizer import get_opt
 from gmnn_jax.train.loss import Loss, LossCollection
 from gmnn_jax.train.metrics import initialize_metrics
 from gmnn_jax.train.trainer import fit
-from gmnn_jax.utils.data import load_data, split_list
+from gmnn_jax.utils.data import load_data, split_atoms, split_label
 from gmnn_jax.utils.random import seed_py_np_tf
 
 log = logging.getLogger(__name__)
@@ -130,9 +131,19 @@ def run(user_config, log_file="train.log", log_level="error"):
     if config.data.data_path is not None:
         log.info(f"Read data file {config.data.data_path}")
         atoms_list, label_dict = load_data(config.data.data_path)
-        train_atoms_list, val_atoms_list, train_label_dict, val_label_dict = split_list(
-            atoms_list, label_dict, config.data.n_train, config.data.n_valid
+        train_atoms_list, val_atoms_list, train_idxs, val_idxs = split_atoms(
+            atoms_list, config.data.n_train, config.data.n_valid
         )
+        train_label_dict, val_label_dict = split_label(label_dict, train_idxs, val_idxs)
+        data_split_path = os.path.join(model_version_path, "data-split")
+        os.makedirs(data_split_path, exist_ok=True)
+
+        np.savez(
+            os.path.join(data_split_path, "idxs"),
+            train_idxs=train_idxs,
+            val_idxs=val_idxs,
+        )
+
     elif config.data.train_data_path and config.data.val_data_path is not None:
         log.info(f"Read training data file {config.data.train_data_path}")
         log.info(f"Read validation data file {config.data.val_data_path}")
