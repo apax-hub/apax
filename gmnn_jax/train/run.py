@@ -1,4 +1,3 @@
-import csv
 import dataclasses
 import logging
 import os
@@ -6,6 +5,7 @@ import uuid
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import tensorflow as tf
 import yaml
 from keras.callbacks import CSVLogger, TensorBoard
@@ -138,12 +138,11 @@ def run(user_config, log_file="train.log", log_level="error"):
         data_split_path = os.path.join(model_version_path, "data-split")
         os.makedirs(data_split_path, exist_ok=True)
 
-        with open(os.path.join(data_split_path, "train_idxs.csv"), "w") as file:
-            wr = csv.writer(file)
-            wr.writerow(train_idxs)
-        with open(os.path.join(data_split_path, "val_idxs.csv"), "w") as file:
-            wr = csv.writer(file)
-            wr.writerow(val_idxs)
+        np.savez(
+            os.path.join(data_split_path, "idxs"),
+            train_idxs=train_idxs,
+            val_idxs=val_idxs,
+        )
 
     elif config.data.train_data_path and config.data.val_data_path is not None:
         log.info(f"Read training data file {config.data.train_data_path}")
