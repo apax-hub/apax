@@ -1,4 +1,5 @@
 import importlib.metadata
+import importlib.resources as pkg_resources
 from pathlib import Path
 
 import typer
@@ -6,13 +7,20 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
+from gmnn_jax.cli import templates
+
 console = Console(highlight=False)
 app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
 validate_app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     help="Validate training or MD config files.",
 )
+template_app = typer.Typer(
+    context_settings={"help_option_names": ["-h", "--help"]},
+    help="Create configuration file templates.",
+)
 app.add_typer(validate_app, name="validate")
+app.add_typer(template_app, name="template")
 
 
 @app.command()
@@ -167,6 +175,47 @@ def visualize_model(
         **config.model.dict(),
     )
     model_tabular(gmnn, R, Z, idx)
+
+
+@template_app.command("train")
+def template_train_config(
+    full: bool = typer.Option(False, help="Use all input options."),
+):
+    """
+    Creates a training input template in the current working directory.
+    """
+    if full:
+        template_file = "train_config_full.yaml"
+        config_path = "config_full.yaml"
+    else:
+        template_file = "train_config_minimal.yaml"
+        config_path = "config.yaml"
+
+    template_content = pkg_resources.read_text(templates, template_file)
+
+    if Path(config_path).is_file():
+        console.print("There is already a config file in the working directory.")
+    else:
+        with open(config_path, "w") as config:
+            config.write(template_content)
+
+
+@template_app.command("md")
+def template_md_config():
+    """
+    Creates a training input template in the current working directory.
+    """
+
+    template_file = "md_config_minimal.yaml"
+    config_path = "md_config.yaml"
+
+    template_content = pkg_resources.read_text(templates, template_file)
+
+    if Path(config_path).is_file():
+        console.print("There is already a config file in the working directory.")
+    else:
+        with open(config_path, "w") as config:
+            config.write(template_content)
 
 
 logo = """
