@@ -95,10 +95,10 @@ def split_atoms(atoms_list, n_train, n_valid):
         List of random structures from atoms_list of the length length2.
     """
 
-    idx = np.arrange(len(atoms_list))
-    np.random.shuffle(idx)
-    train_idxs = idx[:n_train]
-    val_idxs = idx[n_train : n_train + n_valid]
+    idxs = np.arange(len(atoms_list))
+    np.random.shuffle(idxs)
+    train_idxs = idxs[:n_train]
+    val_idxs = idxs[n_train : n_train + n_valid]
 
     train_atoms_list = [atoms_list[i] for i in train_idxs]
     val_atoms_list = [atoms_list[i] for i in val_idxs]
