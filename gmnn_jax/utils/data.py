@@ -74,7 +74,7 @@ def load_data(data_path):
     return atoms_list, external_labels
 
 
-def split_list(data_list, external_labels, length1, length2):
+def split_atoms(atoms_list, n_train, n_valid):
     """Schuffles and splits a list in two resulting lists
     of the length length1 and length2.
 
@@ -94,31 +94,26 @@ def split_list(data_list, external_labels, length1, length2):
     splitted_list2
         List of random structures from atoms_list of the length length2.
     """
-    sp_label_dict1, sp_label_dict2 = ({}, {})
-    if external_labels:
-        idx = np.arrange(len(data_list))
-        np.random.shuffle(idx)
-        idx1 = idx[:length1]
-        idx2 = idx[length1 : length1 + length2]
 
-        sp_data_list1 = [data_list[i] for i in idx1]
-        sp_data_list2 = [data_list[i] for i in idx2]
+    idx = np.arrange(len(atoms_list))
+    np.random.shuffle(idx)
+    train_idxs = idx[:n_train]
+    val_idxs = idx[n_train : n_train + n_valid]
 
-        for shape, labels in external_labels.items():
-            sp_label_dict1.update({shape: {}})
-            sp_label_dict2.update({shape: {}})
-            for label, vals in labels.items():
-                if len(data_list) == len(vals):
-                    sp_label_dict1[shape].update({label: vals[idx1]})
-                    sp_label_dict2[shape].update({label: vals[idx2]})
-                else:
-                    raise ValueError(
-                        "number of external labels is not metching the number of data"
-                        f" (strucktures) {len(data_list)} != {len(vals)}."
-                    )
-    else:
-        np.random.shuffle(data_list)
-        sp_data_list1 = data_list[:length1]
-        sp_data_list2 = data_list[length1 : length1 + length2]
+    train_atoms_list = [atoms_list[i] for i in train_idxs]
+    val_atoms_list = [atoms_list[i] for i in val_idxs]
 
-    return sp_data_list1, sp_data_list2, sp_label_dict1, sp_label_dict2
+    return train_atoms_list, val_atoms_list, train_idxs, val_idxs
+
+
+def split_label(external_labels, train_idxs, val_idxs):
+    train_label_dict, val_label_dict = ({}, {})
+
+    for shape, labels in external_labels.items():
+        train_label_dict.update({shape: {}})
+        val_label_dict.update({shape: {}})
+        for label, vals in labels.items():
+            train_label_dict[shape].update({label: vals[train_idxs]})
+            val_label_dict[shape].update({label: vals[val_idxs]})
+
+    return train_label_dict, val_label_dict
