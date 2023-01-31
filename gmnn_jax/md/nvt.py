@@ -1,10 +1,7 @@
 import logging
 import os
 import time
-import warnings
 from functools import partial
-
-warnings.filterwarnings(action="ignore", category=FutureWarning, module=r"jax.*scatter")
 
 import jax
 import jax.numpy as jnp
@@ -14,10 +11,6 @@ from ase import Atoms, units
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read
 from ase.io.trajectory import TrajectoryWriter
-from jax.config import config as jax_config
-
-jax_config.update("jax_enable_x64", True)
-
 from flax.training import checkpoints
 from jax_md import quantity, simulate, space
 from jax_md.util import Array
