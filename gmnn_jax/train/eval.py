@@ -87,7 +87,7 @@ def init_metrics(config):  # TODO double code run.py in progress
     return Metrics
 
 
-def propagation(model, params, Metrics, loss_fn, test_ds):
+def predict(model, params, Metrics, loss_fn, test_ds):
     _, test_step_fn = make_step_fns(loss_fn, Metrics, model=model)
 
     test_steps_per_epoch = test_ds.steps_per_epoch()
@@ -122,7 +122,7 @@ def propagation(model, params, Metrics, loss_fn, test_ds):
     return epoch_metrics
 
 
-def predict(config_path, n_test=None):
+def eval_model(config_path, n_test=None):
     with open(config_path, "r") as stream:
         config = yaml.safe_load(stream)
     config = Config.parse_obj(config)
@@ -158,6 +158,6 @@ def predict(config_path, n_test=None):
 
     params = load_params(model_version_path)
 
-    epoch_metrics = propagation(model, params, Metrics, loss_fn, test_ds)
+    epoch_metrics = predict(model, params, Metrics, loss_fn, test_ds)
 
     print(epoch_metrics)

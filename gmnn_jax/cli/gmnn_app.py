@@ -58,7 +58,7 @@ def md(
 
 
 @app.command()
-def predict(
+def eval(
     train_config_path: Path = typer.Argument(
         ..., help="Configuration YAML file that was used to train a model."
     ),
@@ -68,9 +68,9 @@ def predict(
     Starts performing the evaluation of the test dataset
     with paramters provided by a configuration file.
     """
-    from gmnn_jax.train.eval import predict
+    from gmnn_jax.train.eval import eval_model
 
-    predict(train_config_path, n_data)
+    eval_model(train_config_path, n_data)
 
 
 @app.command()
