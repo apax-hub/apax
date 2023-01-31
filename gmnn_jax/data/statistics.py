@@ -8,10 +8,11 @@ log = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class DatasetStats:
-    elemental_shift: np.array
-    elemental_scale: float
-    n_atoms: int
-    n_species: int
+    elemental_shift: np.array = None
+    elemental_scale: float = None
+    n_atoms: int = 0
+    n_species: int = 0
+    displacement_fn =  None
 
 
 def energy_per_element(atoms_list, lambd=1.0):
