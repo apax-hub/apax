@@ -19,7 +19,6 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
     extra_capacity: JaxMD allocates a maximal number of neighbors.
         This argument lets you add additional capacity to avoid recompilation.
         The default is usually fine.
-    enable_fp64: Enables the JAX fp64 configuration.
     intitial_structure: Path to the starting structure of the simulation.
     sim_dir: Directory where simulation file will be stored.
     traj_name: Name of the trajectory file.
@@ -36,7 +35,6 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
     n_inner: PositiveInt = 4
     dr_threshold: PositiveFloat = 0.5
     extra_capacity: PositiveInt = 0
-    enable_fp64: bool = True
 
     initial_structure: str
     sim_dir: str = "."

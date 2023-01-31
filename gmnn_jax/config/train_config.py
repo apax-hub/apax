@@ -200,7 +200,6 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
     progress_bar: Progressbar configuration.
     checkpoints: Checkpoint configuration.
     maximize_l2_cache: Whether or not to maximize GPU L2 cache.
-    enable_fp64: Enables the JAX fp64 configuration.
     """
 
     n_epochs: PositiveInt = 100
@@ -215,7 +214,6 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
     progress_bar: TrainProgressbarConfig = TrainProgressbarConfig()
     checkpoints: CheckpointConfig = CheckpointConfig()
     maximize_l2_cache: bool = False
-    enable_fp64: bool = True
 
     def dump_config(self, save_path):
         """
