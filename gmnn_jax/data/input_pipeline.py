@@ -30,23 +30,29 @@ def initialize_nbr_displacement_fns(fixed_inputs, cutoff):
 
 
 class PadToMaxElement:
-    def __init__(self, max_atoms, max_nbrs) -> None:
+    def __init__(self, max_atoms=None, max_nbrs=None) -> None:
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
 
     def __call__(self, r_inputs: dict, f_inputs: dict, r_labels: dict, f_labels: dict
 ) -> tuple[dict, dict]:
         for key, val in r_inputs.items():
-            shape = r_inputs[key].shape
-            if key == "idx":
+            if self.max_atoms == None:
+                r_inputs[key] = val.to_tensor()
+            elif key == "idx":
+                shape = r_inputs[key].shape
                 padded_shape = [shape[0], shape[1], self.max_nbrs] # batch, ij, nbrs
             else:
+                shape = r_inputs[key].shape
                 padded_shape = [shape[0], self.max_atoms, shape[2]] # batch, atoms, 3
             r_inputs[key] = val.to_tensor(default_value=0.0, shape=padded_shape)
 
         for key, val in r_labels.items():
-            padded_shape = [shape[0], self.max_atoms, shape[2]] 
-            r_labels[key] = val.to_tensor(default_value=0.0, shape=padded_shape)
+            if self.max_atoms == None:
+                r_labels[key] = val.to_tensor()
+            else:
+                padded_shape = [shape[0], self.max_atoms, shape[2]] 
+                r_labels[key] = val.to_tensor(default_value=0.0, shape=padded_shape)
 
         inputs = r_inputs.copy()
         inputs.update(f_inputs)
@@ -151,6 +157,8 @@ class InputPipeline:
         """
         self.n_epoch = n_epoch
         self.batch_size = batch_size
+        self.max_atoms = max_atoms
+        self.max_nbrs = max_nbrs
         self.buffer_size = buffer_size
 
         self.n_data = len(inputs["fixed"]["n_atoms"])
@@ -188,7 +196,7 @@ class InputPipeline:
     def init_input(self):
         """Returns first batch of inputs and labels to init the model."""
         inputs, _ = next(
-            self.ds.batch(1).map(pad_to_largest_element).take(1).as_numpy_iterator()
+            self.ds.batch(1).map(PadToMaxElement(self.max_atoms, self.max_nbrs)).take(1).as_numpy_iterator()
         )
         return inputs
 
@@ -205,7 +213,7 @@ class InputPipeline:
             self.ds.shuffle(buffer_size=self.buffer_size)
             .repeat(self.n_epoch)
             .batch(batch_size=self.batch_size)
-            .map(pad_to_largest_element)
+            .map(PadToMaxElement(self.max_atoms, self.max_nbrs))
         )
 
         shuffled_ds = prefetch_to_single_device(shuffled_ds.as_numpy_iterator(), 2)
