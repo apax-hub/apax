@@ -37,6 +37,44 @@ def init_directories(model_name, model_path):
     return model_version_path
 
 
+def load_datasets(data_config, model_version_path):
+    log.info("Running Input Pipeline")
+    if data_config.data_path is not None:
+        log.info(f"Read data file {data_config.data_path}")
+        atoms_list, label_dict = load_data(data_config.data_path)
+        train_atoms_list, val_atoms_list, train_idxs, val_idxs = split_atoms(
+            atoms_list, data_config.n_train, data_config.n_valid
+        )
+        train_label_dict, val_label_dict = split_label(label_dict, train_idxs, val_idxs)
+        data_split_path = os.path.join(model_version_path, "data-split")
+        os.makedirs(data_split_path, exist_ok=True)
+
+        np.savez(
+            os.path.join(data_split_path, "idxs"),
+            train_idxs=train_idxs,
+            val_idxs=val_idxs,
+        )
+
+    elif data_config.train_data_path and data_config.val_data_path is not None:
+        log.info(f"Read training data file {data_config.train_data_path}")
+        log.info(f"Read validation data file {data_config.val_data_path}")
+        train_atoms_list, train_label_dict = load_data(data_config.train_data_path)
+        val_atoms_list, val_label_dict = load_data(data_config.val_data_path)
+    else:
+        raise ValueError("input data path/paths not defined")
+
+    return train_atoms_list, train_label_dict, val_atoms_list, val_label_dict
+
+def maximize_l2_cache():
+    import ctypes
+    _libcudart = ctypes.CDLL("libcudart.so")
+    # Set device limit on the current device
+    # cudaLimitMaxL2FetchGranularity = 0x05
+    pValue = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
+    _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
+    _libcudart.cudaDeviceGetLimit(pValue, ctypes.c_int(0x05))
+    assert pValue.contents.value == 128
+
 @dataclasses.dataclass
 class TFModelSpoof:
     stop_training = False
@@ -107,15 +145,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     callbacks = initialize_callbacks(config, model_version_path)
 
     if config.maximize_l2_cache:
-        import ctypes
-
-        _libcudart = ctypes.CDLL("libcudart.so")
-        # Set device limit on the current device
-        # cudaLimitMaxL2FetchGranularity = 0x05
-        pValue = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
-        _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
-        _libcudart.cudaDeviceGetLimit(pValue, ctypes.c_int(0x05))
-        assert pValue.contents.value == 128
+        maximize_l2_cache()
 
     loss_fn = initialize_loss_fn(config)
 
@@ -127,30 +157,8 @@ def run(user_config, log_file="train.log", log_level="error"):
             reductions.append(reduction)
     Metrics = initialize_metrics(keys, reductions)
 
-    log.info("Running Input Pipeline")
-    if config.data.data_path is not None:
-        log.info(f"Read data file {config.data.data_path}")
-        atoms_list, label_dict = load_data(config.data.data_path)
-        train_atoms_list, val_atoms_list, train_idxs, val_idxs = split_atoms(
-            atoms_list, config.data.n_train, config.data.n_valid
-        )
-        train_label_dict, val_label_dict = split_label(label_dict, train_idxs, val_idxs)
-        data_split_path = os.path.join(model_version_path, "data-split")
-        os.makedirs(data_split_path, exist_ok=True)
-
-        np.savez(
-            os.path.join(data_split_path, "idxs"),
-            train_idxs=train_idxs,
-            val_idxs=val_idxs,
-        )
-
-    elif config.data.train_data_path and config.data.val_data_path is not None:
-        log.info(f"Read training data file {config.data.train_data_path}")
-        log.info(f"Read validation data file {config.data.val_data_path}")
-        train_atoms_list, train_label_dict = load_data(config.data.train_data_path)
-        val_atoms_list, val_label_dict = load_data(config.data.val_data_path)
-    else:
-        raise ValueError("input data path/paths not defined")
+    datasets = load_datasets(config.data, model_version_path)
+    train_atoms_list, train_label_dict, val_atoms_list, val_label_dict = datasets
 
     ds_stats = energy_per_element(
         train_atoms_list, lambd=config.data.energy_regularisation
