@@ -45,10 +45,13 @@ class PadToMaxElement:
             elif key == "idx":
                 shape = r_inputs[key].shape
                 padded_shape = [shape[0], shape[1], self.max_nbrs] # batch, ij, nbrs
+            elif key == "numbers":
+                shape = r_inputs[key].shape
+                padded_shape = [shape[0], self.max_atoms] # batch, atoms
             else:
                 shape = r_inputs[key].shape
                 padded_shape = [shape[0], self.max_atoms, shape[2]] # batch, atoms, 3
-            r_inputs[key] = val.to_tensor(default_value=0.0, shape=padded_shape)
+            r_inputs[key] = val.to_tensor(shape=padded_shape)
 
         for key, val in r_labels.items():
             if self.max_atoms == None:
