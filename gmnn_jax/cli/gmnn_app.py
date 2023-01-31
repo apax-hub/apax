@@ -58,6 +58,22 @@ def md(
 
 
 @app.command()
+def predict(
+    train_config_path: Path = typer.Argument(
+        ..., help="Configuration YAML file that was used to train a model."
+    ),
+    n_data: int = typer.Option(..., help="Number of test structures"),
+):
+    """
+    Starts performing the evaluation of the test dataset
+    with paramters provided by a configuration file.
+    """
+    from gmnn_jax.train.eval import predict
+
+    predict(train_config_path, n_data)
+
+
+@app.command()
 def docs():
     """
     Opens the documentation website in your browser.
