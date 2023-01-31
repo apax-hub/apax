@@ -144,7 +144,7 @@ class InputPipeline:
 
         inputs["ragged"]["idx"] = []
         for i in idx:
-            inputs["ragged"]["idx"].append(np.array(i)) # if "if" statement in map doesnt work, add separate key here
+            inputs["ragged"]["idx"].append(np.array(i))
 
         for key, val in inputs["ragged"].items():
             inputs["ragged"][key] = tf.ragged.constant(val)
