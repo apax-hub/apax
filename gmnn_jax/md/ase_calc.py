@@ -28,7 +28,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
         atomic_numbers=atomic_numbers,
         displacement_fn=displacement_fn,
         displacement=displacement_fn,
-        box_size=box,
+        box_size=box, # if the atom box is 0,0,0, this will cause an error
         dr_threshold=dr_threshold,
         **config.model.dict(),
     )
