@@ -75,7 +75,7 @@ def load_data(data_path):
 
 
 def split_atoms(atoms_list, n_train, n_valid):
-    """Schuffles and splits a list in two resulting lists
+    """Shuffles and splits a list in two resulting lists
     of the length length1 and length2.
 
     Parameters
