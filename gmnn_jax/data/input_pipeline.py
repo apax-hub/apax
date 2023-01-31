@@ -10,6 +10,29 @@ from gmnn_jax.utils.convert import convert_atoms_to_arrays
 log = logging.getLogger(__name__)
 
 
+# TODO turn into pad_to_max_element class that is initialized with max size per key
+
+class PadToMaxElement:
+    def __init__(self, max_atoms, max_nbrs) -> None:
+        self.max_atoms = max_atoms
+        self.max_nbrs = max_nbrs
+
+    def __call__(self, r_inputs: dict, f_inputs: dict, r_labels: dict, f_labels: dict
+) -> tuple[dict, dict]:
+        for key, val in r_inputs.items():
+            r_inputs[key] = val.to_tensor()
+
+        for key, val in r_labels.items():
+            r_labels[key] = val.to_tensor()
+
+        inputs = r_inputs.copy()
+        inputs.update(f_inputs)
+
+        labels = r_labels.copy()
+        labels.update(f_labels)
+
+        return inputs, labels
+
 def pad_to_largest_element(
     r_inputs: dict, f_inputs: dict, r_labels: dict, f_labels: dict
 ) -> tuple[dict, dict]:
@@ -121,7 +144,7 @@ class InputPipeline:
 
         inputs["ragged"]["idx"] = []
         for i in idx:
-            inputs["ragged"]["idx"].append(np.array(i))
+            inputs["ragged"]["idx"].append(np.array(i)) # if "if" statement in map doesnt work, add separate key here
 
         for key, val in inputs["ragged"].items():
             inputs["ragged"][key] = tf.ragged.constant(val)
@@ -152,10 +175,10 @@ class InputPipeline:
 
     def init_input(self):
         """Returns first batch of inputs and labels to init the model."""
-        input = next(
+        inputs = next(
             self.ds.batch(1).map(pad_to_largest_element).take(1).as_numpy_iterator()
         )
-        return input
+        return inputs
 
     def shuffle_and_batch(self):
         """Shuffles, batches, and pads the inputs/labels. This function prepares the

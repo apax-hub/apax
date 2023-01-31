@@ -66,7 +66,7 @@ class GaussianMomentDescriptor(hk.Module):
         dr_clipped = jnp.clip(dr, a_max=self.r_max)
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr_clipped / self.r_max) + 1.0)
 
-        radial_function = self.radial_fn(dr, Z_i, Z_j, cos_cutoff)
+        radial_function = self.radial_fn(dr, Z_i, Z_j, cos_cutoff) # TODO MASK HERE
 
         moments = geometric_moments(radial_function, dn, neighbor.idx[1], self.n_atoms)
 
