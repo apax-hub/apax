@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+import jax.numpy as jnp
 import tensorflow as tf
 from jax_md import partition, space
 
@@ -10,18 +11,20 @@ from gmnn_jax.utils.convert import convert_atoms_to_arrays
 log = logging.getLogger(__name__)
 
 
-def initialize_nbr_displacement_fns(fixed_inputs, cutoff):
-    cubic_box_size = 100
+def initialize_nbr_displacement_fns(atoms, cutoff):
+    default_box = 100
 
-    if "cell" in fixed_inputs:
-        cubic_box_size = fixed_inputs[0][0]
-        displacement_fn, _ = space.periodic(cubic_box_size)
-    else:
+    box = jnp.asarray(atoms.get_cell().lengths())
+
+    if np.all(box < 1e-6):
         displacement_fn, _ = space.free()
+        box = default_box
+    else:
+        displacement_fn, _ = space.periodic(box)
     
     neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
-        box=cubic_box_size,
+        box=box,
         r_cutoff=cutoff,
         format=partition.Sparse,
     )
@@ -62,6 +65,7 @@ class PadToMaxElement:
 
         return inputs, labels
 
+
 def pad_to_largest_element(
     r_inputs: dict, f_inputs: dict, r_labels: dict, f_labels: dict
 ) -> tuple[dict, dict]:
@@ -101,28 +105,27 @@ def pad_to_largest_element(
     return inputs, labels
 
 
-class RawDataset:
-    def __init__(self,
-        atoms_list: list,
+def create_dict_dataset(
+    atoms_list: list,
+    neighbor_fn,
+    external_labels: dict = {},
+    disable_pbar=False,
+    ) -> None:
+    inputs, labels = convert_atoms_to_arrays(atoms_list)
+
+    if external_labels:
+        for shape, label in external_labels.items():
+            labels[shape].update(label)
+
+    idx = dataset_neighborlist(
         neighbor_fn,
-        external_labels: dict = {},
-        disable_pbar=False,
-        ) -> None:
-        inputs, labels = convert_atoms_to_arrays(atoms_list)
-
-        if external_labels:
-            for shape, label in external_labels.items():
-                labels[shape].update(label)
-
-        idx = dataset_neighborlist(
-            neighbor_fn,
-            inputs["ragged"]["positions"],
-            inputs["fixed"]["n_atoms"],
-            disable_pbar=disable_pbar,
-        )
-        inputs["ragged"]["idx"] = [np.array(i) for i in idx]
-        self.inputs = inputs
-        self.labels = labels
+        inputs["ragged"]["positions"],
+        inputs["fixed"]["n_atoms"],
+        disable_pbar=disable_pbar,
+    )
+    inputs["ragged"]["idx"] = [np.array(i) for i in idx]
+    # TODO: to construct the nbr mask, I need to add n_nbrs to the inputs
+    return inputs, labels
 
 
 class InputPipeline:

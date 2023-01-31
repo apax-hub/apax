@@ -11,7 +11,7 @@ import yaml
 from keras.callbacks import CSVLogger, TensorBoard
 
 from gmnn_jax.config import Config
-from gmnn_jax.data.input_pipeline import InputPipeline, initialize_nbr_displacement_fns, RawDataset
+from gmnn_jax.data.input_pipeline import InputPipeline, initialize_nbr_displacement_fns, create_dict_dataset
 from gmnn_jax.data.statistics import energy_per_element
 from gmnn_jax.model.gmnn import get_training_model
 from gmnn_jax.optimizer import get_opt
@@ -37,7 +37,7 @@ def initialize_directories(model_name, model_path):
     return model_version_path
 
 
-def load_datasets(data_config, model_version_path):
+def load_data_files(data_config, model_version_path):
     log.info("Running Input Pipeline")
     if data_config.data_path is not None:
         log.info(f"Read data file {data_config.data_path}")
@@ -83,19 +83,18 @@ def find_largest_system(list_of_inputs):
 
 
 
-def initialize_data(config, model_version_path):
-    datasets = load_datasets(config.data, model_version_path)
-    train_atoms_list, train_label_dict, val_atoms_list, val_label_dict = datasets
+def initialize_datasets(config, raw_datasets):
+    train_atoms_list, train_label_dict, val_atoms_list, val_label_dict = raw_datasets
 
     ds_stats = energy_per_element(
         train_atoms_list, lambd=config.data.energy_regularisation
     )
-    # Note(Moritz): external labels are actually not read in anywhere
-    train_inputs, train_labels = RawDataset(train_atoms_list,neighbor_fn,train_label_dict, disable_pbar=config.progress_bar.disable_nl_pbar)
-    val_inputs, val_labels = RawDataset(val_atoms_list, neighbor_fn, val_label_dict, disable_pbar=config.progress_bar.disable_nl_pbar)
-
-    displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(train_inputs["fixed"]["cell"], config.model.r_max)
+    displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(train_atoms_list[0], config.model.r_max)
     ds_stats.displacement_fn = displacement_fn
+
+    # Note(Moritz): external labels are actually not read in anywhere
+    train_inputs, train_labels = create_dict_dataset(train_atoms_list, neighbor_fn, train_label_dict, disable_pbar=config.progress_bar.disable_nl_pbar)
+    val_inputs, val_labels = create_dict_dataset(val_atoms_list, neighbor_fn, val_label_dict, disable_pbar=config.progress_bar.disable_nl_pbar)
 
     max_atoms, max_nbrs = find_largest_system([train_inputs, val_inputs])
 
@@ -129,6 +128,7 @@ def maximize_l2_cache():
     _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
     _libcudart.cudaDeviceGetLimit(pValue, ctypes.c_int(0x05))
     assert pValue.contents.value == 128
+
 
 @dataclasses.dataclass
 class TFModelSpoof:
@@ -202,7 +202,9 @@ def run(user_config, log_file="train.log", log_level="error"):
     callbacks = initialize_callbacks(config.callbacks, model_version_path)
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
-    train_ds, val_ds, ds_stats = initialize_data(config, model_version_path)
+
+    raw_datasets = load_data_files(config.data, model_version_path)
+    train_ds, val_ds, ds_stats = initialize_datasets(config, raw_datasets)
 
     # n_atoms should not be from ds stats since val data might have larger systems
     # n_species too, in principle (although predictions would be wrong)
