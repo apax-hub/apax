@@ -24,7 +24,7 @@ from gmnn_jax.utils.random import seed_py_np_tf
 log = logging.getLogger(__name__)
 
 
-def init_directories(model_name, model_path):
+def initialize_directories(model_name, model_path):
     log.info("Initializing directories")
     if model_name is None:
         # creates an unique id for job
@@ -65,100 +65,13 @@ def load_datasets(data_config, model_version_path):
 
     return train_atoms_list, train_label_dict, val_atoms_list, val_label_dict
 
-def maximize_l2_cache():
-    import ctypes
-    _libcudart = ctypes.CDLL("libcudart.so")
-    # Set device limit on the current device
-    # cudaLimitMaxL2FetchGranularity = 0x05
-    pValue = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
-    _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
-    _libcudart.cudaDeviceGetLimit(pValue, ctypes.c_int(0x05))
-    assert pValue.contents.value == 128
 
-@dataclasses.dataclass
-class TFModelSpoof:
-    stop_training = False
-
-
-def initialize_callbacks(config, model_version_path):
-    log.info("Initializing Callbacks")
-    callback_dict = {
-        "csv": {
-            "class": CSVLogger,
-            "path": "log.csv",
-            "path_arg_name": "filename",
-            "kwargs": {"append": True},
-        },
-        "tensorboard": {
-            "class": TensorBoard,
-            "path": "tb_logs",
-            "path_arg_name": "log_dir",
-            "kwargs": {},
-        },
-    }
-    callbacks = []
-    for callback_config in config.callbacks:
-        callback_info = callback_dict[callback_config.name]
-
-        log_path = os.path.join(model_version_path, callback_info["path"])
-        path_arg_name = callback_info["path_arg_name"]
-        path = {path_arg_name: log_path}
-
-        kwargs = callback_info["kwargs"]
-        callback = callback_info["class"](**path, **kwargs)
-        callbacks.append(callback)
-
-    return tf.keras.callbacks.CallbackList([callback], model=TFModelSpoof())
-
-
-def initialize_loss_fn(config):
-    log.info("Initializing Loss Function")
-    loss_funcs = []
-    for loss in config.loss:
-        loss_funcs.append(Loss(**loss.dict()))
-    return LossCollection(loss_funcs)
-
-
-def run(user_config, log_file="train.log", log_level="error"):
-    log_levels = {
-        "debug": logging.DEBUG,
-        "info": logging.INFO,
-        "warning": logging.WARNING,
-        "error": logging.ERROR,
-        "critical": logging.CRITICAL,
-    }
-    logging.basicConfig(filename=log_file, level=log_levels[log_level])
-
-    log.info("Loading user config")
-    if isinstance(user_config, (str, os.PathLike)):
-        with open(user_config, "r") as stream:
-            user_config = yaml.safe_load(stream)
-
-    config = Config.parse_obj(user_config)
-
-    seed_py_np_tf(config.seed)
-    rng_key = jax.random.PRNGKey(config.seed)
-
-    model_version_path = init_directories(config.data.model_name, config.data.model_path)
-    config.dump_config(model_version_path)
-
-    callbacks = initialize_callbacks(config, model_version_path)
-
-    if config.maximize_l2_cache:
-        maximize_l2_cache()
-
-    loss_fn = initialize_loss_fn(config)
-
-    keys = []
-    reductions = []
-    for metric in config.metrics:
-        for reduction in metric.reductions:
-            keys.append(metric.name)
-            reductions.append(reduction)
-    Metrics = initialize_metrics(keys, reductions)
-
+def initialize_data(config, model_version_path):
     datasets = load_datasets(config.data, model_version_path)
     train_atoms_list, train_label_dict, val_atoms_list, val_label_dict = datasets
+
+    # TODO count max_atoms and max_neigbors here
+    # max_atoms, max_nbrs = find_largest_systems()
 
     ds_stats = energy_per_element(
         train_atoms_list, lambd=config.data.energy_regularisation
@@ -182,16 +95,102 @@ def run(user_config, log_file="train.log", log_level="error"):
         config.data.shuffle_buffer_size,
         disable_pbar=config.progress_bar.disable_nl_pbar,
     )
+    return train_ds, val_ds, ds_stats
 
-    n_atoms = ds_stats.n_atoms
-    n_species = ds_stats.n_species
+
+def maximize_l2_cache():
+    import ctypes
+    _libcudart = ctypes.CDLL("libcudart.so")
+    # Set device limit on the current device
+    # cudaLimitMaxL2FetchGranularity = 0x05
+    pValue = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
+    _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
+    _libcudart.cudaDeviceGetLimit(pValue, ctypes.c_int(0x05))
+    assert pValue.contents.value == 128
+
+@dataclasses.dataclass
+class TFModelSpoof:
+    stop_training = False
+
+
+def initialize_callbacks(callback_configs, model_version_path):
+    log.info("Initializing Callbacks")
+    callback_dict = {
+        "csv": {
+            "class": CSVLogger,
+            "path": "log.csv",
+            "path_arg_name": "filename",
+            "kwargs": {"append": True},
+        },
+        "tensorboard": {
+            "class": TensorBoard,
+            "path": "tb_logs",
+            "path_arg_name": "log_dir",
+            "kwargs": {},
+        },
+    }
+    callbacks = []
+    for callback_config in callback_configs:
+        callback_info = callback_dict[callback_config.name]
+
+        log_path = os.path.join(model_version_path, callback_info["path"])
+        path_arg_name = callback_info["path_arg_name"]
+        path = {path_arg_name: log_path}
+
+        kwargs = callback_info["kwargs"]
+        callback = callback_info["class"](**path, **kwargs)
+        callbacks.append(callback)
+
+    return tf.keras.callbacks.CallbackList([callback], model=TFModelSpoof())
+
+
+def initialize_loss_fn(loss_config_list):
+    log.info("Initializing Loss Function")
+    loss_funcs = []
+    for loss in loss_config_list:
+        loss_funcs.append(Loss(**loss.dict()))
+    return LossCollection(loss_funcs)
+
+
+def run(user_config, log_file="train.log", log_level="error"):
+    log_levels = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+    }
+    logging.basicConfig(filename=log_file, level=log_levels[log_level])
+
+    log.info("Loading user config")
+    if isinstance(user_config, (str, os.PathLike)):
+        with open(user_config, "r") as stream:
+            user_config = yaml.safe_load(stream)
+
+    config = Config.parse_obj(user_config)
+
+    seed_py_np_tf(config.seed)
+    rng_key = jax.random.PRNGKey(config.seed)    
+    if config.maximize_l2_cache:
+        maximize_l2_cache()
+
+    model_version_path = initialize_directories(config.data.model_name, config.data.model_path)
+    config.dump_config(model_version_path)
+
+    callbacks = initialize_callbacks(config.callbacks, model_version_path)
+    loss_fn = initialize_loss_fn(config.loss)
+    Metrics = initialize_metrics(config.metrics)
+    train_ds, val_ds, ds_stats = initialize_data(config, model_version_path)
+
+    # n_atoms should not be from ds stats since val data might have larger systems
+    # n_species too, in principle (although predictions would be wrong)
     gmnn = get_training_model(
-        n_atoms=n_atoms,
+        n_atoms=ds_stats.n_atoms,
         # ^This is going to make problems when training on differently sized molecules.
         # we may need to check batch shapes and manually initialize a new model
         # when a new size is encountered...
-        n_species=n_species,
-        displacement_fn=train_ds.displacement_fn,
+        n_species=ds_stats.n_species,
+        displacement_fn=train_ds.displacement_fn, # This also needs to be the same between train and val
         elemental_energies_mean=ds_stats.elemental_shift,
         elemental_energies_std=ds_stats.elemental_scale,
         **config.model.dict(),
@@ -210,8 +209,7 @@ def run(user_config, log_file="train.log", log_level="error"):
 
     steps_per_epoch = train_ds.steps_per_epoch()
     n_epochs = config.n_epochs
-    n_warmup = config.optimizer.transition_begin
-    transition_steps = steps_per_epoch * n_epochs - n_warmup
+    transition_steps = steps_per_epoch * n_epochs - config.optimizer.transition_begin
     tx = get_opt(transition_steps=transition_steps, **config.optimizer.dict())
 
     fit(

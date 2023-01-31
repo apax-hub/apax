@@ -68,13 +68,20 @@ def make_single_metric(key: str, reduction: str) -> metrics.Average:
     return metric.from_fun(reduction_fn)
 
 
-def initialize_metrics(keys: List[str], reductions: List[str]) -> metrics.Collection:
+def initialize_metrics(metrics) -> metrics.Collection:
     """
     Builds a `clu` metrics `Collection` by looping over all `keys` and `reductions`.
     the metrics are named according to `key_reduction`.
     See `make_single_metric` for details on the individual metrics.
     """
     log.info("Initializing Metrics")
+    keys = []
+    reductions = []
+    for metric in metrics:
+        for reduction in metric.reductions:
+            keys.append(metric.name)
+            reductions.append(reduction)
+
     metric_dict = {}
     for key, reduction in zip(keys, reductions):
         metric = make_single_metric(key, reduction)
