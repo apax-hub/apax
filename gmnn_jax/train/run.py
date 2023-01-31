@@ -103,18 +103,18 @@ def initialize_datasets(config, raw_datasets):
         train_labels,
         config.n_epochs,
         config.data.batch_size,
-        config.data.shuffle_buffer_size,
         max_atoms= max_atoms,
         max_nbrs=max_nbrs,
+        buffer_size=config.data.shuffle_buffer_size,
     )
     val_ds = InputPipeline(
         val_inputs,
         val_labels,
         config.n_epochs,
         config.data.valid_batch_size,
-        config.data.shuffle_buffer_size,
         max_atoms= max_atoms,
         max_nbrs=max_nbrs,
+        buffer_size=config.data.shuffle_buffer_size,
     )
     return train_ds, val_ds, ds_stats
 
