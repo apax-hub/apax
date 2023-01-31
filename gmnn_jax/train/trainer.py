@@ -85,7 +85,7 @@ def fit(
                     inputs, labels = next(batch_val_ds)
 
                     val_batch_metrics, batch_loss = val_step(
-                        state, inputs, labels, val_batch_metrics
+                        state.params, inputs, labels, val_batch_metrics
                     )
                     epoch_loss["val_loss"] += batch_loss
 
@@ -142,8 +142,8 @@ def make_step_fns(loss_fn, Metrics, model):
         return batch_metrics, loss, state
 
     @jax.jit
-    def val_step(state, inputs, labels, batch_metrics):
-        loss, predictions = loss_calculator(state.params, inputs, labels)
+    def val_step(params, inputs, labels, batch_metrics):
+        loss, predictions = loss_calculator(params, inputs, labels)
 
         new_batch_metrics = Metrics.single_from_model_output(
             label=labels, prediction=predictions
