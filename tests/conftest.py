@@ -4,11 +4,9 @@ import numpy as np
 import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from jax.config import config as jax_config
 
 from gmnn_jax.utils.random import seed_py_np_tf
 
-jax_config.update("jax_enable_x64", True)
 
 
 @pytest.fixture(autouse=True)
