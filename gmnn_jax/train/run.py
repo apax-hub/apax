@@ -11,7 +11,7 @@ import yaml
 from keras.callbacks import CSVLogger, TensorBoard
 
 from gmnn_jax.config import Config
-from gmnn_jax.data.input_pipeline import InputPipeline
+from gmnn_jax.data.input_pipeline import InputPipeline, initialize_nbr_displacement_fns, RawDataset
 from gmnn_jax.data.statistics import energy_per_element
 from gmnn_jax.model.gmnn import get_training_model
 from gmnn_jax.optimizer import get_opt
@@ -66,34 +66,56 @@ def load_datasets(data_config, model_version_path):
     return train_atoms_list, train_label_dict, val_atoms_list, val_label_dict
 
 
+def find_largest_system(list_of_inputs):
+    max_atoms = 0
+    max_nbrs = 0
+    for inputs in list_of_inputs:
+        max_atoms_i = np.max(inputs["fixed"]["n_atoms"])
+        if max_atoms_i > max_atoms:
+            max_atoms = max_atoms_i
+
+        nbr_shapes = [idx.shape[1] for idx in inputs["ragged"]["idx"]]
+        max_nbrs_i = np.max(nbr_shapes)
+        if max_nbrs_i > max_nbrs:
+            max_nbrs = max_nbrs_i
+
+    return max_atoms, max_nbrs
+
+
+
 def initialize_data(config, model_version_path):
     datasets = load_datasets(config.data, model_version_path)
     train_atoms_list, train_label_dict, val_atoms_list, val_label_dict = datasets
 
-    # TODO count max_atoms and max_neigbors here
-    # max_atoms, max_nbrs = find_largest_systems()
-
     ds_stats = energy_per_element(
         train_atoms_list, lambd=config.data.energy_regularisation
     )
+    # Note(Moritz): external labels are actually not read in anywhere
+    train_inputs, train_labels = RawDataset(train_atoms_list,neighbor_fn,train_label_dict, disable_pbar=config.progress_bar.disable_nl_pbar)
+    val_inputs, val_labels = RawDataset(val_atoms_list, neighbor_fn, val_label_dict, disable_pbar=config.progress_bar.disable_nl_pbar)
+
+    displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(train_inputs["fixed"]["cell"], config.model.r_max)
+    ds_stats.displacement_fn = displacement_fn
+
+    max_atoms, max_nbrs = find_largest_system([train_inputs, val_inputs])
 
     train_ds = InputPipeline(
-        config.model.r_max,
+        train_inputs,
+        train_labels,
         config.n_epochs,
         config.data.batch_size,
-        train_atoms_list,
-        train_label_dict,
         config.data.shuffle_buffer_size,
-        disable_pbar=config.progress_bar.disable_nl_pbar,
+        max_atoms= max_atoms,
+        max_nbrs=max_nbrs,
     )
     val_ds = InputPipeline(
-        config.model.r_max,
+        val_inputs,
+        val_labels,
         config.n_epochs,
         config.data.valid_batch_size,
-        val_atoms_list,
-        val_label_dict,
         config.data.shuffle_buffer_size,
-        disable_pbar=config.progress_bar.disable_nl_pbar,
+        max_atoms= max_atoms,
+        max_nbrs=max_nbrs,
     )
     return train_ds, val_ds, ds_stats
 
@@ -190,13 +212,13 @@ def run(user_config, log_file="train.log", log_level="error"):
         # we may need to check batch shapes and manually initialize a new model
         # when a new size is encountered...
         n_species=ds_stats.n_species,
-        displacement_fn=train_ds.displacement_fn, # This also needs to be the same between train and val
+        displacement_fn=ds_stats.displacement_fn, # This also needs to be the same between train and val
         elemental_energies_mean=ds_stats.elemental_shift,
         elemental_energies_std=ds_stats.elemental_scale,
         **config.model.dict(),
     )
     log.info("Initializing Model")
-    init_input, _ = train_ds.init_input()
+    init_input = train_ds.init_input()
     R, Z, idx = (
         jnp.asarray(init_input["positions"][0]),
         jnp.asarray(init_input["numbers"][0]),

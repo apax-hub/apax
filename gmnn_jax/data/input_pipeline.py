@@ -10,7 +10,24 @@ from gmnn_jax.utils.convert import convert_atoms_to_arrays
 log = logging.getLogger(__name__)
 
 
-# TODO turn into pad_to_max_element class that is initialized with max size per key
+def initialize_nbr_displacement_fns(fixed_inputs, cutoff):
+    cubic_box_size = 100
+
+    if "cell" in fixed_inputs:
+        cubic_box_size = fixed_inputs[0][0]
+        displacement_fn, _ = space.periodic(cubic_box_size)
+    else:
+        displacement_fn, _ = space.free()
+    
+    neighbor_fn = partition.neighbor_list(
+        displacement_or_metric=displacement_fn,
+        box=cubic_box_size,
+        r_cutoff=cutoff,
+        format=partition.Sparse,
+    )
+
+    return displacement_fn, neighbor_fn
+
 
 class PadToMaxElement:
     def __init__(self, max_atoms, max_nbrs) -> None:
@@ -20,10 +37,16 @@ class PadToMaxElement:
     def __call__(self, r_inputs: dict, f_inputs: dict, r_labels: dict, f_labels: dict
 ) -> tuple[dict, dict]:
         for key, val in r_inputs.items():
-            r_inputs[key] = val.to_tensor()
+            shape = r_inputs[key].shape
+            if key == "idx":
+                padded_shape = [shape[0], shape[1], self.max_nbrs] # batch, ij, nbrs
+            else:
+                padded_shape = [shape[0], self.max_atoms, shape[2]] # batch, atoms, 3
+            r_inputs[key] = val.to_tensor(default_value=0.0, shape=padded_shape)
 
         for key, val in r_labels.items():
-            r_labels[key] = val.to_tensor()
+            padded_shape = [shape[0], self.max_atoms, shape[2]] 
+            r_labels[key] = val.to_tensor(default_value=0.0, shape=padded_shape)
 
         inputs = r_inputs.copy()
         inputs.update(f_inputs)
@@ -72,18 +95,42 @@ def pad_to_largest_element(
     return inputs, labels
 
 
+class RawDataset:
+    def __init__(self,
+        atoms_list: list,
+        neighbor_fn,
+        external_labels: dict = {},
+        disable_pbar=False,
+        ) -> None:
+        inputs, labels = convert_atoms_to_arrays(atoms_list)
+
+        if external_labels:
+            for shape, label in external_labels.items():
+                labels[shape].update(label)
+
+        idx = dataset_neighborlist(
+            neighbor_fn,
+            inputs["ragged"]["positions"],
+            inputs["fixed"]["n_atoms"],
+            disable_pbar=disable_pbar,
+        )
+        inputs["ragged"]["idx"] = [np.array(i) for i in idx]
+        self.inputs = inputs
+        self.labels = labels
+
+
 class InputPipeline:
     """Class processes inputs/labels and makes them accessible for training."""
 
     def __init__(
         self,
-        cutoff: float,
+        inputs,
+        labels,
         n_epoch: int,
         batch_size: int,
-        atoms_list: list,
-        external_labels: dict = {},
+        max_atoms=None,
+        max_nbrs=None,
         buffer_size: int = 1000,
-        disable_pbar=False,
     ) -> None:
         """Processes inputs/labels and makes them accessible for training.
 
@@ -106,45 +153,10 @@ class InputPipeline:
         self.batch_size = batch_size
         self.buffer_size = buffer_size
 
-        if batch_size > len(atoms_list):
-            raise ValueError("batch size is larger than the number of data points!")
-
-        inputs, labels = convert_atoms_to_arrays(atoms_list)
-
-        if external_labels:
-            for shape, label in external_labels.items():
-                labels[shape].update(label)
-
         self.n_data = len(inputs["fixed"]["n_atoms"])
 
-        cubic_box_size = 100
-
-        nl_format = partition.Sparse
-
-        if "cell" in inputs["fixed"]:
-            cubic_box_size = inputs["fixed"]["cell"][0][0]
-            displacement_fn, _ = space.periodic(cubic_box_size)
-        else:
-            displacement_fn, _ = space.free()
-        self.displacement_fn = displacement_fn
-
-        neighbor_fn = partition.neighbor_list(
-            displacement_or_metric=self.displacement_fn,
-            box=cubic_box_size,
-            r_cutoff=cutoff,
-            format=nl_format,
-        )
-
-        idx = dataset_neighborlist(
-            neighbor_fn,
-            inputs["ragged"]["positions"],
-            inputs["fixed"]["n_atoms"],
-            disable_pbar=disable_pbar,
-        )
-
-        inputs["ragged"]["idx"] = []
-        for i in idx:
-            inputs["ragged"]["idx"].append(np.array(i))
+        if batch_size > self.n_data:
+            raise ValueError("batch size is larger than the number of data points!")
 
         for key, val in inputs["ragged"].items():
             inputs["ragged"][key] = tf.ragged.constant(val)
@@ -175,7 +187,7 @@ class InputPipeline:
 
     def init_input(self):
         """Returns first batch of inputs and labels to init the model."""
-        inputs = next(
+        inputs, _ = next(
             self.ds.batch(1).map(pad_to_largest_element).take(1).as_numpy_iterator()
         )
         return inputs
