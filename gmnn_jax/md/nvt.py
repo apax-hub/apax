@@ -194,10 +194,10 @@ def md_setup(model_config: Config, md_config: MDConfig):
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
 
-    R = jnp.asarray(atoms.positions)
-    atomic_numbers = jnp.asarray(atoms.numbers)
-    masses = jnp.asarray(atoms.get_masses())
-    box = jnp.asarray(atoms.get_cell().lengths())
+    R = jnp.asarray(atoms.positions, dtype=jnp.float32)
+    atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
+    masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float32)
+    box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float32)
 
     if np.all(box < 1e-6):
         displacement_fn, shift_fn = space.free()
@@ -205,13 +205,14 @@ def md_setup(model_config: Config, md_config: MDConfig):
         log.info("initializing model")
         displacement_fn, shift_fn = space.periodic(box)
 
+    model_dict = model_config.model.get_dict()
     neighbor_fn, gmnn = get_md_model(
         atomic_numbers=atomic_numbers,
         displacement_fn=displacement_fn,
         displacement=displacement_fn,
         box_size=box,
         dr_threshold=md_config.dr_threshold,
-        **model_config.model.dict(),
+        **model_dict,
     )
 
     os.makedirs(md_config.sim_dir, exist_ok=True)

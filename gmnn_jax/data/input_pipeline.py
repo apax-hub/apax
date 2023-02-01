@@ -94,7 +94,7 @@ class InputPipeline:
 
         self.n_data = len(inputs["fixed"]["n_atoms"])
 
-        cubic_box_size = 100
+        cubic_box_size = 100.0
 
         nl_format = partition.Sparse
 
@@ -152,10 +152,10 @@ class InputPipeline:
 
     def init_input(self):
         """Returns first batch of inputs and labels to init the model."""
-        input = next(
+        inputs = next(
             self.ds.batch(1).map(pad_to_largest_element).take(1).as_numpy_iterator()
         )
-        return input
+        return inputs
 
     def shuffle_and_batch(self):
         """Shuffles, batches, and pads the inputs/labels. This function prepares the

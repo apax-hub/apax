@@ -41,13 +41,14 @@ def convert_atoms_to_arrays(
             "energy": [],
         },
     }
+    dtype = np.float32  # float32
 
     for atoms in atoms_list:
-        inputs["ragged"]["positions"].append(atoms.positions)
+        inputs["ragged"]["positions"].append(atoms.positions.astype(dtype))
         inputs["ragged"]["numbers"].append(atoms.numbers)
         inputs["fixed"]["n_atoms"].append(len(atoms))
         if atoms.pbc.any():
-            cell = np.array(atoms.cell).diagonal()
+            cell = np.array(atoms.cell).diagonal().astype(dtype)
             inputs["fixed"]["cell"].append(list(cell))
 
         for key, val in atoms.calc.results.items():

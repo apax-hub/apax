@@ -3,6 +3,8 @@ import pytest
 import tensorflow as tf
 
 from gmnn_jax.data.input_pipeline import InputPipeline, pad_to_largest_element
+from gmnn_jax.utils.data import split_atoms
+from gmnn_jax.utils.random import seed_py_np_tf
 
 
 @pytest.mark.parametrize(
@@ -95,3 +97,25 @@ def test_pad_to_largest_element():
     assert len(labels["forces"][0]) == len(labels["forces"][1])
 
     assert "energy" in labels
+
+
+@pytest.mark.parametrize(
+    "num_data, pbc, calc_results",
+    (
+        [10, False, ["energy", "forces"]],
+        [10, True, ["energy", "forces"]],
+    ),
+)
+def test_split_data(example_atoms):
+    seed_py_np_tf(1)
+    train_atoms1, val_atoms1, train_idxs1, val_idxs1 = split_atoms(example_atoms, 4, 2)
+    train_atoms2, val_atoms2, train_idxs2, val_idxs2 = split_atoms(example_atoms, 4, 2)
+    assert np.all(train_idxs1 != train_idxs2) and np.all(val_idxs1 != val_idxs2)
+    assert np.all(train_atoms1[0].get_positions() != train_atoms2[0].get_positions())
+    assert np.all(val_atoms1[0].get_positions() != val_atoms2[0].get_positions())
+
+    seed_py_np_tf(1)
+    train_atoms2, val_atoms2, train_idxs2, val_idxs2 = split_atoms(example_atoms, 4, 2)
+    assert np.all(train_idxs1 == train_idxs2) and np.all(val_idxs1 == val_idxs2)
+    assert np.all(train_atoms1[0].get_positions() == train_atoms2[0].get_positions())
+    assert np.all(val_atoms1[0].get_positions() == val_atoms2[0].get_positions())
