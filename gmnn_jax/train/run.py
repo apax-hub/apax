@@ -11,7 +11,7 @@ import yaml
 from keras.callbacks import CSVLogger, TensorBoard
 
 from gmnn_jax.config import Config
-from gmnn_jax.data.input_pipeline import InputPipeline, initialize_nbr_displacement_fns, create_dict_dataset
+from gmnn_jax.data.input_pipeline import TFPipeline, initialize_nbr_displacement_fns, create_dict_dataset
 from gmnn_jax.data.statistics import energy_per_element
 from gmnn_jax.model.gmnn import get_training_model
 from gmnn_jax.optimizer import get_opt
@@ -98,7 +98,7 @@ def initialize_datasets(config, raw_datasets):
 
     max_atoms, max_nbrs = find_largest_system([train_inputs, val_inputs])
 
-    train_ds = InputPipeline(
+    train_ds = TFPipeline(
         train_inputs,
         train_labels,
         config.n_epochs,
@@ -107,7 +107,7 @@ def initialize_datasets(config, raw_datasets):
         max_nbrs=max_nbrs,
         buffer_size=config.data.shuffle_buffer_size,
     )
-    val_ds = InputPipeline(
+    val_ds = TFPipeline(
         val_inputs,
         val_labels,
         config.n_epochs,

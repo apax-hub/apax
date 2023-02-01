@@ -32,13 +32,44 @@ def initialize_nbr_displacement_fns(atoms, cutoff):
     return displacement_fn, neighbor_fn
 
 
-class PadToMaxElement:
+class PadToSpecificSize:
     def __init__(self, max_atoms=None, max_nbrs=None) -> None:
+        """Function is padding all input and label dicts that values are of type ragged
+        to largest element in the batch. Afterward, the distinction between ragged
+        and fixed inputs/labels is not needed and all inputs/labels are updated to
+        one list.
+
+        Parameters
+        ----------
+        max_atoms: Number of atoms that atom-wise inputs will be padded to.
+        max_nbrs: Number of neighbors that neighborlists will be padded to.
+        """
+
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
 
     def __call__(self, r_inputs: dict, f_inputs: dict, r_labels: dict, f_labels: dict
 ) -> tuple[dict, dict]:
+        """
+        Arguments
+        ---------
+
+        r_inputs :
+            Inputs of ragged shape. Untrainable system-determining properties.
+        f_inputs :
+            Inputs of fixed shape. Untrainable system-determining properties.
+        r_labels :
+            Labels of ragged shape. Trainable system properties.
+        f_labels :
+            Labels of fixed shape. Trainable system properties.
+
+        Returns
+        -------
+        inputs:
+            Contains all inputs and all entries are uniformly shaped.
+        labels:
+            Contains all labels and all entries are uniformly shaped.
+        """
         for key, val in r_inputs.items():
             if self.max_atoms == None:
                 r_inputs[key] = val.to_tensor()
@@ -69,45 +100,6 @@ class PadToMaxElement:
         return inputs, labels
 
 
-def pad_to_largest_element(
-    r_inputs: dict, f_inputs: dict, r_labels: dict, f_labels: dict
-) -> tuple[dict, dict]:
-    """Function is padding all input and label dicts that values are of type ragged
-        to largest element in the batch. Afterward, the distinction between ragged
-        and fixed inputs/labels is not needed and all inputs/labels are updated to
-        one list.
-    Parameters
-    ----------
-    r_inputs :
-        Inputs of ragged shape. Untrainable system-determining properties.
-    f_inputs :
-        Inputs of fixed shape. Untrainable system-determining properties.
-    r_labels :
-        Labels of ragged shape. Trainable system properties.
-    f_labels :
-        Labels of fixed shape. Trainable system properties.
-    Returns
-    -------
-    inputs:
-        Contains all inputs and all entries are uniformly shaped.
-    labels:
-        Contains all labels and all entries are uniformly shaped.
-    """
-    for key, val in r_inputs.items():
-        r_inputs[key] = val.to_tensor()
-
-    for key, val in r_labels.items():
-        r_labels[key] = val.to_tensor()
-
-    inputs = r_inputs.copy()
-    inputs.update(f_inputs)
-
-    labels = r_labels.copy()
-    labels.update(f_labels)
-
-    return inputs, labels
-
-
 def create_dict_dataset(
     atoms_list: list,
     neighbor_fn,
@@ -131,7 +123,7 @@ def create_dict_dataset(
     return inputs, labels
 
 
-class InputPipeline:
+class TFPipeline:
     """Class processes inputs/labels and makes them accessible for training."""
 
     def __init__(
@@ -202,7 +194,7 @@ class InputPipeline:
     def init_input(self):
         """Returns first batch of inputs and labels to init the model."""
         inputs, _ = next(
-            self.ds.batch(1).map(PadToMaxElement(self.max_atoms, self.max_nbrs)).take(1).as_numpy_iterator()
+            self.ds.batch(1).map(PadToSpecificSize(self.max_atoms, self.max_nbrs)).take(1).as_numpy_iterator()
         )
         return inputs
 
@@ -219,7 +211,7 @@ class InputPipeline:
             self.ds.shuffle(buffer_size=self.buffer_size)
             .repeat(self.n_epoch)
             .batch(batch_size=self.batch_size)
-            .map(PadToMaxElement(self.max_atoms, self.max_nbrs))
+            .map(PadToSpecificSize(self.max_atoms, self.max_nbrs))
         )
 
         shuffled_ds = prefetch_to_single_device(shuffled_ds.as_numpy_iterator(), 2)

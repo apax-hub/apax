@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from gmnn_jax.data.input_pipeline import InputPipeline, pad_to_largest_element
+from gmnn_jax.data.input_pipeline import TFPipeline, pad_to_largest_element
 from gmnn_jax.utils.data import split_atoms
 from gmnn_jax.utils.random import seed_py_np_tf
 
@@ -28,7 +28,7 @@ from gmnn_jax.utils.random import seed_py_np_tf
 def test_input_pipeline(example_atoms, pbc, calc_results, num_data, external_labels):
     batch_size = 2
 
-    ds = InputPipeline(
+    ds = TFPipeline(
         cutoff=6.0,
         batch_size=batch_size,
         atoms_list=example_atoms,
@@ -119,3 +119,18 @@ def test_split_data(example_atoms):
     assert np.all(train_idxs1 == train_idxs2) and np.all(val_idxs1 == val_idxs2)
     assert np.all(train_atoms1[0].get_positions() == train_atoms2[0].get_positions())
     assert np.all(val_atoms1[0].get_positions() == val_atoms2[0].get_positions())
+
+
+def test_initialize_nl_displacement_fn():
+    pass
+
+
+def test_create_dict_ds():
+    pass
+
+
+def test_pad_to_specific_size():
+    pass
+
+def test_tf_pipeline():
+    pass
