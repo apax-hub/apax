@@ -15,6 +15,7 @@ from gmnn_jax.layers.descriptor.gaussian_moment_descriptor import (
 )
 from gmnn_jax.layers.ntk_linear import NTKLinear
 from gmnn_jax.layers.scaling import PerElementScaleShift
+from gmnn_jax.layers.masking import mask_by_atom
 
 DisplacementFn = Callable[[Array, Array], Array]
 MDModel = Tuple[partition.NeighborFn, Callable, Callable]
@@ -36,6 +37,7 @@ class GMNN(hk.Module):
         b_init: str = "normal",
         elemental_energies_mean: Optional[Array] = None,
         elemental_energies_std: Optional[Array] = None,
+        apply_mask: bool = True,
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -48,6 +50,7 @@ class GMNN(hk.Module):
             n_atoms,
             r_min,
             r_max,
+            apply_mask,
             name="descriptor",
         )
 
@@ -66,10 +69,15 @@ class GMNN(hk.Module):
             name="scale_shift",
         )
 
+        self.apply_mask = apply_mask
+
     def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList) -> Array:
         gm = self.descriptor(R, Z, neighbor)
         h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
+
+        if self.apply_mask:
+            output = mask_by_atom(output, Z)
 
         return output
 
