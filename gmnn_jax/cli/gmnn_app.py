@@ -89,6 +89,7 @@ def validate_train_config(
     except ValidationError as e:
         print(e)
         console.print("Configuration Invalid!", style="red3")
+        raise typer.Exit(code=1)
     else:
         console.print("Success!", style="green3")
         console.print(f"{config_path} is a valid training config.")
@@ -117,6 +118,7 @@ def validate_md_config(
     except ValidationError as e:
         print(e)
         console.print("Configuration Invalid!", style="red3")
+        raise typer.Exit(code=1)
     else:
         console.print("Success!", style="green3")
         console.print(f"{config_path} is a valid MD config.")
@@ -156,6 +158,7 @@ def visualize_model(
     except ValidationError as e:
         print(e)
         console.print("Configuration Invalid!", style="red3")
+        raise typer.Exit(code=1)
 
     displacement_fn, _ = space.free()
     R, Z, idx = make_minimal_input()
