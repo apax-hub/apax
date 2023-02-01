@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from gmnn_jax.data.input_pipeline import TFPipeline, PadToSpecificSize
+from gmnn_jax.data.input_pipeline import PadToSpecificSize, TFPipeline
 from gmnn_jax.utils.data import split_atoms
 from gmnn_jax.utils.random import seed_py_np_tf
 
@@ -90,20 +90,20 @@ def test_pad_to_specific_size():
     r_lab = {"forces": tf.ragged.constant([f_1, f_2])}
     p_lab = {"energy": tf.constant([103.3, 98.4])}
 
-    max_atoms=5
-    max_nbrs=6
+    max_atoms = 5
+    max_nbrs = 6
 
     padding_fn = PadToSpecificSize(max_atoms=max_atoms, max_nbrs=max_nbrs)
 
     inputs, labels = padding_fn(r_inp, p_inp, r_lab, p_lab)
 
     assert "idx" in inputs
-    assert inputs["idx"].shape == [2,2,6]
+    assert inputs["idx"].shape == [2, 2, 6]
 
     assert "n_atoms" in inputs
 
     assert "forces" in labels
-    assert labels["forces"].shape == [2,5,3]
+    assert labels["forces"].shape == [2, 5, 3]
 
     assert "energy" in labels
 
