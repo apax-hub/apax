@@ -164,7 +164,7 @@ def visualize_model(
         n_atoms=2,
         n_species=10,
         displacement_fn=displacement_fn,
-        **config.model.dict(),
+        **config.model.get_dict(),
     )
     model_tabular(gmnn, R, Z, idx)
 
