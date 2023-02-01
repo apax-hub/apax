@@ -131,10 +131,8 @@ def run(user_config, log_file="train.log", log_level="error"):
         train_atoms_list, val_atoms_list = split_atoms(atoms_list, train_idxs, val_idxs)
         train_label_dict, val_label_dict = split_label(label_dict, train_idxs, val_idxs)
 
-        data_split_path = os.path.join(model_version_path, "data-split")
-        os.makedirs(data_split_path, exist_ok=True)
         np.savez(
-            os.path.join(data_split_path, "idxs"),
+            os.path.join(model_version_path, "train_val_idxs"),
             train_idxs=train_idxs,
             val_idxs=val_idxs,
         )

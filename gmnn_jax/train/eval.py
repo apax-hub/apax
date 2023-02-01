@@ -13,7 +13,11 @@ from tqdm import trange
 from gmnn_jax.config import Config
 from gmnn_jax.data.input_pipeline import InputPipeline
 from gmnn_jax.model.gmnn import get_training_model
-from gmnn_jax.train.run import initialize_loss_fn, initialize_metrics
+from gmnn_jax.train.run import (
+    initialize_callbacks,
+    initialize_loss_fn,
+    initialize_metrics,
+)
 from gmnn_jax.train.trainer import make_step_fns
 from gmnn_jax.utils.data import load_data, split_atoms, split_label
 
@@ -29,15 +33,15 @@ def get_test_idxs(atoms_list, used_idxs, n_test):
     return test_idxs
 
 
-def load_test_data(
-    config, model_version_path, n_test: str = None
+def get_test_data(
+    config, model_version_path, eval_path, n_test: str = None
 ):  # TODO double code run.py in progress
     log.info("Running Input Pipeline")
     if config.data.data_path is not None:
         log.info(f"Read data file {config.data.data_path}")
         atoms_list, label_dict = load_data(config.data.data_path)
 
-        idxs_dict = np.load(model_version_path / "data-split" / "idxs.npz")
+        idxs_dict = np.load(model_version_path / "train_val_idxs.npz")
 
         used_idxs = idxs_dict["train_idxs"]
         np.append(used_idxs, idxs_dict["val_idxs"])
@@ -47,10 +51,9 @@ def load_test_data(
         else:
             raise ValueError("n_test number of test structures not defined")
 
-        data_split_path = model_version_path / "test_data-split"
-        os.makedirs(data_split_path, exist_ok=True)
+        os.makedirs(eval_path, exist_ok=True)
         np.savez(
-            os.path.join(data_split_path, "idxs"),
+            os.path.join(eval_path, "test_idxs"),
             test_idxs=test_idxs,
         )
 
@@ -87,7 +90,8 @@ def init_metrics(config):  # TODO double code run.py in progress
     return Metrics
 
 
-def predict(model, params, Metrics, loss_fn, test_ds):
+def predict(model, params, Metrics, loss_fn, test_ds, callbacks):
+    callbacks.on_train_begin()
     _, test_step_fn = make_step_fns(loss_fn, Metrics, model=model)
 
     test_steps_per_epoch = test_ds.steps_per_epoch()
@@ -118,8 +122,9 @@ def predict(model, params, Metrics, loss_fn, test_ds):
     epoch_metrics.update({**epoch_loss})
     epoch_end_time = time.time()
     epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
-
-    return epoch_metrics
+    callbacks.on_epoch_end(epoch=1, logs=epoch_metrics)
+    callbacks.on_train_end()
+    pass
 
 
 def eval_model(config_path, n_test=None):
@@ -127,11 +132,16 @@ def eval_model(config_path, n_test=None):
         config = yaml.safe_load(stream)
     config = Config.parse_obj(config)
     model_version_path = Path(config.data.model_path) / config.data.model_name
+    eval_path = model_version_path / "testset_eval"
+
+    callbacks = initialize_callbacks(config, eval_path)
 
     loss_fn = initialize_loss_fn(config)
     Metrics = init_metrics(config)
 
-    test_atoms_list, test_label_dict = load_test_data(config, model_version_path, n_test)
+    test_atoms_list, test_label_dict = get_test_data(
+        config, model_version_path, eval_path, n_test
+    )
 
     test_ds = InputPipeline(
         config.model.r_max,
@@ -158,6 +168,4 @@ def eval_model(config_path, n_test=None):
 
     params = load_params(model_version_path)
 
-    epoch_metrics = predict(model, params, Metrics, loss_fn, test_ds)
-
-    print(epoch_metrics)
+    predict(model, params, Metrics, loss_fn, test_ds, callbacks)
