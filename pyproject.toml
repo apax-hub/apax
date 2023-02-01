@@ -50,6 +50,9 @@ secondary = false
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.pytest.ini_options]
+filterwarnings = ["ignore::FutureWarning:jax.*scatter",]
+
 [tool.black]
 line-length = 90
 preview = true
