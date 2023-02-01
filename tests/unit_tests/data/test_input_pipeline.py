@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from gmnn_jax.data.input_pipeline import TFPipeline, pad_to_largest_element
+from gmnn_jax.data.input_pipeline import TFPipeline, PadToSpecificSize
 from gmnn_jax.utils.data import split_atoms
 from gmnn_jax.utils.random import seed_py_np_tf
 
@@ -80,21 +80,30 @@ def test_input_pipeline(example_atoms, pbc, calc_results, num_data, external_lab
     assert (sample_inputs["positions"][0][0] != sample_inputs2["positions"][0][0]).all()
 
 
-def test_pad_to_largest_element():
-    r_inp = {"idx": tf.ragged.constant([[1, 4, 3], [4, 5, 2, 3, 1]])}
+def test_pad_to_specific_size():
+    idx_1 = [[1, 4, 3], [3, 1, 4]]
+    idx_2 = [[5, 4, 2, 3, 1], [1, 2, 3, 4, 5]]
+    r_inp = {"idx": tf.ragged.constant([idx_1, idx_2])}
     p_inp = {"n_atoms": tf.constant([3, 5])}
-    r_lab = {"forces": tf.ragged.constant([[2.0, 2.0, 2.0], [3.0, 3.0, 3.0, 3.0, 3.0]])}
+    f_1 = [[2.0, 2.0, 2.0], [2.0, 2.0, 2.0]]
+    f_2 = [[3.0, 3.0, 3.0], [3.0, 3.0, 3.0], [3.0, 3.0, 3.0]]
+    r_lab = {"forces": tf.ragged.constant([f_1, f_2])}
     p_lab = {"energy": tf.constant([103.3, 98.4])}
 
-    inputs, labels = pad_to_largest_element(r_inp, p_inp, r_lab, p_lab)
+    max_atoms=5
+    max_nbrs=6
+
+    padding_fn = PadToSpecificSize(max_atoms=max_atoms, max_nbrs=max_nbrs)
+
+    inputs, labels = padding_fn(r_inp, p_inp, r_lab, p_lab)
 
     assert "idx" in inputs
-    assert len(inputs["idx"][0]) == len(inputs["idx"][1])
+    assert inputs["idx"].shape == [2,2,6]
 
     assert "n_atoms" in inputs
 
     assert "forces" in labels
-    assert len(labels["forces"][0]) == len(labels["forces"][1])
+    assert labels["forces"].shape == [2,5,3]
 
     assert "energy" in labels
 
@@ -126,10 +135,6 @@ def test_initialize_nl_displacement_fn():
 
 
 def test_create_dict_ds():
-    pass
-
-
-def test_pad_to_specific_size():
     pass
 
 
