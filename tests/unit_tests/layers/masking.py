@@ -1,6 +1,6 @@
+import jax
 import jax.numpy as jnp
 import numpy as np
-import jax
 
 from gmnn_jax.layers.masking import mask_by_atom, mask_by_neighbor
 
@@ -17,20 +17,19 @@ def make_atomic_prediction(n_atoms, n_total):
 def make_neighbor_prediction(n_nbrs, n_total):
     n_padding = n_total - n_nbrs
     radial_func = np.ones((n_nbrs, 3))
-    radial_func_padded = np.concatenate([radial_func, np.full((n_padding,3), 20)])
+    radial_func_padded = np.concatenate([radial_func, np.full((n_padding, 3), 20)])
 
     idx_i = np.arange(start=0, stop=n_nbrs)
     idx_j = np.arange(start=0, stop=n_nbrs)[::-1]
     idx = np.stack([idx_i, idx_j])
 
-    idx_padding = np.zeros((2,n_padding))
+    idx_padding = np.zeros((2, n_padding))
     idx_padded = np.concatenate([idx, idx_padding], axis=1)
 
     return radial_func, radial_func_padded, idx_padded
 
 
 def test_mask_by_atom():
-
     n_atoms = np.array([4, 6, 10])
     n_total = 10
 
@@ -50,11 +49,10 @@ def test_mask_by_atom():
 
     masked_preds = batched_mask_fn(preds, Zs)
 
-    assert np.all((np.sum(masked_preds, axis=(1,2)) - n_atoms) < 1e-6)
+    assert np.all((np.sum(masked_preds, axis=(1, 2)) - n_atoms) < 1e-6)
 
 
 def test_mask_by_neighbor():
-
     n_nbrs = np.array([4, 6, 10])
     n_total = 10
 
@@ -77,4 +75,6 @@ def test_mask_by_neighbor():
 
     masked_rfs = batched_mask_fn(rfs_padded, idxs)
 
-    assert np.all((jnp.sum(masked_rfs, axis=(1,2)) - n_nbrs * masked_rfs.shape[2]) < 1e-6)
+    assert np.all(
+        (jnp.sum(masked_rfs, axis=(1, 2)) - n_nbrs * masked_rfs.shape[2]) < 1e-6
+    )

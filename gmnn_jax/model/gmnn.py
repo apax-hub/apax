@@ -13,9 +13,9 @@ from gmnn_jax.layers.activation import swish
 from gmnn_jax.layers.descriptor.gaussian_moment_descriptor import (
     GaussianMomentDescriptor,
 )
+from gmnn_jax.layers.masking import mask_by_atom
 from gmnn_jax.layers.ntk_linear import NTKLinear
 from gmnn_jax.layers.scaling import PerElementScaleShift
-from gmnn_jax.layers.masking import mask_by_atom
 
 DisplacementFn = Callable[[Array, Array], Array]
 MDModel = Tuple[partition.NeighborFn, Callable, Callable]

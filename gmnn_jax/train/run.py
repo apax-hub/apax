@@ -11,7 +11,11 @@ import yaml
 from keras.callbacks import CSVLogger, TensorBoard
 
 from gmnn_jax.config import Config
-from gmnn_jax.data.input_pipeline import TFPipeline, initialize_nbr_displacement_fns, create_dict_dataset
+from gmnn_jax.data.input_pipeline import (
+    TFPipeline,
+    create_dict_dataset,
+    initialize_nbr_displacement_fns,
+)
 from gmnn_jax.data.statistics import energy_per_element
 from gmnn_jax.model.gmnn import get_training_model
 from gmnn_jax.optimizer import get_opt
@@ -82,19 +86,30 @@ def find_largest_system(list_of_inputs):
     return max_atoms, max_nbrs
 
 
-
 def initialize_datasets(config, raw_datasets):
     train_atoms_list, train_label_dict, val_atoms_list, val_label_dict = raw_datasets
 
     ds_stats = energy_per_element(
         train_atoms_list, lambd=config.data.energy_regularisation
     )
-    displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(train_atoms_list[0], config.model.r_max)
+    displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(
+        train_atoms_list[0], config.model.r_max
+    )
     ds_stats.displacement_fn = displacement_fn
 
     # Note(Moritz): external labels are actually not read in anywhere
-    train_inputs, train_labels = create_dict_dataset(train_atoms_list, neighbor_fn, train_label_dict, disable_pbar=config.progress_bar.disable_nl_pbar)
-    val_inputs, val_labels = create_dict_dataset(val_atoms_list, neighbor_fn, val_label_dict, disable_pbar=config.progress_bar.disable_nl_pbar)
+    train_inputs, train_labels = create_dict_dataset(
+        train_atoms_list,
+        neighbor_fn,
+        train_label_dict,
+        disable_pbar=config.progress_bar.disable_nl_pbar,
+    )
+    val_inputs, val_labels = create_dict_dataset(
+        val_atoms_list,
+        neighbor_fn,
+        val_label_dict,
+        disable_pbar=config.progress_bar.disable_nl_pbar,
+    )
 
     max_atoms, max_nbrs = find_largest_system([train_inputs, val_inputs])
 
@@ -103,7 +118,7 @@ def initialize_datasets(config, raw_datasets):
         train_labels,
         config.n_epochs,
         config.data.batch_size,
-        max_atoms= max_atoms,
+        max_atoms=max_atoms,
         max_nbrs=max_nbrs,
         buffer_size=config.data.shuffle_buffer_size,
     )
@@ -112,7 +127,7 @@ def initialize_datasets(config, raw_datasets):
         val_labels,
         config.n_epochs,
         config.data.valid_batch_size,
-        max_atoms= max_atoms,
+        max_atoms=max_atoms,
         max_nbrs=max_nbrs,
         buffer_size=config.data.shuffle_buffer_size,
     )
@@ -121,6 +136,7 @@ def initialize_datasets(config, raw_datasets):
 
 def maximize_l2_cache():
     import ctypes
+
     _libcudart = ctypes.CDLL("libcudart.so")
     # Set device limit on the current device
     # cudaLimitMaxL2FetchGranularity = 0x05
@@ -192,11 +208,13 @@ def run(user_config, log_file="train.log", log_level="error"):
     config = Config.parse_obj(user_config)
 
     seed_py_np_tf(config.seed)
-    rng_key = jax.random.PRNGKey(config.seed)    
+    rng_key = jax.random.PRNGKey(config.seed)
     if config.maximize_l2_cache:
         maximize_l2_cache()
 
-    model_version_path = initialize_directories(config.data.model_name, config.data.model_path)
+    model_version_path = initialize_directories(
+        config.data.model_name, config.data.model_path
+    )
     config.dump_config(model_version_path)
 
     callbacks = initialize_callbacks(config.callbacks, model_version_path)
@@ -214,7 +232,7 @@ def run(user_config, log_file="train.log", log_level="error"):
         # we may need to check batch shapes and manually initialize a new model
         # when a new size is encountered...
         n_species=ds_stats.n_species,
-        displacement_fn=ds_stats.displacement_fn, # This also needs to be the same between train and val
+        displacement_fn=ds_stats.displacement_fn,  # This also needs to be the same between train and val
         elemental_energies_mean=ds_stats.elemental_shift,
         elemental_energies_std=ds_stats.elemental_scale,
         **config.model.dict(),

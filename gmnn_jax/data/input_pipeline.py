@@ -1,7 +1,7 @@
 import logging
 
-import numpy as np
 import jax.numpy as jnp
+import numpy as np
 import tensorflow as tf
 from jax_md import partition, space
 
@@ -21,7 +21,7 @@ def initialize_nbr_displacement_fns(atoms, cutoff):
         box = default_box
     else:
         displacement_fn, _ = space.periodic(box)
-    
+
     neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
@@ -48,8 +48,9 @@ class PadToSpecificSize:
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
 
-    def __call__(self, r_inputs: dict, f_inputs: dict, r_labels: dict, f_labels: dict
-) -> tuple[dict, dict]:
+    def __call__(
+        self, r_inputs: dict, f_inputs: dict, r_labels: dict, f_labels: dict
+    ) -> tuple[dict, dict]:
         """
         Arguments
         ---------
@@ -71,24 +72,24 @@ class PadToSpecificSize:
             Contains all labels and all entries are uniformly shaped.
         """
         for key, val in r_inputs.items():
-            if self.max_atoms == None:
+            if self.max_atoms is None:
                 r_inputs[key] = val.to_tensor()
             elif key == "idx":
                 shape = r_inputs[key].shape
-                padded_shape = [shape[0], shape[1], self.max_nbrs] # batch, ij, nbrs
+                padded_shape = [shape[0], shape[1], self.max_nbrs]  # batch, ij, nbrs
             elif key == "numbers":
                 shape = r_inputs[key].shape
-                padded_shape = [shape[0], self.max_atoms] # batch, atoms
+                padded_shape = [shape[0], self.max_atoms]  # batch, atoms
             else:
                 shape = r_inputs[key].shape
-                padded_shape = [shape[0], self.max_atoms, shape[2]] # batch, atoms, 3
+                padded_shape = [shape[0], self.max_atoms, shape[2]]  # batch, atoms, 3
             r_inputs[key] = val.to_tensor(shape=padded_shape)
 
         for key, val in r_labels.items():
-            if self.max_atoms == None:
+            if self.max_atoms is None:
                 r_labels[key] = val.to_tensor()
             else:
-                padded_shape = [shape[0], self.max_atoms, shape[2]] 
+                padded_shape = [shape[0], self.max_atoms, shape[2]]
                 r_labels[key] = val.to_tensor(default_value=0.0, shape=padded_shape)
 
         inputs = r_inputs.copy()
@@ -105,7 +106,7 @@ def create_dict_dataset(
     neighbor_fn,
     external_labels: dict = {},
     disable_pbar=False,
-    ) -> None:
+) -> None:
     inputs, labels = convert_atoms_to_arrays(atoms_list)
 
     if external_labels:
@@ -194,7 +195,10 @@ class TFPipeline:
     def init_input(self):
         """Returns first batch of inputs and labels to init the model."""
         inputs, _ = next(
-            self.ds.batch(1).map(PadToSpecificSize(self.max_atoms, self.max_nbrs)).take(1).as_numpy_iterator()
+            self.ds.batch(1)
+            .map(PadToSpecificSize(self.max_atoms, self.max_nbrs))
+            .take(1)
+            .as_numpy_iterator()
         )
         return inputs
 

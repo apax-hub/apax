@@ -14,6 +14,7 @@ from gmnn_jax.layers.descriptor.triangular_indices import (
 )
 from gmnn_jax.layers.masking import mask_by_neighbor
 
+
 class GaussianMomentDescriptor(hk.Module):
     def __init__(
         self,
@@ -24,7 +25,7 @@ class GaussianMomentDescriptor(hk.Module):
         n_atoms,
         r_min,
         r_max,
-        apply_mask = True,
+        apply_mask=True,
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -71,7 +72,6 @@ class GaussianMomentDescriptor(hk.Module):
         radial_function = self.radial_fn(dr, Z_i, Z_j, cos_cutoff)
         if self.apply_mask:
             radial_function = mask_by_neighbor(radial_function, neighbor.idx)
-
 
         moments = geometric_moments(radial_function, dn, neighbor.idx[1], self.n_atoms)
 

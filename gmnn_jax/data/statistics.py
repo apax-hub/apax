@@ -12,7 +12,7 @@ class DatasetStats:
     elemental_scale: float = None
     n_atoms: int = 0
     n_species: int = 0
-    displacement_fn =  None
+    displacement_fn = None
 
 
 def energy_per_element(atoms_list, lambd=1.0):

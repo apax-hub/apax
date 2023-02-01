@@ -1,5 +1,3 @@
-
-
 def test_gmnn():
     pass
 
