@@ -34,10 +34,6 @@ def train(
     """
     Starts the training of a GMNN model with parameters provided by a configuration file.
     """
-    import tensorflow as tf
-
-    tf.config.experimental.set_visible_devices([], "GPU")
-
     from gmnn_jax.train.run import run
 
     run(train_config_path, log_file, log_level)
