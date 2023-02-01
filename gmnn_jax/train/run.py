@@ -98,8 +98,6 @@ def initialize_datasets(config, raw_datasets):
 
     max_atoms, max_nbrs = find_largest_system([train_inputs, val_inputs])
 
-    # n_atoms is already in data pipleline, add n_nbrs to inputs here or in create dict ds function
-
     train_ds = InputPipeline(
         train_inputs,
         train_labels,
