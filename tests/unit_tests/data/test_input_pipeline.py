@@ -120,7 +120,7 @@ def test_split_data(example_atoms):
     seed_py_np_tf(1)
     train_idxs2, val_idxs2 = split_idxs(example_atoms, 4, 2)
     assert np.all(train_idxs1 == train_idxs2) and np.all(val_idxs1 == val_idxs2)
-    
+
     train_atoms2, val_atoms2 = split_atoms(example_atoms, train_idxs2, val_idxs2)
     assert np.all(train_atoms1[0].get_positions() == train_atoms2[0].get_positions())
     assert np.all(val_atoms1[0].get_positions() == val_atoms2[0].get_positions())
