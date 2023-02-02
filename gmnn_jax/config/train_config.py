@@ -206,7 +206,7 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
     seed: int = 1
 
     data: DataConfig
-    model: ModelConfig
+    model: ModelConfig = ModelConfig()
     metrics: List[MetricsConfig] = []
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()
