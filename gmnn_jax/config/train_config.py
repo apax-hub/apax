@@ -38,6 +38,8 @@ class DataConfig(BaseModel):
     train_data_path: Optional[str] = None
     val_data_path: Optional[str] = None
     test_data_path: Optional[str] = None
+    pos_unit: Optional[str] = "Ang"
+    energy_unit: Optional[str] = "eV"
 
     n_train: PositiveInt = 1000
     n_valid: PositiveInt = 100

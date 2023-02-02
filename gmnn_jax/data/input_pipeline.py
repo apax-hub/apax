@@ -61,6 +61,8 @@ class InputPipeline:
         external_labels: dict = {},
         buffer_size: int = 1000,
         disable_pbar=False,
+        pos_unit = "Ang",
+        energy_unit = "eV",
     ) -> None:
         """Processes inputs/labels and makes them accessible for training.
 
@@ -86,7 +88,7 @@ class InputPipeline:
         if batch_size > len(atoms_list):
             raise ValueError("batch size is larger than the number of data points!")
 
-        inputs, labels = convert_atoms_to_arrays(atoms_list)
+        inputs, labels = convert_atoms_to_arrays(atoms_list, pos_unit, energy_unit)
 
         if external_labels:
             for shape, label in external_labels.items():
