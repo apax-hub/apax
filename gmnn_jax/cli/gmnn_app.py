@@ -66,7 +66,7 @@ def eval(
 ):
     """
     Starts performing the evaluation of the test dataset
-    with paramters provided by a configuration file.
+    with parameters provided by a configuration file.
     """
     from gmnn_jax.train.eval import eval_model
 

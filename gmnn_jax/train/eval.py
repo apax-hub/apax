@@ -34,7 +34,7 @@ def get_test_idxs(atoms_list, used_idxs, n_test):
 
 
 def get_test_data(
-    config, model_version_path, eval_path, n_test: str = None
+    config, model_version_path, eval_path, n_test=None
 ):  # TODO double code run.py in progress
     log.info("Running Input Pipeline")
     if config.data.data_path is not None:
