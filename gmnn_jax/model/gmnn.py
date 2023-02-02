@@ -52,6 +52,7 @@ class GMNN(hk.Module):
             n_atoms,
             r_min,
             r_max,
+            dtype=descriptor_dtype,
             name="descriptor",
         )
 
