@@ -1,5 +1,6 @@
-import jax.numpy as jnp
 import einops
+import jax.numpy as jnp
+
 
 def mask_by_atom(arr, Z):
     mask = (Z != 0).astype(arr.dtype)
