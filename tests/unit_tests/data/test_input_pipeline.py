@@ -9,7 +9,7 @@ from gmnn_jax.data.input_pipeline import (
     initialize_nbr_displacement_fns,
 )
 from gmnn_jax.train.run import find_largest_system
-from gmnn_jax.utils.data import split_atoms
+from gmnn_jax.utils.data import split_atoms, split_idxs
 from gmnn_jax.utils.random import seed_py_np_tf
 
 
@@ -137,14 +137,19 @@ def test_pad_to_specific_size():
 )
 def test_split_data(example_atoms):
     seed_py_np_tf(1)
-    train_atoms1, val_atoms1, train_idxs1, val_idxs1 = split_atoms(example_atoms, 4, 2)
-    train_atoms2, val_atoms2, train_idxs2, val_idxs2 = split_atoms(example_atoms, 4, 2)
+    train_idxs1, val_idxs1 = split_idxs(example_atoms, 4, 2)
+    train_idxs2, val_idxs2 = split_idxs(example_atoms, 4, 2)
     assert np.all(train_idxs1 != train_idxs2) and np.all(val_idxs1 != val_idxs2)
+
+    train_atoms1, val_atoms1 = split_atoms(example_atoms, train_idxs1, val_idxs1)
+    train_atoms2, val_atoms2 = split_atoms(example_atoms, train_idxs2, val_idxs2)
     assert np.all(train_atoms1[0].get_positions() != train_atoms2[0].get_positions())
     assert np.all(val_atoms1[0].get_positions() != val_atoms2[0].get_positions())
 
     seed_py_np_tf(1)
-    train_atoms2, val_atoms2, train_idxs2, val_idxs2 = split_atoms(example_atoms, 4, 2)
+    train_idxs2, val_idxs2 = split_idxs(example_atoms, 4, 2)
     assert np.all(train_idxs1 == train_idxs2) and np.all(val_idxs1 == val_idxs2)
+
+    train_atoms2, val_atoms2 = split_atoms(example_atoms, train_idxs2, val_idxs2)
     assert np.all(train_atoms1[0].get_positions() == train_atoms2[0].get_positions())
     assert np.all(val_atoms1[0].get_positions() == val_atoms2[0].get_positions())
