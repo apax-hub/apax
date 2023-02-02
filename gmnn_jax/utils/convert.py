@@ -72,7 +72,6 @@ def convert_atoms_to_arrays(
                     val * unit_dict[energy_unit] / unit_dict[pos_unit]
                 )
             elif key == "energy":
-                print(key)
                 labels["fixed"][key].append(val * unit_dict[energy_unit])
 
     inputs["ragged"] = {
