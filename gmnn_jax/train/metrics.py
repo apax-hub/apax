@@ -1,6 +1,5 @@
 import logging
 from functools import partial
-from typing import List
 
 import jax.numpy as jnp
 from clu import metrics
