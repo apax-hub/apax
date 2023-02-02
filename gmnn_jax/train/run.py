@@ -224,15 +224,13 @@ def run(user_config, log_file="train.log", log_level="error"):
     raw_datasets = load_data_files(config.data, model_version_path)
     train_ds, val_ds, ds_stats = initialize_datasets(config, raw_datasets)
 
-    # n_atoms should not be from ds stats since val data might have larger systems
-    # n_species too, in principle (although predictions would be wrong)
     gmnn = get_training_model(
         n_atoms=ds_stats.n_atoms,
         # ^This is going to make problems when training on differently sized molecules.
         # we may need to check batch shapes and manually initialize a new model
         # when a new size is encountered...
         n_species=ds_stats.n_species,
-        displacement_fn=ds_stats.displacement_fn,  # This also needs to be the same between train and val
+        displacement_fn=ds_stats.displacement_fn,
         elemental_energies_mean=ds_stats.elemental_shift,
         elemental_energies_std=ds_stats.elemental_scale,
         **config.model.dict(),
