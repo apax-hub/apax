@@ -161,7 +161,7 @@ def eval_model(config_path, n_test=None):
         n_atoms=n_atoms,
         n_species=n_species,
         displacement_fn=test_ds.displacement_fn,
-        **config.model.dict(),
+        **config.model.get_dict(),
     )
     model = jax.vmap(gmnn.apply, in_axes=(None, 0, 0, 0))
 
