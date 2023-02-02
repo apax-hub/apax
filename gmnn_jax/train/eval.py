@@ -26,9 +26,9 @@ log = logging.getLogger(__name__)
 
 def get_test_idxs(atoms_list, used_idxs, n_test):
     idxs = np.arange(len(atoms_list))
-    test_idxs = np.setdiff1d(used_idxs, idxs)
-    np.random.shuffle(idxs)
-    test_idxs = idxs[:n_test]
+    test_idxs = np.setdiff1d(idxs, used_idxs)
+    np.random.shuffle(test_idxs)
+    test_idxs = test_idxs[:n_test]
 
     return test_idxs
 
@@ -124,7 +124,6 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks):
     epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
     callbacks.on_epoch_end(epoch=1, logs=epoch_metrics)
     callbacks.on_train_end()
-    pass
 
 
 def eval_model(config_path, n_test=None):
