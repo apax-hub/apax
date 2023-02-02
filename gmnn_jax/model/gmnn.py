@@ -36,10 +36,12 @@ class GMNN(hk.Module):
         b_init: str = "normal",
         elemental_energies_mean: Optional[Array] = None,
         elemental_energies_std: Optional[Array] = None,
+        descriptor_dtype=jnp.float32,
+        readout_dtype=jnp.float32,
+        scale_shift_dtype=jnp.float32,
         name: Optional[str] = None,
     ):
         super().__init__(name)
-
         self.descriptor = GaussianMomentDescriptor(
             displacement,
             n_basis,
@@ -48,13 +50,18 @@ class GMNN(hk.Module):
             n_atoms,
             r_min,
             r_max,
+            dtype=descriptor_dtype,
             name="descriptor",
         )
 
         units = units + [1]
         dense = []
         for ii, n_hidden in enumerate(units):
-            dense.append(NTKLinear(n_hidden, b_init=b_init, name=f"dense_{ii}"))
+            dense.append(
+                NTKLinear(
+                    n_hidden, b_init=b_init, dtype=readout_dtype, name=f"dense_{ii}"
+                )
+            )
             if ii < len(units) - 1:
                 dense.append(swish)
         self.readout = hk.Sequential(dense, name="readout")
@@ -63,14 +70,18 @@ class GMNN(hk.Module):
             scale=elemental_energies_std,
             shift=elemental_energies_mean,
             n_species=n_species,
+            dtype=scale_shift_dtype,
             name="scale_shift",
         )
+
+        self.scale_shift_dtype = scale_shift_dtype
 
     def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList) -> Array:
         gm = self.descriptor(R, Z, neighbor)
         h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
 
+        assert output.dtype == self.scale_shift_dtype
         return output
 
 
@@ -84,6 +95,9 @@ def get_md_model(
     n_radial: int = 5,
     dr_threshold: float = 0.5,
     nl_format: partition.NeighborListFormat = partition.Sparse,
+    descriptor_dtype=jnp.float32,
+    readout_dtype=jnp.float32,
+    scale_shift_dtype=jnp.float32,
     **neighbor_kwargs,
 ) -> MDModel:
     neighbor_fn = partition.neighbor_list(
@@ -113,6 +127,9 @@ def get_md_model(
             n_radial=n_radial,
             n_species=n_species,
             r_max=r_max,
+            descriptor_dtype=descriptor_dtype,
+            readout_dtype=readout_dtype,
+            scale_shift_dtype=scale_shift_dtype,
         )
         out = gmnn(R, Z, neighbor)
         return high_precision_sum(out)
@@ -137,6 +154,9 @@ def get_training_model(
     b_init: str = "normal",
     elemental_energies_mean: Optional[Array] = None,
     elemental_energies_std: Optional[Array] = None,
+    descriptor_dtype=jnp.float32,
+    readout_dtype=jnp.float32,
+    scale_shift_dtype=jnp.float32,
 ) -> Tuple[Callable, Callable]:
     log.info("Bulding Model")
 
@@ -155,6 +175,9 @@ def get_training_model(
             b_init=b_init,
             elemental_energies_mean=elemental_energies_mean,
             elemental_energies_std=elemental_energies_std,
+            descriptor_dtype=descriptor_dtype,
+            readout_dtype=readout_dtype,
+            scale_shift_dtype=scale_shift_dtype,
         )
         neighbor = NeighborSpoof(idx)
 

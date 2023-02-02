@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 import yaml
 from pydantic import BaseModel, Extra, PositiveFloat, PositiveInt
@@ -69,7 +69,22 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
     r_max: PositiveFloat = 6.0
 
     nn: List[PositiveInt] = [512, 512]
-    b_init: str = "normal"
+    b_init: Literal["normal", "zeros"] = "normal"
+
+    descriptor_dtype: Literal["fp32", "fp64"] = "fp32"
+    readout_dtype: Literal["fp32", "fp64"] = "fp32"
+    scale_shift_dtype: Literal["fp32", "fp64"] = "fp32"
+
+    def get_dict(self):
+        import jax.numpy as jnp
+
+        model_dict = self.dict()
+        prec_dict = {"fp32": jnp.float32, "fp64": jnp.float64}
+        model_dict["descriptor_dtype"] = prec_dict[model_dict["descriptor_dtype"]]
+        model_dict["readout_dtype"] = prec_dict[model_dict["readout_dtype"]]
+        model_dict["scale_shift_dtype"] = prec_dict[model_dict["scale_shift_dtype"]]
+
+        return model_dict
 
 
 class OptimizerConfig(BaseModel, frozen=True, extra=Extra.allow):
@@ -191,7 +206,7 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
     seed: int = 1
 
     data: DataConfig
-    model: ModelConfig
+    model: ModelConfig = ModelConfig()
     metrics: List[MetricsConfig] = []
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()
