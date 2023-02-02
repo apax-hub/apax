@@ -2,7 +2,13 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from gmnn_jax.data.input_pipeline import PadToSpecificSize, TFPipeline
+from gmnn_jax.data.input_pipeline import (
+    PadToSpecificSize,
+    TFPipeline,
+    create_dict_dataset,
+    initialize_nbr_displacement_fns,
+)
+from gmnn_jax.train.run import find_largest_system
 from gmnn_jax.utils.data import split_atoms
 from gmnn_jax.utils.random import seed_py_np_tf
 
@@ -27,13 +33,27 @@ from gmnn_jax.utils.random import seed_py_np_tf
 )
 def test_input_pipeline(example_atoms, pbc, calc_results, num_data, external_labels):
     batch_size = 2
+    r_max = 6.0
+
+    _, neighbor_fn = initialize_nbr_displacement_fns(example_atoms[0], r_max)
+
+    inputs, labels = create_dict_dataset(
+        example_atoms,
+        neighbor_fn,
+        external_labels,
+        disable_pbar=True,
+    )
+
+    max_atoms, max_nbrs = find_largest_system([inputs])
 
     ds = TFPipeline(
-        cutoff=6.0,
-        batch_size=batch_size,
-        atoms_list=example_atoms,
-        n_epoch=1,
-        external_labels=external_labels,
+        inputs,
+        labels,
+        1,
+        batch_size,
+        max_atoms=max_atoms,
+        max_nbrs=max_nbrs,
+        buffer_size=1000,
     )
     assert ds.steps_per_epoch() == num_data // batch_size
 
@@ -128,15 +148,3 @@ def test_split_data(example_atoms):
     assert np.all(train_idxs1 == train_idxs2) and np.all(val_idxs1 == val_idxs2)
     assert np.all(train_atoms1[0].get_positions() == train_atoms2[0].get_positions())
     assert np.all(val_atoms1[0].get_positions() == val_atoms2[0].get_positions())
-
-
-def test_initialize_nl_displacement_fn():
-    pass
-
-
-def test_create_dict_ds():
-    pass
-
-
-def test_tf_pipeline():
-    pass
