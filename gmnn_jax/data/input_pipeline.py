@@ -61,8 +61,8 @@ class InputPipeline:
         external_labels: dict = {},
         buffer_size: int = 1000,
         disable_pbar=False,
-        pos_unit = "Ang",
-        energy_unit = "eV",
+        pos_unit="Ang",
+        energy_unit="eV",
     ) -> None:
         """Processes inputs/labels and makes them accessible for training.
 

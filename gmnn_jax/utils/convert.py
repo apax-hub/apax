@@ -1,13 +1,14 @@
 import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
-from ase.units import eV, kcal, mol, Ang, Bohr, Hartree, kJ
+from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
+
 
 def convert_atoms_to_arrays(
     atoms_list: list[Atoms],
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
-    ) -> tuple[dict[str, dict[str, list]], dict[str, dict[str, list]]]:
+) -> tuple[dict[str, dict[str, list]], dict[str, dict[str, list]]]:
     """Converts an list of ASE atoms to two dicts where all inputs and labels
     are sorted by there shape (ragged/fixed), and proberty.
 
@@ -43,7 +44,7 @@ def convert_atoms_to_arrays(
             "energy": [],
         },
     }
-    # Hier hard gecoded mit absicht? 
+    # Hier hard gecoded mit absicht?
     dtype = np.float32  # float32
 
     unit_dict = {
@@ -51,12 +52,14 @@ def convert_atoms_to_arrays(
         "Bohr": Bohr,
         "eV": eV,
         "kcal/mol": kcal / mol,
-        'Hartree': Hartree,
+        "Hartree": Hartree,
         "kJ/mol": kJ / mol,
     }
 
     for atoms in atoms_list:
-        inputs["ragged"]["positions"].append(atoms.positions.astype(dtype) * unit_dict[pos_unit])
+        inputs["ragged"]["positions"].append(
+            atoms.positions.astype(dtype) * unit_dict[pos_unit]
+        )
         inputs["ragged"]["numbers"].append(atoms.numbers)
         inputs["fixed"]["n_atoms"].append(len(atoms))
         if atoms.pbc.any():
@@ -64,10 +67,13 @@ def convert_atoms_to_arrays(
             inputs["fixed"]["cell"].append(list(cell))
 
         for key, val in atoms.calc.results.items():
-            if key is ["forces"]:
-                labels["ragged"][key].append(val * unit_dict[energy_unit] / unit_dict[pos_unit])
-            elif key is ["energy"]:
-                    labels["fixed"][key].append(val * unit_dict[energy_unit])
+            if key == "forces":
+                labels["ragged"][key].append(
+                    val * unit_dict[energy_unit] / unit_dict[pos_unit]
+                )
+            elif key == "energy":
+                print(key)
+                labels["fixed"][key].append(val * unit_dict[energy_unit])
 
     inputs["ragged"] = {
         key: val for key, val in inputs["ragged"].items() if len(val) != 0
