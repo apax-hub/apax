@@ -6,10 +6,6 @@ from jax_md import space
 from gmnn_jax.model import get_training_model
 
 
-def test_gmnn():
-    pass
-
-
 def test_gmnn_variable_size():
     R = np.array(
         [
