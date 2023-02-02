@@ -53,6 +53,6 @@ def energy_per_element(atoms_list, lambd=1.0):
     elemental_energies_std = np.sqrt(mean_err_sse / n_atoms_total)
 
     ds_stats = DatasetStats(
-        elemental_energies_mean, elemental_energies_std, np.max(system_sizes), n_species
+        elemental_energies_mean, elemental_energies_std, 0, n_species
     )
     return ds_stats

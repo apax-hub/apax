@@ -112,6 +112,7 @@ def initialize_datasets(config, raw_datasets):
     )
 
     max_atoms, max_nbrs = find_largest_system([train_inputs, val_inputs])
+    ds_stats.n_atoms = max_atoms
 
     train_ds = TFPipeline(
         train_inputs,
@@ -224,8 +225,6 @@ def run(user_config, log_file="train.log", log_level="error"):
     raw_datasets = load_data_files(config.data, model_version_path)
     train_ds, val_ds, ds_stats = initialize_datasets(config, raw_datasets)
 
-    n_atoms = ds_stats.n_atoms
-    n_species = ds_stats.n_species
     model_dict = config.model.get_dict()
 
     gmnn = get_training_model(
