@@ -58,6 +58,28 @@ def md(
 
 
 @app.command()
+def eval(
+    train_config_path: Path = typer.Argument(
+        ..., help="Configuration YAML file that was used to train a model."
+    ),
+    n_data: int = typer.Option(
+        -1,
+        help=(
+            "Number of test structures. (All structures are selected by not specifying"
+            " it) Gets ignored if test_data_path is specified"
+        ),
+    ),
+):
+    """
+    Starts performing the evaluation of the test dataset
+    with parameters provided by a configuration file.
+    """
+    from gmnn_jax.train.eval import eval_model
+
+    eval_model(train_config_path, n_data)
+
+
+@app.command()
 def docs():
     """
     Opens the documentation website in your browser.
