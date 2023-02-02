@@ -24,17 +24,18 @@ from gmnn_jax.utils.data import load_data, split_atoms, split_label
 log = logging.getLogger(__name__)
 
 
-def get_test_idxs(atoms_list, used_idxs, n_test):
+def get_test_idxs(atoms_list, used_idxs, n_test=-1):
     idxs = np.arange(len(atoms_list))
     test_idxs = np.setdiff1d(idxs, used_idxs)
     np.random.shuffle(test_idxs)
-    test_idxs = test_idxs[:n_test]
+    if n_test != -1:
+        test_idxs = test_idxs[:n_test]
 
     return test_idxs
 
 
 def get_test_data(
-    config, model_version_path, eval_path, n_test=None
+    config, model_version_path, eval_path, n_test=-1
 ):  # TODO double code run.py in progress
     log.info("Running Input Pipeline")
     if config.data.data_path is not None:
@@ -46,10 +47,7 @@ def get_test_data(
         used_idxs = idxs_dict["train_idxs"]
         np.append(used_idxs, idxs_dict["val_idxs"])
 
-        if n_test is not None:
-            test_idxs = get_test_idxs(atoms_list, used_idxs, n_test)
-        else:
-            raise ValueError("n_test number of test structures not defined")
+        test_idxs = get_test_idxs(atoms_list, used_idxs, n_test)
 
         os.makedirs(eval_path, exist_ok=True)
         np.savez(
@@ -126,7 +124,7 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks):
     callbacks.on_train_end()
 
 
-def eval_model(config_path, n_test=None):
+def eval_model(config_path, n_test=-1):
     with open(config_path, "r") as stream:
         config = yaml.safe_load(stream)
     config = Config.parse_obj(config)

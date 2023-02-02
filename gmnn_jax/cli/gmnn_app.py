@@ -63,7 +63,11 @@ def eval(
         ..., help="Configuration YAML file that was used to train a model."
     ),
     n_data: int = typer.Option(
-        ..., help="Number of test structures. Gets ignored if test_data_path is specified"
+        -1,
+        help=(
+            "Number of test structures. (All structures are selected by not specifying"
+            " it) Gets ignored if test_data_path is specified"
+        ),
     ),
 ):
     """
