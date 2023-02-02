@@ -62,7 +62,9 @@ def eval(
     train_config_path: Path = typer.Argument(
         ..., help="Configuration YAML file that was used to train a model."
     ),
-    n_data: int = typer.Option(..., help="Number of test structures"),
+    n_data: int = typer.Option(
+        ..., help="Number of test structures. Gets ignored if test_data_path is specified"
+    ),
 ):
     """
     Starts performing the evaluation of the test dataset
