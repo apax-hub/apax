@@ -157,6 +157,8 @@ def run(user_config, log_file="train.log", log_level="error"):
         train_label_dict,
         config.data.shuffle_buffer_size,
         disable_pbar=config.progress_bar.disable_nl_pbar,
+        pos_unit=config.data.pos_unit,
+        energy_unit=config.data.energy_unit,
     )
     val_ds = InputPipeline(
         config.model.r_max,
@@ -166,6 +168,8 @@ def run(user_config, log_file="train.log", log_level="error"):
         val_label_dict,
         config.data.shuffle_buffer_size,
         disable_pbar=config.progress_bar.disable_nl_pbar,
+        pos_unit=config.data.pos_unit,
+        energy_unit=config.data.energy_unit,
     )
 
     n_atoms = ds_stats.n_atoms

@@ -1,10 +1,13 @@
 import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
+from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
 
 
 def convert_atoms_to_arrays(
     atoms_list: list[Atoms],
+    pos_unit: str = "Ang",
+    energy_unit: str = "eV",
 ) -> tuple[dict[str, dict[str, list]], dict[str, dict[str, list]]]:
     """Converts an list of ASE atoms to two dicts where all inputs and labels
     are sorted by there shape (ragged/fixed), and proberty.
@@ -41,10 +44,22 @@ def convert_atoms_to_arrays(
             "energy": [],
         },
     }
+    # Hier hard gecoded mit absicht?
     dtype = np.float32  # float32
 
+    unit_dict = {
+        "Ang": Ang,
+        "Bohr": Bohr,
+        "eV": eV,
+        "kcal/mol": kcal / mol,
+        "Hartree": Hartree,
+        "kJ/mol": kJ / mol,
+    }
+
     for atoms in atoms_list:
-        inputs["ragged"]["positions"].append(atoms.positions.astype(dtype))
+        inputs["ragged"]["positions"].append(
+            atoms.positions.astype(dtype) * unit_dict[pos_unit]
+        )
         inputs["ragged"]["numbers"].append(atoms.numbers)
         inputs["fixed"]["n_atoms"].append(len(atoms))
         if atoms.pbc.any():
@@ -52,11 +67,12 @@ def convert_atoms_to_arrays(
             inputs["fixed"]["cell"].append(list(cell))
 
         for key, val in atoms.calc.results.items():
-            if key in ["energy", "forces"]:
-                if type(val) is np.ndarray and np.shape(val)[0] == len(atoms):
-                    labels["ragged"][key].append(val)
-                else:
-                    labels["fixed"][key].append(val)
+            if key == "forces":
+                labels["ragged"][key].append(
+                    val * unit_dict[energy_unit] / unit_dict[pos_unit]
+                )
+            elif key == "energy":
+                labels["fixed"][key].append(val * unit_dict[energy_unit])
 
     inputs["ragged"] = {
         key: val for key, val in inputs["ragged"].items() if len(val) != 0

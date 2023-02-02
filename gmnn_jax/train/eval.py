@@ -148,6 +148,8 @@ def eval_model(config_path, n_test=-1):
         test_label_dict,
         config.data.shuffle_buffer_size,
         disable_pbar=config.progress_bar.disable_nl_pbar,
+        pos_unit=config.data.pos_unit,
+        energy_unit=config.data.energy_unit,
     )
 
     numbers = [atoms.numbers for atoms in test_atoms_list]
