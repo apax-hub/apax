@@ -224,6 +224,10 @@ def run(user_config, log_file="train.log", log_level="error"):
     raw_datasets = load_data_files(config.data, model_version_path)
     train_ds, val_ds, ds_stats = initialize_datasets(config, raw_datasets)
 
+    n_atoms = ds_stats.n_atoms
+    n_species = ds_stats.n_species
+    model_dict = config.model.get_dict()
+
     gmnn = get_training_model(
         n_atoms=ds_stats.n_atoms,
         # ^This is going to make problems when training on differently sized molecules.
@@ -233,7 +237,7 @@ def run(user_config, log_file="train.log", log_level="error"):
         displacement_fn=ds_stats.displacement_fn,
         elemental_energies_mean=ds_stats.elemental_shift,
         elemental_energies_std=ds_stats.elemental_scale,
-        **config.model.dict(),
+        **model_dict,
     )
     log.info("Initializing Model")
     init_input = train_ds.init_input()

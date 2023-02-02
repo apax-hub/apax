@@ -8,6 +8,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from gmnn_jax.utils.random import seed_py_np_tf
 
 
+
 @pytest.fixture(autouse=True)
 def set_radom_seeds():
     seed_py_np_tf()

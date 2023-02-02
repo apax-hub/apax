@@ -17,7 +17,7 @@ from gmnn_jax.model.gmnn import get_md_model
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     atomic_numbers = jnp.asarray(atoms.numbers)
-    box = jnp.asarray(atoms.get_cell().lengths())
+    box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float32)
 
     if np.all(box < 1e-6):
         displacement_fn, _ = space.free()
@@ -30,7 +30,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
         displacement=displacement_fn,
         box_size=box,  # if the atom box is 0,0,0, this will cause an error
         dr_threshold=dr_threshold,
-        **config.model.dict(),
+        **config.model.get_dict(),
     )
     energy_fn = partial(gmnn.apply, params)
     return energy_fn, neighbor_fn
@@ -84,17 +84,20 @@ class ASECalculator(Calculator):
     def calculate(self, atoms, properties=["energy"], system_changes=all_changes):
         Calculator.calculate(self, atoms, properties, system_changes)
 
+        positions = jnp.asarray(atoms.positions, dtype=jnp.float32)
+
         if self.step is None or "numbers" in system_changes or "cell" in system_changes:
             self.initialize(atoms)
-            self.neighbors = self.neighbor_fn.allocate(atoms.positions)
-            energy, forces, self.neighbors = self.step(atoms.positions, self.neighbors)
 
-        energy, forces, self.neighbors = self.step(atoms.positions, self.neighbors)
+            self.neighbors = self.neighbor_fn.allocate(positions)
+            energy, forces, self.neighbors = self.step(positions, self.neighbors)
+
+        energy, forces, self.neighbors = self.step(positions, self.neighbors)
 
         if self.neighbors.did_buffer_overflow:
             print("neighbor list overflowed, reallocating.")
-            self.neighbors = self.neighbor_fn.allocate(atoms.positions)
-            energy, forces, self.neighbors = self.step(atoms.positions, self.neighbors)
+            self.neighbors = self.neighbor_fn.allocate(positions)
+            energy, forces, self.neighbors = self.step(positions, self.neighbors)
 
         self.results = {
             "energy": np.array(energy, dtype=np.float64).item(),
