@@ -6,7 +6,7 @@ import tensorflow as tf
 from jax_md import partition, space
 
 from gmnn_jax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
-from gmnn_jax.utils.convert import convert_atoms_to_arrays
+from gmnn_jax.utils.data import convert_atoms_to_arrays
 
 log = logging.getLogger(__name__)
 

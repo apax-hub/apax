@@ -9,7 +9,7 @@ from gmnn_jax.data.input_pipeline import (
     initialize_nbr_displacement_fns,
 )
 from gmnn_jax.train.run import find_largest_system
-from gmnn_jax.utils.data import split_atoms, split_idxs
+from gmnn_jax.utils.data import split_atoms, split_idxs, convert_atoms_to_arrays
 from gmnn_jax.utils.random import seed_py_np_tf
 
 
@@ -153,3 +153,39 @@ def test_split_data(example_atoms):
     train_atoms2, val_atoms2 = split_atoms(example_atoms, train_idxs2, val_idxs2)
     assert np.all(train_atoms1[0].get_positions() == train_atoms2[0].get_positions())
     assert np.all(val_atoms1[0].get_positions() == val_atoms2[0].get_positions())
+
+
+@pytest.mark.parametrize(
+    "num_data, pbc, calc_results",
+    (
+        [5, False, ["energy", "forces"]],
+        [5, True, ["energy", "forces"]],
+    ),
+)
+def test_convert_atoms_to_arrays(example_atoms, pbc):
+    inputs, labels = convert_atoms_to_arrays(example_atoms)
+
+    assert "fixed" in inputs
+    assert "ragged" in inputs
+    assert "fixed" or "ragged" in labels
+
+    assert "positions" in inputs["ragged"]
+    assert len(inputs["ragged"]["positions"]) == len(example_atoms)
+
+    assert "numbers" in inputs["ragged"]
+    assert len(inputs["ragged"]["numbers"]) == len(example_atoms)
+
+    if pbc:
+        assert "cell" in inputs["fixed"]
+        assert len(inputs["fixed"]["cell"]) == len(example_atoms)
+    else:
+        assert "cell" not in inputs["fixed"]
+
+    assert "n_atoms" in inputs["fixed"]
+    assert len(inputs["fixed"]["n_atoms"]) == len(example_atoms)
+
+    assert "energy" in labels["fixed"]
+    assert len(labels["fixed"]["energy"]) == len(example_atoms)
+
+    assert "forces" in labels["ragged"]
+    assert len(labels["ragged"]["forces"]) == len(example_atoms)
