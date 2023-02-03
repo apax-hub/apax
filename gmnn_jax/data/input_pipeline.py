@@ -6,7 +6,7 @@ import tensorflow as tf
 from jax_md import partition, space
 
 from gmnn_jax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
-from gmnn_jax.utils.convert import convert_atoms_to_arrays
+from gmnn_jax.utils.data import convert_atoms_to_arrays
 
 log = logging.getLogger(__name__)
 
@@ -106,8 +106,10 @@ def create_dict_dataset(
     neighbor_fn,
     external_labels: dict = {},
     disable_pbar=False,
+    pos_unit: str = "Ang",
+    energy_unit: str = "eV",
 ) -> None:
-    inputs, labels = convert_atoms_to_arrays(atoms_list)
+    inputs, labels = convert_atoms_to_arrays(atoms_list, pos_unit, energy_unit)
 
     if external_labels:
         for shape, label in external_labels.items():
