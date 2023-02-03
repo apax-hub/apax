@@ -10,7 +10,11 @@ import yaml
 from keras.callbacks import CSVLogger, TensorBoard
 
 from gmnn_jax.config import Config
-from gmnn_jax.data.input_pipeline import InputPipeline
+from gmnn_jax.data.input_pipeline import (
+    TFPipeline,
+    create_dict_dataset,
+    initialize_nbr_displacement_fns,
+)
 from gmnn_jax.data.statistics import energy_per_element
 from gmnn_jax.model.gmnn import get_training_model
 from gmnn_jax.optimizer import get_opt
@@ -23,11 +27,117 @@ from gmnn_jax.utils.random import seed_py_np_tf
 log = logging.getLogger(__name__)
 
 
-def init_directories(model_name, model_path):
+def initialize_directories(model_name, model_path):
     log.info("Initializing directories")
     model_version_path = os.path.join(model_path, model_name)
     os.makedirs(model_version_path, exist_ok=True)
     return model_version_path
+
+
+def load_data_files(data_config, model_version_path):
+    log.info("Running Input Pipeline")
+    if data_config.data_path is not None:
+        log.info(f"Read data file {data_config.data_path}")
+        atoms_list, label_dict = load_data(data_config.data_path)
+
+        train_idxs, val_idxs = split_idxs(
+            atoms_list, data_config.n_train, data_config.n_valid
+        )
+        train_atoms_list, val_atoms_list = split_atoms(atoms_list, train_idxs, val_idxs)
+        train_label_dict, val_label_dict = split_label(label_dict, train_idxs, val_idxs)
+
+        np.savez(
+            os.path.join(model_version_path, "train_val_idxs"),
+            train_idxs=train_idxs,
+            val_idxs=val_idxs,
+        )
+
+    elif data_config.train_data_path and data_config.val_data_path is not None:
+        log.info(f"Read training data file {data_config.train_data_path}")
+        log.info(f"Read validation data file {data_config.val_data_path}")
+        train_atoms_list, train_label_dict = load_data(data_config.train_data_path)
+        val_atoms_list, val_label_dict = load_data(data_config.val_data_path)
+    else:
+        raise ValueError("input data path/paths not defined")
+
+    return train_atoms_list, train_label_dict, val_atoms_list, val_label_dict
+
+
+def find_largest_system(list_of_inputs):
+    max_atoms = 0
+    max_nbrs = 0
+    for inputs in list_of_inputs:
+        max_atoms_i = np.max(inputs["fixed"]["n_atoms"])
+        if max_atoms_i > max_atoms:
+            max_atoms = max_atoms_i
+
+        nbr_shapes = [idx.shape[1] for idx in inputs["ragged"]["idx"]]
+        max_nbrs_i = np.max(nbr_shapes)
+        if max_nbrs_i > max_nbrs:
+            max_nbrs = max_nbrs_i
+
+    return max_atoms, max_nbrs
+
+
+def initialize_datasets(config, raw_datasets):
+    train_atoms_list, train_label_dict, val_atoms_list, val_label_dict = raw_datasets
+
+    ds_stats = energy_per_element(
+        train_atoms_list, lambd=config.data.energy_regularisation
+    )
+    displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(
+        train_atoms_list[0], config.model.r_max
+    )
+    ds_stats.displacement_fn = displacement_fn
+
+    # Note(Moritz): external labels are actually not read in anywhere
+    train_inputs, train_labels = create_dict_dataset(
+        train_atoms_list,
+        neighbor_fn,
+        train_label_dict,
+        disable_pbar=config.progress_bar.disable_nl_pbar,
+    )
+    val_inputs, val_labels = create_dict_dataset(
+        val_atoms_list,
+        neighbor_fn,
+        val_label_dict,
+        disable_pbar=config.progress_bar.disable_nl_pbar,
+    )
+
+    max_atoms, max_nbrs = find_largest_system([train_inputs, val_inputs])
+    ds_stats.n_atoms = max_atoms
+
+    train_ds = TFPipeline(
+        train_inputs,
+        train_labels,
+        config.n_epochs,
+        config.data.batch_size,
+        max_atoms=max_atoms,
+        max_nbrs=max_nbrs,
+        buffer_size=config.data.shuffle_buffer_size,
+    )
+    val_ds = TFPipeline(
+        val_inputs,
+        val_labels,
+        config.n_epochs,
+        config.data.valid_batch_size,
+        max_atoms=max_atoms,
+        max_nbrs=max_nbrs,
+        buffer_size=config.data.shuffle_buffer_size,
+    )
+    return train_ds, val_ds, ds_stats
+
+
+def maximize_l2_cache():
+    import ctypes
+
+    _libcudart = ctypes.CDLL("libcudart.so")
+    # Set device limit on the current device
+    # cudaLimitMaxL2FetchGranularity = 0x05
+    pValue = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
+    _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
+    _libcudart.cudaDeviceGetLimit(pValue, ctypes.c_int(0x05))
+    assert pValue.contents.value == 128
 
 
 @dataclasses.dataclass
@@ -35,7 +145,7 @@ class TFModelSpoof:
     stop_training = False
 
 
-def initialize_callbacks(config, model_version_path):
+def initialize_callbacks(callback_configs, model_version_path):
     log.info("Initializing Callbacks")
     callback_dict = {
         "csv": {
@@ -52,7 +162,7 @@ def initialize_callbacks(config, model_version_path):
         },
     }
     callbacks = []
-    for callback_config in config.callbacks:
+    for callback_config in callback_configs:
         callback_info = callback_dict[callback_config.name]
 
         log_path = os.path.join(model_version_path, callback_info["path"])
@@ -66,10 +176,10 @@ def initialize_callbacks(config, model_version_path):
     return tf.keras.callbacks.CallbackList([callback], model=TFModelSpoof())
 
 
-def initialize_loss_fn(config):
+def initialize_loss_fn(loss_config_list):
     log.info("Initializing Loss Function")
     loss_funcs = []
-    for loss in config.loss:
+    for loss in loss_config_list:
         loss_funcs.append(Loss(**loss.dict()))
     return LossCollection(loss_funcs)
 
@@ -93,102 +203,36 @@ def run(user_config, log_file="train.log", log_level="error"):
 
     seed_py_np_tf(config.seed)
     rng_key = jax.random.PRNGKey(config.seed)
+    if config.maximize_l2_cache:
+        maximize_l2_cache()
 
-    model_version_path = init_directories(config.data.model_name, config.data.model_path)
+    model_version_path = initialize_directories(
+        config.data.model_name, config.data.model_path
+    )
     config.dump_config(model_version_path)
 
-    callbacks = initialize_callbacks(config, model_version_path)
+    callbacks = initialize_callbacks(config.callbacks, model_version_path)
+    loss_fn = initialize_loss_fn(config.loss)
+    Metrics = initialize_metrics(config.metrics)
 
-    if config.maximize_l2_cache:
-        import ctypes
+    raw_datasets = load_data_files(config.data, model_version_path)
+    train_ds, val_ds, ds_stats = initialize_datasets(config, raw_datasets)
 
-        _libcudart = ctypes.CDLL("libcudart.so")
-        # Set device limit on the current device
-        # cudaLimitMaxL2FetchGranularity = 0x05
-        pValue = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
-        _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
-        _libcudart.cudaDeviceGetLimit(pValue, ctypes.c_int(0x05))
-        assert pValue.contents.value == 128
-
-    loss_fn = initialize_loss_fn(config)
-
-    keys = []
-    reductions = []
-    for metric in config.metrics:
-        for reduction in metric.reductions:
-            keys.append(metric.name)
-            reductions.append(reduction)
-    Metrics = initialize_metrics(keys, reductions)
-
-    log.info("Running Input Pipeline")
-    if config.data.data_path is not None:
-        log.info(f"Read data file {config.data.data_path}")
-        atoms_list, label_dict = load_data(config.data.data_path)
-
-        train_idxs, val_idxs = split_idxs(
-            atoms_list, config.data.n_train, config.data.n_valid
-        )
-        train_atoms_list, val_atoms_list = split_atoms(atoms_list, train_idxs, val_idxs)
-        train_label_dict, val_label_dict = split_label(label_dict, train_idxs, val_idxs)
-
-        np.savez(
-            os.path.join(model_version_path, "train_val_idxs"),
-            train_idxs=train_idxs,
-            val_idxs=val_idxs,
-        )
-
-    elif config.data.train_data_path and config.data.val_data_path is not None:
-        log.info(f"Read training data file {config.data.train_data_path}")
-        log.info(f"Read validation data file {config.data.val_data_path}")
-        train_atoms_list, train_label_dict = load_data(config.data.train_data_path)
-        val_atoms_list, val_label_dict = load_data(config.data.val_data_path)
-    else:
-        raise ValueError("input data path/paths not defined")
-
-    ds_stats = energy_per_element(
-        train_atoms_list, lambd=config.data.energy_regularisation
-    )
-
-    train_ds = InputPipeline(
-        config.model.r_max,
-        config.n_epochs,
-        config.data.batch_size,
-        train_atoms_list,
-        train_label_dict,
-        config.data.shuffle_buffer_size,
-        disable_pbar=config.progress_bar.disable_nl_pbar,
-        pos_unit=config.data.pos_unit,
-        energy_unit=config.data.energy_unit,
-    )
-    val_ds = InputPipeline(
-        config.model.r_max,
-        config.n_epochs,
-        config.data.valid_batch_size,
-        val_atoms_list,
-        val_label_dict,
-        config.data.shuffle_buffer_size,
-        disable_pbar=config.progress_bar.disable_nl_pbar,
-        pos_unit=config.data.pos_unit,
-        energy_unit=config.data.energy_unit,
-    )
-
-    n_atoms = ds_stats.n_atoms
-    n_species = ds_stats.n_species
     model_dict = config.model.get_dict()
 
     gmnn = get_training_model(
-        n_atoms=n_atoms,
+        n_atoms=ds_stats.n_atoms,
         # ^This is going to make problems when training on differently sized molecules.
         # we may need to check batch shapes and manually initialize a new model
         # when a new size is encountered...
-        n_species=n_species,
-        displacement_fn=train_ds.displacement_fn,
+        n_species=ds_stats.n_species,
+        displacement_fn=ds_stats.displacement_fn,
         elemental_energies_mean=ds_stats.elemental_shift,
         elemental_energies_std=ds_stats.elemental_scale,
         **model_dict,
     )
     log.info("Initializing Model")
-    init_input, _ = train_ds.init_input()
+    init_input = train_ds.init_input()
     R, Z, idx = (
         jnp.asarray(init_input["positions"][0]),
         jnp.asarray(init_input["numbers"][0]),
@@ -201,8 +245,7 @@ def run(user_config, log_file="train.log", log_level="error"):
 
     steps_per_epoch = train_ds.steps_per_epoch()
     n_epochs = config.n_epochs
-    n_warmup = config.optimizer.transition_begin
-    transition_steps = steps_per_epoch * n_epochs - n_warmup
+    transition_steps = steps_per_epoch * n_epochs - config.optimizer.transition_begin
     tx = get_opt(transition_steps=transition_steps, **config.optimizer.dict())
 
     fit(

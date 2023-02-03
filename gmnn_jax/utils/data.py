@@ -84,7 +84,7 @@ def split_idxs(atoms_list, n_train, n_valid):
 
 
 def split_atoms(atoms_list, train_idxs, val_idxs=None):
-    """Schuffles and splits a list in two resulting lists
+    """Shuffles and splits a list in two resulting lists
     of the length length1 and length2.
 
     Parameters
