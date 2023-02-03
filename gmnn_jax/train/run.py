@@ -96,12 +96,16 @@ def initialize_datasets(config, raw_datasets):
         neighbor_fn,
         train_label_dict,
         disable_pbar=config.progress_bar.disable_nl_pbar,
+        pos_unit=config.data.pos_unit,
+        energy_unit=config.data.energy_unit,
     )
     val_inputs, val_labels = create_dict_dataset(
         val_atoms_list,
         neighbor_fn,
         val_label_dict,
         disable_pbar=config.progress_bar.disable_nl_pbar,
+        pos_unit=config.data.pos_unit,
+        energy_unit=config.data.energy_unit,
     )
 
     max_atoms, max_nbrs = find_largest_system([train_inputs, val_inputs])

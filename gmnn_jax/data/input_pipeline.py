@@ -106,8 +106,10 @@ def create_dict_dataset(
     neighbor_fn,
     external_labels: dict = {},
     disable_pbar=False,
+    pos_unit: str = "Ang",
+    energy_unit: str = "eV",
 ) -> None:
-    inputs, labels = convert_atoms_to_arrays(atoms_list)
+    inputs, labels = convert_atoms_to_arrays(atoms_list, pos_unit, energy_unit)
 
     if external_labels:
         for shape, label in external_labels.items():
@@ -136,8 +138,6 @@ class TFPipeline:
         max_atoms=None,
         max_nbrs=None,
         buffer_size: int = 1000,
-        pos_unit="Ang",
-        energy_unit="eV",
     ) -> None:
         """Processes inputs/labels and makes them accessible for training.
 

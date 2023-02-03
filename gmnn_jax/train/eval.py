@@ -88,6 +88,8 @@ def initialize_test_dataset(test_atoms_list, test_label_dict, config):
         neighbor_fn,
         test_label_dict,
         disable_pbar=config.progress_bar.disable_nl_pbar,
+        pos_unit=config.data.pos_unit,
+        energy_unit=config.data.energy_unit,
     )
 
     max_atoms, max_nbrs = find_largest_system([test_inputs])
