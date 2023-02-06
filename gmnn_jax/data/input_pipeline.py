@@ -122,7 +122,6 @@ def create_dict_dataset(
         disable_pbar=disable_pbar,
     )
     inputs["ragged"]["idx"] = [np.array(i) for i in idx]
-    # TODO: to construct the nbr mask, I need to add n_nbrs to the inputs
     return inputs, labels
 
 
