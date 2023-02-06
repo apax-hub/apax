@@ -76,17 +76,17 @@ def load_test_data(
 
 def initialize_test_dataset(test_atoms_list, test_label_dict, config):
     ds_stats = energy_per_element(
-        test_atoms_list, lambd=config.data.energy_regularisation
+        atoms_list=test_atoms_list, lambd=config.data.energy_regularisation
     )
     displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(
-        test_atoms_list[0], config.model.r_max
+        atoms=test_atoms_list[0], cutoff=config.model.r_max
     )
     ds_stats.displacement_fn = displacement_fn
 
     test_inputs, test_labels = create_dict_dataset(
-        test_atoms_list,
-        neighbor_fn,
-        test_label_dict,
+        atoms_list=test_atoms_list,
+        neighbor_fn=neighbor_fn,
+        external_labels=test_label_dict,
         disable_pbar=config.progress_bar.disable_nl_pbar,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
@@ -96,10 +96,10 @@ def initialize_test_dataset(test_atoms_list, test_label_dict, config):
     ds_stats.n_atoms = max_atoms
 
     test_ds = TFPipeline(
-        test_inputs,
-        test_labels,
-        1,
-        config.data.batch_size,
+        inputs=test_inputs,
+        lables=test_labels,
+        n_epoch=1,
+        batch_size=config.data.batch_size,
         max_atoms=max_atoms,
         max_nbrs=max_nbrs,
         buffer_size=config.data.shuffle_buffer_size,
