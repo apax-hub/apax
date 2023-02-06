@@ -117,8 +117,7 @@ def convert_atoms_to_arrays(
             "energy": [],
         },
     }
-    # Hier hard gecoded mit absicht?
-    dtype = np.float32  # float32
+    DTYPE = np.float32
 
     unit_dict = {
         "Ang": Ang,
@@ -131,12 +130,12 @@ def convert_atoms_to_arrays(
 
     for atoms in atoms_list:
         inputs["ragged"]["positions"].append(
-            atoms.positions.astype(dtype) * unit_dict[pos_unit]
+            (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
         )
         inputs["ragged"]["numbers"].append(atoms.numbers)
         inputs["fixed"]["n_atoms"].append(len(atoms))
         if atoms.pbc.any():
-            cell = np.array(atoms.cell).diagonal().astype(dtype)
+            cell = np.array(atoms.cell).diagonal().astype(DTYPE)
             inputs["fixed"]["cell"].append(list(cell))
 
         for key, val in atoms.calc.results.items():
