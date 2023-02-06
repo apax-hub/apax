@@ -2,8 +2,14 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from gmnn_jax.data.input_pipeline import InputPipeline, pad_to_largest_element
-from gmnn_jax.utils.data import split_atoms, split_idxs
+from gmnn_jax.data.input_pipeline import (
+    PadToSpecificSize,
+    TFPipeline,
+    create_dict_dataset,
+    initialize_nbr_displacement_fns,
+)
+from gmnn_jax.train.run import find_largest_system
+from gmnn_jax.utils.data import convert_atoms_to_arrays, split_atoms, split_idxs
 from gmnn_jax.utils.random import seed_py_np_tf
 
 
@@ -27,13 +33,27 @@ from gmnn_jax.utils.random import seed_py_np_tf
 )
 def test_input_pipeline(example_atoms, pbc, calc_results, num_data, external_labels):
     batch_size = 2
+    r_max = 6.0
 
-    ds = InputPipeline(
-        cutoff=6.0,
-        batch_size=batch_size,
-        atoms_list=example_atoms,
-        n_epoch=1,
-        external_labels=external_labels,
+    _, neighbor_fn = initialize_nbr_displacement_fns(example_atoms[0], r_max)
+
+    inputs, labels = create_dict_dataset(
+        example_atoms,
+        neighbor_fn,
+        external_labels,
+        disable_pbar=True,
+    )
+
+    max_atoms, max_nbrs = find_largest_system([inputs])
+
+    ds = TFPipeline(
+        inputs,
+        labels,
+        1,
+        batch_size,
+        max_atoms=max_atoms,
+        max_nbrs=max_nbrs,
+        buffer_size=1000,
     )
     assert ds.steps_per_epoch() == num_data // batch_size
 
@@ -80,21 +100,30 @@ def test_input_pipeline(example_atoms, pbc, calc_results, num_data, external_lab
     assert (sample_inputs["positions"][0][0] != sample_inputs2["positions"][0][0]).all()
 
 
-def test_pad_to_largest_element():
-    r_inp = {"idx": tf.ragged.constant([[1, 4, 3], [4, 5, 2, 3, 1]])}
+def test_pad_to_specific_size():
+    idx_1 = [[1, 4, 3], [3, 1, 4]]
+    idx_2 = [[5, 4, 2, 3, 1], [1, 2, 3, 4, 5]]
+    r_inp = {"idx": tf.ragged.constant([idx_1, idx_2])}
     p_inp = {"n_atoms": tf.constant([3, 5])}
-    r_lab = {"forces": tf.ragged.constant([[2.0, 2.0, 2.0], [3.0, 3.0, 3.0, 3.0, 3.0]])}
+    f_1 = [[2.0, 2.0, 2.0], [2.0, 2.0, 2.0]]
+    f_2 = [[3.0, 3.0, 3.0], [3.0, 3.0, 3.0], [3.0, 3.0, 3.0]]
+    r_lab = {"forces": tf.ragged.constant([f_1, f_2])}
     p_lab = {"energy": tf.constant([103.3, 98.4])}
 
-    inputs, labels = pad_to_largest_element(r_inp, p_inp, r_lab, p_lab)
+    max_atoms = 5
+    max_nbrs = 6
+
+    padding_fn = PadToSpecificSize(max_atoms=max_atoms, max_nbrs=max_nbrs)
+
+    inputs, labels = padding_fn(r_inp, p_inp, r_lab, p_lab)
 
     assert "idx" in inputs
-    assert len(inputs["idx"][0]) == len(inputs["idx"][1])
+    assert inputs["idx"].shape == [2, 2, 6]
 
     assert "n_atoms" in inputs
 
     assert "forces" in labels
-    assert len(labels["forces"][0]) == len(labels["forces"][1])
+    assert labels["forces"].shape == [2, 5, 3]
 
     assert "energy" in labels
 
@@ -124,3 +153,39 @@ def test_split_data(example_atoms):
     train_atoms2, val_atoms2 = split_atoms(example_atoms, train_idxs2, val_idxs2)
     assert np.all(train_atoms1[0].get_positions() == train_atoms2[0].get_positions())
     assert np.all(val_atoms1[0].get_positions() == val_atoms2[0].get_positions())
+
+
+@pytest.mark.parametrize(
+    "num_data, pbc, calc_results",
+    (
+        [5, False, ["energy", "forces"]],
+        [5, True, ["energy", "forces"]],
+    ),
+)
+def test_convert_atoms_to_arrays(example_atoms, pbc):
+    inputs, labels = convert_atoms_to_arrays(example_atoms)
+
+    assert "fixed" in inputs
+    assert "ragged" in inputs
+    assert "fixed" or "ragged" in labels
+
+    assert "positions" in inputs["ragged"]
+    assert len(inputs["ragged"]["positions"]) == len(example_atoms)
+
+    assert "numbers" in inputs["ragged"]
+    assert len(inputs["ragged"]["numbers"]) == len(example_atoms)
+
+    if pbc:
+        assert "cell" in inputs["fixed"]
+        assert len(inputs["fixed"]["cell"]) == len(example_atoms)
+    else:
+        assert "cell" not in inputs["fixed"]
+
+    assert "n_atoms" in inputs["fixed"]
+    assert len(inputs["fixed"]["n_atoms"]) == len(example_atoms)
+
+    assert "energy" in labels["fixed"]
+    assert len(labels["fixed"]["energy"]) == len(example_atoms)
+
+    assert "forces" in labels["ragged"]
+    assert len(labels["ragged"]["forces"]) == len(example_atoms)

@@ -210,7 +210,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         atomic_numbers=atomic_numbers,
         displacement_fn=displacement_fn,
         displacement=displacement_fn,
-        box_size=box,
+        box_size=box,  # if the atom box is 0,0,0, this will cause an error
         dr_threshold=md_config.dr_threshold,
         **model_dict,
     )

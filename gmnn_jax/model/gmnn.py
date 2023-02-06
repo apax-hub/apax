@@ -13,6 +13,7 @@ from gmnn_jax.layers.activation import swish
 from gmnn_jax.layers.descriptor.gaussian_moment_descriptor import (
     GaussianMomentDescriptor,
 )
+from gmnn_jax.layers.masking import mask_by_atom
 from gmnn_jax.layers.ntk_linear import NTKLinear
 from gmnn_jax.layers.scaling import PerElementScaleShift
 
@@ -39,6 +40,7 @@ class GMNN(hk.Module):
         descriptor_dtype=jnp.float32,
         readout_dtype=jnp.float32,
         scale_shift_dtype=jnp.float32,
+        apply_mask: bool = True,
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -76,12 +78,17 @@ class GMNN(hk.Module):
 
         self.scale_shift_dtype = scale_shift_dtype
 
+        self.apply_mask = apply_mask
+
     def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList) -> Array:
         gm = self.descriptor(R, Z, neighbor)
         h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
 
         assert output.dtype == self.scale_shift_dtype
+        if self.apply_mask:
+            output = mask_by_atom(output, Z)
+
         return output
 
 
