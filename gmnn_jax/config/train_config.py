@@ -2,7 +2,7 @@ import os
 from typing import List, Literal, Optional
 
 import yaml
-from pydantic import BaseModel, Extra, PositiveFloat, PositiveInt
+from pydantic import BaseModel, Extra, NonNegativeFloat, PositiveFloat, PositiveInt
 
 
 class DataConfig(BaseModel):
@@ -47,7 +47,7 @@ class DataConfig(BaseModel):
     valid_batch_size: PositiveInt = 100
     shuffle_buffer_size: PositiveInt = 1000
 
-    energy_regularisation: PositiveFloat = 1.0
+    energy_regularisation: NonNegativeFloat = 1.0
 
 
 class ModelConfig(BaseModel, extra=Extra.forbid):
@@ -67,7 +67,7 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
 
     n_basis: PositiveInt = 7
     n_radial: PositiveInt = 5
-    r_min: PositiveFloat = 0.5
+    r_min: NonNegativeFloat = 0.5
     r_max: PositiveFloat = 6.0
 
     nn: List[PositiveInt] = [512, 512]
@@ -144,7 +144,7 @@ class LossConfig(BaseModel, extra=Extra.forbid):
 
     name: str
     loss_type: str = "molecules"
-    weight: PositiveFloat = 1.0
+    weight: NonNegativeFloat = 1.0
 
 
 class CallbackConfig(BaseModel, frozen=True, extra=Extra.allow):
