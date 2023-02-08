@@ -12,9 +12,12 @@ log = logging.getLogger(__name__)
 
 
 @jax.jit
-def extract_nl(neighbors, positions):
+def extract_nl(neighbors, positions, cell=None): #mit **kwargs lösen if cell in kwargs
     # vmapped neighborlist probably only useful for larger structures
-    neighbors = neighbors.update(positions)
+    if cell is not None:
+        neighbors = neighbors.update(positions, box=cell)
+    else:
+        neighbors = neighbors.update(positions)
     return neighbors
 
 
@@ -22,6 +25,7 @@ def dataset_neighborlist(
     neighbor_fn: NeighborFn,
     positions: np.array,
     n_atoms: list[int],
+    cells: np.array = None,
     disable_pbar: bool = False,
 ) -> list[int]:
     """Calculates the neighbor list of all systems within positions using
@@ -47,7 +51,9 @@ def dataset_neighborlist(
     neighbors = neighbor_fn.allocate(positions[0])
     idx = []
     num_atoms = n_atoms[0]
-
+    if cells is not None:
+        cells = jnp.asarray(cells)
+        
     pbar_update_freq = 10
     with trange(
         len(positions),
@@ -61,7 +67,10 @@ def dataset_neighborlist(
                 neighbors = neighbor_fn.allocate(position)
                 num_atoms = n_atoms[i]
 
-            neighbors = extract_nl(neighbors, position)
+            if cells is not None:
+                neighbors = extract_nl(neighbors, position, cells[i])
+            else:
+                neighbors = extract_nl(neighbors, position)
             if neighbors.did_buffer_overflow:
                 log.info("Neighbor list overflowed, reallocating.")
                 neighbors = neighbor_fn.allocate(position)

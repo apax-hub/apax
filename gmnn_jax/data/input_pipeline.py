@@ -122,12 +122,21 @@ def create_dict_dataset(
         for shape, label in external_labels.items():
             labels[shape].update(label)
 
-    idx = dataset_neighborlist(
-        neighbor_fn,
-        inputs["ragged"]["positions"],
-        inputs["fixed"]["n_atoms"],
-        disable_pbar=disable_pbar,
-    )
+    if frac_coords:
+        idx = dataset_neighborlist(
+            neighbor_fn,
+            inputs["ragged"]["positions"],
+            inputs["fixed"]["n_atoms"],
+            cells=inputs["fixed"]["cell"],
+            disable_pbar=disable_pbar,
+        )
+    else:
+        idx = dataset_neighborlist(
+            neighbor_fn,
+            inputs["ragged"]["positions"],
+            inputs["fixed"]["n_atoms"],
+            disable_pbar=disable_pbar,
+        )
     inputs["ragged"]["idx"] = [np.array(i) for i in idx]
     return inputs, labels
 
