@@ -6,6 +6,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
+from jax_md import space
 
 log = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ def load_data(data_path):
 
 def convert_atoms_to_arrays(
     atoms_list: list[Atoms],
+    frac_coords: bool = True,
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
 ) -> tuple[dict[str, dict[str, list]], dict[str, dict[str, list]]]:
@@ -129,14 +131,26 @@ def convert_atoms_to_arrays(
     }
 
     for atoms in atoms_list:
-        inputs["ragged"]["positions"].append(
-            (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
-        )
+        if atoms.pbc.any():
+            if frac_coords:
+                cell = np.array(atoms.cell * unit_dict[pos_unit])
+                cell = (1 / cell).astype(DTYPE)
+                inputs["ragged"]["positions"].append(
+                    space.transform(cell, atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+                )
+            else:
+                inputs["ragged"]["positions"].append(
+                    (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+                )
+            cell = np.array(atoms.cell * unit_dict[pos_unit]).astype(DTYPE)
+            inputs["fixed"]["cell"].append(list(cell))
+        else:
+            inputs["ragged"]["positions"].append(
+                (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+            )
+
         inputs["ragged"]["numbers"].append(atoms.numbers)
         inputs["fixed"]["n_atoms"].append(len(atoms))
-        if atoms.pbc.any():
-            cell = np.array(atoms.cell).diagonal().astype(DTYPE)
-            inputs["fixed"]["cell"].append(list(cell))
 
         for key, val in atoms.calc.results.items():
             if key == "forces":
