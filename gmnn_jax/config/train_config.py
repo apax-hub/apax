@@ -40,6 +40,7 @@ class DataConfig(BaseModel):
     test_data_path: Optional[str] = None
     pos_unit: Optional[str] = "Ang"
     energy_unit: Optional[str] = "eV"
+    frac_coords: Optional[bool] = True
 
     n_train: PositiveInt = 1000
     n_valid: PositiveInt = 100

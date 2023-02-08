@@ -114,8 +114,9 @@ def create_dict_dataset(
     disable_pbar=False,
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
+    frac_coords: bool = True
 ) -> None:
-    inputs, labels = convert_atoms_to_arrays(atoms_list, pos_unit, energy_unit)
+    inputs, labels = convert_atoms_to_arrays(atoms_list, frac_coords, pos_unit, energy_unit)
 
     if external_labels:
         for shape, label in external_labels.items():
