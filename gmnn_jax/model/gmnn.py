@@ -55,7 +55,6 @@ class GMNN(hk.Module):
             dtype=descriptor_dtype,
             name="descriptor",
         )
-
         units = units + [1]
         dense = []
         for ii, n_hidden in enumerate(units):
@@ -80,8 +79,10 @@ class GMNN(hk.Module):
 
         self.apply_mask = apply_mask
 
-    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList) -> Array:
-        gm = self.descriptor(R, Z, neighbor)
+
+    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList, box) -> Array:
+        gm = self.descriptor(R, Z, neighbor, box)
+
         h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
 
@@ -125,7 +126,7 @@ def get_md_model(
 
     @hk.without_apply_rng
     @hk.transform
-    def model(R, neighbor):
+    def model(R, neighbor, box):
         gmnn = GMNN(
             nn,
             displacement,
@@ -138,7 +139,7 @@ def get_md_model(
             readout_dtype=readout_dtype,
             scale_shift_dtype=scale_shift_dtype,
         )
-        out = gmnn(R, Z, neighbor)
+        out = gmnn(R, Z, neighbor, box)
         return high_precision_sum(out)
 
     return neighbor_fn, model
@@ -169,7 +170,7 @@ def get_training_model(
 
     @hk.without_apply_rng
     @hk.transform
-    def model(R, Z, idx):
+    def model(R, Z, idx, box):
         gmnn = GMNN(
             nn,
             displacement_fn,
@@ -188,14 +189,14 @@ def get_training_model(
         )
         neighbor = NeighborSpoof(idx)
 
-        def energy_fn(R, Z, neighbor):
-            out = gmnn(R, Z, neighbor)
+        def energy_fn(R, Z, neighbor, box):
+            out = gmnn(R, Z, neighbor, box)
             # mask = partition.neighbor_list_mask(neighbor)
             # out = out * mask
             energy = high_precision_sum(out)
             return energy
 
-        energy, neg_forces = jax.value_and_grad(energy_fn)(R, Z, neighbor)
+        energy, neg_forces = jax.value_and_grad(energy_fn)(R, Z, neighbor, box)
         forces = -neg_forces
         prediction = {"energy": energy, "forces": forces}
         return prediction

@@ -12,20 +12,32 @@ log = logging.getLogger(__name__)
 
 
 @jax.jit
-def extract_nl(neighbors, positions, cell=None): #mit **kwargs lösen if cell in kwargs
+def extract_nl(neighbors, position):
     # vmapped neighborlist probably only useful for larger structures
-    if cell is not None:
-        neighbors = neighbors.update(positions, box=cell)
+    neighbors = neighbors.update(position)
+    return neighbors
+
+
+@jax.jit
+def extract_periodic_nl(neighbors, position, box):
+    # vmapped neighborlist probably only useful for larger structures
+    neighbors = neighbors.update(position, box=box)
+    return neighbors
+
+
+def allocate_nl(neighbor_fn, position, box):
+    if np.all(box < 1e-6):
+        neighbors = neighbor_fn.allocate(position)
     else:
-        neighbors = neighbors.update(positions)
+        neighbors = neighbor_fn.allocate(position, box=box)
     return neighbors
 
 
 def dataset_neighborlist(
     neighbor_fn: NeighborFn,
-    positions: np.array,
+    positions: list[np.array],
     n_atoms: list[int],
-    cells: np.array = None,
+    box: list[np.array],
     disable_pbar: bool = False,
 ) -> list[int]:
     """Calculates the neighbor list of all systems within positions using
@@ -51,8 +63,6 @@ def dataset_neighborlist(
     neighbors = neighbor_fn.allocate(positions[0])
     idx = []
     num_atoms = n_atoms[0]
-    if cells is not None:
-        cells = jnp.asarray(cells)
         
     pbar_update_freq = 10
     with trange(
@@ -64,16 +74,17 @@ def dataset_neighborlist(
     ) as nl_pbar:
         for i, position in enumerate(positions):
             if n_atoms[i] != num_atoms:
-                neighbors = neighbor_fn.allocate(position)
+                neighbors = allocate_nl(neighbor_fn, position, box[i])
                 num_atoms = n_atoms[i]
 
-            if cells is not None:
-                neighbors = extract_nl(neighbors, position, cells[i])
-            else:
+            if np.all(box[i] < 1e-6):
                 neighbors = extract_nl(neighbors, position)
+            else:
+                neighbors = extract_periodic_nl(neighbors, position, box[i])
+
             if neighbors.did_buffer_overflow:
                 log.info("Neighbor list overflowed, reallocating.")
-                neighbors = neighbor_fn.allocate(position)
+                neighbors = allocate_nl(neighbor_fn, position, box[i])
 
             idx.append(neighbors.idx)
             if i % pbar_update_freq == 0:

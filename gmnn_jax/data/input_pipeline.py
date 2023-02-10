@@ -11,21 +11,20 @@ from gmnn_jax.utils.data import convert_atoms_to_arrays
 log = logging.getLogger(__name__)
 
 
-def initialize_nbr_displacement_fns(atoms, cutoff, frac_coords = True): 
+def initialize_nbr_displacement_fns(atoms, cutoff): 
     #frac coord have to be managed in the config oder
     #dependent of the dataset dependent of the performence
     default_box = 100
 
-    box = jnp.asarray(atoms.get_cell().lengths())
-
+    box = jnp.asarray(atoms.cell.lengths())
     if np.all(box < 1e-6):
         displacement_fn, _ = space.free()
         box = default_box
         frac_coords = False
-    elif not frac_coords:
-        displacement_fn, _ = space.periodic(box)
     else:
+        frac_coords = True
         displacement_fn, _ = space.periodic_general(box, fractional_coordinates=frac_coords)
+
 
     neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
@@ -114,29 +113,21 @@ def create_dict_dataset(
     disable_pbar=False,
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
-    frac_coords: bool = True
 ) -> None:
-    inputs, labels = convert_atoms_to_arrays(atoms_list, frac_coords, pos_unit, energy_unit)
+    inputs, labels = convert_atoms_to_arrays(atoms_list, pos_unit, energy_unit)
 
     if external_labels:
         for shape, label in external_labels.items():
             labels[shape].update(label)
 
-    if frac_coords:
-        idx = dataset_neighborlist(
-            neighbor_fn,
-            inputs["ragged"]["positions"],
-            inputs["fixed"]["n_atoms"],
-            cells=inputs["fixed"]["cell"],
-            disable_pbar=disable_pbar,
-        )
-    else:
-        idx = dataset_neighborlist(
-            neighbor_fn,
-            inputs["ragged"]["positions"],
-            inputs["fixed"]["n_atoms"],
-            disable_pbar=disable_pbar,
-        )
+    idx = dataset_neighborlist(
+        neighbor_fn,
+        inputs["ragged"]["positions"],
+        inputs["fixed"]["n_atoms"],
+        box=inputs["fixed"]["box"],
+        disable_pbar=disable_pbar,
+    )
+
     inputs["ragged"]["idx"] = [np.array(i) for i in idx]
     return inputs, labels
 

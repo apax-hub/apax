@@ -86,7 +86,7 @@ def initialize_datasets(config, raw_datasets):
         train_atoms_list, lambd=config.data.energy_regularisation
     )
     displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(
-        train_atoms_list[0], config.model.r_max, config.data.frac_coords
+        train_atoms_list[0], config.model.r_max,
     )
     ds_stats.displacement_fn = displacement_fn
 
@@ -98,7 +98,6 @@ def initialize_datasets(config, raw_datasets):
         disable_pbar=config.progress_bar.disable_nl_pbar,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
-        frac_coords=config.data.frac_coords,
     )
     val_inputs, val_labels = create_dict_dataset(
         val_atoms_list,
@@ -107,7 +106,6 @@ def initialize_datasets(config, raw_datasets):
         disable_pbar=config.progress_bar.disable_nl_pbar,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
-        frac_coords=config.data.frac_coords,
     )
 
     max_atoms, max_nbrs = find_largest_system([train_inputs, val_inputs])

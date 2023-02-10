@@ -4,6 +4,7 @@ import einops
 import haiku as hk
 import jax.numpy as jnp
 import numpy as np
+from jax import vmap
 from jax_md import space
 
 from gmnn_jax.layers.descriptor.basis_functions import RadialFunction
@@ -13,6 +14,13 @@ from gmnn_jax.layers.descriptor.triangular_indices import (
     tril_3d_indices,
 )
 from gmnn_jax.layers.masking import mask_by_neighbor
+
+
+
+def get_func(displacement):
+    def func(ri, rj, box):
+        displacement(ri, rj, box=box)
+    return func
 
 
 class GaussianMomentDescriptor(hk.Module):
@@ -46,7 +54,10 @@ class GaussianMomentDescriptor(hk.Module):
         )
         # TODO maybe move the radial func into call and get
         # n_species and n_atoms from the first input batch
+        disp_fn = get_func(displacement)
+        self.periodic_displacement = vmap(disp_fn, (0, 0, 0), 0)
         self.displacement = space.map_bond(displacement)
+
         self.metric = space.map_bond(
             space.canonicalize_displacement_or_metric(displacement)
         )
@@ -57,7 +68,7 @@ class GaussianMomentDescriptor(hk.Module):
 
         self.dtype = dtype
 
-    def __call__(self, R, Z, neighbor):
+    def __call__(self, R, Z, neighbor, box):
         # if R.dtype != self.dtype:
         R = R.astype(self.dtype)
         # R shape n_atoms x 3
@@ -67,9 +78,16 @@ class GaussianMomentDescriptor(hk.Module):
         Z_i, Z_j = Z[neighbor.idx[0]], Z[neighbor.idx[1]]
 
         # dr_vec shape: neighbors x 3
-        dr_vec = self.displacement(
-            R[neighbor.idx[1]], R[neighbor.idx[0]]
-        )  # reverse conventnion to match TF
+        if np.all(box < 1e-6):
+            dr_vec = self.displacement(
+                R[neighbor.idx[1]], R[neighbor.idx[0]],
+            )  # reverse conventnion to match TF
+        else:
+            dr_vec = self.periodic_displacement(
+                R[neighbor.idx[1]], R[neighbor.idx[0]], box,
+            )  # reverse conventnion to match TF
+        
+
         # dr shape: neighbors
         dr = self.metric(R[neighbor.idx[0]], R[neighbor.idx[1]])
 

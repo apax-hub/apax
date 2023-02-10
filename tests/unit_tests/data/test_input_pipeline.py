@@ -43,7 +43,7 @@ def test_input_pipeline(example_atoms, pbc, calc_results, num_data, external_lab
         external_labels,
         disable_pbar=True,
     )
-
+    print(inputs['ragged']['positions'])
     max_atoms, max_nbrs = find_largest_system([inputs])
 
     ds = TFPipeline(
@@ -62,11 +62,11 @@ def test_input_pipeline(example_atoms, pbc, calc_results, num_data, external_lab
     sample_inputs, sample_labels = next(ds)
 
     if pbc:
-        assert "cell" in sample_inputs
-        assert len(sample_inputs["cell"]) == batch_size
-        assert len(sample_inputs["cell"][0]) == 3
+        assert "box" in sample_inputs
+        assert len(sample_inputs["box"]) == batch_size
+        assert len(sample_inputs["box"][0]) == 3
     else:
-        assert "cell" not in sample_inputs
+        assert "box" in sample_inputs
 
     assert "numbers" in sample_inputs
     for i in range(batch_size):
@@ -176,10 +176,11 @@ def test_convert_atoms_to_arrays(example_atoms, pbc):
     assert len(inputs["ragged"]["numbers"]) == len(example_atoms)
 
     if pbc:
-        assert "cell" in inputs["fixed"]
-        assert len(inputs["fixed"]["cell"]) == len(example_atoms)
+        assert "box" in inputs["fixed"]
+        assert len(inputs["fixed"]["box"]) == len(example_atoms)
     else:
-        assert "cell" not in inputs["fixed"]
+        assert "box" in inputs["fixed"]
+        assert np.all(inputs["fixed"]['box'][0] < 1e-6)
 
     assert "n_atoms" in inputs["fixed"]
     assert len(inputs["fixed"]["n_atoms"]) == len(example_atoms)

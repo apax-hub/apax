@@ -24,6 +24,8 @@ def test_gmnn_variable_size():
         ]
     )
 
+    box = np.array([0, 0, 0])
+
     R_padded = np.concatenate([R, np.zeros((1, 3))], axis=0)
     Z_padded = np.concatenate([Z, [0]])
     idx_padded = np.concatenate([idx, [[0], [0]]], axis=1)
@@ -53,10 +55,10 @@ def test_gmnn_variable_size():
 
     rng_key = jax.random.PRNGKey(1)
 
-    params = gmnn.init(rng_key, R, Z, idx)
+    params = gmnn.init(rng_key, R, Z, idx, box)
 
-    results = gmnn.apply(params, R, Z, idx)
-    results_padded = gmnn_padded.apply(params, R_padded, Z_padded, idx_padded)
+    results = gmnn.apply(params, R, Z, idx, box)
+    results_padded = gmnn_padded.apply(params, R_padded, Z_padded, idx_padded, box)
 
     assert (results["energy"] - results_padded["energy"]) < 1e-6
     assert np.allclose(results["forces"], results_padded["forces"][:-1, :])
