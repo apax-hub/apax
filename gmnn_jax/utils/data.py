@@ -130,22 +130,28 @@ def convert_atoms_to_arrays(
     }
     box = np.array(atoms_list[0].cell.lengths())
     pbc = np.all(box > 1e-6)
-    
+
     for atoms in atoms_list:
         box = np.diagonal(atoms.cell * unit_dict[pos_unit]).astype(DTYPE)
         inputs["fixed"]["box"].append(box)
 
         if pbc != np.all(box > 1e-6):
-            raise ValueError('Apax does not support dataset periodic and non periodic structures')
-        
+            raise ValueError(
+                "Apax does not support dataset periodic and non periodic structures"
+            )
+
         if np.all(box < 1e-6):
             inputs["ragged"]["positions"].append(
                 (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
             )
         else:
-            inv_box = np.divide(1, box, where=box!=0)
+            inv_box = np.divide(1, box, where=box != 0)
             inputs["ragged"]["positions"].append(
-                np.array(space.transform(inv_box, (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)))
+                np.array(
+                    space.transform(
+                        inv_box, (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+                    )
+                )
             )
 
         inputs["ragged"]["numbers"].append(atoms.numbers)

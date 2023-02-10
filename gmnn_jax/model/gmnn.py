@@ -79,8 +79,9 @@ class GMNN(hk.Module):
 
         self.apply_mask = apply_mask
 
-
-    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList, box) -> Array:
+    def __call__(
+        self, R: Array, Z: Array, neighbor: partition.NeighborList, box
+    ) -> Array:
         gm = self.descriptor(R, Z, neighbor, box)
 
         h = jax.vmap(self.readout)(gm)

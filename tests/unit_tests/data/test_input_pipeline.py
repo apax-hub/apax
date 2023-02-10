@@ -43,7 +43,7 @@ def test_input_pipeline(example_atoms, pbc, calc_results, num_data, external_lab
         external_labels,
         disable_pbar=True,
     )
-    print(inputs['ragged']['positions'])
+    print(inputs["ragged"]["positions"])
     max_atoms, max_nbrs = find_largest_system([inputs])
 
     ds = TFPipeline(
@@ -180,7 +180,7 @@ def test_convert_atoms_to_arrays(example_atoms, pbc):
         assert len(inputs["fixed"]["box"]) == len(example_atoms)
     else:
         assert "box" in inputs["fixed"]
-        assert np.all(inputs["fixed"]['box'][0] < 1e-6)
+        assert np.all(inputs["fixed"]["box"][0] < 1e-6)
 
     assert "n_atoms" in inputs["fixed"]
     assert len(inputs["fixed"]["n_atoms"]) == len(example_atoms)

@@ -11,9 +11,9 @@ from gmnn_jax.utils.data import convert_atoms_to_arrays
 log = logging.getLogger(__name__)
 
 
-def initialize_nbr_displacement_fns(atoms, cutoff): 
-    #frac coord have to be managed in the config oder
-    #dependent of the dataset dependent of the performence
+def initialize_nbr_displacement_fns(atoms, cutoff):
+    # frac coord have to be managed in the config oder
+    # dependent of the dataset dependent of the performence
     default_box = 100
 
     box = jnp.asarray(atoms.cell.lengths())
@@ -23,15 +23,16 @@ def initialize_nbr_displacement_fns(atoms, cutoff):
         frac_coords = False
     else:
         frac_coords = True
-        displacement_fn, _ = space.periodic_general(box, fractional_coordinates=frac_coords)
-
+        displacement_fn, _ = space.periodic_general(
+            box, fractional_coordinates=frac_coords
+        )
 
     neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=cutoff,
         format=partition.Sparse,
-        fractional_coordinates=frac_coords
+        fractional_coordinates=frac_coords,
     )
 
     return displacement_fn, neighbor_fn

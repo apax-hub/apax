@@ -16,10 +16,10 @@ from gmnn_jax.layers.descriptor.triangular_indices import (
 from gmnn_jax.layers.masking import mask_by_neighbor
 
 
-
 def get_func(displacement):
     def func(ri, rj, box):
         displacement(ri, rj, box=box)
+
     return func
 
 
@@ -80,13 +80,15 @@ class GaussianMomentDescriptor(hk.Module):
         # dr_vec shape: neighbors x 3
         if np.all(box < 1e-6):
             dr_vec = self.displacement(
-                R[neighbor.idx[1]], R[neighbor.idx[0]],
+                R[neighbor.idx[1]],
+                R[neighbor.idx[0]],
             )  # reverse conventnion to match TF
         else:
             dr_vec = self.periodic_displacement(
-                R[neighbor.idx[1]], R[neighbor.idx[0]], box,
+                R[neighbor.idx[1]],
+                R[neighbor.idx[0]],
+                box,
             )  # reverse conventnion to match TF
-        
 
         # dr shape: neighbors
         dr = self.metric(R[neighbor.idx[0]], R[neighbor.idx[1]])

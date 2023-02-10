@@ -86,7 +86,8 @@ def initialize_datasets(config, raw_datasets):
         train_atoms_list, lambd=config.data.energy_regularisation
     )
     displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(
-        train_atoms_list[0], config.model.r_max,
+        train_atoms_list[0],
+        config.model.r_max,
     )
     ds_stats.displacement_fn = displacement_fn
 

@@ -17,8 +17,8 @@ from gmnn_jax.model.gmnn import get_training_model
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
-#muss ueberarbeitet werden da positionen invertiert werden muessen wenn nicht mit der inputpipeline gearbeitet wird.
-#def test_run_md(get_tmp_path):
+# muss ueberarbeitet werden da positionen invertiert werden muessen wenn nicht mit der inputpipeline gearbeitet wird.
+# def test_run_md(get_tmp_path):
 #    model_confg_path = TEST_PATH / "config.yaml"
 #    md_confg_path = TEST_PATH / "md_config.yaml"
 #
@@ -90,8 +90,8 @@ TEST_PATH = pathlib.Path(__file__).parent.resolve()
 #    traj = read(md_config.sim_dir + "/" + md_config.traj_name, index=":")
 #    assert len(traj) == 3  # inital + 4 steps/ 2 inner steps
 
-#muss ueberarbeitet werden da positionen invertiert werden muessen wenn nicht mit der inputpipeline gearbeitet wird.
-#def test_ase_calc(get_tmp_path):
+# muss ueberarbeitet werden da positionen invertiert werden muessen wenn nicht mit der inputpipeline gearbeitet wird.
+# def test_ase_calc(get_tmp_path):
 #    model_confg_path = TEST_PATH / "config.yaml"
 #    initial_structure_path = get_tmp_path / "atoms.extxyz"
 #

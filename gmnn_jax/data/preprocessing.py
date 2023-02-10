@@ -63,7 +63,7 @@ def dataset_neighborlist(
     neighbors = neighbor_fn.allocate(positions[0])
     idx = []
     num_atoms = n_atoms[0]
-        
+
     pbar_update_freq = 10
     with trange(
         len(positions),

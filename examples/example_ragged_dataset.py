@@ -42,6 +42,7 @@ data = {"pos": pos, "padded_pos": padded_positions}
 
 ds = tf.data.Dataset.from_tensor_slices(data)
 
+
 def pad_to_largest_element(data):
     # pads ragged tensor to regular tensor with size of the largest element in batch
     data = data.to_tensor()
@@ -51,18 +52,21 @@ def pad_to_largest_element(data):
 class PadToMaxElement:
     def __init__(self, n_max) -> None:
         self.n_max = n_max
+
     def __call__(self, data):
         # pads ragged tensor to regular tensor with size of the largest element in batch
         for key, val in data.items():
             if key == "padded_pos":
                 shape = data[key].shape
-                data[key] = data[key].to_tensor(default_value=0.0, shape=[shape[0], self.n_max, shape[-1]])
+                data[key] = data[key].to_tensor(
+                    default_value=0.0, shape=[shape[0], self.n_max, shape[-1]]
+                )
             else:
                 data[key] = data[key].to_tensor()
         return data
 
 
-ds = ds.shuffle(32 * 3).batch(1).map(PadToMaxElement(20))#.map(pad_to_largest_element)
+ds = ds.shuffle(32 * 3).batch(1).map(PadToMaxElement(20))  # .map(pad_to_largest_element)
 
 shapes = []
 
