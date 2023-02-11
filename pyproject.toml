@@ -8,7 +8,7 @@ readme = "README.md"
 packages = [{include = "gmnn_jax"}]
 
 [tool.poetry.dependencies]
-python = "^3.9, <3.11"
+python = "^3.9, <4.0"
 numpy = "~1.21"
 ase = "^3.22.1"
 pydantic = "^1.10.2"
