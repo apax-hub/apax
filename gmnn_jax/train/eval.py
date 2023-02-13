@@ -186,7 +186,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
 
     test_ds, ds_stats = initialize_test_dataset(test_atoms_list, test_label_dict, config)
     init_input = test_ds.init_input()
-    init_box = jnp.asarray(init_input["box"][0])
+    init_box = np.array(init_input["box"][0])
     model_dict = config.model.get_dict()
 
     gmnn = get_training_model(
