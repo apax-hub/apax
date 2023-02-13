@@ -18,7 +18,6 @@ from gmnn_jax.layers.masking import mask_by_neighbor
 
 def get_func(displacement):
     def func(ri, rj, box):
-
         return displacement(ri, rj, box=box)
 
     return func
@@ -35,7 +34,7 @@ class GaussianMomentDescriptor(hk.Module):
         r_min,
         r_max,
         dtype=jnp.float32,
-        init_box = np.array([0.0, 0.0, 0.0]),
+        init_box=np.array([0.0, 0.0, 0.0]),
         apply_mask=True,
         name: Optional[str] = None,
     ):
@@ -98,7 +97,7 @@ class GaussianMomentDescriptor(hk.Module):
             )  # reverse conventnion to match TF
 
         # dr shape: neighbors
-        #dr = self.metric(R[neighbor.idx[0]], R[neighbor.idx[1]])
+        # dr = self.metric(R[neighbor.idx[0]], R[neighbor.idx[1]])
         dr = self.distance(dr_vec)
 
         dr_repeated = einops.repeat(dr + 1e-5, "neighbors -> neighbors 1")

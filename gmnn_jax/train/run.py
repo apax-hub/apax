@@ -232,7 +232,6 @@ def run(user_config, log_file="train.log", log_level="error"):
         jnp.asarray(init_input["numbers"][0]),
         jnp.asarray(init_input["idx"][0]),
         np.array(init_input["box"][0]),
-
     )
 
     gmnn = get_training_model(
@@ -247,7 +246,6 @@ def run(user_config, log_file="train.log", log_level="error"):
         init_box=init_box,
         **model_dict,
     )
-
 
     rng_key, model_rng_key = jax.random.split(rng_key, num=2)
     params = gmnn.init(model_rng_key, R, Z, idx, init_box)

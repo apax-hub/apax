@@ -119,7 +119,7 @@ def fit(
 
 
 def calc_loss(params, inputs, labels, loss_fn, model):
-    R, Z, idx, box = inputs["positions"], inputs["numbers"], inputs["idx"], inputs['box']
+    R, Z, idx, box = inputs["positions"], inputs["numbers"], inputs["idx"], inputs["box"]
     predictions = model(params, R, Z, idx, box)
     loss = loss_fn(inputs, labels, predictions)
     return loss, predictions

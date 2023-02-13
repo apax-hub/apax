@@ -116,7 +116,7 @@ def get_md_model(
         box_size,
         r_max,
         dr_threshold,
-        fractional_coordinates=False, #TODO
+        fractional_coordinates=False,  # TODO
         format=nl_format,
         **neighbor_kwargs,
     )
@@ -165,7 +165,7 @@ def get_training_model(
     b_init: str = "normal",
     elemental_energies_mean: Optional[Array] = None,
     elemental_energies_std: Optional[Array] = None,
-    init_box:  Optional[np.array] = np.array([0.0, 0.0, 0.0]),
+    init_box: Optional[np.array] = np.array([0.0, 0.0, 0.0]),
     descriptor_dtype=jnp.float32,
     readout_dtype=jnp.float32,
     scale_shift_dtype=jnp.float32,
