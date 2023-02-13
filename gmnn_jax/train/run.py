@@ -225,6 +225,16 @@ def run(user_config, log_file="train.log", log_level="error"):
 
     model_dict = config.model.get_dict()
 
+    log.info("Initializing Model")
+    init_input = train_ds.init_input()
+    R, Z, idx, init_box = (
+        jnp.asarray(init_input["positions"][0]),
+        jnp.asarray(init_input["numbers"][0]),
+        jnp.asarray(init_input["idx"][0]),
+        np.array(init_input["box"][0]),
+
+    )
+
     gmnn = get_training_model(
         n_atoms=ds_stats.n_atoms,
         # ^This is going to make problems when training on differently sized molecules.
@@ -234,19 +244,14 @@ def run(user_config, log_file="train.log", log_level="error"):
         displacement_fn=ds_stats.displacement_fn,
         elemental_energies_mean=ds_stats.elemental_shift,
         elemental_energies_std=ds_stats.elemental_scale,
+        init_box=init_box,
         **model_dict,
     )
-    log.info("Initializing Model")
-    init_input = train_ds.init_input()
-    R, Z, idx = (
-        jnp.asarray(init_input["positions"][0]),
-        jnp.asarray(init_input["numbers"][0]),
-        jnp.asarray(init_input["idx"][0]),
-    )
+
 
     rng_key, model_rng_key = jax.random.split(rng_key, num=2)
-    params = gmnn.init(model_rng_key, R, Z, idx)
-    batched_model = jax.vmap(gmnn.apply, in_axes=(None, 0, 0, 0))
+    params = gmnn.init(model_rng_key, R, Z, idx, init_box)
+    batched_model = jax.vmap(gmnn.apply, in_axes=(None, 0, 0, 0, 0))
 
     steps_per_epoch = train_ds.steps_per_epoch()
     n_epochs = config.n_epochs

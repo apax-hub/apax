@@ -185,7 +185,8 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     )
 
     test_ds, ds_stats = initialize_test_dataset(test_atoms_list, test_label_dict, config)
-
+    init_input = test_ds.init_input()
+    init_box = jnp.asarray(init_input["box"][0])
     model_dict = config.model.get_dict()
 
     gmnn = get_training_model(
@@ -194,10 +195,11 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
         displacement_fn=ds_stats.displacement_fn,
         elemental_energies_mean=ds_stats.elemental_shift,
         elemental_energies_std=ds_stats.elemental_scale,
+        init_box=init_box,
         **model_dict,
     )
 
-    model = jax.vmap(gmnn.apply, in_axes=(None, 0, 0, 0))
+    model = jax.vmap(gmnn.apply, in_axes=(None, 0, 0, 0, 0))
 
     params = load_params(model_version_path)
 

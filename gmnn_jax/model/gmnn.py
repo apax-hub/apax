@@ -37,6 +37,7 @@ class GMNN(hk.Module):
         b_init: str = "normal",
         elemental_energies_mean: Optional[Array] = None,
         elemental_energies_std: Optional[Array] = None,
+        init_box: Optional[np.array] = np.array([0.0, 0.0, 0.0]),
         descriptor_dtype=jnp.float32,
         readout_dtype=jnp.float32,
         scale_shift_dtype=jnp.float32,
@@ -52,6 +53,7 @@ class GMNN(hk.Module):
             n_atoms,
             r_min,
             r_max,
+            init_box=init_box,
             dtype=descriptor_dtype,
             name="descriptor",
         )
@@ -114,7 +116,7 @@ def get_md_model(
         box_size,
         r_max,
         dr_threshold,
-        fractional_coordinates=False,
+        fractional_coordinates=False, #TODO
         format=nl_format,
         **neighbor_kwargs,
     )
@@ -163,6 +165,7 @@ def get_training_model(
     b_init: str = "normal",
     elemental_energies_mean: Optional[Array] = None,
     elemental_energies_std: Optional[Array] = None,
+    init_box:  Optional[np.array] = np.array([0.0, 0.0, 0.0]),
     descriptor_dtype=jnp.float32,
     readout_dtype=jnp.float32,
     scale_shift_dtype=jnp.float32,
@@ -184,6 +187,7 @@ def get_training_model(
             b_init=b_init,
             elemental_energies_mean=elemental_energies_mean,
             elemental_energies_std=elemental_energies_std,
+            init_box=init_box,
             descriptor_dtype=descriptor_dtype,
             readout_dtype=readout_dtype,
             scale_shift_dtype=scale_shift_dtype,

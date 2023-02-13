@@ -18,7 +18,8 @@ from gmnn_jax.layers.masking import mask_by_neighbor
 
 def get_func(displacement):
     def func(ri, rj, box):
-        displacement(ri, rj, box=box)
+
+        return displacement(ri, rj, box=box)
 
     return func
 
@@ -34,6 +35,7 @@ class GaussianMomentDescriptor(hk.Module):
         r_min,
         r_max,
         dtype=jnp.float32,
+        init_box = np.array([0.0, 0.0, 0.0]),
         apply_mask=True,
         name: Optional[str] = None,
     ):
@@ -54,13 +56,18 @@ class GaussianMomentDescriptor(hk.Module):
         )
         # TODO maybe move the radial func into call and get
         # n_species and n_atoms from the first input batch
-        disp_fn = get_func(displacement)
-        self.periodic_displacement = vmap(disp_fn, (0, 0, 0), 0)
-        self.displacement = space.map_bond(displacement)
+        self.init_box = init_box
+        if np.all(self.init_box < 1e-6):
+            self.displacement = space.map_bond(displacement)
+        else:
+            disp_fn = get_func(displacement)
+            self.periodic_displacement = vmap(disp_fn, (0, 0, None), 0)
 
-        self.metric = space.map_bond(
-            space.canonicalize_displacement_or_metric(displacement)
-        )
+        self.distance = vmap(space.distance, 0, 0)
+
+        # self.metric = space.map_bond(
+        #     space.canonicalize_displacement_or_metric(displacement)
+        # )
 
         self.triang_idxs_2d = tril_2d_indices(n_radial)
         self.triang_idxs_3d = tril_3d_indices(n_radial)
@@ -78,7 +85,7 @@ class GaussianMomentDescriptor(hk.Module):
         Z_i, Z_j = Z[neighbor.idx[0]], Z[neighbor.idx[1]]
 
         # dr_vec shape: neighbors x 3
-        if np.all(box < 1e-6):
+        if np.all(self.init_box < 1e-6):
             dr_vec = self.displacement(
                 R[neighbor.idx[1]],
                 R[neighbor.idx[0]],
@@ -91,10 +98,12 @@ class GaussianMomentDescriptor(hk.Module):
             )  # reverse conventnion to match TF
 
         # dr shape: neighbors
-        dr = self.metric(R[neighbor.idx[0]], R[neighbor.idx[1]])
+        #dr = self.metric(R[neighbor.idx[0]], R[neighbor.idx[1]])
+        dr = self.distance(dr_vec)
 
         dr_repeated = einops.repeat(dr + 1e-5, "neighbors -> neighbors 1")
         # normalized distance vectors, shape neighbors x 3
+
         dn = dr_vec / dr_repeated
 
         # shape: neighbors
