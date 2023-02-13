@@ -97,7 +97,7 @@ def initialize_test_dataset(test_atoms_list, test_label_dict, config):
 
     test_ds = TFPipeline(
         inputs=test_inputs,
-        lables=test_labels,
+        labels=test_labels,
         n_epoch=1,
         batch_size=config.data.batch_size,
         max_atoms=max_atoms,
