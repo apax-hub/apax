@@ -16,11 +16,11 @@ from gmnn_jax.layers.descriptor.triangular_indices import (
 from gmnn_jax.layers.masking import mask_by_neighbor
 
 
-def get_func(displacement):
-    def func(ri, rj, box):
+def get_disp_fn(displacement):
+    def disp_fn(ri, rj, box):
         return displacement(ri, rj, box=box)
 
-    return func
+    return disp_fn
 
 
 class GaussianMomentDescriptor(hk.Module):
@@ -57,10 +57,13 @@ class GaussianMomentDescriptor(hk.Module):
         # n_species and n_atoms from the first input batch
         self.init_box = init_box
         if np.all(self.init_box < 1e-6):
+            # displacement function for gasphase training and predicting 
             self.displacement = space.map_bond(displacement)
         else:
-            disp_fn = get_func(displacement)
-            self.periodic_displacement = vmap(disp_fn, (0, 0, None), 0)
+            # Displacementfunction just used for trining on periodic systems
+            # Enables working with fractional coordinates
+            displacement = get_disp_fn(displacement)
+            self.displacement = vmap(displacement, (0, 0, None), 0)
 
         self.distance = vmap(space.distance, 0, 0)
 
@@ -81,12 +84,15 @@ class GaussianMomentDescriptor(hk.Module):
 
         # dr_vec shape: neighbors x 3
         if np.all(self.init_box < 1e-6):
+            # Distance vector for gasphase training and predicting 
             dr_vec = self.displacement(
                 R[neighbor.idx[1]],
                 R[neighbor.idx[0]],
             )  # reverse conventnion to match TF
         else:
-            dr_vec = self.periodic_displacement( #commentar var cell size
+            #  Distance vector for trining on periodic systems
+            # Enables working with fractional coordinates
+            dr_vec = self.displacement(
                 R[neighbor.idx[1]],
                 R[neighbor.idx[0]],
                 box,
