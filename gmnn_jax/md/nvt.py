@@ -84,7 +84,6 @@ def run_nvt(
     kT = units.kB * temperature
     step = 0
     checkpoint_interval = 10  # TODO will be supplied in the future
-    
 
     log.info("initializing simulation")
     neighbor = neighbor_fn.allocate(R, extra_capacity=extra_capacity)

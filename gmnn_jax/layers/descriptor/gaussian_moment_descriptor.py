@@ -57,7 +57,7 @@ class GaussianMomentDescriptor(hk.Module):
         # n_species and n_atoms from the first input batch
         self.init_box = init_box
         if np.all(self.init_box < 1e-6):
-            # displacement function for gasphase training and predicting 
+            # displacement function for gasphase training and predicting
             self.displacement = space.map_bond(displacement)
         else:
             # Displacementfunction just used for trining on periodic systems
@@ -84,7 +84,7 @@ class GaussianMomentDescriptor(hk.Module):
 
         # dr_vec shape: neighbors x 3
         if np.all(self.init_box < 1e-6):
-            # Distance vector for gasphase training and predicting 
+            # Distance vector for gasphase training and predicting
             dr_vec = self.displacement(
                 R[neighbor.idx[1]],
                 R[neighbor.idx[0]],

@@ -85,7 +85,6 @@ class ASECalculator(Calculator):
         Calculator.calculate(self, atoms, properties, system_changes)
 
         positions = jnp.asarray(atoms.positions, dtype=jnp.float32)
-        box = np.array(atoms.cell)
 
         if self.step is None or "numbers" in system_changes or "box" in system_changes:
             self.initialize(atoms)
