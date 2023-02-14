@@ -12,6 +12,7 @@ from gmnn_jax.layers.descriptor.triangular_indices import (
     tril_2d_indices,
     tril_3d_indices,
 )
+from gmnn_jax.layers.masking import mask_by_neighbor
 
 
 class GaussianMomentDescriptor(hk.Module):
@@ -24,6 +25,8 @@ class GaussianMomentDescriptor(hk.Module):
         n_atoms,
         r_min,
         r_max,
+        dtype=jnp.float32,
+        apply_mask=True,
         name: Optional[str] = None,
     ):
         super().__init__(name)
@@ -32,7 +35,14 @@ class GaussianMomentDescriptor(hk.Module):
         self.n_radial = n_radial
         self.r_max = r_max
         self.radial_fn = RadialFunction(
-            n_species, n_basis, n_radial, r_min, r_max, emb_init=None, name="radial_fn"
+            n_species,
+            n_basis,
+            n_radial,
+            r_min,
+            r_max,
+            emb_init=None,
+            dtype=dtype,
+            name="radial_fn",
         )
         # TODO maybe move the radial func into call and get
         # n_species and n_atoms from the first input batch
@@ -43,8 +53,13 @@ class GaussianMomentDescriptor(hk.Module):
 
         self.triang_idxs_2d = tril_2d_indices(n_radial)
         self.triang_idxs_3d = tril_3d_indices(n_radial)
+        self.apply_mask = apply_mask
+
+        self.dtype = dtype
 
     def __call__(self, R, Z, neighbor):
+        # if R.dtype != self.dtype:
+        R = R.astype(self.dtype)
         # R shape n_atoms x 3
         # Z shape n_atoms
 
@@ -67,6 +82,8 @@ class GaussianMomentDescriptor(hk.Module):
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr_clipped / self.r_max) + 1.0)
 
         radial_function = self.radial_fn(dr, Z_i, Z_j, cos_cutoff)
+        if self.apply_mask:
+            radial_function = mask_by_neighbor(radial_function, neighbor.idx)
 
         moments = geometric_moments(radial_function, dn, neighbor.idx[1], self.n_atoms)
 
@@ -126,4 +143,5 @@ class GaussianMomentDescriptor(hk.Module):
 
         # gaussian_moments shape: n_atoms x n_features
         gaussian_moments = jnp.concatenate(gaussian_moments, axis=-1)
+        assert gaussian_moments.dtype == self.dtype
         return gaussian_moments

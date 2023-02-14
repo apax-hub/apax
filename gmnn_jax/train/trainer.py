@@ -21,7 +21,8 @@ def fit(
     callbacks,
     n_epochs,
     ckpt_dir,
-    disable_pbar=False,
+    ckpt_interval: int = 1,
+    disable_pbar: bool = False,
     val_ds=None,
 ):
     log.info("Begining Training")
@@ -84,7 +85,7 @@ def fit(
                     inputs, labels = next(batch_val_ds)
 
                     val_batch_metrics, batch_loss = val_step(
-                        state, inputs, labels, val_batch_metrics
+                        state.params, inputs, labels, val_batch_metrics
                     )
                     epoch_loss["val_loss"] += batch_loss
 
@@ -104,7 +105,8 @@ def fit(
             epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
 
             ckpt = {"model": state, "epoch": epoch}
-            ckpt_manager.save_checkpoint(ckpt, epoch, latest_dir)
+            if epoch % ckpt_interval == 0:
+                ckpt_manager.save_checkpoint(ckpt, epoch, latest_dir)
 
             if epoch_metrics["val_loss"] < best_loss:
                 best_loss = epoch_metrics["val_loss"]
@@ -140,8 +142,8 @@ def make_step_fns(loss_fn, Metrics, model):
         return batch_metrics, loss, state
 
     @jax.jit
-    def val_step(state, inputs, labels, batch_metrics):
-        loss, predictions = loss_calculator(state.params, inputs, labels)
+    def val_step(params, inputs, labels, batch_metrics):
+        loss, predictions = loss_calculator(params, inputs, labels)
 
         new_batch_metrics = Metrics.single_from_model_output(
             label=labels, prediction=predictions

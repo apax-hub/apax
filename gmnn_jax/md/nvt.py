@@ -5,6 +5,7 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import yaml
 from ase import Atoms, units
 from ase.calculators.singlepoint import SinglePointCalculator
@@ -79,10 +80,8 @@ def run_nvt(
     traj_name:
         File name of the ASE trajectory.
     """
-    sim_time = dt * n_steps
-    K_B = 8.617e-5
     dt = dt * units.fs
-    kT = K_B * temperature
+    kT = units.kB * temperature
     step = 0
     checkpoint_interval = 10  # TODO will be supplied in the future
 
@@ -118,10 +117,12 @@ def run_nvt(
 
     traj_path = os.path.join(sim_dir, traj_name)
     traj = TrajectoryWriter(traj_path, mode="w")
-    n_outer = int(n_steps // n_inner)
+    new_atoms = Atoms(atomic_numbers, R, cell=box)
+    traj.write(new_atoms)
+    n_outer = int(np.ceil(n_steps / n_inner))
 
     start = time.time()
-    # TODO: log starting time when epoch loaded
+    sim_time = n_outer * dt
     log.info("running nvt for %.1f fs", sim_time)
     with trange(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
@@ -134,7 +135,9 @@ def run_nvt(
             else:
                 state = new_state
                 step += 1
-                new_atoms = Atoms(atomic_numbers, state.position, cell=box)
+                new_atoms = Atoms(
+                    atomic_numbers, state.position, momenta=state.momentum, cell=box
+                )
                 new_atoms.calc = SinglePointCalculator(new_atoms, forces=state.force)
                 traj.write(new_atoms)
 
@@ -142,8 +145,15 @@ def run_nvt(
                     log.info("saving checkpoint at step: %d", step)
                     log.info("checkpoints not yet implemented")
 
-                current_temperature = quantity.temperature(momentum=state.momentum)
-                sim_pbar.set_postfix(T=f"{(current_temperature / kT):.1f} K")
+                current_temperature = quantity.temperature(
+                    velocity=state.velocity, mass=state.mass
+                )
+                if np.any(np.isnan(new_atoms.positions)):
+                    raise ValueError(
+                        f"Simulation failed after {step * n_inner} steps. Unable to"
+                        " compute positions."
+                    )
+                sim_pbar.set_postfix(T=f"{(current_temperature / units.kB):.1f} K")
                 sim_pbar.update(n_inner)
     traj.close()
 
@@ -184,21 +194,25 @@ def md_setup(model_config: Config, md_config: MDConfig):
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
 
-    R = jnp.asarray(atoms.positions)
-    atomic_numbers = jnp.asarray(atoms.numbers)
-    masses = jnp.asarray(atoms.get_masses())
-    box = jnp.asarray(atoms.get_cell().lengths())
+    R = jnp.asarray(atoms.positions, dtype=jnp.float32)
+    atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
+    masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float32)
+    box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float32)
 
-    log.info("initializing model")
-    displacement_fn, shift_fn = space.periodic(box)
+    if np.all(box < 1e-6):
+        displacement_fn, shift_fn = space.free()
+    else:
+        log.info("initializing model")
+        displacement_fn, shift_fn = space.periodic(box)
 
-    neighbor_fn, _, model = get_md_model(
+    model_dict = model_config.model.get_dict()
+    neighbor_fn, gmnn = get_md_model(
         atomic_numbers=atomic_numbers,
         displacement_fn=displacement_fn,
         displacement=displacement_fn,
-        box_size=box,
+        box_size=box,  # if the atom box is 0,0,0, this will cause an error
         dr_threshold=md_config.dr_threshold,
-        **model_config.model.dict(),
+        **model_dict,
     )
 
     os.makedirs(md_config.sim_dir, exist_ok=True)
@@ -209,12 +223,14 @@ def md_setup(model_config: Config, md_config: MDConfig):
     )
     raw_restored = checkpoints.restore_checkpoint(best_dir, target=None, step=None)
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
-    energy_fn = partial(model, params)
+    energy_fn = partial(gmnn.apply, params)
 
     return R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn
 
 
-def run_md(model_config: Config, md_config: MDConfig):
+def run_md(
+    model_config: Config, md_config: MDConfig, log_file="md.log", log_level="error"
+):
     """
     Utiliy function to start NVT molecualr dynamics simulations from
     a previousy trained model.
@@ -226,12 +242,21 @@ def run_md(model_config: Config, md_config: MDConfig):
     md_config:
         configuration of the MD simulation.
     """
+    log_levels = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+    }
+    logging.basicConfig(filename=log_file, level=log_levels[log_level])
+
     log.info("loading configs for md")
-    if isinstance(model_config, str):
+    if isinstance(model_config, (str, os.PathLike)):
         with open(model_config, "r") as stream:
             model_config = yaml.safe_load(stream)
 
-    if isinstance(md_config, str):
+    if isinstance(md_config, (str, os.PathLike)):
         with open(md_config, "r") as stream:
             md_config = yaml.safe_load(stream)
 
@@ -244,6 +269,7 @@ def run_md(model_config: Config, md_config: MDConfig):
     R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn = md_setup(
         model_config, md_config
     )
+    n_steps = int(np.ceil(md_config.duration / md_config.dt))
 
     run_nvt(
         R=R,
@@ -255,7 +281,7 @@ def run_md(model_config: Config, md_config: MDConfig):
         shift_fn=shift_fn,
         dt=md_config.dt,
         temperature=md_config.temperature,
-        n_steps=md_config.n_steps,
+        n_steps=n_steps,
         n_inner=md_config.n_inner,
         extra_capacity=md_config.extra_capacity,
         rng_key=md_init_rng_key,
