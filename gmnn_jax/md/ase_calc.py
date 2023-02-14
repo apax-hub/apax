@@ -22,13 +22,13 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     if np.all(box < 1e-6):
         displacement_fn, _ = space.free()
     else:
-        displacement_fn, _ = space.periodic_general(box, fractional_coordinates=True)
+        displacement_fn, _ = space.periodic_general(box, fractional_coordinates=False)
 
     neighbor_fn, gmnn = get_md_model(
         atomic_numbers=atomic_numbers,
         displacement_fn=displacement_fn,
         displacement=displacement_fn,
-        box_size=box,  # if the atom box is 0,0,0, this will cause an error
+        box=box,
         dr_threshold=dr_threshold,
         **config.model.get_dict(),
     )
@@ -85,6 +85,7 @@ class ASECalculator(Calculator):
         Calculator.calculate(self, atoms, properties, system_changes)
 
         positions = jnp.asarray(atoms.positions, dtype=jnp.float32)
+        box = np.array(atoms.cell)
 
         if self.step is None or "numbers" in system_changes or "box" in system_changes:
             self.initialize(atoms)

@@ -11,7 +11,10 @@ from gmnn_jax.cli import templates
 
 console = Console(highlight=False)
 
-app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]}, pretty_exceptions_show_locals=False)
+app = typer.Typer(
+    context_settings={"help_option_names": ["-h", "--help"]},
+    pretty_exceptions_show_locals=False,
+)
 validate_app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     help="Validate training or MD config files.",

@@ -100,7 +100,7 @@ def get_md_model(
     atomic_numbers: Array,
     displacement: DisplacementFn,
     nn: List[int] = [512, 512],
-    box_size: float = 100.0,
+    box: Optional[np.array] = np.array([0.0, 0.0, 0.0]),
     r_max: float = 6.0,
     n_basis: int = 7,
     n_radial: int = 5,
@@ -111,12 +111,16 @@ def get_md_model(
     scale_shift_dtype=jnp.float32,
     **neighbor_kwargs,
 ) -> MDModel:
+    default_box = 100
+    if np.all(box < 1e-6):
+        box = default_box
+
     neighbor_fn = partition.neighbor_list(
         displacement,
-        box_size,
+        box,
         r_max,
         dr_threshold,
-        fractional_coordinates=False,  # TODO
+        fractional_coordinates=False,
         format=nl_format,
         **neighbor_kwargs,
     )
@@ -129,7 +133,7 @@ def get_md_model(
 
     @hk.without_apply_rng
     @hk.transform
-    def model(R, neighbor, box):
+    def model(R, neighbor):
         gmnn = GMNN(
             nn,
             displacement,
@@ -142,7 +146,7 @@ def get_md_model(
             readout_dtype=readout_dtype,
             scale_shift_dtype=scale_shift_dtype,
         )
-        out = gmnn(R, Z, neighbor, box)
+        out = gmnn(R, Z, neighbor, jnp.array([0.0, 0.0, 0.0]))
         return high_precision_sum(out)
 
     return neighbor_fn, model

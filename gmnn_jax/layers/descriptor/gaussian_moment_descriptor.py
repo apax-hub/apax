@@ -64,10 +64,6 @@ class GaussianMomentDescriptor(hk.Module):
 
         self.distance = vmap(space.distance, 0, 0)
 
-        # self.metric = space.map_bond(
-        #     space.canonicalize_displacement_or_metric(displacement)
-        # )
-
         self.triang_idxs_2d = tril_2d_indices(n_radial)
         self.triang_idxs_3d = tril_3d_indices(n_radial)
         self.apply_mask = apply_mask
@@ -90,14 +86,13 @@ class GaussianMomentDescriptor(hk.Module):
                 R[neighbor.idx[0]],
             )  # reverse conventnion to match TF
         else:
-            dr_vec = self.periodic_displacement(
+            dr_vec = self.periodic_displacement( #commentar var cell size
                 R[neighbor.idx[1]],
                 R[neighbor.idx[0]],
                 box,
             )  # reverse conventnion to match TF
 
         # dr shape: neighbors
-        # dr = self.metric(R[neighbor.idx[0]], R[neighbor.idx[1]])
         dr = self.distance(dr_vec)
 
         dr_repeated = einops.repeat(dr + 1e-5, "neighbors -> neighbors 1")

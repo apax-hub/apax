@@ -27,7 +27,7 @@ def run_nvt(
     R: Array,
     atomic_numbers: Array,
     masses: Array,
-    box: float,
+    box: np.array,
     energy_fn,
     neighbor_fn,
     shift_fn,
@@ -84,6 +84,7 @@ def run_nvt(
     kT = units.kB * temperature
     step = 0
     checkpoint_interval = 10  # TODO will be supplied in the future
+    
 
     log.info("initializing simulation")
     neighbor = neighbor_fn.allocate(R, extra_capacity=extra_capacity)
@@ -199,18 +200,20 @@ def md_setup(model_config: Config, md_config: MDConfig):
     masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float32)
     box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float32)
 
+    log.info("initializing model")
     if np.all(box < 1e-6):
         displacement_fn, shift_fn = space.free()
     else:
-        log.info("initializing model")
-        displacement_fn, shift_fn = space.periodic(box)
+        displacement_fn, shift_fn = space.periodic_general(
+            box, fractional_coordinates=False
+        )
 
     model_dict = model_config.model.get_dict()
     neighbor_fn, gmnn = get_md_model(
         atomic_numbers=atomic_numbers,
         displacement_fn=displacement_fn,
         displacement=displacement_fn,
-        box_size=box,  # if the atom box is 0,0,0, this will cause an error
+        box=box,
         dr_threshold=md_config.dr_threshold,
         **model_dict,
     )
