@@ -1,9 +1,10 @@
 from typing import Any, Optional
 
 import einops
+import flax.linen as nn
 import haiku as hk
 import jax.numpy as jnp
-import flax.linen as nn
+
 
 class PerElementScaleShift(hk.Module):
     def __init__(
@@ -48,12 +49,12 @@ class PerElementScaleShiftFlax(nn.Module):
     n_species: int = 119
     scale: Optional[jnp.array] = 1.0
     shift: Optional[jnp.array] = 0.0
-    dtype: Any =jnp.float32
-    
+    dtype: Any = jnp.float32
+
     def setup(self):
         scale = jnp.asarray(self.scale)
         shift = jnp.asarray(self.shift)
-        
+
         if scale.shape != shift.shape:
             raise ValueError("Scale and Shift parameters should have the same shape")
 
@@ -69,15 +70,19 @@ class PerElementScaleShiftFlax(nn.Module):
         scale_init = nn.initializers.constant(scale)
         shift_init = nn.initializers.constant(shift)
 
-        self.scale_param = self.param('scale_per_element', scale_init, (n_species, 1), self.dtype)
-        self.shift_param = self.param('shift_per_element', shift_init, (n_species, 1), self.dtype)
+        self.scale_param = self.param(
+            "scale_per_element", scale_init, (n_species, 1), self.dtype
+        )
+        self.shift_param = self.param(
+            "shift_per_element", shift_init, (n_species, 1), self.dtype
+        )
 
     def __call__(self, x, Z):
         # x shape: n_atoms x 1
         # Z shape: n_atoms
         # scale[Z] shape: n_atoms x 1
         x = x.astype(self.dtype)
-        
+
         out = self.scale_param[Z] * x + self.shift_param[Z]
 
         assert out.dtype == self.dtype

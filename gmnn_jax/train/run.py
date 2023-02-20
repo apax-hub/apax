@@ -224,7 +224,8 @@ def run(user_config, log_file="train.log", log_level="error"):
 
     model_dict = config.model.get_dict()
 
-    # TODO n_species should be optional since it's already determined by the shape of shift and scale
+    # TODO n_species should be optional since it's already
+    # TODO determined by the shape of shift and scale
     gmnn = get_training_model(
         n_atoms=ds_stats.n_atoms,
         # ^This is going to make problems when training on differently sized molecules.
