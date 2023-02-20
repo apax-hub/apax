@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import einops
 import haiku as hk
@@ -86,7 +86,7 @@ class GaussianBasisFlax(nn.Module):
     n_basis: int = 7
     r_min: float = 0.5
     r_max: float = 6.0
-    dtype=jnp.float32
+    dtype: Any =jnp.float32
 
     def setup(self):
         self.betta = self.n_basis**2 / self.r_max**2
@@ -113,14 +113,14 @@ class RadialFunctionFlax(nn.Module):
     n_radial: int = 5
     basis_fn: nn.Module = GaussianBasisFlax()
     n_species: int = 119
-    emb_init=None
-    dtype=jnp.float32
+    emb_init=None # Currently unused
+    dtype: Any=jnp.float32
 
     def setup(self):
         self.r_max = self.basis_fn.r_max
         self.embed_norm = jnp.array(1.0 / np.sqrt(self.basis_fn.n_basis), dtype=self.dtype)
-        emb_init = uniform_range(-1.0, 1.0, dtype=self.dtype)
-        self.embeddings = self.param('atomic_type_embedding', emb_init, (self.n_species, self.n_species, self.n_radial, self.basis_fn.n_basis), self.dtype)
+        emb_initializer = uniform_range(-1.0, 1.0, dtype=self.dtype)
+        self.embeddings = self.param('atomic_type_embedding', emb_initializer, (self.n_species, self.n_species, self.n_radial, self.basis_fn.n_basis), self.dtype)
 
     def __call__(self, dr, Z_i, Z_j):
         # basis shape: neighbors x n_basis

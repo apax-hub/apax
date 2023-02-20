@@ -1,6 +1,6 @@
 import flax.linen as nn
 from gmnn_jax.layers.ntk_linear import NTKLinearFlax
-from typing import Callable, List
+from typing import Any, Callable, List
 import jax.numpy as jnp
 from gmnn_jax.layers.activation import swish
 from dataclasses import field
@@ -10,7 +10,7 @@ class AtomisticReadout(nn.Module):
     units: List[int] = field(default_factory=lambda: [512,512])
     activation_fn: Callable = swish
     b_init: str = "normal"
-    dtype = jnp.float32
+    dtype: Any = jnp.float32
 
     def setup(self):
 

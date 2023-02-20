@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 import einops
 import haiku as hk
@@ -153,8 +153,8 @@ class GaussianMomentDescriptor(hk.Module):
 class GaussianMomentDescriptorFlax(nn.Module):
     displacement_fn: Callable = space.free()[0]
     radial_fn: nn.Module = RadialFunctionFlax()
-    dtype=jnp.float32
-    apply_mask=True
+    dtype: Any=jnp.float32
+    apply_mask: bool=True
 
     def setup(self):
         self.r_max = self.radial_fn.r_max
