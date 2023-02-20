@@ -8,14 +8,16 @@ import jax.numpy as jnp
 import numpy as np
 from jax_md import partition
 from jax_md.util import Array, high_precision_sum
+import flax.linen as nn
 
 from gmnn_jax.layers.activation import swish
 from gmnn_jax.layers.descriptor.gaussian_moment_descriptor import (
-    GaussianMomentDescriptor,
+    GaussianMomentDescriptor, GaussianMomentDescriptorFlax
 )
 from gmnn_jax.layers.masking import mask_by_atom
 from gmnn_jax.layers.ntk_linear import NTKLinear
-from gmnn_jax.layers.scaling import PerElementScaleShift
+from gmnn_jax.layers.readout import AtomisticReadout
+from gmnn_jax.layers.scaling import PerElementScaleShift, PerElementScaleShiftFlax
 
 DisplacementFn = Callable[[Array, Array], Array]
 MDModel = Tuple[partition.NeighborFn, Callable, Callable]
@@ -91,6 +93,22 @@ class GMNN(hk.Module):
 
         return output
 
+
+class AtomisticModel(nn.Module):
+    descriptor: nn.Module = GaussianMomentDescriptorFlax()
+    readout: nn.Module = AtomisticReadout()
+    scale_shift: nn.Module = PerElementScaleShiftFlax()
+    mask_atoms: bool = True
+
+    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList) -> Array:
+        gm = self.descriptor(R, Z, neighbor.idx)
+        h = jax.vmap(self.readout)(gm)
+        output = self.scale_shift(h, Z)
+
+        if self.mask_atoms:
+            output = mask_by_atom(output, Z)
+
+        return output
 
 def get_md_model(
     atomic_numbers: Array,
