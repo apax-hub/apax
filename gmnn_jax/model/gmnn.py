@@ -1,6 +1,6 @@
 import dataclasses
 import logging
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Iterable, List, Optional, Tuple, Union
 
 import haiku as hk
 import jax
@@ -109,6 +109,77 @@ class AtomisticModel(nn.Module):
             output = mask_by_atom(output, Z)
 
         return output
+
+
+def fp64_sum(X: Array, axis: Optional[Union[Iterable[int], int]]=None, keepdims: bool = False):
+    dtyp = jnp.float64
+    result = jnp.sum(X, axis=axis, dtype=dtyp, keepdims=keepdims)
+    return result
+
+class EnergyModel(nn.Module):
+    atomistic_model: AtomisticModel = AtomisticModel()
+
+    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList):
+        
+        atomic_energies = self.atomistic_model(R, Z, neighbor)
+        total_energy = fp64_sum(atomic_energies)
+        return total_energy
+        
+
+class EnergyForceModel(nn.Module):
+    atomistic_model: AtomisticModel = AtomisticModel()
+
+    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList):
+
+        def energy_fn(R, Z, neighbor):
+            atomic_energies = self.atomistic_model(R, Z, neighbor)
+            total_energy = fp64_sum(atomic_energies)
+            return total_energy
+
+        energy, neg_forces = jax.value_and_grad(energy_fn)(R, Z, neighbor)
+        forces = -neg_forces
+        prediction = {"energy": energy, "forces": forces}
+        return prediction
+
+
+
+class ModelBuilder:
+
+    def __init__(self, model_config):
+        self.model_config = model_config
+
+    def build_descriptor(self):
+        descriptor = GaussianMomentDescriptorFlax(self.model_config.descriptor.dict())
+        return descriptor
+
+    def build_readout(self):
+        readout = AtomisticReadout(self.model_config.readout.dict())
+        return readout
+
+    def build_scale_shift(self):
+        scale_shift = PerElementScaleShiftFlax(self.model_config.scale_shift.dict())
+        return scale_shift
+
+    def build_atomistic_model(self):
+        descriptor = self.build_descriptor()
+        readout = self.build_readout()
+        scale_shift = self.build_scale_shift()
+
+        atomistic_model = AtomisticModel(descriptor, readout, scale_shift)
+        return atomistic_model
+
+    def build_energy_model(self):
+        atomistic_model = self.build_atomistic_model()
+        model = EnergyModel(atomistic_model)
+        return model
+
+    def build_energy_force_model(self):
+        atomistic_model = self.build_atomistic_model()
+        model = EnergyForceModel(atomistic_model)
+        return model
+
+
+
 
 def get_md_model(
     atomic_numbers: Array,
