@@ -1,21 +1,23 @@
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import einops
+import flax.linen as nn
 import haiku as hk
 import jax.numpy as jnp
 import numpy as np
 from jax_md import space
 
-from gmnn_jax.layers.descriptor.basis_functions import RadialFunction, RadialFunctionFlax
+from gmnn_jax.layers.descriptor.basis_functions import (
+    RadialFunction,
+    RadialFunctionFlax,
+)
 from gmnn_jax.layers.descriptor.moments import geometric_moments
 from gmnn_jax.layers.descriptor.triangular_indices import (
     tril_2d_indices,
     tril_3d_indices,
 )
 from gmnn_jax.layers.masking import mask_by_neighbor
-import flax.linen as nn
 
-from typing import Callable
 
 class GaussianMomentDescriptor(hk.Module):
     def __init__(
@@ -149,16 +151,15 @@ class GaussianMomentDescriptor(hk.Module):
         return gaussian_moments
 
 
-
 class GaussianMomentDescriptorFlax(nn.Module):
     displacement_fn: Callable = space.free()[0]
     radial_fn: nn.Module = RadialFunctionFlax()
-    dtype: Any=jnp.float32
-    apply_mask: bool=True
+    dtype: Any = jnp.float32
+    apply_mask: bool = True
 
     def setup(self):
         self.r_max = self.radial_fn.r_max
-        self.n_radial = self.radial_fn.n_radial # TODO: maybe move to call?
+        self.n_radial = self.radial_fn.n_radial  # TODO: maybe move to call?
 
         self.displacement = space.map_bond(self.displacement_fn)
         self.metric = space.map_bond(
@@ -180,9 +181,7 @@ class GaussianMomentDescriptorFlax(nn.Module):
         Z_i, Z_j = Z[idx_i], Z[idx_j]
 
         # dr_vec shape: neighbors x 3
-        dr_vec = self.displacement(
-            R[idx_j], R[idx_i]
-        )  # reverse conventnion to match TF
+        dr_vec = self.displacement(R[idx_j], R[idx_i])  # reverse conventnion to match TF
         # dr shape: neighbors
         dr = self.metric(R[idx_i], R[idx_j])
 

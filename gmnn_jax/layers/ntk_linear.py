@@ -1,10 +1,10 @@
 from typing import Any, Optional
 
+import flax.linen as nn
 import haiku as hk
 import jax.numpy as jnp
 from haiku.initializers import Constant, RandomNormal
 
-import flax.linen as nn
 
 class NTKLinear(hk.Module):
     def __init__(
@@ -43,8 +43,8 @@ class NTKLinear(hk.Module):
 
 class NTKLinearFlax(nn.Module):
     units: int
-    b_init: str="normal"
-    dtype: Any =jnp.float32
+    b_init: str = "normal"
+    dtype: Any = jnp.float32
 
     @nn.compact
     def __call__(self, inputs):
@@ -60,8 +60,8 @@ class NTKLinearFlax(nn.Module):
             raise NotImplementedError(
                 "Only random normal and zeros intialization of the bias is supported."
             )
-        w = self.param('w', w_initializer, (inputs.shape[0], self.units), self.dtype)
-        b = self.param('b', b_initializer, [self.units], self.dtype)
+        w = self.param("w", w_initializer, (inputs.shape[0], self.units), self.dtype)
+        b = self.param("b", b_initializer, [self.units], self.dtype)
 
         bias_factor = 0.1
         weight_factor = jnp.sqrt(1.0 / inputs.shape[0])

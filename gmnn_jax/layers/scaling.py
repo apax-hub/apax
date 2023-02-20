@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 import einops
 import haiku as hk
@@ -48,7 +48,7 @@ class PerElementScaleShiftFlax(nn.Module):
     n_species: int = 119
     scale: Optional[jnp.array] = 1.0
     shift: Optional[jnp.array] = 0.0
-    dtype=jnp.float32
+    dtype: Any =jnp.float32
     
     def setup(self):
         scale = jnp.asarray(self.scale)

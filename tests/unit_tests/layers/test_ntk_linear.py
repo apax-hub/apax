@@ -1,13 +1,13 @@
-from gmnn_jax.layers.ntk_linear import NTKLinearFlax
 import jax
 import jax.numpy as jnp
+
+from gmnn_jax.layers.ntk_linear import NTKLinearFlax
 
 
 def test_ntk_linear():
     key = jax.random.PRNGKey(0)
 
-    x = jnp.linspace(-1,1, num=20)
-
+    x = jnp.linspace(-1, 1, num=20)
 
     linear = NTKLinearFlax(32, dtype=jnp.float32)
     params = linear.init(key, x)

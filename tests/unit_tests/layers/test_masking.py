@@ -44,8 +44,8 @@ def test_mask_by_atom():
     Zs = jnp.stack(Zs, axis=0)
     assert np.all((np.sum(preds, axis=2) - n_total) < 1e-6)
 
-    batched_mask_fn = jax.vmap(mask_by_atom, 0,0)
-    masked_preds = batched_mask_fn(preds[0][None,...], Zs[0][None,...])
+    batched_mask_fn = jax.vmap(mask_by_atom, 0, 0)
+    masked_preds = batched_mask_fn(preds[0][None, ...], Zs[0][None, ...])
 
     assert np.all((np.sum(masked_preds, axis=(1, 2)) - n_atoms) < 1e-6)
 

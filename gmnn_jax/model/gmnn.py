@@ -2,24 +2,28 @@ import dataclasses
 import logging
 from typing import Callable, Iterable, List, Optional, Tuple, Union
 
+import flax.linen as nn
 import haiku as hk
 import jax
 import jax.numpy as jnp
 import numpy as np
 from jax_md import partition
 from jax_md.util import Array, high_precision_sum
-import flax.linen as nn
 
+from gmnn_jax.config import ModelConfig
 from gmnn_jax.layers.activation import swish
-from gmnn_jax.layers.descriptor.gaussian_moment_descriptor import (
-    GaussianMomentDescriptor, GaussianMomentDescriptorFlax
+from gmnn_jax.layers.descriptor.basis_functions import (
+    GaussianBasisFlax,
+    RadialFunctionFlax,
 )
-from gmnn_jax.layers.descriptor.basis_functions import RadialFunctionFlax, GaussianBasisFlax
+from gmnn_jax.layers.descriptor.gaussian_moment_descriptor import (
+    GaussianMomentDescriptor,
+    GaussianMomentDescriptorFlax,
+)
 from gmnn_jax.layers.masking import mask_by_atom
 from gmnn_jax.layers.ntk_linear import NTKLinear
 from gmnn_jax.layers.readout import AtomisticReadout
 from gmnn_jax.layers.scaling import PerElementScaleShift, PerElementScaleShiftFlax
-from gmnn_jax.config import ModelConfig
 
 DisplacementFn = Callable[[Array, Array], Array]
 MDModel = Tuple[partition.NeighborFn, Callable, Callable]
@@ -113,26 +117,27 @@ class AtomisticModel(nn.Module):
         return output
 
 
-def fp64_sum(X: Array, axis: Optional[Union[Iterable[int], int]]=None, keepdims: bool = False):
+def fp64_sum(
+    X: Array, axis: Optional[Union[Iterable[int], int]] = None, keepdims: bool = False
+):
     dtyp = jnp.float64
     result = jnp.sum(X, axis=axis, dtype=dtyp, keepdims=keepdims)
     return result
+
 
 class EnergyModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
 
     def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList):
-        
         atomic_energies = self.atomistic_model(R, Z, neighbor)
         total_energy = fp64_sum(atomic_energies)
         return total_energy
-        
+
 
 class EnergyForceModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
 
     def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList):
-
         def energy_fn(R, Z, neighbor):
             atomic_energies = self.atomistic_model(R, Z, neighbor)
             total_energy = fp64_sum(atomic_energies)
@@ -145,30 +150,53 @@ class EnergyForceModel(nn.Module):
 
 
 class ModelBuilder:
-
     def __init__(self, model_config: ModelConfig):
         self.config = model_config
 
     def build_basis_function(self):
-        basis_fn = GaussianBasisFlax(n_basis=self.config.n_basis, r_min=self.config.r_min, r_max=self.config.r_max, dtype=self.config.descriptor_dtype)
+        basis_fn = GaussianBasisFlax(
+            n_basis=self.config.n_basis,
+            r_min=self.config.r_min,
+            r_max=self.config.r_max,
+            dtype=self.config.descriptor_dtype,
+        )
         return basis_fn
 
     def build_radial_function(self):
         basis_fn = self.build_basis_function()
-        radial_fn = RadialFunctionFlax(n_radial=self.config.n_radial, basis_fn=basis_fn, n_species=self.config.n_species, dtype=self.config.descriptor_dtype)
+        radial_fn = RadialFunctionFlax(
+            n_radial=self.config.n_radial,
+            basis_fn=basis_fn,
+            n_species=self.config.n_species,
+            dtype=self.config.descriptor_dtype,
+        )
         return radial_fn
 
     def build_descriptor(self, displacement_fn, apply_mask):
         radial_fn = self.build_radial_function()
-        descriptor = GaussianMomentDescriptorFlax(displacement_fn = displacement_fn, radial_fn=radial_fn, dtype=self.config.descriptor.descriptor_dtype, apply_mask=apply_mask)
+        descriptor = GaussianMomentDescriptorFlax(
+            displacement_fn=displacement_fn,
+            radial_fn=radial_fn,
+            dtype=self.config.descriptor.descriptor_dtype,
+            apply_mask=apply_mask,
+        )
         return descriptor
 
     def build_readout(self):
-        readout = AtomisticReadout(units=self.config.units, b_init=self.config.b_init, dtype=self.config.readout_dtype)
+        readout = AtomisticReadout(
+            units=self.config.units,
+            b_init=self.config.b_init,
+            dtype=self.config.readout_dtype,
+        )
         return readout
 
     def build_scale_shift(self, n_species, scale, shift):
-        scale_shift = PerElementScaleShiftFlax(n_species=n_species, scale=scale, shift=shift, dtype=self.config.scale_shift_dtype)
+        scale_shift = PerElementScaleShiftFlax(
+            n_species=n_species,
+            scale=scale,
+            shift=shift,
+            dtype=self.config.scale_shift_dtype,
+        )
         return scale_shift
 
     def build_atomistic_model(self, displacement_fn, apply_mask):

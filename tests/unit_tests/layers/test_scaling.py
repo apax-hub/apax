@@ -1,20 +1,22 @@
-from gmnn_jax.layers.scaling import PerElementScaleShiftFlax
 import jax
 import jax.numpy as jnp
+
+from gmnn_jax.layers.scaling import PerElementScaleShiftFlax
 
 
 def test_per_element_scale_shift():
     key = jax.random.PRNGKey(0)
 
-    x = jnp.array([1.0, 1.0, 1.0])[:,None]
-    Z = jnp.array([1,2,2])
+    x = jnp.array([1.0, 1.0, 1.0])[:, None]
+    Z = jnp.array([1, 2, 2])
     n_species = 3
 
     global_shift = 2.0
     global_scale = 1.0
 
-    # TODO n_species should be optional since it's already determined by the shape of shift and scale
-    scale_shift = PerElementScaleShiftFlax(n_species=n_species, scale=global_scale, shift=global_shift)
+    scale_shift = PerElementScaleShiftFlax(
+        n_species=n_species, scale=global_scale, shift=global_shift
+    )
 
     params = scale_shift.init(key, x, Z)
     result = scale_shift.apply(params, x, Z)
@@ -24,10 +26,11 @@ def test_per_element_scale_shift():
 
     assert jnp.allclose(result, jnp.array([3.0, 3.0, 3.0])[:, None])
 
-
     indiv_scale = jnp.array([10.0, 2.0, 3.0])
     indiv_shift = jnp.array([0.0, -2.0, 2.0])
-    scale_shift = PerElementScaleShiftFlax(n_species=n_species, scale=indiv_scale, shift=indiv_shift)
+    scale_shift = PerElementScaleShiftFlax(
+        n_species=n_species, scale=indiv_scale, shift=indiv_shift
+    )
 
     params = scale_shift.init(key, x, Z)
     result = scale_shift.apply(params, x, Z)
