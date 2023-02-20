@@ -18,21 +18,6 @@ def extract_nl(neighbors, position):
     return neighbors
 
 
-@jax.jit
-def extract_periodic_nl(neighbors, position, box):
-    # vmapped neighborlist probably only useful for larger structures
-    neighbors = neighbors.update(position, box=box)
-    return neighbors
-
-
-def allocate_nl(neighbor_fn, position, box):
-    if np.all(box < 1e-6):
-        neighbors = neighbor_fn.allocate(position)
-    else:
-        neighbors = neighbor_fn.allocate(position, box=box)
-    return neighbors
-
-
 def dataset_neighborlist(
     neighbor_fn: NeighborFn,
     positions: list[np.array],
@@ -63,6 +48,7 @@ def dataset_neighborlist(
     neighbors = neighbor_fn.allocate(positions[0])
     idx = []
     num_atoms = n_atoms[0]
+    neighbors_dict = {"neighbors_0": {"neighbors": neighbors, "box": box[0]}}
 
     pbar_update_freq = 10
     with trange(
@@ -73,18 +59,29 @@ def dataset_neighborlist(
         leave=True,
     ) as nl_pbar:
         for i, position in enumerate(positions):
-            if n_atoms[i] != num_atoms:
-                neighbors = allocate_nl(neighbor_fn, position, box[i])
-                num_atoms = n_atoms[i]
-
             if np.all(box[i] < 1e-6):
+                if n_atoms[i] != num_atoms:
+                    neighbors = neighbor_fn.allocate(position)
+                    num_atoms = n_atoms[i]
                 neighbors = extract_nl(neighbors, position)
+
             else:
-                neighbors = extract_periodic_nl(neighbors, position, box[i])
+                reallocate = True
+                for val in neighbors_dict.values():
+                    if np.all(box[i] == val["box"]):
+                        neighbors = extract_nl(val["neighbors"], position)
+                        reallocate = False
+
+                if reallocate:
+                    neighbors = neighbor_fn.allocate(position, box=box[i])
+                    neighbors_dict[f"box_{i}"] = {"neighbors": neighbors, "box": box[i]}
 
             if neighbors.did_buffer_overflow:
                 log.info("Neighbor list overflowed, reallocating.")
-                neighbors = allocate_nl(neighbor_fn, position, box[i])
+                if np.all(box[i] < 1e-6):
+                    neighbors = neighbor_fn.allocate(position)
+                else:
+                    neighbors = neighbor_fn.allocate(position, box=box[i])
 
             idx.append(neighbors.idx)
             if i % pbar_update_freq == 0:
