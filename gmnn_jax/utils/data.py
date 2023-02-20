@@ -118,7 +118,7 @@ def convert_atoms_to_arrays(
             "energy": [],
         },
     }
-    DTYPE = np.float32
+    DTYPE = np.float64
 
     unit_dict = {
         "Ang": Ang,
