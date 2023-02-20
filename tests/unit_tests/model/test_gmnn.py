@@ -4,8 +4,12 @@ import numpy as np
 from jax_md import space
 
 from gmnn_jax.model import get_training_model
-from gmnn_jax.model.gmnn import AtomisticModel, NeighborSpoof, EnergyModel, EnergyForceModel, ModelBuilder
-from gmnn_jax.layers.scaling import PerElementScaleShiftFlax
+from gmnn_jax.model.gmnn import (
+    AtomisticModel,
+    EnergyForceModel,
+    EnergyModel,
+    NeighborSpoof,
+)
 
 
 def test_gmnn_variable_size():
@@ -64,7 +68,6 @@ def test_gmnn_variable_size():
     assert np.allclose(results["forces"], results_padded["forces"][:-1, :])
 
 
-
 def test_atomistic_model():
     key = jax.random.PRNGKey(0)
 
@@ -91,8 +94,7 @@ def test_atomistic_model():
     params = model.init(key, R, Z, neighbor)
     result = model.apply(params, R, Z, neighbor)
 
-    assert result.shape == (3,1)
-
+    assert result.shape == (3, 1)
 
 
 def test_energy_model():
@@ -151,8 +153,4 @@ def test_energy_force_model():
     result = model.apply(params, R, Z, neighbor)
 
     assert result["energy"].shape == ()
-    assert result["forces"].shape == (3,3)
-
-
-
-# test_energy_force_model()
+    assert result["forces"].shape == (3, 3)
