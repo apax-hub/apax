@@ -199,21 +199,21 @@ class ModelBuilder:
         )
         return scale_shift
 
-    def build_atomistic_model(self, displacement_fn, apply_mask):
+    def build_atomistic_model(self, displacement_fn, n_species, scale, shift, apply_mask):
         descriptor = self.build_descriptor(displacement_fn, apply_mask)
         readout = self.build_readout()
-        scale_shift = self.build_scale_shift()
+        scale_shift = self.build_scale_shift(n_species, scale, shift)
 
         atomistic_model = AtomisticModel(descriptor, readout, scale_shift)
         return atomistic_model
 
-    def build_energy_model(self, displacement_fn, apply_mask):
-        atomistic_model = self.build_atomistic_model(displacement_fn, apply_mask)
+    def build_energy_model(self, displacement_fn, n_species, scale, shift, apply_mask):
+        atomistic_model = self.build_atomistic_model(displacement_fn, n_species, scale, shift, apply_mask)
         model = EnergyModel(atomistic_model)
         return model
 
-    def build_energy_force_model(self, displacement_fn, apply_mask):
-        atomistic_model = self.build_atomistic_model(displacement_fn, apply_mask)
+    def build_energy_force_model(self, displacement_fn, n_species, scale, shift, apply_mask):
+        atomistic_model = self.build_atomistic_model(displacement_fn, n_species, scale, shift, apply_mask)
         model = EnergyForceModel(atomistic_model)
         return model
 
