@@ -10,12 +10,14 @@ from rich.console import Console
 from gmnn_jax.cli import templates
 
 console = Console(highlight=False)
-app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
+app = typer.Typer(pretty_exceptions_show_locals=False, context_settings={"help_option_names": ["-h", "--help"]})
 validate_app = typer.Typer(
+    pretty_exceptions_show_locals=False,
     context_settings={"help_option_names": ["-h", "--help"]},
     help="Validate training or MD config files.",
 )
 template_app = typer.Typer(
+    pretty_exceptions_show_locals=False,
     context_settings={"help_option_names": ["-h", "--help"]},
     help="Create configuration file templates.",
 )
@@ -34,6 +36,7 @@ def train(
     """
     Starts the training of a GMNN model with parameters provided by a configuration file.
     """
+    import gmnn_jax
     from gmnn_jax.train.run import run
 
     run(train_config_path, log_file, log_level)
