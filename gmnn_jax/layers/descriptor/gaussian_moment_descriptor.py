@@ -18,7 +18,6 @@ from gmnn_jax.layers.descriptor.triangular_indices import (
 )
 from gmnn_jax.layers.masking import mask_by_neighbor
 
-
 class GaussianMomentDescriptor(hk.Module):
     def __init__(
         self,
@@ -169,7 +168,6 @@ class GaussianMomentDescriptorFlax(nn.Module):
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
 
     def __call__(self, R, Z, neighbor_idxs):
-        # if R.dtype != self.dtype:
         R = R.astype(self.dtype)
         # R shape n_atoms x 3
         # Z shape n_atoms
@@ -181,17 +179,14 @@ class GaussianMomentDescriptorFlax(nn.Module):
         Z_i, Z_j = Z[idx_i], Z[idx_j]
 
         # dr_vec shape: neighbors x 3
-        dr_vec = self.displacement(R[idx_j], R[idx_i])  # reverse conventnion to match TF
+        # reverse conventnion to match TF
+        dr_vec = self.displacement(R[idx_j], R[idx_i]).astype(self.dtype)
         # dr shape: neighbors
-        dr = self.metric(R[idx_i], R[idx_j])
+        dr = self.metric(R[idx_i], R[idx_j]).astype(self.dtype)
 
-        dr_repeated = einops.repeat(dr + 1e-5, "neighbors -> neighbors 1")
+        dr_repeated = einops.repeat(dr, "neighbors -> neighbors 1")
         # normalized distance vectors, shape neighbors x 3
         dn = dr_vec / dr_repeated
-
-        # # shape: neighbors TODO delete commment
-        # dr_clipped = jnp.clip(dr, a_max=self.r_max)
-        # cos_cutoff = 0.5 * (jnp.cos(np.pi * dr_clipped / self.r_max) + 1.0)
 
         radial_function = self.radial_fn(dr, Z_i, Z_j)
         if self.apply_mask:
