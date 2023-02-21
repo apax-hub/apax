@@ -79,9 +79,9 @@ def get_opt(
         label_fn = map_nested_fn(lambda k, _: k)
         tx = optax.multi_transform(
             {
-                "w": opt(emb_schedule, **opt_kwargs),
-                "b": opt(emb_schedule, **opt_kwargs),
-                "atomic_type_embedding": opt(nn_schedule, **opt_kwargs), # TODO: wrong schedule
+                "w": opt(nn_schedule, **opt_kwargs),
+                "b": opt(nn_schedule, **opt_kwargs),
+                "atomic_type_embedding": opt(emb_schedule, **opt_kwargs), # TODO: wrong schedule
                 "scale_per_element": opt(scale_schedule, **opt_kwargs),
                 "shift_per_element": opt(shift_schedule, **opt_kwargs),
             },
