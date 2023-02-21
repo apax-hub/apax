@@ -2,6 +2,8 @@ import logging
 from typing import Any, Callable
 
 import optax
+from flax import traverse_util
+from flax.core.frozen_dict import freeze
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +40,7 @@ def get_schedule(
 
 
 def get_opt(
+    params,
     transition_begin: int,
     transition_steps: int,
     emb_lr: float = 0.02,
@@ -46,6 +49,7 @@ def get_opt(
     shift_lr: float = 0.05,
     opt_name: str = "adam",
     opt_kwargs: dict = {},
+    use_flax: bool = False,
 ) -> optax._src.base.GradientTransformation:
     """
     Builds an optimizer with different learning rates for each parameter group.
@@ -59,15 +63,30 @@ def get_opt(
     scale_schedule = get_schedule(scale_lr, transition_begin, transition_steps)
     shift_schedule = get_schedule(shift_lr, transition_begin, transition_steps)
 
-    label_fn = map_nested_fn(lambda k, _: k)
-    tx = optax.multi_transform(
-        {
-            "w": opt(emb_schedule, **opt_kwargs),
-            "b": opt(emb_schedule, **opt_kwargs),
-            "atomic_type_embedding": opt(nn_schedule, **opt_kwargs),
+    if use_flax:
+        partition_optimizers = {
+            "w": opt(nn_schedule, **opt_kwargs),
+            "b": opt(nn_schedule, **opt_kwargs),
+            "atomic_type_embedding": opt(emb_schedule, **opt_kwargs),
             "scale_per_element": opt(scale_schedule, **opt_kwargs),
             "shift_per_element": opt(shift_schedule, **opt_kwargs),
-        },
-        label_fn,
-    )
+        }
+
+        label_fn = lambda path, v: path[-1]
+        param_partitions = freeze(traverse_util.path_aware_map(label_fn, params))
+        tx = optax.multi_transform(partition_optimizers, param_partitions)
+    else:
+        label_fn = map_nested_fn(lambda k, _: k)
+        tx = optax.multi_transform(
+            {
+                "w": opt(nn_schedule, **opt_kwargs),
+                "b": opt(nn_schedule, **opt_kwargs),
+                "atomic_type_embedding": opt(
+                    emb_schedule, **opt_kwargs
+                ),  # TODO: wrong schedule
+                "scale_per_element": opt(scale_schedule, **opt_kwargs),
+                "shift_per_element": opt(shift_schedule, **opt_kwargs),
+            },
+            label_fn,
+        )
     return tx

@@ -16,10 +16,12 @@ app = typer.Typer(
     pretty_exceptions_show_locals=False,
 )
 validate_app = typer.Typer(
+    pretty_exceptions_show_locals=False,
     context_settings={"help_option_names": ["-h", "--help"]},
     help="Validate training or MD config files.",
 )
 template_app = typer.Typer(
+    pretty_exceptions_show_locals=False,
     context_settings={"help_option_names": ["-h", "--help"]},
     help="Create configuration file templates.",
 )
