@@ -55,9 +55,6 @@ class PerElementScaleShiftFlax(nn.Module):
         scale = jnp.asarray(self.scale)
         shift = jnp.asarray(self.shift)
 
-        if scale.shape != shift.shape:
-            raise ValueError("Scale and Shift parameters should have the same shape")
-
         if len(scale.shape) > 0:
             n_species = scale.shape[0]
         else:
