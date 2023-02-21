@@ -267,7 +267,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     steps_per_epoch = train_ds.steps_per_epoch()
     n_epochs = config.n_epochs
     transition_steps = steps_per_epoch * n_epochs - config.optimizer.transition_begin
-    tx = get_opt(params, transition_steps=transition_steps, **config.optimizer.dict())
+    tx = get_opt(params, transition_steps=transition_steps, **config.optimizer.dict(),  use_flax=config.use_flax)
 
     fit(
         batched_model,
