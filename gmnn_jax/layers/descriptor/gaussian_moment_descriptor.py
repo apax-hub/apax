@@ -184,7 +184,8 @@ class GaussianMomentDescriptorFlax(nn.Module):
         # dr shape: neighbors
         dr = self.metric(R[idx_i], R[idx_j]).astype(self.dtype)
 
-        dr_repeated = einops.repeat(dr, "neighbors -> neighbors 1")
+        # TODO: maybe try jnp where
+        dr_repeated = einops.repeat(dr + 1e-5, "neighbors -> neighbors 1")
         # normalized distance vectors, shape neighbors x 3
         dn = dr_vec / dr_repeated
 
