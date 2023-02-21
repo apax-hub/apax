@@ -23,6 +23,8 @@ from gmnn_jax.train.metrics import initialize_metrics
 from gmnn_jax.train.trainer import fit
 from gmnn_jax.utils.data import load_data, split_atoms, split_idxs, split_label
 from gmnn_jax.utils.random import seed_py_np_tf
+from gmnn_jax.model.gmnn import ModelBuilder
+
 
 log = logging.getLogger(__name__)
 
@@ -222,21 +224,34 @@ def run(user_config, log_file="train.log", log_level="error"):
     raw_datasets = load_data_files(config.data, model_version_path)
     train_ds, val_ds, ds_stats = initialize_datasets(config, raw_datasets)
 
-    model_dict = config.model.get_dict()
-
     # TODO n_species should be optional since it's already
     # TODO determined by the shape of shift and scale
-    gmnn = get_training_model(
-        n_atoms=ds_stats.n_atoms,
-        # ^This is going to make problems when training on differently sized molecules.
-        # we may need to check batch shapes and manually initialize a new model
-        # when a new size is encountered...
-        n_species=ds_stats.n_species,
-        displacement_fn=ds_stats.displacement_fn,
-        elemental_energies_mean=ds_stats.elemental_shift,
-        elemental_energies_std=ds_stats.elemental_scale,
-        **model_dict,
-    )
+    if config.use_flax:
+        # print(ds_stats.n_species)
+        # quit()
+        builder = ModelBuilder(config.model.get_dict(), n_species=ds_stats.n_species)
+        gmnn = builder.build_energy_force_model(
+            displacement_fn = ds_stats.displacement_fn,
+            scale=ds_stats.elemental_scale,
+            shift=ds_stats.elemental_shift,
+            apply_mask=True,
+        )
+    else:
+        model_dict = config.model.get_dict()
+        gmnn = get_training_model(
+            n_atoms=ds_stats.n_atoms,
+            # ^This is going to make problems when training on differently sized molecules.
+            # we may need to check batch shapes and manually initialize a new model
+            # when a new size is encountered...
+            n_species=ds_stats.n_species,
+            displacement_fn=ds_stats.displacement_fn,
+            elemental_energies_mean=ds_stats.elemental_shift,
+            elemental_energies_std=ds_stats.elemental_scale,
+            **model_dict,
+        )
+
+
+
     log.info("Initializing Model")
     init_input = train_ds.init_input()
     R, Z, idx = (
@@ -252,7 +267,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     steps_per_epoch = train_ds.steps_per_epoch()
     n_epochs = config.n_epochs
     transition_steps = steps_per_epoch * n_epochs - config.optimizer.transition_begin
-    tx = get_opt(transition_steps=transition_steps, **config.optimizer.dict())
+    tx = get_opt(params, transition_steps=transition_steps, **config.optimizer.dict())
 
     fit(
         batched_model,
