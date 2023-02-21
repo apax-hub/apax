@@ -145,12 +145,11 @@ def test_energy_force_model():
             [0, 0, 1, 1, 2, 2],
         ]
     )
-    neighbor = NeighborSpoof(idx=idx)
 
     model = EnergyForceModel()
 
-    params = model.init(key, R, Z, neighbor)
-    result = model.apply(params, R, Z, neighbor)
+    params = model.init(key, R, Z, idx)
+    result = model.apply(params, R, Z, idx)
 
     assert result["energy"].shape == ()
     assert result["forces"].shape == (3, 3)
