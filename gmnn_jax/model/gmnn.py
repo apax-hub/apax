@@ -209,12 +209,12 @@ class ModelBuilder:
         atomistic_model = AtomisticModel(descriptor, readout, scale_shift)
         return atomistic_model
 
-    def build_energy_model(self, displacement_fn, scale, shift, apply_mask):
+    def build_energy_model(self, displacement_fn, scale=None, shift=None, apply_mask=True):
         atomistic_model = self.build_atomistic_model(displacement_fn, scale, shift, apply_mask)
         model = EnergyModel(atomistic_model)
         return model
 
-    def build_energy_force_model(self, displacement_fn, scale, shift, apply_mask):
+    def build_energy_force_model(self, displacement_fn, scale=None, shift=None, apply_mask=True):
         atomistic_model = self.build_atomistic_model(displacement_fn, scale, shift, apply_mask)
         model = EnergyForceModel(atomistic_model)
         return model
