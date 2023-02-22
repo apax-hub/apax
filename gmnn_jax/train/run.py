@@ -243,6 +243,7 @@ def run(user_config, log_file="train.log", log_level="error"):
             scale=ds_stats.elemental_scale,
             shift=ds_stats.elemental_shift,
             apply_mask=True,
+            init_box=init_box,
         )
     else:
         model_dict = config.model.get_dict()

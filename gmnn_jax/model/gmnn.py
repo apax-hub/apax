@@ -110,8 +110,10 @@ class AtomisticModel(nn.Module):
     scale_shift: nn.Module = PerElementScaleShiftFlax()
     mask_atoms: bool = True
 
-    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList) -> Array:
-        gm = self.descriptor(R, Z, neighbor.idx)
+    def __call__(
+        self, R: Array, Z: Array, neighbor: partition.NeighborList, box
+    ) -> Array:
+        gm = self.descriptor(R, Z, neighbor.idx, box)
         h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
 
@@ -132,8 +134,8 @@ def fp64_sum(
 class EnergyModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
 
-    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList):
-        atomic_energies = self.atomistic_model(R, Z, neighbor)
+    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList, box):
+        atomic_energies = self.atomistic_model(R, Z, neighbor, box=box)
         total_energy = fp64_sum(atomic_energies)
         return total_energy
 
@@ -141,15 +143,15 @@ class EnergyModel(nn.Module):
 class EnergyForceModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
 
-    def __call__(self, R: Array, Z: Array, idx: Array):
+    def __call__(self, R: Array, Z: Array, idx: Array, box):
         neighbor = NeighborSpoof(idx)
 
-        def energy_fn(R, Z, neighbor):
-            atomic_energies = self.atomistic_model(R, Z, neighbor)
+        def energy_fn(R, Z, neighbor, box):
+            atomic_energies = self.atomistic_model(R, Z, neighbor, box=box)
             total_energy = fp64_sum(atomic_energies)
             return total_energy
 
-        energy, neg_forces = jax.value_and_grad(energy_fn)(R, Z, neighbor)
+        energy, neg_forces = jax.value_and_grad(energy_fn)(R, Z, neighbor, box)
         forces = -neg_forces
         prediction = {"energy": energy, "forces": forces}
         return prediction
@@ -179,13 +181,16 @@ class ModelBuilder:
         )
         return radial_fn
 
-    def build_descriptor(self, displacement_fn, apply_mask):
+    def build_descriptor(
+        self, displacement_fn, apply_mask, init_box: np.array = np.array([0.0, 0.0, 0.0])
+    ):
         radial_fn = self.build_radial_function()
         descriptor = GaussianMomentDescriptorFlax(
             displacement_fn=displacement_fn,
             radial_fn=radial_fn,
             dtype=self.config["descriptor_dtype"],
             apply_mask=apply_mask,
+            init_box=init_box,
         )
         return descriptor
 
@@ -206,24 +211,45 @@ class ModelBuilder:
         )
         return scale_shift
 
-    def build_atomistic_model(self, displacement_fn, scale, shift, apply_mask):
-        descriptor = self.build_descriptor(displacement_fn, apply_mask)
+    def build_atomistic_model(
+        self,
+        displacement_fn,
+        scale,
+        shift,
+        apply_mask,
+        init_box: np.array = np.array([0.0, 0.0, 0.0]),
+    ):
+        descriptor = self.build_descriptor(displacement_fn, apply_mask, init_box=init_box)
         readout = self.build_readout()
         scale_shift = self.build_scale_shift(scale, shift)
 
         atomistic_model = AtomisticModel(descriptor, readout, scale_shift)
         return atomistic_model
 
-    def build_energy_model(self, displacement_fn, scale, shift, apply_mask):
+    def build_energy_model(
+        self,
+        displacement_fn,
+        scale,
+        shift,
+        apply_mask,
+        init_box: np.array = np.array([0.0, 0.0, 0.0]),
+    ):
         atomistic_model = self.build_atomistic_model(
-            displacement_fn, scale, shift, apply_mask
+            displacement_fn, scale, shift, apply_mask, init_box=init_box
         )
         model = EnergyModel(atomistic_model)
         return model
 
-    def build_energy_force_model(self, displacement_fn, scale, shift, apply_mask):
+    def build_energy_force_model(
+        self,
+        displacement_fn,
+        scale,
+        shift,
+        apply_mask,
+        init_box: np.array = np.array([0.0, 0.0, 0.0]),
+    ):
         atomistic_model = self.build_atomistic_model(
-            displacement_fn, scale, shift, apply_mask
+            displacement_fn, scale, shift, apply_mask, init_box=init_box
         )
         model = EnergyForceModel(atomistic_model)
         return model

@@ -91,10 +91,12 @@ def test_atomistic_model():
     )
     neighbor = NeighborSpoof(idx=idx)
 
+    box = np.array([0.0, 0.0, 0.0])
+
     model = AtomisticModel(mask_atoms=False)
 
-    params = model.init(key, R, Z, neighbor)
-    result = model.apply(params, R, Z, neighbor)
+    params = model.init(key, R, Z, neighbor, box)
+    result = model.apply(params, R, Z, neighbor, box)
 
     assert result.shape == (3, 1)
 
@@ -120,10 +122,12 @@ def test_energy_model():
     )
     neighbor = NeighborSpoof(idx=idx)
 
+    box = np.array([0.0, 0.0, 0.0])
+
     model = EnergyModel()
 
-    params = model.init(key, R, Z, neighbor)
-    result = model.apply(params, R, Z, neighbor)
+    params = model.init(key, R, Z, neighbor, box)
+    result = model.apply(params, R, Z, neighbor, box)
 
     assert result.shape == ()
 
@@ -148,10 +152,12 @@ def test_energy_force_model():
         ]
     )
 
+    box = np.array([0.0, 0.0, 0.0])
+
     model = EnergyForceModel()
 
-    params = model.init(key, R, Z, idx)
-    result = model.apply(params, R, Z, idx)
+    params = model.init(key, R, Z, idx, box)
+    result = model.apply(params, R, Z, idx, box)
 
     assert result["energy"].shape == ()
     assert result["forces"].shape == (3, 3)

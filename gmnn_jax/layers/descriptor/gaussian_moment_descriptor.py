@@ -185,19 +185,30 @@ class GaussianMomentDescriptorFlax(nn.Module):
     radial_fn: nn.Module = RadialFunctionFlax()
     dtype: Any = jnp.float32
     apply_mask: bool = True
+    init_box: np.array = np.array([0.0, 0.0, 0.0])
 
     def setup(self):
         self.r_max = self.radial_fn.r_max
         self.n_radial = self.radial_fn.n_radial  # TODO: maybe move to call?
 
-        self.displacement = space.map_bond(self.displacement_fn)
-        self.metric = space.map_bond(
-            space.canonicalize_displacement_or_metric(self.displacement_fn)
-        )
+        if not np.all(self.init_box < 1e-6):
+            # Displacementfunction just used for trining on periodic systems
+            # Enables working with fractional coordinates
+            mappable_displacement_fn = get_disp_fn(self.displacement_fn)
+            self.displacement = vmap(mappable_displacement_fn, (0, 0, None), 0)
+        else:
+            # displacement function for gasphase training and predicting
+            self.displacement = space.map_bond(self.displacement_fn)
+
+        self.distance = vmap(space.distance, 0, 0)
+
+        # self.metric = space.map_bond(
+        # space.canonicalize_displacement_or_metric(self.displacement_fn)
+        # )
         self.triang_idxs_2d = tril_2d_indices(self.n_radial)
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
 
-    def __call__(self, R, Z, neighbor_idxs):
+    def __call__(self, R, Z, neighbor_idxs, box):
         R = R.astype(self.dtype)
         # R shape n_atoms x 3
         # Z shape n_atoms
@@ -209,10 +220,18 @@ class GaussianMomentDescriptorFlax(nn.Module):
         Z_i, Z_j = Z[idx_i], Z[idx_j]
 
         # dr_vec shape: neighbors x 3
-        # reverse conventnion to match TF
-        dr_vec = self.displacement(R[idx_j], R[idx_i]).astype(self.dtype)
+        if not np.all(self.init_box < 1e-6):
+            #  Distance vector for trining on periodic systems
+            # Enables working with fractional coordinates
+            # reverse conventnion to match TF
+            dr_vec = self.displacement(R[idx_j], R[idx_i], box).astype(self.dtype)
+        else:
+            # reverse conventnion to match TF
+            # Distance vector for gasphase training and predicting
+            dr_vec = self.displacement(R[idx_j], R[idx_i]).astype(self.dtype)
+
         # dr shape: neighbors
-        dr = self.metric(R[idx_i], R[idx_j]).astype(self.dtype)
+        dr = self.distance(dr_vec).astype(self.dtype)
 
         # TODO: maybe try jnp where
         dr_repeated = einops.repeat(dr + 1e-5, "neighbors -> neighbors 1")
