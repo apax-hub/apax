@@ -1,14 +1,14 @@
 import warnings
 
 import tensorflow as tf
+from jax.config import config as jax_config
 
 # Disable all GPUS
 
 # tf.config.experimental.set_visible_devices([], "GPU")
 
-from jax.config import config as jax_config
 
-tf.config.set_visible_devices([], 'GPU')
+tf.config.set_visible_devices([], "GPU")
 # visible_devices = tf.config.get_visible_devices()
 # for device in visible_devices:
 #     assert device.device_type != 'GPU'
