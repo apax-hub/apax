@@ -229,9 +229,9 @@ class ModelBuilder:
     def build_energy_model(
         self,
         displacement_fn,
-        scale,
-        shift,
-        apply_mask,
+        scale=None,
+        shift=None,
+        apply_mask=True,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
     ):
         atomistic_model = self.build_atomistic_model(
@@ -243,9 +243,9 @@ class ModelBuilder:
     def build_energy_force_model(
         self,
         displacement_fn,
-        scale,
-        shift,
-        apply_mask,
+        scale=None,
+        shift=None,
+        apply_mask=True,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
     ):
         atomistic_model = self.build_atomistic_model(

@@ -74,7 +74,10 @@ def dataset_neighborlist(
 
                 if reallocate:
                     neighbors = neighbor_fn.allocate(position, box=box[i])
-                    neighbors_dict[f"neighbors_{i}"] = {"neighbors": neighbors, "box": box[i]}
+                    neighbors_dict[f"neighbors_{i}"] = {
+                        "neighbors": neighbors,
+                        "box": box[i],
+                    }
 
             if neighbors.did_buffer_overflow:
                 log.info("Neighbor list overflowed, reallocating.")

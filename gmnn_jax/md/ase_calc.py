@@ -8,14 +8,14 @@ import numpy as np
 import yaml
 from ase.calculators.calculator import Calculator, all_changes
 from flax.training import checkpoints
-from jax_md import space
+from jax_md import partition, space
 
 from gmnn_jax.config.train_config import Config
 from gmnn_jax.md.md_checkpoint import look_for_checkpoints
-from gmnn_jax.model.gmnn import get_md_model
+from gmnn_jax.model.gmnn import ModelBuilder, get_md_model
 
 
-def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
+def build_energy_neighbor_fns(atoms, config, params, dr_threshold, use_flax=False):
     atomic_numbers = jnp.asarray(atoms.numbers)
     box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float32)
 
@@ -24,15 +24,32 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     else:
         displacement_fn, _ = space.periodic_general(box, fractional_coordinates=False)
 
-    neighbor_fn, gmnn = get_md_model(
-        atomic_numbers=atomic_numbers,
-        displacement_fn=displacement_fn,
-        displacement=displacement_fn,
-        box=box,
-        dr_threshold=dr_threshold,
-        **config.model.get_dict(),
-    )
-    energy_fn = partial(gmnn.apply, params)
+    if use_flax:
+        Z = jnp.asarray(atomic_numbers)
+        n_species = int(np.max(Z) + 1)
+        builder = ModelBuilder(config.model.get_dict(), n_species=n_species)
+        gmnn = builder.build_energy_model(
+            displacement_fn=displacement_fn, apply_mask=False, init_box=np.array(box)
+        )
+        energy_fn = partial(gmnn.apply, params, Z=Z, box=box)
+        neighbor_fn = partition.neighbor_list(
+            displacement_fn,
+            box,
+            config.model.r_max,
+            dr_threshold,
+            fractional_coordinates=False,
+            format=partition.Sparse,
+        )
+    else:
+        neighbor_fn, gmnn = get_md_model(
+            atomic_numbers=atomic_numbers,
+            displacement_fn=displacement_fn,
+            displacement=displacement_fn,
+            box=box,
+            dr_threshold=dr_threshold,
+            **config.model.get_dict(),
+        )
+        energy_fn = partial(gmnn.apply, params)
     return energy_fn, neighbor_fn
 
 
@@ -43,9 +60,12 @@ class ASECalculator(Calculator):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(self, model_dir: Path, dr_threshold: float = 0.5, **kwargs):
+    def __init__(
+        self, model_dir: Path, dr_threshold: float = 0.5, use_flax=False, **kwargs
+    ):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
+        self.use_flax = use_flax
 
         model_config = Path(model_dir) / "config.yaml"
         with open(model_config, "r") as stream:
@@ -68,13 +88,19 @@ class ASECalculator(Calculator):
 
     def initialize(self, atoms):
         energy_fn, neighbor_fn = build_energy_neighbor_fns(
-            atoms, self.model_config, self.params, self.dr_threshold
+            atoms,
+            self.model_config,
+            self.params,
+            self.dr_threshold,
+            use_flax=self.use_flax,
         )
 
         @jax.jit
         def body_fn(positions, neighbor):
             neighbor = neighbor.update(positions)
-            energy, neg_forces = jax.value_and_grad(energy_fn)(positions, neighbor)
+            energy, neg_forces = jax.value_and_grad(energy_fn)(
+                positions, neighbor=neighbor
+            )
             forces = -neg_forces
             return energy, forces, neighbor
 
