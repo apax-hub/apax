@@ -8,6 +8,7 @@ import numpy as np
 
 from gmnn_jax.layers.initializers import uniform_range
 
+
 class GaussianBasis(hk.Module):
     def __init__(
         self, n_basis, r_min, r_max, dtype=jnp.float32, name: Optional[str] = None
@@ -61,6 +62,7 @@ class RadialFunction(hk.Module):
         self.dtype = dtype
 
     def __call__(self, dr, Z_i, Z_j, cutoff):
+        dr = dr.astype(self.dtype)
         # basis shape: neighbors x n_basis
         basis = self.basis_fn(dr)
 
@@ -76,7 +78,6 @@ class RadialFunction(hk.Module):
         )
         cutoff = einops.repeat(cutoff, "neighbors -> neighbors 1")
         radial_function = radial_function * cutoff
-
         assert radial_function.dtype == self.dtype
 
         return radial_function
