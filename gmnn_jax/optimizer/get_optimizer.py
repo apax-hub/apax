@@ -88,7 +88,9 @@ def get_opt(
             "scale_per_element": scale_opt,
             "shift_per_element": shift_opt,
         }
-        param_partitions = freeze(traverse_util.path_aware_map(lambda path, v: path[-1], params))
+        param_partitions = freeze(
+            traverse_util.path_aware_map(lambda path, v: path[-1], params)
+        )
         tx = optax.multi_transform(partition_optimizers, param_partitions)
 
     else:
