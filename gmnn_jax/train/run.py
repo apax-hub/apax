@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
 import yaml
+from flax.training import checkpoints
 from keras.callbacks import CSVLogger, TensorBoard
 
 from gmnn_jax.config import Config
@@ -21,6 +22,7 @@ from gmnn_jax.optimizer import get_opt
 from gmnn_jax.train.loss import Loss, LossCollection
 from gmnn_jax.train.metrics import initialize_metrics
 from gmnn_jax.train.trainer import fit
+from gmnn_jax.transfer_learning import param_transfer
 from gmnn_jax.utils.data import load_data, split_atoms, split_idxs, split_label
 from gmnn_jax.utils.random import seed_py_np_tf
 
@@ -235,10 +237,8 @@ def run(user_config, log_file="train.log", log_level="error"):
     # TODO n_species should be optional since it's already
     # TODO determined by the shape of shift and scale
     if config.use_flax:
-        # print(ds_stats.n_species)
-        # quit()
         builder = ModelBuilder(config.model.get_dict(), n_species=ds_stats.n_species)
-        gmnn = builder.build_energy_force_model(
+        model = builder.build_energy_force_model(
             displacement_fn=ds_stats.displacement_fn,
             scale=ds_stats.elemental_scale,
             shift=ds_stats.elemental_shift,
@@ -247,7 +247,7 @@ def run(user_config, log_file="train.log", log_level="error"):
         )
     else:
         model_dict = config.model.get_dict()
-        gmnn = get_training_model(
+        model = get_training_model(
             n_atoms=ds_stats.n_atoms,
             # ^This is going to make problems when training on
             # differently sized molecules.
@@ -262,8 +262,20 @@ def run(user_config, log_file="train.log", log_level="error"):
         )
 
     rng_key, model_rng_key = jax.random.split(rng_key, num=2)
-    params = gmnn.init(model_rng_key, R, Z, idx, init_box)
-    batched_model = jax.vmap(gmnn.apply, in_axes=(None, 0, 0, 0, 0))
+    params = model.init(model_rng_key, R, Z, idx, init_box)
+
+    do_transfer_learning = config.checkpoints.base_model_checkpoint is not None
+    if do_transfer_learning:
+        log.info(
+            "Transfering parameters from %s", config.checkpoints.base_model_checkpoint
+        )
+        raw_restored = checkpoints.restore_checkpoint(
+            config.checkpoints.base_model_checkpoint, target=None, step=None
+        )
+        source_params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
+        params = param_transfer(source_params, params, config.checkpoints.reset_layers)
+
+    batched_model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0))
 
     steps_per_epoch = train_ds.steps_per_epoch()
     n_epochs = config.n_epochs
