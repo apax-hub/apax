@@ -178,12 +178,16 @@ class CheckpointConfig(BaseModel, extra=Extra.forbid):
     """
     Checkpoint configuration.
 
+    Parameters
+    ----------
     ckpt_interval: Number of epochs between checkpoints.
+    base_model_checkpoint: Path to the folder containing a pre-trained model ckpt.
+    reset_layers: List of layer names for which the parameters will be reinitialized.
     """
 
     ckpt_interval: PositiveInt = 1
     base_model_checkpoint: Optional[str] = None
-    reset_layers: List[str] = [] # not parameters, but layers
+    reset_layers: List[str] = []
 
 
 class Config(BaseModel, frozen=True, extra=Extra.forbid):
