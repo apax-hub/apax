@@ -105,6 +105,9 @@ class GaussianMomentDescriptor(hk.Module):
         # dr shape: neighbors
         dr = self.distance(dr_vec)
 
+        dr_vec = dr_vec.astype(self.dtype)
+        dr = dr.astype(self.dtype)
+
         dr_repeated = einops.repeat(dr + 1e-5, "neighbors -> neighbors 1")
         # normalized distance vectors, shape neighbors x 3
 
@@ -113,6 +116,8 @@ class GaussianMomentDescriptor(hk.Module):
         # shape: neighbors
         dr_clipped = jnp.clip(dr, a_max=self.r_max)
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr_clipped / self.r_max) + 1.0)
+
+        cos_cutoff = cos_cutoff.astype(self.dtype)
 
         radial_function = self.radial_fn(dr, Z_i, Z_j, cos_cutoff)
         if self.apply_mask:
