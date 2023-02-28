@@ -64,7 +64,6 @@ def test_input_pipeline(example_atoms, pbc, calc_results, num_data, external_lab
     assert len(sample_inputs["box"]) == batch_size
     assert len(sample_inputs["box"][0]) == 3
 
-
     assert "numbers" in sample_inputs
     for i in range(batch_size):
         assert len(sample_inputs["numbers"][i]) == max(sample_inputs["n_atoms"])
