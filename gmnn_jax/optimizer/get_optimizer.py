@@ -68,10 +68,18 @@ def get_opt(
     opt = getattr(optax, opt_name)
 
     if use_flax:
-        nn_opt = make_optimizer(opt, nn_lr, transition_begin, transition_steps, opt_kwargs)
-        emb_opt = make_optimizer(opt, emb_lr, transition_begin, transition_steps, opt_kwargs)
-        scale_opt = make_optimizer(opt, scale_lr, transition_begin, transition_steps, opt_kwargs)
-        shift_opt = make_optimizer(opt, shift_lr, transition_begin, transition_steps, opt_kwargs)
+        nn_opt = make_optimizer(
+            opt, nn_lr, transition_begin, transition_steps, opt_kwargs
+        )
+        emb_opt = make_optimizer(
+            opt, emb_lr, transition_begin, transition_steps, opt_kwargs
+        )
+        scale_opt = make_optimizer(
+            opt, scale_lr, transition_begin, transition_steps, opt_kwargs
+        )
+        shift_opt = make_optimizer(
+            opt, shift_lr, transition_begin, transition_steps, opt_kwargs
+        )
 
         partition_optimizers = {
             "w": nn_opt,
@@ -80,9 +88,7 @@ def get_opt(
             "scale_per_element": scale_opt,
             "shift_per_element": shift_opt,
         }
-
-        label_fn = lambda path, v: path[-1]
-        param_partitions = freeze(traverse_util.path_aware_map(label_fn, params))
+        param_partitions = freeze(traverse_util.path_aware_map(lambda path, v: path[-1], params))
         tx = optax.multi_transform(partition_optimizers, param_partitions)
 
     else:
@@ -95,9 +101,7 @@ def get_opt(
             {
                 "w": opt(nn_schedule, **opt_kwargs),
                 "b": opt(nn_schedule, **opt_kwargs),
-                "atomic_type_embedding": opt(
-                    emb_schedule, **opt_kwargs
-                ),
+                "atomic_type_embedding": opt(emb_schedule, **opt_kwargs),
                 "scale_per_element": opt(scale_schedule, **opt_kwargs),
                 "shift_per_element": opt(shift_schedule, **opt_kwargs),
             },
