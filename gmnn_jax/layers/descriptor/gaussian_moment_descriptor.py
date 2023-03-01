@@ -61,11 +61,10 @@ class GaussianMomentDescriptor(hk.Module):
         # n_species and n_atoms from the first input batch
         self.init_box = init_box
         if np.all(self.init_box < 1e-6):
-            # displacement function for gasphase training and predicting
+            # displacement function for gas phase training and predicting
             self.displacement = space.map_bond(displacement)
         else:
-            # Displacementfunction just used for trining on periodic systems
-            # Enables working with fractional coordinates
+            # displacement function for training on periodic systems
             displacement = get_disp_fn(displacement)
             self.displacement = vmap(displacement, (0, 0, None), 0)
 
@@ -88,14 +87,13 @@ class GaussianMomentDescriptor(hk.Module):
 
         # dr_vec shape: neighbors x 3
         if np.all(self.init_box < 1e-6):
-            # Distance vector for gasphase training and predicting
+            # distance vector for gas phase training and predicting
             dr_vec = self.displacement(
                 R[neighbor.idx[1]],
                 R[neighbor.idx[0]],
             )  # reverse conventnion to match TF
         else:
-            #  Distance vector for trining on periodic systems
-            # Enables working with fractional coordinates
+            # distance vector for training on periodic systems
             dr_vec = self.displacement(
                 R[neighbor.idx[1]],
                 R[neighbor.idx[0]],
@@ -109,8 +107,8 @@ class GaussianMomentDescriptor(hk.Module):
         dr = dr.astype(self.dtype)
 
         dr_repeated = einops.repeat(dr + 1e-5, "neighbors -> neighbors 1")
-        # normalized distance vectors, shape neighbors x 3
 
+        # normalized distance vectors, shape neighbors x 3
         dn = dr_vec / dr_repeated
 
         # shape: neighbors
@@ -197,19 +195,15 @@ class GaussianMomentDescriptorFlax(nn.Module):
         self.n_radial = self.radial_fn.n_radial  # TODO: maybe move to call?
 
         if not np.all(self.init_box < 1e-6):
-            # Displacementfunction just used for trining on periodic systems
-            # Enables working with fractional coordinates
+            # displacement function used for training on periodic systems
             mappable_displacement_fn = get_disp_fn(self.displacement_fn)
             self.displacement = vmap(mappable_displacement_fn, (0, 0, None), 0)
         else:
-            # displacement function for gasphase training and predicting
+            # displacement function for gas phase training and predicting
             self.displacement = space.map_bond(self.displacement_fn)
 
         self.distance = vmap(space.distance, 0, 0)
 
-        # self.metric = space.map_bond(
-        # space.canonicalize_displacement_or_metric(self.displacement_fn)
-        # )
         self.triang_idxs_2d = tril_2d_indices(self.n_radial)
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
 
@@ -226,13 +220,12 @@ class GaussianMomentDescriptorFlax(nn.Module):
 
         # dr_vec shape: neighbors x 3
         if not np.all(self.init_box < 1e-6):
-            #  Distance vector for trining on periodic systems
-            # Enables working with fractional coordinates
+            # distance vector for training on periodic systems
             # reverse conventnion to match TF
             dr_vec = self.displacement(R[idx_j], R[idx_i], box).astype(self.dtype)
         else:
             # reverse conventnion to match TF
-            # Distance vector for gasphase training and predicting
+            # distance vector for gas phase training and predicting
             dr_vec = self.displacement(R[idx_j], R[idx_i]).astype(self.dtype)
 
         # dr shape: neighbors
