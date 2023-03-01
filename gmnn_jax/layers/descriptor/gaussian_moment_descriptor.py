@@ -214,7 +214,7 @@ class GaussianMomentDescriptorFlax(nn.Module):
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
 
     def __call__(self, R, Z, neighbor_idxs, box):
-        R = R.astype(self.dtype)
+        R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms
         n_atoms = R.shape[0]
