@@ -194,10 +194,10 @@ def md_setup(model_config: Config, md_config: MDConfig):
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
 
-    R = jnp.asarray(atoms.positions, dtype=jnp.float32)
+    R = jnp.asarray(atoms.positions, dtype=jnp.float64)
     atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
-    masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float32)
-    box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float32)
+    masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float64)
+    box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float64)
 
     log.info("initializing model")
     if np.all(box < 1e-6):
@@ -223,6 +223,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
             md_config.dr_threshold,
             fractional_coordinates=False,
             format=partition.Sparse,
+            disable_cell_list=True,
         )
     else:
         neighbor_fn, gmnn = get_md_model(
