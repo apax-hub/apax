@@ -2,15 +2,15 @@ import numpy as np
 import pytest
 import tensorflow as tf
 
-from gmnn_jax.data.input_pipeline import (
+from apax.data.input_pipeline import (
     PadToSpecificSize,
     TFPipeline,
     create_dict_dataset,
     initialize_nbr_displacement_fns,
 )
-from gmnn_jax.train.run import find_largest_system
-from gmnn_jax.utils.data import convert_atoms_to_arrays, split_atoms, split_idxs
-from gmnn_jax.utils.random import seed_py_np_tf
+from apax.train.run import find_largest_system
+from apax.utils.data import convert_atoms_to_arrays, split_atoms, split_idxs
+from apax.utils.random import seed_py_np_tf
 
 
 @pytest.mark.parametrize(

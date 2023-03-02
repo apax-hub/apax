@@ -1,10 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from gmnn_jax.layers.descriptor.basis_functions import (
-    GaussianBasisFlax,
-    RadialFunctionFlax,
-)
+from apax.layers.descriptor.basis_functions import GaussianBasisFlax, RadialFunctionFlax
 
 
 def test_gaussian_basis():

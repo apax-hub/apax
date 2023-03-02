@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from gmnn_jax.layers.ntk_linear import NTKLinearFlax
+from apax.layers.ntk_linear import NTKLinearFlax
 
 
 def test_ntk_linear():

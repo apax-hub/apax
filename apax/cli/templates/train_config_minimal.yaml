@@ -1,0 +1,23 @@
+
+n_epochs: <NUMBER OF EPOCHS>
+
+data:
+  model_path: models
+  model_name: apax
+  data_path: <PATH>
+
+  n_train: 100
+  n_valid: 10
+  batch_size: 32
+  valid_batch_size: 100
+
+metrics:
+  - name: energy
+    reductions: [mae]
+  - name: forces
+    reductions: [mae, mse]
+
+loss:
+  - name: energy
+  - name: forces
+    weight: 4.0

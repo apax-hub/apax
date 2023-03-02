@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 
-from gmnn_jax.config.train_config import MetricsConfig
-from gmnn_jax.train.metrics import cosine_sim, initialize_metrics
+from apax.config.train_config import MetricsConfig
+from apax.train.metrics import cosine_sim, initialize_metrics
 
 
 def test_cosine_sim():

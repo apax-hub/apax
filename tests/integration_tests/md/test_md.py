@@ -10,10 +10,10 @@ from ase.io import read, write
 from flax.training import checkpoints
 from jax_md import partition, space
 
-from gmnn_jax.config import Config, MDConfig
-from gmnn_jax.md import run_md
-from gmnn_jax.md.ase_calc import ASECalculator
-from gmnn_jax.model.gmnn import get_training_model
+from apax.config import Config, MDConfig
+from apax.md import run_md
+from apax.md.ase_calc import ASECalculator
+from apax.model.gmnn import get_training_model
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
@@ -62,14 +62,14 @@ def test_run_md(get_tmp_path):
     )
     neighbors = neighbor_fn.allocate(jnp.asarray(positions, dtype=jnp.float32))
 
-    gmnn = get_training_model(
+    apax = get_training_model(
         n_atoms=n_atoms,
         n_species=n_species,
         displacement_fn=displacement_fn,
         **model_config.model.get_dict()
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
-    params = gmnn.init(
+    params = apax.init(
         rng_key,
         jnp.asarray(positions, dtype=jnp.float32),
         jnp.asarray(atomic_numbers),
@@ -132,14 +132,14 @@ def test_ase_calc(get_tmp_path):
     )
     neighbors = neighbor_fn.allocate(jnp.asarray(positions, dtype=jnp.float32))
 
-    gmnn = get_training_model(
+    apax = get_training_model(
         n_atoms=n_atoms,
         n_species=n_species,
         displacement_fn=displacement_fn,
         **model_config.model.get_dict()
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
-    params = gmnn.init(
+    params = apax.init(
         rng_key,
         jnp.asarray(positions, dtype=jnp.float32),
         jnp.asarray(atomic_numbers),

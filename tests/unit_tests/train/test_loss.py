@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import numpy as np
 
-from gmnn_jax.train.loss import (
+from apax.train.loss import (
     Loss,
     force_angle_div_force_label,
     force_angle_exponential_weight,

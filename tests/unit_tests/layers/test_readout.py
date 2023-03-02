@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from gmnn_jax.layers.readout import AtomisticReadout
+from apax.layers.readout import AtomisticReadout
 
 
 def test_atomistic_readout():

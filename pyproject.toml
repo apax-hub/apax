@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "gmnn-jax"
+name = "apax"
 version = "0.1.0"
-description = "A port of GMNN to JAX"
-authors = ["Moritz Schäfer <moritz.schaefer@pm.me>"]
+description = "Atomistic Learned Potentail Package in JAX"
+authors = ["Moritz Schäfer <moritz.schaefer@pm.me>", "Nico Segreto <segreto@theochem.uni-stuttgart.de>"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "gmnn_jax"}]
+packages = [{include = "apax"}]
 
 [tool.poetry.dependencies]
 python = "^3.9, <3.11"
@@ -24,7 +24,7 @@ jaxtyping = "^0.2.8"
 typer = "^0.7.0"
 
 [tool.poetry.scripts]
-gmnn = 'gmnn_jax.cli.gmnn_app:app'
+apax = 'apax.cli.apax_app:app'
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.2.0"
@@ -39,6 +39,7 @@ matplotlib = "^3.6.2"
 pre-commit = "^2.20.0"
 isort = "^5.10.1"
 flake8 = "^5.0.4"
+sphinx-autodoc-typehints = "^1.21.8"
 
 [[tool.poetry.source]]
 name = "jax"
@@ -63,7 +64,7 @@ multi_line_output = 3
 
 [tool.coverage.run]
 branch = true
-source = ["gmnn_jax"]
+source = ["apax"]
 
 [tool.coverage.html]
 directory = "coverage_html_report"

@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from gmnn_jax.layers.scaling import PerElementScaleShiftFlax
+from apax.layers.scaling import PerElementScaleShiftFlax
 
 
 def test_per_element_scale_shift():

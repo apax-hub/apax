@@ -2,7 +2,7 @@ n_epochs: 2
 use_flax: False
 
 data:
-  model_name: gmnn_dummy
+  model_name: apax_dummy
   data_path: dummy_ds  # ds.extxyz #ethanol.traj # ds.extxyz #
 
   n_train: 4

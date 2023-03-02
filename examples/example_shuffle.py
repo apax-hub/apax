@@ -2,7 +2,7 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from gmnn_jax.data.input_pipeline import TFPipeline
+from apax.data.input_pipeline import TFPipeline
 
 num_data = 9
 atoms_list = []

@@ -1,6 +1,6 @@
 import numpy as np
 
-from gmnn_jax.train.eval import get_test_idxs
+from apax.train.eval import get_test_idxs
 
 
 def test_get_test_idxs():
