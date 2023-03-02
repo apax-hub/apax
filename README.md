@@ -1,8 +1,8 @@
-# `gmnn-jax`: Gaussian Moment Neural Networks in Jax!
+# `apax`: Gaussian Moment Neural Networks in Jax!
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/python/black)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-`gmnn-jax` is a high-performance, user-friendly implementation of the Gaussian Moment Neural Network model [2, 3].
+`apax` is a high-performance, user-friendly implementation of the Gaussian Moment Neural Network model [2, 3].
 
 
 ## Installation
@@ -13,16 +13,16 @@ You can install [Poetry](https://python-poetry.org/) via
 curl -sSL https://install.python-poetry.org | python3 -
 ```
 
-Now you can install GMNN in your project by running
+Now you can install papx in your project by running
 
 ```bash
-poetry add git+https://github.com/GM-NN/gmnn-jax.git
+poetry add git+https://github.com/GM-NN/apax.git
 ```
 
 As a developer, you can clone the repository and install it via
 
 ```bash
-git clone https://github.com/GM-NN/gmnn-jax.git <dest_dir>
+git clone https://github.com/GM-NN/apax.git <dest_dir>
 cd <dest_dir>
 poetry install
 ```
@@ -44,35 +44,35 @@ See the [Jax installation instructions](https://github.com/google/jax#installati
 
 ## Usage
 
-### Your first GMNN Model
+### Your first apax Model
 
 In order to train a model, you need to run
 
 ```python
-gmnn train config.yaml
+apax train config.yaml
 ```
 
 We offer some input file templates to get new users started as quickly as possible.
 Simply run the following commands and add the appropriate entries in the marked fields
 
 ```python
-gmnn template train # use --full for a template with all input options
+apax template train # use --full for a template with all input options
 ```
 
 Please refer to the documentation LINK for a detailed explanation of all parameters.
 
 ## Molecular Dynamics
 
-There are two ways in which `gmnn-jax` models can be used for molecular dynamics out of the box.
+There are two ways in which `apax` models can be used for molecular dynamics out of the box.
 High performance NVT simulations using JaxMD can be started with the CLI by running
 
 ```python
-gmnn md md_config.yaml
+apax md md_config.yaml
 ```
 
 A template command for MD input files is provided as well.
 
-The second way is to use the ASE calculator provided in `gmnn_jax.md.ase_calc`.
+The second way is to use the ASE calculator provided in `apax.md.ase_calc`.
 
 
 ## Authors

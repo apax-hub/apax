@@ -2,7 +2,7 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from gmnn_jax.data.statistics import energy_per_element
+from apax.data.statistics import energy_per_element
 
 
 def test_energy_per_element():

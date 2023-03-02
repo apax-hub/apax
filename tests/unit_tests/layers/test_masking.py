@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from gmnn_jax.layers.masking import mask_by_atom, mask_by_neighbor
+from apax.layers.masking import mask_by_atom, mask_by_neighbor
 
 
 def make_atomic_prediction(n_atoms, n_total):

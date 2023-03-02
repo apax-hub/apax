@@ -1,17 +1,17 @@
 Configuration
 =============
 
-:mod:`gmnn_jax.config`
+:mod:`apax.config`
 
 Training Configuration
 ----------------------
 
-.. autoclass:: gmnn_jax.config.train_config.Config
+.. autoclass:: apax.config.train_config.Config
     :members:
 
 
 Molecular Dynamics Configuration
 --------------------------------
 
-.. autoclass:: gmnn_jax.config.md_config.MDConfig
+.. autoclass:: apax.config.md_config.MDConfig
     :members:

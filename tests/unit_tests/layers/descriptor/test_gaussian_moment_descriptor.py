@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from gmnn_jax.layers.descriptor.gaussian_moment_descriptor import (
+from apax.layers.descriptor.gaussian_moment_descriptor import (
     GaussianMomentDescriptorFlax,
 )
 

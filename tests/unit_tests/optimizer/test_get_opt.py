@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import optax
 
-from gmnn_jax.optimizer import get_opt
+from apax.optimizer import get_opt
 
 
 def test_get_opt():

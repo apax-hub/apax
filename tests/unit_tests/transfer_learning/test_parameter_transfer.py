@@ -1,4 +1,4 @@
-from gmnn_jax.transfer_learning import param_transfer
+from apax.transfer_learning import param_transfer
 
 
 def test_param_transfer():

@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../../"))
 
-project = "gmnn-jax"
+project = "apax"
 copyright = "2023, Moritz Schäfer, Nico Segreto, Johannes Kästner"
 author = "Moritz Schäfer, Nico Segreto, Johannes Kästner"
 release = "0.1.0"

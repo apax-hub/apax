@@ -2,14 +2,14 @@
 
 
 JaxMD LINK is a high performance molecular dynamics engine built on top of Jax LINK.
-Out of the boy, gmnn-jax ships with a simple simulation loop using the Nose-Hoover-Chain thermostat implemented in JaxMD.
+Out of the boy, apax ships with a simple simulation loop using the Nose-Hoover-Chain thermostat implemented in JaxMD.
 Note that this tutorial assumes that you have a trained model at hand.
 See the previous tutorial LINK for further information.
 
 ## Configuration
 We can once again use the template command to give ourselves a quickstart.
 
-`gmnn template md --minimal`
+`apax template md --minimal`
 
 Open the config and specify the starting structure and simulation parameters.
 If you specify the data set file itself, the first structure of the data set is going to be used as the initial structure.
@@ -26,7 +26,7 @@ As with training configurations, we can use the `validate` command to ensure our
 
 The simulation can be started by running
 
-`gmnn md config.yaml md_config_minimal.yaml`
+`apax md config.yaml md_config_minimal.yaml`
 
 where `config.yaml` is the configuration file that was used to train the model.
 
@@ -47,15 +47,15 @@ Note that the code below is intended simply demonstration purposes and more soph
 
 PIC
 
-Congratulations, you have calculated the first observable from a trajectory generated with gmnn-jax and jaxMD!
+Congratulations, you have calculated the first observable from a trajectory generated with apax and jaxMD!
 
 
 
 ## Custom Simulation Loops
 
 More complex simulation loops are relatively easy to build yourself in JaxMD (see their colab notebooks for examples). 
-Trained GMNN models can of course be used as `energy_fn` in such custom simulations.
-If you have a suggestion for adding some MD feature or thermostat to the core of `gmnn-jax`, feel free to open up an issue on Github LINK.
+Trained apax models can of course be used as `energy_fn` in such custom simulations.
+If you have a suggestion for adding some MD feature or thermostat to the core of `apax`, feel free to open up an issue on Github LINK.
 
 
 
