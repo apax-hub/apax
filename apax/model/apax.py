@@ -27,7 +27,7 @@ MDModel = Tuple[partition.NeighborFn, Callable, Callable]
 log = logging.getLogger(__name__)
 
 
-class APAX(hk.Module):
+class GMNN(hk.Module):
     def __init__(
         self,
         units: List[int],
@@ -183,7 +183,7 @@ def get_md_model(
     @hk.without_apply_rng
     @hk.transform
     def model(R, neighbor):
-        apax = APAX(
+        apax = GMNN(
             nn,
             displacement,
             n_atoms=n_atoms,
@@ -228,7 +228,7 @@ def get_training_model(
     @hk.without_apply_rng
     @hk.transform
     def model(R, Z, idx, box):
-        apax = APAX(
+        apax = GMNN(
             nn,
             displacement_fn,
             n_atoms=n_atoms,
