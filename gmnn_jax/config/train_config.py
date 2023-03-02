@@ -92,6 +92,7 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
 class OptimizerConfig(BaseModel, frozen=True, extra=Extra.allow):
     """
     Configuration of the optimizer.
+    Learning rates of 0 will freeze the respective parameters.
 
     Parameters
     ----------
@@ -106,10 +107,10 @@ class OptimizerConfig(BaseModel, frozen=True, extra=Extra.allow):
     """
 
     opt_name: str = "adam"
-    emb_lr: PositiveFloat = 0.02
-    nn_lr: PositiveFloat = 0.03
-    scale_lr: PositiveFloat = 0.001
-    shift_lr: PositiveFloat = 0.05
+    emb_lr: NonNegativeFloat = 0.02
+    nn_lr: NonNegativeFloat = 0.03
+    scale_lr: NonNegativeFloat = 0.001
+    shift_lr: NonNegativeFloat = 0.05
     transition_begin: int = 0
     opt_kwargs: dict = {}
 
@@ -177,11 +178,16 @@ class CheckpointConfig(BaseModel, extra=Extra.forbid):
     """
     Checkpoint configuration.
 
+    Parameters
+    ----------
     ckpt_interval: Number of epochs between checkpoints.
+    base_model_checkpoint: Path to the folder containing a pre-trained model ckpt.
+    reset_layers: List of layer names for which the parameters will be reinitialized.
     """
 
     ckpt_interval: PositiveInt = 1
-    # TODO(Moritz): place future transfer learning start ckpt selection here
+    base_model_checkpoint: Optional[str] = None
+    reset_layers: List[str] = []
 
 
 class Config(BaseModel, frozen=True, extra=Extra.forbid):
@@ -206,6 +212,7 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
 
     n_epochs: PositiveInt = 100
     seed: int = 1
+    use_flax: bool = True
 
     data: DataConfig
     model: ModelConfig = ModelConfig()

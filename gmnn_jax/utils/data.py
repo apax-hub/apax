@@ -6,6 +6,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
+from jax_md import space
 
 log = logging.getLogger(__name__)
 
@@ -105,7 +106,7 @@ def convert_atoms_to_arrays(
         },
         "fixed": {
             "n_atoms": [],
-            "cell": [],
+            "box": [],
         },
     }
 
@@ -117,7 +118,7 @@ def convert_atoms_to_arrays(
             "energy": [],
         },
     }
-    DTYPE = np.float32
+    DTYPE = np.float64
 
     unit_dict = {
         "Ang": Ang,
@@ -127,16 +128,34 @@ def convert_atoms_to_arrays(
         "Hartree": Hartree,
         "kJ/mol": kJ / mol,
     }
+    box = np.array(atoms_list[0].cell.lengths())
+    pbc = np.all(box > 1e-6)
 
     for atoms in atoms_list:
-        inputs["ragged"]["positions"].append(
-            (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
-        )
+        box = np.diagonal(atoms.cell * unit_dict[pos_unit]).astype(DTYPE)
+        inputs["fixed"]["box"].append(box)
+
+        if pbc != np.all(box > 1e-6):
+            raise ValueError(
+                "Apax does not support dataset periodic and non periodic structures"
+            )
+
+        if np.all(box < 1e-6):
+            inputs["ragged"]["positions"].append(
+                (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+            )
+        else:
+            inv_box = np.divide(1, box, where=box != 0)
+            inputs["ragged"]["positions"].append(
+                np.array(
+                    space.transform(
+                        inv_box, (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+                    )
+                )
+            )
+
         inputs["ragged"]["numbers"].append(atoms.numbers)
         inputs["fixed"]["n_atoms"].append(len(atoms))
-        if atoms.pbc.any():
-            cell = np.array(atoms.cell).diagonal().astype(DTYPE)
-            inputs["fixed"]["cell"].append(list(cell))
 
         for key, val in atoms.calc.results.items():
             if key == "forces":

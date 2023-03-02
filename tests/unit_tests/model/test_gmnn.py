@@ -4,6 +4,12 @@ import numpy as np
 from jax_md import space
 
 from gmnn_jax.model import get_training_model
+from gmnn_jax.model.gmnn import (
+    AtomisticModel,
+    EnergyForceModel,
+    EnergyModel,
+    NeighborSpoof,
+)
 
 
 def test_gmnn_variable_size():
@@ -23,6 +29,8 @@ def test_gmnn_variable_size():
             [0, 0, 1, 1, 2, 2],
         ]
     )
+
+    box = np.array([0, 0, 0])
 
     R_padded = np.concatenate([R, np.zeros((1, 3))], axis=0)
     Z_padded = np.concatenate([Z, [0]])
@@ -53,10 +61,103 @@ def test_gmnn_variable_size():
 
     rng_key = jax.random.PRNGKey(1)
 
-    params = gmnn.init(rng_key, R, Z, idx)
+    params = gmnn.init(rng_key, R, Z, idx, box)
 
-    results = gmnn.apply(params, R, Z, idx)
-    results_padded = gmnn_padded.apply(params, R_padded, Z_padded, idx_padded)
+    results = gmnn.apply(params, R, Z, idx, box)
+    results_padded = gmnn_padded.apply(params, R_padded, Z_padded, idx_padded, box)
 
     assert (results["energy"] - results_padded["energy"]) < 1e-6
     assert np.allclose(results["forces"], results_padded["forces"][:-1, :])
+
+
+def test_atomistic_model():
+    key = jax.random.PRNGKey(0)
+
+    R = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
+    )
+
+    Z = np.array([1, 2, 2])
+
+    idx = np.array(
+        [
+            [1, 2, 0, 2, 0, 1],
+            [0, 0, 1, 1, 2, 2],
+        ]
+    )
+    neighbor = NeighborSpoof(idx=idx)
+
+    box = np.array([0.0, 0.0, 0.0])
+
+    model = AtomisticModel(mask_atoms=False)
+
+    params = model.init(key, R, Z, neighbor, box)
+    result = model.apply(params, R, Z, neighbor, box)
+
+    assert result.shape == (3, 1)
+
+
+def test_energy_model():
+    key = jax.random.PRNGKey(0)
+
+    R = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
+    )
+
+    Z = np.array([1, 2, 2])
+
+    idx = np.array(
+        [
+            [1, 2, 0, 2, 0, 1],
+            [0, 0, 1, 1, 2, 2],
+        ]
+    )
+    neighbor = NeighborSpoof(idx=idx)
+
+    box = np.array([0.0, 0.0, 0.0])
+
+    model = EnergyModel()
+
+    params = model.init(key, R, Z, neighbor, box)
+    result = model.apply(params, R, Z, neighbor, box)
+
+    assert result.shape == ()
+
+
+def test_energy_force_model():
+    key = jax.random.PRNGKey(0)
+
+    R = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
+    )
+
+    Z = np.array([1, 2, 2])
+
+    idx = np.array(
+        [
+            [1, 2, 0, 2, 0, 1],
+            [0, 0, 1, 1, 2, 2],
+        ]
+    )
+
+    box = np.array([0.0, 0.0, 0.0])
+
+    model = EnergyForceModel()
+
+    params = model.init(key, R, Z, idx, box)
+    result = model.apply(params, R, Z, idx, box)
+
+    assert result["energy"].shape == ()
+    assert result["forces"].shape == (3, 3)

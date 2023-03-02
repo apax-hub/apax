@@ -12,21 +12,27 @@ log = logging.getLogger(__name__)
 
 
 def initialize_nbr_displacement_fns(atoms, cutoff):
+    # frac coord have to be managed in the config oder
+    # dependent of the dataset dependent of the performence
     default_box = 100
 
-    box = jnp.asarray(atoms.get_cell().lengths())
-
+    box = jnp.asarray(atoms.cell.lengths())
     if np.all(box < 1e-6):
         displacement_fn, _ = space.free()
         box = default_box
+        frac_coords = False
     else:
-        displacement_fn, _ = space.periodic(box)
+        frac_coords = True
+        displacement_fn, _ = space.periodic_general(
+            box, fractional_coordinates=frac_coords
+        )
 
     neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=cutoff,
         format=partition.Sparse,
+        fractional_coordinates=frac_coords,
     )
 
     return displacement_fn, neighbor_fn
@@ -119,8 +125,10 @@ def create_dict_dataset(
         neighbor_fn,
         inputs["ragged"]["positions"],
         inputs["fixed"]["n_atoms"],
+        box=inputs["fixed"]["box"],
         disable_pbar=disable_pbar,
     )
+
     inputs["ragged"]["idx"] = [np.array(i) for i in idx]
     return inputs, labels
 

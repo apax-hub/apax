@@ -17,6 +17,7 @@ from gmnn_jax.data.input_pipeline import (
     initialize_nbr_displacement_fns,
 )
 from gmnn_jax.data.statistics import energy_per_element
+from gmnn_jax.model import ModelBuilder
 from gmnn_jax.model.gmnn import get_training_model
 from gmnn_jax.train.metrics import initialize_metrics
 from gmnn_jax.train.run import (
@@ -45,6 +46,7 @@ def load_test_data(
     config, model_version_path, eval_path, n_test=-1
 ):  # TODO double code run.py in progress
     log.info("Running Input Pipeline")
+    os.makedirs(eval_path, exist_ok=True)
     if config.data.data_path is not None:
         log.info(f"Read data file {config.data.data_path}")
         atoms_list, label_dict = load_data(config.data.data_path)
@@ -56,7 +58,6 @@ def load_test_data(
 
         test_idxs = get_test_idxs(atoms_list, used_idxs, n_test)
 
-        os.makedirs(eval_path, exist_ok=True)
         np.savez(
             os.path.join(eval_path, "test_idxs"),
             test_idxs=test_idxs,
@@ -68,6 +69,9 @@ def load_test_data(
     elif config.data.test_data_path is not None:
         log.info(f"Read test data file {config.data.test_data_path}")
         test_atoms_list, test_label_dict = load_data(config.data.test_data_path)
+        test_atoms_list = test_atoms_list[:n_test]
+        for key, val in test_label_dict.items():
+            test_label_dict[key] = val[:n_test]
     else:
         raise ValueError("input data path/paths not defined")
 
@@ -76,17 +80,17 @@ def load_test_data(
 
 def initialize_test_dataset(test_atoms_list, test_label_dict, config):
     ds_stats = energy_per_element(
-        test_atoms_list, lambd=config.data.energy_regularisation
+        atoms_list=test_atoms_list, lambd=config.data.energy_regularisation
     )
     displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(
-        test_atoms_list[0], config.model.r_max
+        atoms=test_atoms_list[0], cutoff=config.model.r_max
     )
     ds_stats.displacement_fn = displacement_fn
 
     test_inputs, test_labels = create_dict_dataset(
-        test_atoms_list,
-        neighbor_fn,
-        test_label_dict,
+        atoms_list=test_atoms_list,
+        neighbor_fn=neighbor_fn,
+        external_labels=test_label_dict,
         disable_pbar=config.progress_bar.disable_nl_pbar,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
@@ -96,10 +100,10 @@ def initialize_test_dataset(test_atoms_list, test_label_dict, config):
     ds_stats.n_atoms = max_atoms
 
     test_ds = TFPipeline(
-        test_inputs,
-        test_labels,
-        1,
-        config.data.batch_size,
+        inputs=test_inputs,
+        labels=test_labels,
+        n_epoch=1,
+        batch_size=config.data.batch_size,
         max_atoms=max_atoms,
         max_nbrs=max_nbrs,
         buffer_size=config.data.shuffle_buffer_size,
@@ -185,19 +189,31 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     )
 
     test_ds, ds_stats = initialize_test_dataset(test_atoms_list, test_label_dict, config)
-
+    init_input = test_ds.init_input()
+    init_box = np.array(init_input["box"][0])
     model_dict = config.model.get_dict()
 
-    gmnn = get_training_model(
-        n_atoms=ds_stats.n_atoms,
-        n_species=ds_stats.n_species,
-        displacement_fn=ds_stats.displacement_fn,
-        elemental_energies_mean=ds_stats.elemental_shift,
-        elemental_energies_std=ds_stats.elemental_scale,
-        **model_dict,
-    )
+    if config.use_flax:
+        builder = ModelBuilder(config.model.get_dict(), n_species=ds_stats.n_species)
+        model = builder.build_energy_force_model(
+            displacement_fn=ds_stats.displacement_fn,
+            scale=ds_stats.elemental_scale,
+            shift=ds_stats.elemental_shift,
+            apply_mask=True,
+            init_box=init_box,
+        )
+    else:
+        model = get_training_model(
+            n_atoms=ds_stats.n_atoms,
+            n_species=ds_stats.n_species,
+            displacement_fn=ds_stats.displacement_fn,
+            elemental_energies_mean=ds_stats.elemental_shift,
+            elemental_energies_std=ds_stats.elemental_scale,
+            init_box=init_box,
+            **model_dict,
+        )
 
-    model = jax.vmap(gmnn.apply, in_axes=(None, 0, 0, 0))
+    model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0))
 
     params = load_params(model_version_path)
 

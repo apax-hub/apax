@@ -9,7 +9,7 @@ def make_atomic_prediction(n_atoms, n_total):
     n_padding = n_total - n_atoms
 
     Z = jnp.concatenate([np.ones(n_atoms), np.zeros(n_padding)])
-    atomic_prediction = jnp.ones((1, n_total))
+    atomic_prediction = jnp.ones((n_total, 1))
 
     return atomic_prediction, Z
 
@@ -42,12 +42,10 @@ def test_mask_by_atom():
 
     preds = jnp.stack(preds, axis=0)
     Zs = jnp.stack(Zs, axis=0)
-
-    batched_mask_fn = jax.vmap(mask_by_atom)
-
     assert np.all((np.sum(preds, axis=2) - n_total) < 1e-6)
 
-    masked_preds = batched_mask_fn(preds, Zs)
+    batched_mask_fn = jax.vmap(mask_by_atom, 0, 0)
+    masked_preds = batched_mask_fn(preds[0][None, ...], Zs[0][None, ...])
 
     assert np.all((np.sum(masked_preds, axis=(1, 2)) - n_atoms) < 1e-6)
 

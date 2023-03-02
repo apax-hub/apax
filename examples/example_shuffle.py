@@ -29,9 +29,7 @@ for _ in range(num_data):
     atoms.calc = SinglePointCalculator(atoms, **results)
     atoms_list.append(atoms)
 
-ds = TFPipeline(
-    cutoff=6.0, batch_size=batch_size, atoms_list=atoms_list, n_epoch=n_epoch
-)
+ds = TFPipeline(cutoff=6.0, batch_size=batch_size, atoms_list=atoms_list, n_epoch=n_epoch)
 batch_ds = ds.shuffle_and_batch()
 
 step_per_epoch = ds.steps_per_epoch()
