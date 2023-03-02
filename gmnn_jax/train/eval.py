@@ -139,7 +139,7 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks):
             inputs, labels = next(batch_test_ds)
 
             test_metrics, batch_loss = test_step_fn(params, inputs, labels, test_metrics)
-            
+
             epoch_loss["test_loss"] += batch_loss
             batch_pbar.set_postfix(test_loss=epoch_loss["test_loss"] / batch_idx)
             batch_pbar.update()
