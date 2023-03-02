@@ -15,14 +15,14 @@ Now you can add GM-NN to your project by running
 .. highlight:: bash
 .. code-block:: bash
 
-    poetry add git+https://github.com/GM-NN/apax.git
+    poetry add git+https://github.com/GM-NN/gmnn-jax.git
 
 As a developer, you first need to clone the repository and install it via
 
 .. highlight:: bash
 .. code-block:: bash
 
-    git clone https://github.com/GM-NN/apax.git <dest_dir>
+    git clone https://github.com/GM-NN/gmnn-jax.git <dest_dir>
     cd <dest_dir>
     poetry install
 
