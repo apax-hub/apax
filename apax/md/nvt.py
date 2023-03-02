@@ -213,7 +213,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         Z = jnp.asarray(atomic_numbers)
         n_species = int(np.max(Z) + 1)
         builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
-        apax = builder.build_energy_model(
+        model = builder.build_energy_model(
             displacement_fn=displacement_fn, apply_mask=False, init_box=np.array(box)
         )
         neighbor_fn = partition.neighbor_list(
@@ -226,7 +226,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
             disable_cell_list=True,
         )
     else:
-        neighbor_fn, apax = get_md_model(
+        neighbor_fn, model = get_md_model(
             atomic_numbers=atomic_numbers,
             displacement_fn=displacement_fn,
             displacement=displacement_fn,
@@ -245,9 +245,9 @@ def md_setup(model_config: Config, md_config: MDConfig):
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
 
     if model_config.use_flax:
-        energy_fn = partial(apax.apply, params, Z=Z, box=box)
+        energy_fn = partial(model.apply, params, Z=Z, box=box)
     else:
-        energy_fn = partial(apax.apply, params)
+        energy_fn = partial(model.apply, params)
 
     return R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn
 

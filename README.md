@@ -13,7 +13,7 @@ You can install [Poetry](https://python-poetry.org/) via
 curl -sSL https://install.python-poetry.org | python3 -
 ```
 
-Now you can install papx in your project by running
+Now you can install apax in your project by running
 
 ```bash
 poetry add git+https://github.com/GM-NN/apax.git
@@ -78,7 +78,7 @@ The second way is to use the ASE calculator provided in `apax.md.ase_calc`.
 ## Authors
 - Moritz René Schäfer
 - Nico Segreto
-- Johannes Kästner
+- Supervised by Johannes Kästner
 
 ## References
 * [1] ZENODO DOI PLACEHOLDER

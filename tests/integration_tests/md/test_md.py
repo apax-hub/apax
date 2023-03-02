@@ -13,7 +13,7 @@ from jax_md import partition, space
 from apax.config import Config, MDConfig
 from apax.md import run_md
 from apax.md.ase_calc import ASECalculator
-from apax.model.apax import get_training_model
+from apax.model.gmnn import get_training_model
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 

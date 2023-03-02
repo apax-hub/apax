@@ -228,7 +228,7 @@ def get_training_model(
     @hk.without_apply_rng
     @hk.transform
     def model(R, Z, idx, box):
-        apax = GMNN(
+        gmnn_model = GMNN(
             nn,
             displacement_fn,
             n_atoms=n_atoms,
@@ -248,7 +248,7 @@ def get_training_model(
         neighbor = NeighborSpoof(idx)
 
         def energy_fn(R, Z, neighbor, box):
-            out = apax(R, Z, neighbor, box)
+            out = gmnn_model(R, Z, neighbor, box)
             # mask = partition.neighbor_list_mask(neighbor)
             # out = out * mask
             energy = high_precision_sum(out)

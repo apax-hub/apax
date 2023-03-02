@@ -18,7 +18,7 @@ from apax.data.input_pipeline import (
 )
 from apax.data.statistics import energy_per_element
 from apax.model import ModelBuilder
-from apax.model.apax import get_training_model
+from apax.model.gmnn import get_training_model
 from apax.train.metrics import initialize_metrics
 from apax.train.run import find_largest_system, initialize_callbacks, initialize_loss_fn
 from apax.train.trainer import make_step_fns

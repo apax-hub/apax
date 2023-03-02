@@ -38,7 +38,7 @@ def train(
     log_file: str = typer.Option("train.log", help="Specifies the name of the log file"),
 ):
     """
-    Starts the training of a apax model with parameters provided by a configuration file.
+    Starts the training of a model with parameters provided by a configuration file.
     """
     from apax.train.run import run
 

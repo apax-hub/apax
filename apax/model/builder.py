@@ -7,7 +7,7 @@ from apax.layers.descriptor.gaussian_moment_descriptor import (
 )
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShiftFlax
-from apax.model.apax import AtomisticModel, EnergyForceModel, EnergyModel
+from apax.model.gmnn import AtomisticModel, EnergyForceModel, EnergyModel
 
 
 class ModelBuilder:

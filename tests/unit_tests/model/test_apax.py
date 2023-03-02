@@ -4,7 +4,7 @@ import numpy as np
 from jax_md import space
 
 from apax.model import get_training_model
-from apax.model.apax import AtomisticModel, EnergyForceModel, EnergyModel, NeighborSpoof
+from apax.model.gmnn import AtomisticModel, EnergyForceModel, EnergyModel, NeighborSpoof
 
 
 def test_apax_variable_size():
