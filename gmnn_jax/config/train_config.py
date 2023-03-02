@@ -212,7 +212,7 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
 
     n_epochs: PositiveInt = 100
     seed: int = 1
-    use_flax: bool = False
+    use_flax: bool = True
 
     data: DataConfig
     model: ModelConfig = ModelConfig()

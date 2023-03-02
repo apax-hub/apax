@@ -18,7 +18,7 @@ from tqdm import trange
 
 from gmnn_jax.config import Config, MDConfig
 from gmnn_jax.md.md_checkpoint import load_md_state, look_for_checkpoints
-from gmnn_jax.model.gmnn import ModelBuilder, get_md_model
+from gmnn_jax.model import ModelBuilder, get_md_model
 
 log = logging.getLogger(__name__)
 

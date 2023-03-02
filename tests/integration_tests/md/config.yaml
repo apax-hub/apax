@@ -1,4 +1,5 @@
 n_epochs: 2
+use_flax: False
 
 data:
   model_name: gmnn_dummy
