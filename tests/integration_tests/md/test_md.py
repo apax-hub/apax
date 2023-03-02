@@ -43,32 +43,38 @@ def test_run_md(get_tmp_path):
         ]
     )
     atomic_numbers = np.array([1, 1, 8])
-    cell = np.diag([cell_size] * 3)
-    atoms = Atoms(atomic_numbers, positions, cell=cell)
+    box = np.diag([cell_size] * 3)
+
+    atoms = Atoms(atomic_numbers, positions, cell=box)
     write(md_config.initial_structure, atoms)
 
     n_atoms = 3
     n_species = int(np.max(atomic_numbers) + 1)
 
-    displacement_fn, _ = space.periodic(cell_size)
+    displacement_fn, _ = space.periodic_general(cell_size, fractional_coordinates=False)
 
     neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
-        box=10.0,
+        box=box,
         r_cutoff=model_config.model.r_max,
         format=partition.Sparse,
+        fractional_coordinates=False,
     )
-    neighbors = neighbor_fn.allocate(positions)
+    neighbors = neighbor_fn.allocate(jnp.asarray(positions, dtype=jnp.float32))
 
     gmnn = get_training_model(
         n_atoms=n_atoms,
         n_species=n_species,
         displacement_fn=displacement_fn,
-        **model_config.model.dict()
+        **model_config.model.get_dict()
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
     params = gmnn.init(
-        rng_key, jnp.asarray(positions), jnp.asarray(atomic_numbers), neighbors.idx
+        rng_key,
+        jnp.asarray(positions, dtype=jnp.float32),
+        jnp.asarray(atomic_numbers),
+        neighbors.idx,
+        box,
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = os.path.join(
@@ -108,32 +114,37 @@ def test_ase_calc(get_tmp_path):
         ]
     )
     atomic_numbers = np.array([1, 1, 8])
-    cell = np.diag([cell_size] * 3)
-    atoms = Atoms(atomic_numbers, positions, cell=cell)
+    box = np.diag([cell_size] * 3)
+    atoms = Atoms(atomic_numbers, positions, cell=box)
     write(initial_structure_path.as_posix(), atoms)
 
     n_atoms = 3
     n_species = int(np.max(atomic_numbers) + 1)
 
-    displacement_fn, _ = space.periodic(cell_size)
+    displacement_fn, _ = space.periodic_general(cell_size, fractional_coordinates=False)
 
     neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
-        box=10.0,
+        box=box,
         r_cutoff=model_config.model.r_max,
         format=partition.Sparse,
+        fractional_coordinates=False,
     )
-    neighbors = neighbor_fn.allocate(positions)
+    neighbors = neighbor_fn.allocate(jnp.asarray(positions, dtype=jnp.float32))
 
     gmnn = get_training_model(
         n_atoms=n_atoms,
         n_species=n_species,
         displacement_fn=displacement_fn,
-        **model_config.model.dict()
+        **model_config.model.get_dict()
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
     params = gmnn.init(
-        rng_key, jnp.asarray(positions), jnp.asarray(atomic_numbers), neighbors.idx
+        rng_key,
+        jnp.asarray(positions, dtype=jnp.float32),
+        jnp.asarray(atomic_numbers),
+        neighbors.idx,
+        box,
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = os.path.join(
@@ -147,7 +158,7 @@ def test_ase_calc(get_tmp_path):
     )
 
     atoms = read(initial_structure_path.as_posix())
-    calc = ASECalculator(model_config_dict["data"]["model_path"])
+    calc = ASECalculator(model_config_dict["data"]["model_path"], use_flax=False)
 
     atoms.calc = calc
     E = atoms.get_potential_energy()

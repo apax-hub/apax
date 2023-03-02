@@ -3,7 +3,10 @@ from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
+from ase import Atoms
 from ase.io import read
+from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
+from jax_md import space
 
 log = logging.getLogger(__name__)
 
@@ -74,8 +77,116 @@ def load_data(data_path):
     return atoms_list, external_labels
 
 
-def split_list(data_list, external_labels, length1, length2):
-    """Schuffles and splits a list in two resulting lists
+def convert_atoms_to_arrays(
+    atoms_list: list[Atoms],
+    pos_unit: str = "Ang",
+    energy_unit: str = "eV",
+) -> tuple[dict[str, dict[str, list]], dict[str, dict[str, list]]]:
+    """Converts an list of ASE atoms to two dicts where all inputs and labels
+    are sorted by there shape (ragged/fixed), and proberty. Units are
+    adjusted if ASE compatible and provided in the inputpipeline.
+
+
+    Parameters
+    ----------
+    atoms_list :
+        List of all structures. Enties are ASE atoms objects.
+
+    Returns
+    -------
+    inputs :
+        Inputs are untrainable system-determining properties.
+    labels :
+        Labels are trainable system properties.
+    """
+    inputs = {
+        "ragged": {
+            "positions": [],
+            "numbers": [],
+        },
+        "fixed": {
+            "n_atoms": [],
+            "box": [],
+        },
+    }
+
+    labels = {
+        "ragged": {
+            "forces": [],
+        },
+        "fixed": {
+            "energy": [],
+        },
+    }
+    DTYPE = np.float64
+
+    unit_dict = {
+        "Ang": Ang,
+        "Bohr": Bohr,
+        "eV": eV,
+        "kcal/mol": kcal / mol,
+        "Hartree": Hartree,
+        "kJ/mol": kJ / mol,
+    }
+    box = np.array(atoms_list[0].cell.lengths())
+    pbc = np.all(box > 1e-6)
+
+    for atoms in atoms_list:
+        box = np.diagonal(atoms.cell * unit_dict[pos_unit]).astype(DTYPE)
+        inputs["fixed"]["box"].append(box)
+
+        if pbc != np.all(box > 1e-6):
+            raise ValueError(
+                "Apax does not support dataset periodic and non periodic structures"
+            )
+
+        if np.all(box < 1e-6):
+            inputs["ragged"]["positions"].append(
+                (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+            )
+        else:
+            inv_box = np.divide(1, box, where=box != 0)
+            inputs["ragged"]["positions"].append(
+                np.array(
+                    space.transform(
+                        inv_box, (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+                    )
+                )
+            )
+
+        inputs["ragged"]["numbers"].append(atoms.numbers)
+        inputs["fixed"]["n_atoms"].append(len(atoms))
+
+        for key, val in atoms.calc.results.items():
+            if key == "forces":
+                labels["ragged"][key].append(
+                    val * unit_dict[energy_unit] / unit_dict[pos_unit]
+                )
+            elif key == "energy":
+                labels["fixed"][key].append(val * unit_dict[energy_unit])
+
+    inputs["ragged"] = {
+        key: val for key, val in inputs["ragged"].items() if len(val) != 0
+    }
+    inputs["fixed"] = {key: val for key, val in inputs["fixed"].items() if len(val) != 0}
+    labels["ragged"] = {
+        key: val for key, val in labels["ragged"].items() if len(val) != 0
+    }
+    labels["fixed"] = {key: val for key, val in labels["fixed"].items() if len(val) != 0}
+    return inputs, labels
+
+
+def split_idxs(atoms_list, n_train, n_valid):
+    idxs = np.arange(len(atoms_list))
+    np.random.shuffle(idxs)
+    train_idxs = idxs[:n_train]
+    val_idxs = idxs[n_train : n_train + n_valid]
+
+    return train_idxs, val_idxs
+
+
+def split_atoms(atoms_list, train_idxs, val_idxs=None):
+    """Shuffles and splits a list in two resulting lists
     of the length length1 and length2.
 
     Parameters
@@ -94,31 +205,30 @@ def split_list(data_list, external_labels, length1, length2):
     splitted_list2
         List of random structures from atoms_list of the length length2.
     """
-    sp_label_dict1, sp_label_dict2 = ({}, {})
-    if external_labels:
-        idx = np.arrange(len(data_list))
-        np.random.shuffle(idx)
-        idx1 = idx[:length1]
-        idx2 = idx[length1 : length1 + length2]
+    train_atoms_list = [atoms_list[i] for i in train_idxs]
 
-        sp_data_list1 = [data_list[i] for i in idx1]
-        sp_data_list2 = [data_list[i] for i in idx2]
-
-        for shape, labels in external_labels.items():
-            sp_label_dict1.update({shape: {}})
-            sp_label_dict2.update({shape: {}})
-            for label, vals in labels.items():
-                if len(data_list) == len(vals):
-                    sp_label_dict1[shape].update({label: vals[idx1]})
-                    sp_label_dict2[shape].update({label: vals[idx2]})
-                else:
-                    raise ValueError(
-                        "number of external labels is not metching the number of data"
-                        f" (strucktures) {len(data_list)} != {len(vals)}."
-                    )
+    if val_idxs is not None:
+        val_atoms_list = [atoms_list[i] for i in val_idxs]
     else:
-        np.random.shuffle(data_list)
-        sp_data_list1 = data_list[:length1]
-        sp_data_list2 = data_list[length1 : length1 + length2]
+        val_atoms_list = []
 
-    return sp_data_list1, sp_data_list2, sp_label_dict1, sp_label_dict2
+    return train_atoms_list, val_atoms_list
+
+
+def split_label(external_labels, train_idxs, val_idxs=None):
+    train_label_dict, val_label_dict = ({}, {})
+
+    if val_idxs is not None:
+        for shape, labels in external_labels.items():
+            train_label_dict.update({shape: {}})
+            val_label_dict.update({shape: {}})
+            for label, vals in labels.items():
+                train_label_dict[shape].update({label: vals[train_idxs]})
+                val_label_dict[shape].update({label: vals[val_idxs]})
+    else:
+        for shape, labels in external_labels.items():
+            train_label_dict.update({shape: {}})
+            for label, vals in labels.items():
+                train_label_dict[shape].update({label: vals[train_idxs]})
+
+    return train_label_dict, val_label_dict

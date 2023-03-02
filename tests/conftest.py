@@ -44,7 +44,10 @@ def example_atoms(num_data: int, pbc: bool, calc_results: List[str]) -> Atoms:
         # lattice = random.choice(["free", "sc", "fcc", "bcc"])
         # at the moment we can only work with cubic cells
         lattice = "sc"
-        additional_data["cell"] = create_cell(cell_const, lattice)
+        if pbc:
+            additional_data["cell"] = create_cell(cell_const, lattice)
+        else:
+            additional_data["cell"] = [0, 0, 0]
 
         result_shapes = {
             "energy": (np.random.rand() - 5.0) * 10_000,

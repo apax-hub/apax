@@ -1,4 +1,5 @@
 n_epochs: 2
+use_flax: False
 
 data:
   model_name: gmnn_dummy
@@ -14,6 +15,9 @@ model:
   nn: [32,32]
   n_basis: 5
   n_radial: 3
+  descriptor_dtype: fp64
+  readout_dtype: fp32
+  scale_shift_dtype: fp64
 
 metrics:
   - name: energy

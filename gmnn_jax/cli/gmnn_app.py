@@ -1,4 +1,5 @@
 import importlib.metadata
+import importlib.resources as pkg_resources
 from pathlib import Path
 
 import typer
@@ -6,13 +7,26 @@ import yaml
 from pydantic import ValidationError
 from rich.console import Console
 
+from gmnn_jax.cli import templates
+
 console = Console(highlight=False)
-app = typer.Typer(context_settings={"help_option_names": ["-h", "--help"]})
+
+app = typer.Typer(
+    context_settings={"help_option_names": ["-h", "--help"]},
+    pretty_exceptions_show_locals=False,
+)
 validate_app = typer.Typer(
+    pretty_exceptions_show_locals=False,
     context_settings={"help_option_names": ["-h", "--help"]},
     help="Validate training or MD config files.",
 )
+template_app = typer.Typer(
+    pretty_exceptions_show_locals=False,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    help="Create configuration file templates.",
+)
 app.add_typer(validate_app, name="validate")
+app.add_typer(template_app, name="template")
 
 
 @app.command()
@@ -26,14 +40,6 @@ def train(
     """
     Starts the training of a GMNN model with parameters provided by a configuration file.
     """
-    import tensorflow as tf
-
-    tf.config.experimental.set_visible_devices([], "GPU")
-
-    from jax.config import config
-
-    config.update("jax_enable_x64", True)
-
     from gmnn_jax.train.run import run
 
     run(train_config_path, log_file, log_level)
@@ -46,7 +52,7 @@ def md(
     ),
     md_config_path: Path = typer.Argument(..., help="MD configuration YAML file."),
     log_level: str = typer.Option("error", help="Sets the training logging level."),
-    log_file: str = typer.Option("train.log", help="Specifies the name of the log file"),
+    log_file: str = typer.Option("md.log", help="Specifies the name of the log file"),
 ):
     """
     Starts performing a molecular dynamics simulation (currently only NHC thermostat)
@@ -55,6 +61,28 @@ def md(
     from gmnn_jax.md import run_md
 
     run_md(train_config_path, md_config_path, log_file, log_level)
+
+
+@app.command()
+def eval(
+    train_config_path: Path = typer.Argument(
+        ..., help="Configuration YAML file that was used to train a model."
+    ),
+    n_data: int = typer.Option(
+        -1,
+        help=(
+            "Number of test structures. (All structures are selected by not specifying"
+            " it) Gets ignored if test_data_path is specified"
+        ),
+    ),
+):
+    """
+    Starts performing the evaluation of the test dataset
+    with parameters provided by a configuration file.
+    """
+    from gmnn_jax.train.eval import eval_model
+
+    eval_model(train_config_path, n_data)
 
 
 @app.command()
@@ -89,6 +117,7 @@ def validate_train_config(
     except ValidationError as e:
         print(e)
         console.print("Configuration Invalid!", style="red3")
+        raise typer.Exit(code=1)
     else:
         console.print("Success!", style="green3")
         console.print(f"{config_path} is a valid training config.")
@@ -117,6 +146,7 @@ def validate_md_config(
     except ValidationError as e:
         print(e)
         console.print("Configuration Invalid!", style="red3")
+        raise typer.Exit(code=1)
     else:
         console.print("Success!", style="green3")
         console.print(f"{config_path} is a valid MD config.")
@@ -156,6 +186,7 @@ def visualize_model(
     except ValidationError as e:
         print(e)
         console.print("Configuration Invalid!", style="red3")
+        raise typer.Exit(code=1)
 
     displacement_fn, _ = space.free()
     R, Z, idx = make_minimal_input()
@@ -164,9 +195,50 @@ def visualize_model(
         n_atoms=2,
         n_species=10,
         displacement_fn=displacement_fn,
-        **config.model.dict(),
+        **config.model.get_dict(),
     )
     model_tabular(gmnn, R, Z, idx)
+
+
+@template_app.command("train")
+def template_train_config(
+    full: bool = typer.Option(False, help="Use all input options."),
+):
+    """
+    Creates a training input template in the current working directory.
+    """
+    if full:
+        template_file = "train_config_full.yaml"
+        config_path = "config_full.yaml"
+    else:
+        template_file = "train_config_minimal.yaml"
+        config_path = "config.yaml"
+
+    template_content = pkg_resources.read_text(templates, template_file)
+
+    if Path(config_path).is_file():
+        console.print("There is already a config file in the working directory.")
+    else:
+        with open(config_path, "w") as config:
+            config.write(template_content)
+
+
+@template_app.command("md")
+def template_md_config():
+    """
+    Creates a training input template in the current working directory.
+    """
+
+    template_file = "md_config_minimal.yaml"
+    config_path = "md_config.yaml"
+
+    template_content = pkg_resources.read_text(templates, template_file)
+
+    if Path(config_path).is_file():
+        console.print("There is already a config file in the working directory.")
+    else:
+        with open(config_path, "w") as config:
+            config.write(template_content)
 
 
 logo = """

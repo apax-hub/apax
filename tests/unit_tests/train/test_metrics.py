@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 
+from gmnn_jax.config.train_config import MetricsConfig
 from gmnn_jax.train.metrics import cosine_sim, initialize_metrics
 
 
@@ -52,9 +53,11 @@ def test_initialize_metrics_collection():
             ]
         ),
     }
-    keys = ["energy", "energy", "forces", "forces"]
-    reductions = ["mae", "rmse", "mae", "mse"]
-    Metrics = initialize_metrics(keys, reductions)
+    metrics_list = [
+        MetricsConfig(name="energy", reductions=["mae", "rmse"]),
+        MetricsConfig(name="forces", reductions=["mae", "mse"]),
+    ]
+    Metrics = initialize_metrics(metrics_list)
     batch_metrics = Metrics.single_from_model_output(label=label, prediction=prediction)
 
     epoch_metrics = batch_metrics.compute()
