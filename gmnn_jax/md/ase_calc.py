@@ -15,7 +15,7 @@ from gmnn_jax.md.md_checkpoint import look_for_checkpoints
 from gmnn_jax.model.gmnn import ModelBuilder, get_md_model
 
 
-def build_energy_neighbor_fns(atoms, config, params, dr_threshold, use_flax=False):
+def build_energy_neighbor_fns(atoms, config, params, dr_threshold, use_flax=True):
     atomic_numbers = jnp.asarray(atoms.numbers)
     box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float32)
 
@@ -61,7 +61,7 @@ class ASECalculator(Calculator):
     implemented_properties = ["energy", "forces"]
 
     def __init__(
-        self, model_dir: Path, dr_threshold: float = 0.5, use_flax=False, **kwargs
+        self, model_dir: Path, dr_threshold: float = 0.5, use_flax=True, **kwargs
     ):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
