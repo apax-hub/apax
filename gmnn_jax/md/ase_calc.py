@@ -12,7 +12,7 @@ from jax_md import partition, space
 
 from gmnn_jax.config.train_config import Config
 from gmnn_jax.md.md_checkpoint import look_for_checkpoints
-from gmnn_jax.model.gmnn import ModelBuilder, get_md_model
+from gmnn_jax.model import ModelBuilder, get_md_model
 
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold, use_flax=True):

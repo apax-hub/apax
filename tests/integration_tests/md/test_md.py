@@ -158,7 +158,7 @@ def test_ase_calc(get_tmp_path):
     )
 
     atoms = read(initial_structure_path.as_posix())
-    calc = ASECalculator(model_config_dict["data"]["model_path"])
+    calc = ASECalculator(model_config_dict["data"]["model_path"], use_flax=False)
 
     atoms.calc = calc
     E = atoms.get_potential_energy()

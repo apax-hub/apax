@@ -17,7 +17,8 @@ from gmnn_jax.data.input_pipeline import (
     initialize_nbr_displacement_fns,
 )
 from gmnn_jax.data.statistics import energy_per_element
-from gmnn_jax.model.gmnn import ModelBuilder, get_training_model
+from gmnn_jax.model import ModelBuilder
+from gmnn_jax.model.gmnn import get_training_model
 from gmnn_jax.optimizer import get_opt
 from gmnn_jax.train.loss import Loss, LossCollection
 from gmnn_jax.train.metrics import initialize_metrics
