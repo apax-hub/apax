@@ -1,4 +1,4 @@
-from apax.train import checkpoints, loss, metrics, eval
+from apax.train import checkpoints, eval, loss, metrics
 from apax.train.run import run
 from apax.train.trainer import fit
 
