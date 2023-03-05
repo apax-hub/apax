@@ -5,7 +5,7 @@ import yaml
 from pydantic import BaseModel, Extra, NonNegativeFloat, PositiveFloat, PositiveInt
 
 
-class DataConfig(BaseModel):
+class DataConfig(BaseModel, extra=Extra.forbid):
     """
     Configuration for data loading, preprocessing and training.
 
@@ -27,7 +27,7 @@ class DataConfig(BaseModel):
     n_valid: Number of validation datapoints from `data_path`.
     batch_size: Number of training examples to be evaluated at once.
     valid_batch_size: Number of validation examples to be evaluated at once.
-    shuffle_buffer_size: SIze of the `tf.data` shuffle buffer.
+    shuffle_buffer_size: Size of the `tf.data` shuffle buffer.
     energy_regularisation: Magnitude of the regularization in the per-element
         energy regression.
     """
@@ -89,7 +89,7 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
         return model_dict
 
 
-class OptimizerConfig(BaseModel, frozen=True, extra=Extra.allow):
+class OptimizerConfig(BaseModel, frozen=True, extra=Extra.forbid):
     """
     Configuration of the optimizer.
     Learning rates of 0 will freeze the respective parameters.
@@ -148,7 +148,7 @@ class LossConfig(BaseModel, extra=Extra.forbid):
     weight: NonNegativeFloat = 1.0
 
 
-class CallbackConfig(BaseModel, frozen=True, extra=Extra.allow):
+class CallbackConfig(BaseModel, frozen=True, extra=Extra.forbid):
     """
     Configuraton of the training callbacks.
 
@@ -210,7 +210,7 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
     maximize_l2_cache: Whether or not to maximize GPU L2 cache.
     """
 
-    n_epochs: PositiveInt = 100
+    n_epochs: PositiveInt
     seed: int = 1
     use_flax: bool = True
 
