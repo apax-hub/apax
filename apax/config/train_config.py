@@ -2,7 +2,7 @@ import os
 from typing import List, Literal, Optional
 
 import yaml
-from pydantic import BaseModel, Extra, NonNegativeFloat, PositiveFloat, PositiveInt, ValidationError, root_validator
+from pydantic import BaseModel, Extra, NonNegativeFloat, PositiveFloat, PositiveInt, root_validator
 
 
 class DataConfig(BaseModel, extra=Extra.forbid):
@@ -58,7 +58,7 @@ class DataConfig(BaseModel, extra=Extra.forbid):
         both_set = not not_data_path and not not_train_path
 
         if neither_set or both_set:
-            raise ValidationError("Please specify either data_path or train_data_path")
+            raise ValueError("Please specify either data_path or train_data_path")
         
         return values
 
