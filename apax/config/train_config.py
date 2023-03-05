@@ -2,7 +2,7 @@ import os
 from typing import List, Literal, Optional
 
 import yaml
-from pydantic import BaseModel, Extra, NonNegativeFloat, PositiveFloat, PositiveInt
+from pydantic import BaseModel, Extra, NonNegativeFloat, PositiveFloat, PositiveInt, ValidationError, root_validator
 
 
 class DataConfig(BaseModel, extra=Extra.forbid):
@@ -48,6 +48,19 @@ class DataConfig(BaseModel, extra=Extra.forbid):
     shuffle_buffer_size: PositiveInt = 1000
 
     energy_regularisation: NonNegativeFloat = 1.0
+
+    @root_validator(pre=False)
+    def set_data_or_train_val_path(cls, values):
+        not_data_path = values["data_path"] is None
+        not_train_path = values["train_data_path"] is None
+
+        neither_set = not_data_path and not_train_path
+        both_set = not not_data_path and not not_train_path
+
+        if neither_set or both_set:
+            raise ValidationError("Please specify either data_path or train_data_path")
+        
+        return values
 
 
 class ModelConfig(BaseModel, extra=Extra.forbid):
