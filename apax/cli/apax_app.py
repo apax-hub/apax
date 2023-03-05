@@ -241,22 +241,9 @@ def template_md_config():
             config.write(template_content)
 
 
-logo = """
-[bold white]  /######  /##      /## /##   /## /##   /##[bold turquoise2]            /#####  /######  /##   /##
-[bold white] /##__  ##| ###    /###| ### | ##| ### | ##[bold turquoise2]           |__  ## /##__  ##| ##  / ##
-[bold white]| ##  \__/| ####  /####| ####| ##| ####| ##[bold turquoise2]              | ##| ##  \ ##|  ##/ ##/
-[bold white]| ## /####| ## ##/## ##| ## ## ##| ## ## ##[bold turquoise2] /######      | ##| ######## \  ####/ 
-[bold white]| ##|_  ##| ##  ###| ##| ##  ####| ##  ####[bold turquoise2]|______/ /##  | ##| ##__  ##  >##  ## 
-[bold white]| ##  \ ##| ##\  # | ##| ##\  ###| ##\  ###[bold turquoise2]        | ##  | ##| ##  | ## /##/\  ##
-[bold white]|  ######/| ## \/  | ##| ## \  ##| ## \  ##[bold turquoise2]        |  ######/| ##  | ##| ##  \ ##
-[bold white] \______/ |__/     |__/|__/  \__/|__/  \__/[bold turquoise2]         \______/ |__/  |__/|__/  |__/
-"""  # noqa: E501, W605, W291, E261, E303
-
-
 def version_callback(value: bool) -> None:
     """Get the installed apax version."""
     if value:
-        console.print(logo)
         console.print(f"apax {importlib.metadata.version('apax')}")
         raise typer.Exit()
 
