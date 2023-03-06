@@ -90,8 +90,8 @@ def docs():
     """
     Opens the documentation website in your browser.
     """
-    console.print("Opening apax's docs at https://github.com/GM-NN/apax")
-    typer.launch("https://github.com/GM-NN/apax")
+    console.print("Opening apax's docs at https://github.com/apax-hub/apax")
+    typer.launch("https://github.com/apax-hub/apax")
 
 
 @validate_app.command("train")

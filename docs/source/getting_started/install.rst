@@ -10,19 +10,19 @@ If you do not have Poetry_ installed already, you can obtain it by running
     curl -sSL https://install.python-poetry.org | python3 -
 
 
-Now you can add GM-NN to your project by running
+Now you can add apax to your project by running
 
 .. highlight:: bash
 .. code-block:: bash
 
-    poetry add git+https://github.com/GM-NN/gmnn-jax.git
+    poetry add git+https://github.com/apax-hub/apax.git
 
 As a developer, you first need to clone the repository and install it via
 
 .. highlight:: bash
 .. code-block:: bash
 
-    git clone https://github.com/GM-NN/gmnn-jax.git <dest_dir>
+    git clone https://github.com/apax-hub/apax.git <dest_dir>
     cd <dest_dir>
     poetry install
 
