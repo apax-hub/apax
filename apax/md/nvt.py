@@ -112,8 +112,13 @@ def run_nvt(
             neighbor = neighbor.update(state.position)
             state = apply_fn(state, neighbor=neighbor)
             return state, neighbor
+        
+        state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
+        current_temperature = quantity.temperature(
+                    velocity=state.velocity, mass=state.mass
+                )
 
-        return jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
+        return state, neighbor, current_temperature
 
     traj_path = os.path.join(sim_dir, traj_name)
     traj = TrajectoryWriter(traj_path, mode="w")
@@ -128,7 +133,7 @@ def run_nvt(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
     ) as sim_pbar:
         while step < n_outer:
-            new_state, neighbor = sim(state, neighbor)
+            new_state, neighbor, current_temperature = sim(state, neighbor)
             if neighbor.did_buffer_overflow:
                 log.info("step %d: neighbor list overflowed, reallocating.", step)
                 neighbor = neighbor_fn.allocate(state.position)
@@ -145,9 +150,6 @@ def run_nvt(
                     log.info("saving checkpoint at step: %d", step)
                     log.info("checkpoints not yet implemented")
 
-                current_temperature = quantity.temperature(
-                    velocity=state.velocity, mass=state.mass
-                )
                 if np.any(np.isnan(new_atoms.positions)):
                     raise ValueError(
                         f"Simulation failed after {step * n_inner} steps. Unable to"
