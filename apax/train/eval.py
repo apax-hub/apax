@@ -163,7 +163,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     }
     logging.basicConfig(filename=log_file, level=log_levels[log_level])
 
-    log.info("Start model evaluation")
+    log.info("Starting model evaluation")
     log.info("Loading user config")
     if isinstance(config_path, (str, os.PathLike)):
         with open(config_path, "r") as stream:
