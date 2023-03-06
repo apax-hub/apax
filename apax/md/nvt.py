@@ -117,8 +117,8 @@ def run_nvt(
         current_temperature = quantity.temperature(
                     velocity=state.velocity, mass=state.mass
                 )
-
-        return state, neighbor, current_temperature
+        current_energy = energy_fn(R=state.position, neighbor=neighbor)
+        return state, neighbor, current_temperature, current_energy
 
     traj_path = os.path.join(sim_dir, traj_name)
     traj = TrajectoryWriter(traj_path, mode="w")
@@ -133,7 +133,8 @@ def run_nvt(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
     ) as sim_pbar:
         while step < n_outer:
-            new_state, neighbor, current_temperature = sim(state, neighbor)
+            new_state, neighbor, current_temperature, current_energy = sim(state, neighbor)
+
             if neighbor.did_buffer_overflow:
                 log.info("step %d: neighbor list overflowed, reallocating.", step)
                 neighbor = neighbor_fn.allocate(state.position)
@@ -143,7 +144,7 @@ def run_nvt(
                 new_atoms = Atoms(
                     atomic_numbers, state.position, momenta=state.momentum, cell=box
                 )
-                new_atoms.calc = SinglePointCalculator(new_atoms, forces=state.force)
+                new_atoms.calc = SinglePointCalculator(new_atoms, energy=current_energy, forces=state.force)
                 traj.write(new_atoms)
 
                 if step % checkpoint_interval == 0:
