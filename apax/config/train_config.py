@@ -2,10 +2,17 @@ import os
 from typing import List, Literal, Optional
 
 import yaml
-from pydantic import BaseModel, Extra, NonNegativeFloat, PositiveFloat, PositiveInt
+from pydantic import (
+    BaseModel,
+    Extra,
+    NonNegativeFloat,
+    PositiveFloat,
+    PositiveInt,
+    root_validator,
+)
 
 
-class DataConfig(BaseModel):
+class DataConfig(BaseModel, extra=Extra.forbid):
     """
     Configuration for data loading, preprocessing and training.
 
@@ -27,7 +34,7 @@ class DataConfig(BaseModel):
     n_valid: Number of validation datapoints from `data_path`.
     batch_size: Number of training examples to be evaluated at once.
     valid_batch_size: Number of validation examples to be evaluated at once.
-    shuffle_buffer_size: SIze of the `tf.data` shuffle buffer.
+    shuffle_buffer_size: Size of the `tf.data` shuffle buffer.
     energy_regularisation: Magnitude of the regularization in the per-element
         energy regression.
     """
@@ -48,6 +55,19 @@ class DataConfig(BaseModel):
     shuffle_buffer_size: PositiveInt = 1000
 
     energy_regularisation: NonNegativeFloat = 1.0
+
+    @root_validator(pre=False)
+    def set_data_or_train_val_path(cls, values):
+        not_data_path = values["data_path"] is None
+        not_train_path = values["train_data_path"] is None
+
+        neither_set = not_data_path and not_train_path
+        both_set = not not_data_path and not not_train_path
+
+        if neither_set or both_set:
+            raise ValueError("Please specify either data_path or train_data_path")
+
+        return values
 
 
 class ModelConfig(BaseModel, extra=Extra.forbid):
@@ -89,7 +109,7 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
         return model_dict
 
 
-class OptimizerConfig(BaseModel, frozen=True, extra=Extra.allow):
+class OptimizerConfig(BaseModel, frozen=True, extra=Extra.forbid):
     """
     Configuration of the optimizer.
     Learning rates of 0 will freeze the respective parameters.
@@ -148,7 +168,7 @@ class LossConfig(BaseModel, extra=Extra.forbid):
     weight: NonNegativeFloat = 1.0
 
 
-class CallbackConfig(BaseModel, frozen=True, extra=Extra.allow):
+class CallbackConfig(BaseModel, frozen=True, extra=Extra.forbid):
     """
     Configuraton of the training callbacks.
 
@@ -210,7 +230,7 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
     maximize_l2_cache: Whether or not to maximize GPU L2 cache.
     """
 
-    n_epochs: PositiveInt = 100
+    n_epochs: PositiveInt
     seed: int = 1
     use_flax: bool = True
 
