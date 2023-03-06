@@ -16,13 +16,13 @@ curl -sSL https://install.python-poetry.org | python3 -
 Now you can install apax in your project by running
 
 ```bash
-poetry add git+https://github.com/GM-NN/apax.git
+poetry add git+https://github.com/apax-hub/apax.git
 ```
 
 As a developer, you can clone the repository and install it via
 
 ```bash
-git clone https://github.com/GM-NN/apax.git <dest_dir>
+git clone https://github.com/apax-hub/apax.git <dest_dir>
 cd <dest_dir>
 poetry install
 ```
