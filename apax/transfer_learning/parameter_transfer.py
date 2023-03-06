@@ -5,6 +5,7 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 
 log = logging.getLogger(__name__)
 
+
 def param_transfer(source_params, target_params, param_black_list):
     source_params = unfreeze(source_params)
     target_params = unfreeze(target_params)

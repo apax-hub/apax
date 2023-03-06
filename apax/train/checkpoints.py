@@ -1,8 +1,10 @@
+import logging
 from pathlib import Path
-import logging 
+
 from flax.training import checkpoints, train_state
 
 log = logging.getLogger(__name__)
+
 
 def load_state(model, params, tx, ckpt_dir):
     start_epoch = 0
