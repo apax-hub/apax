@@ -180,7 +180,7 @@ class GaussianMomentDescriptor(hk.Module):
 class GaussianMomentDescriptorFlax(nn.Module):
     displacement_fn: Callable = space.free()[0]
     radial_fn: nn.Module = RadialFunctionFlax()
-    n_contr: int = 2
+    n_contr: int = -1
     dtype: Any = jnp.float32
     apply_mask: bool = True
     init_box: np.array = np.array([0.0, 0.0, 0.0])
