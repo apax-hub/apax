@@ -24,32 +24,22 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, use_flax=True
     else:
         displacement_fn, _ = space.periodic_general(box, fractional_coordinates=False)
 
-    if use_flax:
-        Z = jnp.asarray(atomic_numbers)
-        n_species = int(np.max(Z) + 1)
-        builder = ModelBuilder(config.model.get_dict(), n_species=n_species)
-        model = builder.build_energy_model(
-            displacement_fn=displacement_fn, apply_mask=False, init_box=np.array(box)
-        )
-        energy_fn = partial(model.apply, params, Z=Z, box=box)
-        neighbor_fn = partition.neighbor_list(
-            displacement_fn,
-            box,
-            config.model.r_max,
-            dr_threshold,
-            fractional_coordinates=False,
-            format=partition.Sparse,
-        )
-    else:
-        neighbor_fn, model = get_md_model(
-            atomic_numbers=atomic_numbers,
-            displacement_fn=displacement_fn,
-            displacement=displacement_fn,
-            box=box,
-            dr_threshold=dr_threshold,
-            **config.model.get_dict(),
-        )
-        energy_fn = partial(model.apply, params)
+    Z = jnp.asarray(atomic_numbers)
+    n_species = int(np.max(Z) + 1)
+    builder = ModelBuilder(config.model.get_dict(), n_species=n_species)
+    model = builder.build_energy_model(
+        displacement_fn=displacement_fn, apply_mask=False, init_box=np.array(box)
+    )
+    energy_fn = partial(model.apply, params, Z=Z, box=box)
+    neighbor_fn = partition.neighbor_list(
+        displacement_fn,
+        box,
+        config.model.r_max,
+        dr_threshold,
+        fractional_coordinates=False,
+        format=partition.Sparse,
+    )
+
     return energy_fn, neighbor_fn
 
 
@@ -61,11 +51,10 @@ class ASECalculator(Calculator):
     implemented_properties = ["energy", "forces"]
 
     def __init__(
-        self, model_dir: Path, dr_threshold: float = 0.5, use_flax=True, **kwargs
+        self, model_dir: Path, dr_threshold: float = 0.5, **kwargs
     ):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
-        self.use_flax = use_flax
 
         model_config = Path(model_dir) / "config.yaml"
         with open(model_config, "r") as stream:
