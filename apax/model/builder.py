@@ -30,8 +30,8 @@ class ModelBuilder:
             n_radial=self.config["n_radial"],
             basis_fn=basis_fn,
             n_species=self.n_species,
-            n_contr=self.config["n_contr"],
-            emb_init=self.config["emb_init"],
+            # n_contr=self.config["n_contr"], # TODO uncomment when hk is removed.
+            # emb_init=self.config["emb_init"],
             dtype=self.config["descriptor_dtype"],
         )
         return radial_fn
