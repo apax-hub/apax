@@ -32,7 +32,7 @@ class TrajHandler:
         self.traj.write(new_atoms)
         self.async_manager = async_manager
 
-    def async_write(self, state, energy, step):
+    def write(self, state, energy, step):
         if np.any(np.isnan(state.position)):
             raise ValueError(
                 f"Simulation failed after {step} outer steps. Unable to"
