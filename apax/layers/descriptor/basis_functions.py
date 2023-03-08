@@ -137,7 +137,7 @@ class RadialFunctionFlax(nn.Module):
         # basis shape: neighbors x n_basis
         basis = self.basis_fn(dr)
 
-        # coeffs shape: n_radialx n_basis
+        # coeffs shape: n_neighbors x n_radialx n_basis
         species_pair_coeffs = self.embeddings[
             Z_j, Z_i, ...
         ]  # reverse convention to match original
