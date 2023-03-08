@@ -116,7 +116,7 @@ class RadialFunctionFlax(nn.Module):
     n_radial: int = 5
     basis_fn: nn.Module = GaussianBasisFlax()
     n_species: int = 119
-    emb_init = None  # Currently unused
+    emb_init: str = "uniform"
     dtype: Any = jnp.float32
 
     def setup(self):
@@ -124,29 +124,47 @@ class RadialFunctionFlax(nn.Module):
         self.embed_norm = jnp.array(
             1.0 / np.sqrt(self.basis_fn.n_basis), dtype=self.dtype
         )
-        emb_initializer = uniform_range(-1.0, 1.0, dtype=self.dtype)
-        self.embeddings = self.param(
-            "atomic_type_embedding",
-            emb_initializer,
-            (self.n_species, self.n_species, self.n_radial, self.basis_fn.n_basis),
-            self.dtype,
-        )
+        if self.emb_init is not None:
+            self._n_radial = self.n_radial
+            if self.emb_init == "uniform":
+                emb_initializer = uniform_range(-1.0, 1.0, dtype=self.dtype)
+                self.embeddings = self.param(
+                    "atomic_type_embedding",
+                    emb_initializer,
+                    (
+                        self.n_species,
+                        self.n_species,
+                        self.n_radial,
+                        self.basis_fn.n_basis,
+                    ),
+                    self.dtype,
+                )
+            else:
+                raise NotImplementedError(
+                    "Currently only uniformly initialized embeddings and no embeddings"
+                    " are implemented."
+                )
+        else:
+            self._n_radial = self.basis_fn.n_basis
 
     def __call__(self, dr, Z_i, Z_j):
         dr = dr.astype(self.dtype)
         # basis shape: neighbors x n_basis
         basis = self.basis_fn(dr)
 
-        # coeffs shape: n_radialx n_basis
-        species_pair_coeffs = self.embeddings[
-            Z_j, Z_i, ...
-        ]  # reverse convention to match original
-        species_pair_coeffs = self.embed_norm * species_pair_coeffs
+        if self.emb_init is None:
+            radial_function = basis
+        else:
+            # coeffs shape: n_radialx n_basis
+            species_pair_coeffs = self.embeddings[
+                Z_j, Z_i, ...
+            ]  # reverse convention to match original
+            species_pair_coeffs = self.embed_norm * species_pair_coeffs
 
-        # radial shape: neighbors x n_radial
-        radial_function = einops.einsum(
-            species_pair_coeffs, basis, "nbrs radial basis, nbrs basis -> nbrs radial"
-        )
+            # radial shape: neighbors x n_radial
+            radial_function = einops.einsum(
+                species_pair_coeffs, basis, "nbrs radial basis, nbrs basis -> nbrs radial"
+            )
 
         # shape: neighbors
         dr_clipped = jnp.clip(dr, a_max=self.r_max)
