@@ -23,6 +23,33 @@ from apax.model import ModelBuilder, get_md_model
 log = logging.getLogger(__name__)
 
 
+class TrajHandler:
+    def __init__(self, R, atomic_numbers, box, traj_path, async_manager) -> None:
+        self.atomic_numbers = atomic_numbers
+        self.box = box
+        self.traj = TrajectoryWriter(traj_path, mode="w")
+        new_atoms = Atoms(atomic_numbers, R, cell=box)
+        self.traj.write(new_atoms)
+        self.async_manager = async_manager
+
+    def write(self, state, energy, step):
+        if np.any(np.isnan(state.position)):
+            raise ValueError(
+                f"Simulation failed after {step} outer steps. Unable to"
+                " compute positions."
+            )
+        new_atoms = Atoms(
+            self.atomic_numbers, state.position, momenta=state.momentum, cell=self.box
+        )
+        new_atoms.calc = SinglePointCalculator(
+            new_atoms, energy=energy, forces=state.force
+        )
+        self.traj.write(new_atoms)
+
+    def close(self):
+        self.traj.close()
+
+
 def run_nvt(
     R: Array,
     atomic_numbers: Array,
@@ -88,7 +115,7 @@ def run_nvt(
     log.info("initializing simulation")
     neighbor = neighbor_fn.allocate(R, extra_capacity=extra_capacity)
     init_fn, apply_fn = simulate.nvt_nose_hoover(energy_fn, shift_fn, dt, kT)
-    # async_manager = checkpoints.AsyncManager()
+    async_manager = checkpoints.AsyncManager()
     restart = False  # TODO needs to be implemented
     if restart:
         log.info("looking for checkpoints")
@@ -113,12 +140,15 @@ def run_nvt(
             state = apply_fn(state, neighbor=neighbor)
             return state, neighbor
 
-        return jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
+        state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
+        current_temperature = quantity.temperature(
+            velocity=state.velocity, mass=state.mass
+        )
+        current_energy = energy_fn(R=state.position, neighbor=neighbor)
+        return state, neighbor, current_temperature, current_energy
 
     traj_path = os.path.join(sim_dir, traj_name)
-    traj = TrajectoryWriter(traj_path, mode="w")
-    new_atoms = Atoms(atomic_numbers, R, cell=box)
-    traj.write(new_atoms)
+    traj_handler = TrajHandler(R, atomic_numbers, box, traj_path, async_manager)
     n_outer = int(np.ceil(n_steps / n_inner))
 
     start = time.time()
@@ -128,34 +158,26 @@ def run_nvt(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
     ) as sim_pbar:
         while step < n_outer:
-            new_state, neighbor = sim(state, neighbor)
+            new_state, neighbor, current_temperature, current_energy = sim(
+                state, neighbor
+            )
+
             if neighbor.did_buffer_overflow:
                 log.info("step %d: neighbor list overflowed, reallocating.", step)
                 neighbor = neighbor_fn.allocate(state.position)
             else:
                 state = new_state
                 step += 1
-                new_atoms = Atoms(
-                    atomic_numbers, state.position, momenta=state.momentum, cell=box
-                )
-                new_atoms.calc = SinglePointCalculator(new_atoms, forces=state.force)
-                traj.write(new_atoms)
+
+                traj_handler.write(state, current_energy, step)
 
                 if step % checkpoint_interval == 0:
                     log.info("saving checkpoint at step: %d", step)
                     log.info("checkpoints not yet implemented")
 
-                current_temperature = quantity.temperature(
-                    velocity=state.velocity, mass=state.mass
-                )
-                if np.any(np.isnan(new_atoms.positions)):
-                    raise ValueError(
-                        f"Simulation failed after {step * n_inner} steps. Unable to"
-                        " compute positions."
-                    )
                 sim_pbar.set_postfix(T=f"{(current_temperature / units.kB):.1f} K")
                 sim_pbar.update(n_inner)
-    traj.close()
+    traj_handler.close()
 
     end = time.time()
     elapsed_time = end - start
