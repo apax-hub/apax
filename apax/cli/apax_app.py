@@ -25,8 +25,14 @@ template_app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     help="Create configuration file templates.",
 )
+deploy_app = typer.Typer(
+    pretty_exceptions_show_locals=False,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    help="Create configuration file templates.",
+)
 app.add_typer(validate_app, name="validate")
 app.add_typer(template_app, name="template")
+app.add_typer(deploy_app, name="deploy")
 
 
 @app.command()
@@ -239,6 +245,26 @@ def template_md_config():
     else:
         with open(config_path, "w") as config:
             config.write(template_content)
+
+
+@deploy_app.command()
+def deploy(
+    config_path: Path = typer.Argument(
+        ...,
+        help=(
+            "Configuration of the model that is to be deployed."
+        ),
+    ),
+    deployed_name: str = typer.Argument(
+        "model.pb",
+        help=(
+            "Name of the deployed model."
+        ),
+    )    
+):
+    from apax.deployment.deploy_tf import deploy_to_savedmodel
+    
+    deploy_to_savedmodel(config_path, deployed_name)    
 
 
 def version_callback(value: bool) -> None:
