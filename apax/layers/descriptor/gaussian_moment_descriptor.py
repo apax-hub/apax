@@ -54,7 +54,7 @@ class GaussianMomentDescriptor(nn.Module):
         idx_i, idx_j = neighbor_idxs[0], neighbor_idxs[1]
 
         # shape: neighbors
-        Z_i, Z_j = Z[idx_i], Z[idx_j]
+        Z_i, Z_j = Z[idx_i, ...], Z[idx_j, ...]
 
         # dr_vec shape: neighbors x 3
         if not np.all(self.init_box < 1e-6):
