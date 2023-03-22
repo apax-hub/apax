@@ -161,12 +161,14 @@ def initialize_callbacks(callback_configs, model_version_path):
             "path": "log.csv",
             "path_arg_name": "filename",
             "kwargs": {"append": True},
+            "model": TFModelSpoof(),
         },
         "tensorboard": {
             "class": TensorBoard,
             "path": "tb_logs",
             "path_arg_name": "log_dir",
             "kwargs": {},
+            "model": tf.keras.Model(),
         },
     }
     callbacks = []
@@ -179,9 +181,10 @@ def initialize_callbacks(callback_configs, model_version_path):
 
         kwargs = callback_info["kwargs"]
         callback = callback_info["class"](**path, **kwargs)
+        callback.set_model(callback_info["model"])
         callbacks.append(callback)
 
-    return tf.keras.callbacks.CallbackList([callback], model=TFModelSpoof())
+    return tf.keras.callbacks.CallbackList([callback])
 
 
 def initialize_loss_fn(loss_config_list):

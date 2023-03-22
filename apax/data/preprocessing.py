@@ -47,8 +47,10 @@ def dataset_neighborlist(
     positions = [jnp.asarray(pos) for pos in positions]
     neighbors = neighbor_fn.allocate(positions[0])
     idx = []
-    num_atoms = n_atoms[0]
-    neighbors_dict = {"neighbors_0": {"neighbors": neighbors, "box": box[0]}}
+    last_n_atoms = n_atoms[0]
+    neighbors_dict = {
+        "neighbor_fn_0": {"neighbors": neighbors, "box": box[0], "n_atoms": n_atoms[0]}
+    }
 
     pbar_update_freq = 10
     with trange(
@@ -60,23 +62,27 @@ def dataset_neighborlist(
     ) as nl_pbar:
         for i, position in enumerate(positions):
             if np.all(box[i] < 1e-6):
-                if n_atoms[i] != num_atoms:
+                if n_atoms[i] != last_n_atoms:
                     neighbors = neighbor_fn.allocate(position)
-                    num_atoms = n_atoms[i]
+                    last_n_atoms = n_atoms[i]
                 neighbors = extract_nl(neighbors, position)
 
             else:
                 reallocate = True
-                for val in neighbors_dict.values():
-                    if np.all(box[i] == val["box"]):
-                        neighbors = extract_nl(val["neighbors"], position)
+                for neighbor_vals in neighbors_dict.values():
+                    if (
+                        np.all(box[i] == neighbor_vals["box"])
+                        and n_atoms[i] == neighbor_vals["n_atoms"]
+                    ):
+                        neighbors = extract_nl(neighbor_vals["neighbors"], position)
                         reallocate = False
 
                 if reallocate:
                     neighbors = neighbor_fn.allocate(position, box=box[i])
-                    neighbors_dict[f"neighbors_{i}"] = {
+                    neighbors_dict[f"neighbor_fn_{i}"] = {
                         "neighbors": neighbors,
                         "box": box[i],
+                        "n_atoms": n_atoms[i],
                     }
 
             if neighbors.did_buffer_overflow:
@@ -89,7 +95,6 @@ def dataset_neighborlist(
             idx.append(neighbors.idx)
             if i % pbar_update_freq == 0:
                 nl_pbar.update(pbar_update_freq)
-
     return idx
 
 
