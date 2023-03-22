@@ -18,7 +18,6 @@ from apax.data.input_pipeline import (
 )
 from apax.data.statistics import energy_per_element
 from apax.model import ModelBuilder
-from apax.model.gmnn import get_training_model
 from apax.optimizer import get_opt
 from apax.train.loss import Loss, LossCollection
 from apax.train.metrics import initialize_metrics
@@ -269,7 +268,6 @@ def run(user_config, log_file="train.log", log_level="error"):
         params,
         transition_steps=transition_steps,
         **config.optimizer.dict(),
-        use_flax=config.use_flax,
     )
 
     fit(
