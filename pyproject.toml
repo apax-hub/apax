@@ -2,14 +2,15 @@
 name = "apax"
 version = "0.1.0"
 description = "Atomistic Learned Potentail Package in JAX"
-authors = ["Moritz Schäfer <moritz.schaefer@pm.me>", "Nico Segreto <segreto@theochem.uni-stuttgart.de>"]
+authors = ["Moritz René Schäfer <schaefer@theochem.uni-stuttgart.de>", "Nico Segreto <segreto@theochem.uni-stuttgart.de>"]
+keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
 license = "MIT"
 readme = "README.md"
 packages = [{include = "apax"}]
 
 [tool.poetry.dependencies]
-python = "^3.9, <3.11"
-numpy = "~1.21"
+python = "^3.10, <3.11"
+numpy = "^1.24.2"
 ase = "^3.22.1"
 pydantic = "^1.10.2"
 tensorflow = "^2.11.0"
