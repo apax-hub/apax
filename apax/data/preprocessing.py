@@ -47,9 +47,9 @@ def dataset_neighborlist(
     positions = [jnp.asarray(pos) for pos in positions]
     neighbors = neighbor_fn.allocate(positions[0])
     idx = []
-    num_atoms = n_atoms[0]
+    last_n_atoms = n_atoms[0]
     neighbors_dict = {
-        "neighbors_0": {"neighbors": neighbors, "box": box[0], "n_atoms": n_atoms[0]}
+        "neighbor_fn_0": {"neighbors": neighbors, "box": box[0], "n_atoms": n_atoms[0]}
     }
 
     pbar_update_freq = 10
@@ -62,24 +62,24 @@ def dataset_neighborlist(
     ) as nl_pbar:
         for i, position in enumerate(positions):
             if np.all(box[i] < 1e-6):
-                if n_atoms[i] != num_atoms:
+                if n_atoms[i] != last_n_atoms:
                     neighbors = neighbor_fn.allocate(position)
-                    num_atoms = n_atoms[i]
+                    last_n_atoms = n_atoms[i]
                 neighbors = extract_nl(neighbors, position)
 
             else:
                 reallocate = True
-                for val_dict in neighbors_dict.values():
+                for neighbor_vals in neighbors_dict.values():
                     if (
-                        np.all(box[i] == val_dict["box"])
-                        and n_atoms[i] == val_dict["n_atoms"]
+                        np.all(box[i] == neighbor_vals["box"])
+                        and n_atoms[i] == neighbor_vals["n_atoms"]
                     ):
-                        neighbors = extract_nl(val_dict["neighbors"], position)
+                        neighbors = extract_nl(neighbor_vals["neighbors"], position)
                         reallocate = False
 
                 if reallocate:
                     neighbors = neighbor_fn.allocate(position, box=box[i])
-                    neighbors_dict[f"neighbors_{i}"] = {
+                    neighbors_dict[f"neighbor_fn_{i}"] = {
                         "neighbors": neighbors,
                         "box": box[i],
                         "n_atoms": n_atoms[i],
