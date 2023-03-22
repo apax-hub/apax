@@ -171,12 +171,12 @@ def visualize_model(
     ----------
     config_path: Path to the training configuration file.
     """
-    from jax_md.partition import space
+    import jax
+    from jax_md import space
 
     from apax.config import Config
-    from apax.model import get_training_model
+    from apax.model.builder import ModelBuilder
     from apax.utils.data import make_minimal_input
-    from apax.visualize import model_tabular
 
     with open(config_path, "r") as stream:
         user_config = yaml.safe_load(stream)
@@ -188,16 +188,12 @@ def visualize_model(
         console.print("Configuration Invalid!", style="red3")
         raise typer.Exit(code=1)
 
-    displacement_fn, _ = space.free()
-    R, Z, idx = make_minimal_input()
-
-    apax = get_training_model(
-        n_atoms=2,
-        n_species=10,
-        displacement_fn=displacement_fn,
-        **config.model.get_dict(),
+    R, Z, idx, box = make_minimal_input()
+    builder = ModelBuilder(config.model.get_dict(), n_species=10)
+    model = builder.build_energy_model(
+        displacement_fn=space.free()[0],
     )
-    model_tabular(apax, R, Z, idx)
+    print(model.tabulate(jax.random.PRNGKey(0), R, Z, idx, box))
 
 
 @template_app.command("train")
