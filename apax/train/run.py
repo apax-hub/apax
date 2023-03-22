@@ -169,7 +169,6 @@ def initialize_callbacks(callback_configs, model_version_path):
             "path_arg_name": "log_dir",
             "kwargs": {},
             "model": tf.keras.Model(),
-
         },
     }
     callbacks = []
