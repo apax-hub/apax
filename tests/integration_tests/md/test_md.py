@@ -34,13 +34,13 @@ def test_run_md(get_tmp_path):
     model_config = Config.parse_obj(model_config_dict)
     md_config = MDConfig.parse_obj(md_config_dict)
 
-    positions = np.array(
+    positions = jnp.array(
         [
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
         ],
-        dtype=np.float64,
+        dtype=jnp.float64,
     )
     atomic_numbers = np.array([1, 2, 2])
     box = np.array([0.0, 0.0, 0.0], dtype=np.float64)
