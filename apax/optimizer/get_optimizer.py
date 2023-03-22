@@ -58,7 +58,6 @@ def get_opt(
     shift_lr: float = 0.05,
     opt_name: str = "adam",
     opt_kwargs: dict = {},
-    use_flax: bool = True,
 ) -> optax._src.base.GradientTransformation:
     """
     Builds an optimizer with different learning rates for each parameter group.
@@ -67,12 +66,8 @@ def get_opt(
     log.info("Initializing Optimizer")
     opt = getattr(optax, opt_name)
 
-    nn_opt = make_optimizer(
-        opt, nn_lr, transition_begin, transition_steps, opt_kwargs
-    )
-    emb_opt = make_optimizer(
-        opt, emb_lr, transition_begin, transition_steps, opt_kwargs
-    )
+    nn_opt = make_optimizer(opt, nn_lr, transition_begin, transition_steps, opt_kwargs)
+    emb_opt = make_optimizer(opt, emb_lr, transition_begin, transition_steps, opt_kwargs)
     scale_opt = make_optimizer(
         opt, scale_lr, transition_begin, transition_steps, opt_kwargs
     )
