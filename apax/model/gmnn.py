@@ -1,20 +1,17 @@
 import dataclasses
 import logging
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Tuple, Union
 
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
-import numpy as np
 from jax_md import partition
 from jax_md.util import Array
 
-from apax.layers.activation import swish
-from apax.layers.descriptor.gaussian_moment_descriptor import (
-    GaussianMomentDescriptorFlax,
-)
+from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.masking import mask_by_atom
-from apax.layers.scaling import PerElementScaleShiftFlax
+from apax.layers.readout import AtomisticReadout
+from apax.layers.scaling import PerElementScaleShift
 from apax.utils.math import fp64_sum
 
 DisplacementFn = Callable[[Array, Array], Array]
@@ -22,16 +19,27 @@ MDModel = Tuple[partition.NeighborFn, Callable, Callable]
 
 log = logging.getLogger(__name__)
 
+
+@dataclasses.dataclass
+class NeighborSpoof:
+    idx: jnp.array
+
+
 class AtomisticModel(nn.Module):
-    descriptor: nn.Module = GaussianMomentDescriptorFlax()
+    descriptor: nn.Module = GaussianMomentDescriptor()
     readout: nn.Module = AtomisticReadout()
-    scale_shift: nn.Module = PerElementScaleShiftFlax()
+    scale_shift: nn.Module = PerElementScaleShift()
     mask_atoms: bool = True
 
     def __call__(
-        self, R: Array, Z: Array, neighbor: partition.NeighborList, box
+        self, R: Array, Z: Array, neighbor: Union[partition.NeighborList, Array], box
     ) -> Array:
-        gm = self.descriptor(R, Z, neighbor.idx, box)
+        if type(neighbor) in [partition.NeighborList, NeighborSpoof]:
+            idx = neighbor.idx
+        else:
+            idx = neighbor
+
+        gm = self.descriptor(R, Z, idx, box)
         h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
 
@@ -39,11 +47,6 @@ class AtomisticModel(nn.Module):
             output = mask_by_atom(output, Z)
 
         return output
-
-
-@dataclasses.dataclass
-class NeighborSpoof:
-    idx: jnp.array
 
 
 class EnergyModel(nn.Module):
@@ -70,5 +73,3 @@ class EnergyForceModel(nn.Module):
         forces = -neg_forces
         prediction = {"energy": energy, "forces": forces}
         return prediction
-
-
