@@ -5,7 +5,7 @@ import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from gmnn_jax.utils.random import seed_py_np_tf
+from apax.utils.random import seed_py_np_tf
 
 
 @pytest.fixture(autouse=True)
@@ -44,7 +44,10 @@ def example_atoms(num_data: int, pbc: bool, calc_results: List[str]) -> Atoms:
         # lattice = random.choice(["free", "sc", "fcc", "bcc"])
         # at the moment we can only work with cubic cells
         lattice = "sc"
-        additional_data["cell"] = create_cell(cell_const, lattice)
+        if pbc:
+            additional_data["cell"] = create_cell(cell_const, lattice)
+        else:
+            additional_data["cell"] = [0, 0, 0]
 
         result_shapes = {
             "energy": (np.random.rand() - 5.0) * 10_000,
@@ -69,5 +72,5 @@ def example_atoms(num_data: int, pbc: bool, calc_results: List[str]) -> Atoms:
 
 @pytest.fixture(scope="session")
 def get_tmp_path(tmp_path_factory):
-    test_path = tmp_path_factory.mktemp("gmnn-jax_tests")
+    test_path = tmp_path_factory.mktemp("apax_tests")
     return test_path

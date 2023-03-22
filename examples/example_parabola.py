@@ -23,7 +23,7 @@ from clu import metrics
 from flax.training import checkpoints, train_state
 from tensorflow.keras.callbacks import CSVLogger
 
-from gmnn_jax.utils.random import seed_py_np_tf
+from apax.utils.random import seed_py_np_tf
 
 seed_py_np_tf()
 
