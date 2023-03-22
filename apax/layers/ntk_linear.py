@@ -1,10 +1,10 @@
-from typing import Any, Optional
+from typing import Any
 
 import flax.linen as nn
 import jax.numpy as jnp
 
 
-class NTKLinearFlax(nn.Module):
+class NTKLinear(nn.Module):
     units: int
     b_init: str = "normal"
     dtype: Any = jnp.float32

@@ -1,14 +1,14 @@
-from typing import Any, Optional
+from typing import Any, Union
 
 import einops
 import flax.linen as nn
 import jax.numpy as jnp
 
 
-class PerElementScaleShiftFlax(nn.Module):
+class PerElementScaleShift(nn.Module):
     n_species: int = 119
-    scale: Optional[jnp.array] = 1.0
-    shift: Optional[jnp.array] = 0.0
+    scale: Union[jnp.array, float] = 1.0
+    shift: Union[jnp.array, float] = 0.0
     dtype: Any = jnp.float32
 
     def setup(self):

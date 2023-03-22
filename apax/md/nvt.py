@@ -18,7 +18,7 @@ from tqdm import trange
 
 from apax.config import Config, MDConfig
 from apax.md.md_checkpoint import load_md_state, look_for_checkpoints
-from apax.model import ModelBuilder, get_md_model
+from apax.model import ModelBuilder
 
 log = logging.getLogger(__name__)
 
@@ -148,6 +148,9 @@ def run_nvt(
                 current_temperature = quantity.temperature(
                     velocity=state.velocity, mass=state.mass
                 )
+                print(current_temperature)
+                print(new_atoms)
+                print(new_atoms.calc.results)
                 if np.any(np.isnan(new_atoms.positions)):
                     raise ValueError(
                         f"Simulation failed after {step * n_inner} steps. Unable to"
@@ -206,8 +209,6 @@ def md_setup(model_config: Config, md_config: MDConfig):
         displacement_fn, shift_fn = space.periodic_general(
             box, fractional_coordinates=False
         )
-
-    model_dict = model_config.model.get_dict()
 
     Z = jnp.asarray(atomic_numbers)
     n_species = int(np.max(Z) + 1)

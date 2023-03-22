@@ -12,10 +12,10 @@ from jax_md import partition, space
 
 from apax.config.train_config import Config
 from apax.md.md_checkpoint import look_for_checkpoints
-from apax.model import ModelBuilder, get_md_model
+from apax.model import ModelBuilder
 
 
-def build_energy_neighbor_fns(atoms, config, params, dr_threshold, use_flax=True):
+def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     atomic_numbers = jnp.asarray(atoms.numbers)
     box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float32)
 
@@ -50,9 +50,7 @@ class ASECalculator(Calculator):
 
     implemented_properties = ["energy", "forces"]
 
-    def __init__(
-        self, model_dir: Path, dr_threshold: float = 0.5, **kwargs
-    ):
+    def __init__(self, model_dir: Path, dr_threshold: float = 0.5, **kwargs):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
 
@@ -81,7 +79,6 @@ class ASECalculator(Calculator):
             self.model_config,
             self.params,
             self.dr_threshold,
-            use_flax=self.use_flax,
         )
 
         @jax.jit

@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 import einops
 import flax.linen as nn
@@ -8,7 +8,7 @@ import numpy as np
 from apax.layers.initializers import uniform_range
 
 
-class GaussianBasisFlax(nn.Module):
+class GaussianBasis(nn.Module):
     n_basis: int = 7
     r_min: float = 0.5
     r_max: float = 6.0
@@ -37,9 +37,9 @@ class GaussianBasisFlax(nn.Module):
         return basis
 
 
-class RadialFunctionFlax(nn.Module):
+class RadialFunction(nn.Module):
     n_radial: int = 5
-    basis_fn: nn.Module = GaussianBasisFlax()
+    basis_fn: nn.Module = GaussianBasis()
     n_species: int = 119
     emb_init = None  # Currently unused
     dtype: Any = jnp.float32

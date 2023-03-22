@@ -1,12 +1,10 @@
 import numpy as np
 
 from apax.config import ModelConfig
-from apax.layers.descriptor.basis_functions import GaussianBasisFlax, RadialFunctionFlax
-from apax.layers.descriptor.gaussian_moment_descriptor import (
-    GaussianMomentDescriptorFlax,
-)
+from apax.layers.descriptor.basis_functions import GaussianBasis, RadialFunction
+from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.readout import AtomisticReadout
-from apax.layers.scaling import PerElementScaleShiftFlax
+from apax.layers.scaling import PerElementScaleShift
 from apax.model.gmnn import AtomisticModel, EnergyForceModel, EnergyModel
 
 
@@ -16,7 +14,7 @@ class ModelBuilder:
         self.n_species = n_species
 
     def build_basis_function(self):
-        basis_fn = GaussianBasisFlax(
+        basis_fn = GaussianBasis(
             n_basis=self.config["n_basis"],
             r_min=self.config["r_min"],
             r_max=self.config["r_max"],
@@ -26,7 +24,7 @@ class ModelBuilder:
 
     def build_radial_function(self):
         basis_fn = self.build_basis_function()
-        radial_fn = RadialFunctionFlax(
+        radial_fn = RadialFunction(
             n_radial=self.config["n_radial"],
             basis_fn=basis_fn,
             n_species=self.n_species,
@@ -38,7 +36,7 @@ class ModelBuilder:
         self, displacement_fn, apply_mask, init_box: np.array = np.array([0.0, 0.0, 0.0])
     ):
         radial_fn = self.build_radial_function()
-        descriptor = GaussianMomentDescriptorFlax(
+        descriptor = GaussianMomentDescriptor(
             displacement_fn=displacement_fn,
             radial_fn=radial_fn,
             dtype=self.config["descriptor_dtype"],
@@ -56,7 +54,7 @@ class ModelBuilder:
         return readout
 
     def build_scale_shift(self, scale, shift):
-        scale_shift = PerElementScaleShiftFlax(
+        scale_shift = PerElementScaleShift(
             n_species=self.n_species,
             scale=scale,
             shift=shift,
@@ -82,8 +80,8 @@ class ModelBuilder:
     def build_energy_model(
         self,
         displacement_fn,
-        scale=None,
-        shift=None,
+        scale=1.0,
+        shift=0.0,
         apply_mask=True,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
     ):
@@ -96,8 +94,8 @@ class ModelBuilder:
     def build_energy_force_model(
         self,
         displacement_fn,
-        scale=None,
-        shift=None,
+        scale=1.0,
+        shift=0.0,
         apply_mask=True,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
     ):
