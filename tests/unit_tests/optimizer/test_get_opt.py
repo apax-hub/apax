@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import optax
+from flax.core.frozen_dict import freeze
 
 from apax.optimizer import get_opt
 
@@ -16,6 +17,7 @@ def test_get_opt():
             "shift_per_element": jnp.ones((3,)),
         },
     }
+    params = freeze(params)
 
     grads = jax.tree_util.tree_map(lambda x: x * 0.01, tree=params)
 
@@ -27,7 +29,6 @@ def test_get_opt():
         nn_lr=0.01,
         scale_lr=0.001,
         shift_lr=0.1,
-        use_flax=False,
     )
     opt_state = opt.init(params=params)
 

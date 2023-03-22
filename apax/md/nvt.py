@@ -18,7 +18,7 @@ from tqdm import trange
 
 from apax.config import Config, MDConfig
 from apax.md.md_checkpoint import load_md_state, look_for_checkpoints
-from apax.model import ModelBuilder, get_md_model
+from apax.model import ModelBuilder
 
 log = logging.getLogger(__name__)
 
@@ -229,33 +229,21 @@ def md_setup(model_config: Config, md_config: MDConfig):
             box, fractional_coordinates=False
         )
 
-    model_dict = model_config.model.get_dict()
-
-    if model_config.use_flax:
-        Z = jnp.asarray(atomic_numbers)
-        n_species = int(np.max(Z) + 1)
-        builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
-        model = builder.build_energy_model(
-            displacement_fn=displacement_fn, apply_mask=False, init_box=np.array(box)
-        )
-        neighbor_fn = partition.neighbor_list(
-            displacement_fn,
-            box,
-            model_config.model.r_max,
-            md_config.dr_threshold,
-            fractional_coordinates=False,
-            format=partition.Sparse,
-            disable_cell_list=True,
-        )
-    else:
-        neighbor_fn, model = get_md_model(
-            atomic_numbers=atomic_numbers,
-            displacement_fn=displacement_fn,
-            displacement=displacement_fn,
-            box=box,
-            dr_threshold=md_config.dr_threshold,
-            **model_dict,
-        )
+    Z = jnp.asarray(atomic_numbers)
+    n_species = int(np.max(Z) + 1)
+    builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
+    model = builder.build_energy_model(
+        displacement_fn=displacement_fn, apply_mask=False, init_box=np.array(box)
+    )
+    neighbor_fn = partition.neighbor_list(
+        displacement_fn,
+        box,
+        model_config.model.r_max,
+        md_config.dr_threshold,
+        fractional_coordinates=False,
+        format=partition.Sparse,
+        disable_cell_list=True,
+    )
 
     os.makedirs(md_config.sim_dir, exist_ok=True)
 
@@ -266,10 +254,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     raw_restored = checkpoints.restore_checkpoint(best_dir, target=None, step=None)
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
 
-    if model_config.use_flax:
-        energy_fn = partial(model.apply, params, Z=Z, box=box)
-    else:
-        energy_fn = partial(model.apply, params)
+    energy_fn = partial(model.apply, params, Z=Z, box=box)
 
     return R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn
 

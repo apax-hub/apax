@@ -5,7 +5,7 @@ import flax.linen as nn
 import jax.numpy as jnp
 
 from apax.layers.activation import swish
-from apax.layers.ntk_linear import NTKLinearFlax
+from apax.layers.ntk_linear import NTKLinear
 
 
 class AtomisticReadout(nn.Module):
@@ -19,7 +19,7 @@ class AtomisticReadout(nn.Module):
         dense = []
         for ii, n_hidden in enumerate(units):
             dense.append(
-                NTKLinearFlax(
+                NTKLinear(
                     n_hidden, b_init=self.b_init, dtype=self.dtype, name=f"dense_{ii}"
                 )
             )

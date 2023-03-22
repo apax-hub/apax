@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from apax.layers.scaling import PerElementScaleShiftFlax
+from apax.layers.scaling import PerElementScaleShift
 
 
 def test_per_element_scale_shift():
@@ -14,7 +14,7 @@ def test_per_element_scale_shift():
     global_shift = 2.0
     global_scale = 1.0
 
-    scale_shift = PerElementScaleShiftFlax(
+    scale_shift = PerElementScaleShift(
         n_species=n_species, scale=global_scale, shift=global_shift
     )
 
@@ -28,7 +28,7 @@ def test_per_element_scale_shift():
 
     indiv_scale = jnp.array([10.0, 2.0, 3.0])
     indiv_shift = jnp.array([0.0, -2.0, 2.0])
-    scale_shift = PerElementScaleShiftFlax(
+    scale_shift = PerElementScaleShift(
         n_species=n_species, scale=indiv_scale, shift=indiv_shift
     )
 

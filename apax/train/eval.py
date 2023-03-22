@@ -18,7 +18,6 @@ from apax.data.input_pipeline import (
 )
 from apax.data.statistics import energy_per_element
 from apax.model import ModelBuilder
-from apax.model.gmnn import get_training_model
 from apax.train.metrics import initialize_metrics
 from apax.train.run import find_largest_system, initialize_callbacks, initialize_loss_fn
 from apax.train.trainer import make_step_fns
@@ -187,27 +186,15 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     test_ds, ds_stats = initialize_test_dataset(test_atoms_list, test_label_dict, config)
     init_input = test_ds.init_input()
     init_box = np.array(init_input["box"][0])
-    model_dict = config.model.get_dict()
 
-    if config.use_flax:
-        builder = ModelBuilder(config.model.get_dict(), n_species=ds_stats.n_species)
-        model = builder.build_energy_force_model(
-            displacement_fn=ds_stats.displacement_fn,
-            scale=ds_stats.elemental_scale,
-            shift=ds_stats.elemental_shift,
-            apply_mask=True,
-            init_box=init_box,
-        )
-    else:
-        model = get_training_model(
-            n_atoms=ds_stats.n_atoms,
-            n_species=ds_stats.n_species,
-            displacement_fn=ds_stats.displacement_fn,
-            elemental_energies_mean=ds_stats.elemental_shift,
-            elemental_energies_std=ds_stats.elemental_scale,
-            init_box=init_box,
-            **model_dict,
-        )
+    builder = ModelBuilder(config.model.get_dict(), n_species=ds_stats.n_species)
+    model = builder.build_energy_force_model(
+        displacement_fn=ds_stats.displacement_fn,
+        scale=ds_stats.elemental_scale,
+        shift=ds_stats.elemental_shift,
+        apply_mask=True,
+        init_box=init_box,
+    )
 
     model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0))
 
