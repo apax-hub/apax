@@ -7,3 +7,4 @@ tf.config.set_visible_devices([], "GPU")
 
 warnings.filterwarnings(action="ignore", category=FutureWarning, module=r"jax.*scatter")
 jax_config.update("jax_enable_x64", True)
+# jax_config.update("jax_debug_nans", True)

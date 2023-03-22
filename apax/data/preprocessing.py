@@ -48,7 +48,7 @@ def dataset_neighborlist(
     neighbors = neighbor_fn.allocate(positions[0])
     idx = []
     num_atoms = n_atoms[0]
-    neighbors_dict = {"neighbors_0": {"neighbors": neighbors, "box": box[0]}}
+    neighbors_dict = {"neighbors_0": {"neighbors": neighbors, "box": box[0], "n_atoms": n_atoms[0]}}
 
     pbar_update_freq = 10
     with trange(
@@ -67,9 +67,9 @@ def dataset_neighborlist(
 
             else:
                 reallocate = True
-                for val in neighbors_dict.values():
-                    if np.all(box[i] == val["box"]):
-                        neighbors = extract_nl(val["neighbors"], position)
+                for val_dict in neighbors_dict.values():
+                    if np.all(box[i] == val_dict["box"]) and n_atoms[i] == val_dict["n_atoms"]:
+                        neighbors = extract_nl(val_dict["neighbors"], position)
                         reallocate = False
 
                 if reallocate:
@@ -77,6 +77,7 @@ def dataset_neighborlist(
                     neighbors_dict[f"neighbors_{i}"] = {
                         "neighbors": neighbors,
                         "box": box[i],
+                        "n_atoms": n_atoms[i],
                     }
 
             if neighbors.did_buffer_overflow:
@@ -89,7 +90,6 @@ def dataset_neighborlist(
             idx.append(neighbors.idx)
             if i % pbar_update_freq == 0:
                 nl_pbar.update(pbar_update_freq)
-
     return idx
 
 
