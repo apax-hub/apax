@@ -13,7 +13,7 @@ from jax_md import partition, space
 from apax.config import Config, MDConfig
 from apax.md import run_md
 from apax.md.ase_calc import ASECalculator
-from apax.model.gmnn import get_training_model
+from apax.model.builder import ModelBuilder
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
@@ -34,24 +34,23 @@ def test_run_md(get_tmp_path):
     model_config = Config.parse_obj(model_config_dict)
     md_config = MDConfig.parse_obj(md_config_dict)
 
-    cell_size = 10.0
     positions = np.array(
         [
+            [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
-            [0.0, 0.0, 1.0],
-        ]
+        ],
+        dtype=np.float64,
     )
-    atomic_numbers = np.array([1, 1, 8])
-    box = np.diag([cell_size] * 3)
+    atomic_numbers = np.array([1, 2, 2])
+    box = np.array([0.0, 0.0, 0.0], dtype=np.float64)
 
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(md_config.initial_structure, atoms)
 
-    n_atoms = 3
     n_species = int(np.max(atomic_numbers) + 1)
 
-    displacement_fn, _ = space.periodic_general(cell_size, fractional_coordinates=False)
+    displacement_fn, _ = space.free()
 
     neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
@@ -60,22 +59,22 @@ def test_run_md(get_tmp_path):
         format=partition.Sparse,
         fractional_coordinates=False,
     )
-    neighbors = neighbor_fn.allocate(jnp.asarray(positions, dtype=jnp.float32))
+    neighbors = neighbor_fn.allocate(positions)
 
-    apax = get_training_model(
-        n_atoms=n_atoms,
-        n_species=n_species,
+    builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
+    model = builder.build_energy_model(
         displacement_fn=displacement_fn,
-        **model_config.model.get_dict()
+        apply_mask=False,
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
-    params = apax.init(
+    params = model.init(
         rng_key,
-        jnp.asarray(positions, dtype=jnp.float32),
-        jnp.asarray(atomic_numbers),
+        positions,
+        atomic_numbers,
         neighbors.idx,
         box,
     )
+
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = os.path.join(
         model_config.data.model_path, model_config.data.model_name, "best"
@@ -118,7 +117,6 @@ def test_ase_calc(get_tmp_path):
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(initial_structure_path.as_posix(), atoms)
 
-    n_atoms = 3
     n_species = int(np.max(atomic_numbers) + 1)
 
     displacement_fn, _ = space.periodic_general(cell_size, fractional_coordinates=False)
@@ -130,16 +128,14 @@ def test_ase_calc(get_tmp_path):
         format=partition.Sparse,
         fractional_coordinates=False,
     )
-    neighbors = neighbor_fn.allocate(jnp.asarray(positions, dtype=jnp.float32))
+    neighbors = neighbor_fn.allocate(positions)
 
-    apax = get_training_model(
-        n_atoms=n_atoms,
-        n_species=n_species,
+    builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
+    model = builder.build_energy_force_model(
         displacement_fn=displacement_fn,
-        **model_config.model.get_dict()
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
-    params = apax.init(
+    params = model.init(
         rng_key,
         jnp.asarray(positions, dtype=jnp.float32),
         jnp.asarray(atomic_numbers),
@@ -158,7 +154,7 @@ def test_ase_calc(get_tmp_path):
     )
 
     atoms = read(initial_structure_path.as_posix())
-    calc = ASECalculator(model_config_dict["data"]["model_path"], use_flax=False)
+    calc = ASECalculator(model_config_dict["data"]["model_path"])
 
     atoms.calc = calc
     E = atoms.get_potential_energy()

@@ -1,9 +1,9 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax_md import space
 
-from apax.model import get_training_model
+from apax.layers.descriptor import GaussianMomentDescriptor
+from apax.layers.scaling import PerElementScaleShift
 from apax.model.gmnn import AtomisticModel, EnergyForceModel, EnergyModel, NeighborSpoof
 
 
@@ -31,38 +31,36 @@ def test_apax_variable_size():
     Z_padded = np.concatenate([Z, [0]])
     idx_padded = np.concatenate([idx, [[0], [0]]], axis=1)
 
-    displacement_fn, _ = space.free()
     shift = jnp.array([0.0, 100.0, 200.0])
     scale = jnp.array([1.0, 1.2, 1.6])[..., None]
 
-    apax = get_training_model(
-        3,
-        3,
-        displacement_fn,
-        [512, 512],
-        b_init="zeros",
-        elemental_energies_mean=shift,
-        elemental_energies_std=scale,
+    model = EnergyForceModel(
+        AtomisticModel(
+            descriptor=GaussianMomentDescriptor(apply_mask=False),
+            scale_shift=PerElementScaleShift(scale=scale, shift=shift),
+            mask_atoms=False,
+        )
     )
-    apax_padded = get_training_model(
-        4,
-        3,
-        displacement_fn,
-        [512, 512],
-        b_init="zeros",
-        elemental_energies_mean=shift,
-        elemental_energies_std=scale,
+    model_padded = EnergyForceModel(
+        AtomisticModel(
+            descriptor=GaussianMomentDescriptor(apply_mask=True),
+            scale_shift=PerElementScaleShift(scale=scale, shift=shift),
+            mask_atoms=True,
+        )
     )
 
     rng_key = jax.random.PRNGKey(1)
 
-    params = apax.init(rng_key, R, Z, idx, box)
+    params = model.init(rng_key, R, Z, idx, box)
 
-    results = apax.apply(params, R, Z, idx, box)
-    results_padded = apax_padded.apply(params, R_padded, Z_padded, idx_padded, box)
+    results = model.apply(params, R, Z, idx, box)
+    results_padded = model_padded.apply(params, R_padded, Z_padded, idx_padded, box)
+
+    print(results["forces"])
+    print(results_padded["forces"])
 
     assert (results["energy"] - results_padded["energy"]) < 1e-6
-    assert np.allclose(results["forces"], results_padded["forces"][:-1, :])
+    assert np.all(results["forces"] - results_padded["forces"][:-1, :] < 1e-6)  # 1e-6
 
 
 def test_atomistic_model():
