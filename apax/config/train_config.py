@@ -234,7 +234,6 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
 
     n_epochs: PositiveInt
     seed: int = 1
-    use_flax: bool = True
 
     data: DataConfig
     model: ModelConfig = ModelConfig()

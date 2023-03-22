@@ -2,9 +2,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from apax.layers.descriptor.gaussian_moment_descriptor import (
-    GaussianMomentDescriptorFlax,
-)
+from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 
 
 def test_gaussian_moment_descriptor():
@@ -13,7 +11,7 @@ def test_gaussian_moment_descriptor():
     neighbor = jnp.array([[1, 2, 0, 2, 0, 1], [0, 0, 1, 1, 2, 2]])
     box = np.array([0.0, 0.0, 0.0])
 
-    descriptor = GaussianMomentDescriptorFlax()
+    descriptor = GaussianMomentDescriptor()
 
     key = jax.random.PRNGKey(0)
     params = descriptor.init(key, R, Z, neighbor, box)

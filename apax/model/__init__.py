@@ -1,4 +1,4 @@
 from apax.model.builder import ModelBuilder
-from apax.model.gmnn import GMNN, get_md_model, get_training_model
+from apax.model.gmnn import AtomisticModel, EnergyForceModel, EnergyModel
 
-__all__ = ["GMNN", "get_training_model", "get_md_model", "ModelBuilder"]
+__all__ = ["AtomisticModel", "EnergyModel", "EnergyForceModel", "ModelBuilder"]

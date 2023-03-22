@@ -1,13 +1,13 @@
 import jax
 import jax.numpy as jnp
 
-from apax.layers.descriptor.basis_functions import GaussianBasisFlax, RadialFunctionFlax
+from apax.layers.descriptor.basis_functions import GaussianBasis, RadialFunction
 
 
 def test_gaussian_basis():
     n_basis = 5
     key = jax.random.PRNGKey(0)
-    basis = GaussianBasisFlax(n_basis=n_basis)
+    basis = GaussianBasis(n_basis=n_basis)
 
     dr = jnp.array([0.5, 1.0, 2.0, 3.0])  # n_neighbors
 
@@ -28,8 +28,8 @@ def test_radial_function():
     Z_j = jnp.array([2, 1, 2, 1])
     # cutoff = jnp.array([1.0, 1.0, 1.0, 1.0], dtype=jnp.float32)
 
-    radial_fn = RadialFunctionFlax(
-        n_species=n_species, n_radial=n_radial, basis_fn=GaussianBasisFlax(n_basis)
+    radial_fn = RadialFunction(
+        n_species=n_species, n_radial=n_radial, basis_fn=GaussianBasis(n_basis)
     )
 
     params = radial_fn.init(key, dr, Z_i, Z_j)
