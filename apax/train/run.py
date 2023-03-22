@@ -27,8 +27,6 @@ from apax.transfer_learning import param_transfer
 from apax.utils.data import load_data, split_atoms, split_idxs, split_label
 from apax.utils.random import seed_py_np_tf
 
-
-
 log = logging.getLogger(__name__)
 
 
