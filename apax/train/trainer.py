@@ -132,7 +132,6 @@ def make_step_fns(loss_fn, Metrics, model):
     def train_step(state, inputs, labels, batch_metrics):
         grad_fn = jax.value_and_grad(loss_calculator, 0, has_aux=True)
         (loss, predictions), grads = grad_fn(state.params, inputs, labels)
-
         state = state.apply_gradients(grads=grads)
 
         new_batch_metrics = Metrics.single_from_model_output(

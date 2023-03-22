@@ -23,13 +23,14 @@ def get_disp_fn(displacement):
 class GaussianMomentDescriptor(nn.Module):
     displacement_fn: Callable = space.free()[0]
     radial_fn: nn.Module = RadialFunction()
+    n_contr: int = 8
     dtype: Any = jnp.float32
     apply_mask: bool = True
     init_box: np.array = np.array([0.0, 0.0, 0.0])
 
     def setup(self):
         self.r_max = self.radial_fn.r_max
-        self.n_radial = self.radial_fn.n_radial  # TODO: maybe move to call?
+        self.n_radial = self.radial_fn._n_radial
 
         if not np.all(self.init_box < 1e-6):
             # displacement function used for training on periodic systems
@@ -134,6 +135,6 @@ class GaussianMomentDescriptor(nn.Module):
         ]
 
         # gaussian_moments shape: n_atoms x n_features
-        gaussian_moments = jnp.concatenate(gaussian_moments, axis=-1)
+        gaussian_moments = jnp.concatenate(gaussian_moments[: self.n_contr], axis=-1)
         assert gaussian_moments.dtype == self.dtype
         return gaussian_moments
