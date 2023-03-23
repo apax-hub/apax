@@ -32,14 +32,14 @@ class AtomisticModel(nn.Module):
     mask_atoms: bool = True
 
     def __call__(
-        self, R: Array, Z: Array, neighbor: Union[partition.NeighborList, Array], box
+        self, R: Array, Z: Array, neighbor: Union[partition.NeighborList, NeighborSpoof, Array], box, perturbation=None
     ) -> Array:
         if type(neighbor) in [partition.NeighborList, NeighborSpoof]:
             idx = neighbor.idx
         else:
             idx = neighbor
 
-        gm = self.descriptor(R, Z, idx, box)
+        gm = self.descriptor(R, Z, idx, box, perturbation)
         h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
 
@@ -52,8 +52,8 @@ class AtomisticModel(nn.Module):
 class EnergyModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
 
-    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList, box):
-        atomic_energies = self.atomistic_model(R, Z, neighbor, box=box)
+    def __call__(self, R: Array, Z: Array, neighbor: Union[partition.NeighborList, NeighborSpoof, Array], box, perturbation=None):
+        atomic_energies = self.atomistic_model(R, Z, neighbor, box, perturbation)
         total_energy = fp64_sum(atomic_energies)
         return total_energy
 
@@ -61,15 +61,12 @@ class EnergyModel(nn.Module):
 class EnergyForceModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
 
-    def __call__(self, R: Array, Z: Array, idx: Array, box):
-        neighbor = NeighborSpoof(idx)
+    def setup(self):
+        self.energy_fn = EnergyModel(atomistic_model=self.atomistic_model)
 
-        def energy_fn(R, Z, neighbor, box):
-            atomic_energies = self.atomistic_model(R, Z, neighbor, box=box)
-            total_energy = fp64_sum(atomic_energies)
-            return total_energy
+    def __call__(self, R: Array, Z: Array, neighbor: Union[partition.NeighborList, NeighborSpoof, Array], box, perturbation=None):
 
-        energy, neg_forces = jax.value_and_grad(energy_fn)(R, Z, neighbor, box)
+        energy, neg_forces = jax.value_and_grad(self.energy_fn)(R, Z, neighbor, box, None)
         forces = -neg_forces
         prediction = {"energy": energy, "forces": forces}
         return prediction
