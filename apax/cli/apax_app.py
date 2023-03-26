@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 import yaml
+from ase.io import read
 from pydantic import ValidationError
 from rich.console import Console
 
@@ -194,6 +195,44 @@ def visualize_model(
         displacement_fn=space.free()[0],
     )
     print(model.tabulate(jax.random.PRNGKey(0), R, Z, idx, box))
+
+
+@app.command("deploy")
+def deploy_model(
+    strukture_path: Path = typer.Argument(
+        ...,
+        help="Path to a structure for which to compile the model.",
+    ),
+    model_dir: Path = typer.Argument(
+        ...,
+        help="Directory of a trained model.",
+    ),
+    deployed_path: Path = typer.Argument(
+        "deployed_model",
+        help="Path where the deployed model will be saved.",
+    ),
+):
+    """
+    Deploy a trained apax model to the TF SavedModel format.
+    """
+    from apax.config import Config
+    from apax.deployment.deploy_tf import deploy_to_savedmodel
+
+    atoms = read(strukture_path)
+
+    config_path = Path(model_dir) / "config.yaml"
+
+    with open(config_path, "r") as stream:
+        user_config = yaml.safe_load(stream)
+
+    try:
+        config = Config.parse_obj(user_config)
+    except ValidationError as e:
+        print(e)
+        console.print("Configuration Invalid!", style="red3")
+        raise typer.Exit(code=1)
+
+    deploy_to_savedmodel(atoms, config, deployed_path)
 
 
 @template_app.command("train")
