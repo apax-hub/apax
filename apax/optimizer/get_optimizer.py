@@ -58,6 +58,7 @@ def get_opt(
     shift_lr: float = 0.05,
     opt_name: str = "adam",
     opt_kwargs: dict = {},
+    **kwargs,
 ) -> optax._src.base.GradientTransformation:
     """
     Builds an optimizer with different learning rates for each parameter group.
