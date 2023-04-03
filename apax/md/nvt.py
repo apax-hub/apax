@@ -233,7 +233,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     n_species = int(np.max(Z) + 1)
     builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_model(
-        displacement_fn=displacement_fn, apply_mask=False, init_box=np.array(box)
+        displacement_fn=displacement_fn, apply_mask=True, init_box=np.array(box)
     )
     neighbor_fn = partition.neighbor_list(
         displacement_fn,
