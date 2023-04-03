@@ -6,6 +6,7 @@ from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDesc
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.model.gmnn import AtomisticModel, EnergyForceModel, EnergyModel
+from apax.layers.empirical import ZBLRepulsion, ReaxBonded
 
 
 class ModelBuilder:
@@ -90,7 +91,12 @@ class ModelBuilder:
         atomistic_model = self.build_atomistic_model(
             displacement_fn, scale, shift, apply_mask, init_box=init_box
         )
-        model = EnergyModel(atomistic_model)
+        repulsion, bonded = None, None
+        if self.config["use_zbl"]:
+            repulsion = ZBLRepulsion(displacement_fn, apply_mask=apply_mask, r_max=self.config["r_max"], init_box=init_box)
+        if self.config["use_reax"]:
+            bonded = ReaxBonded(displacement_fn, apply_mask=apply_mask, r_max=self.config["r_max"], init_box=init_box)
+        model = EnergyModel(atomistic_model, repulsion=repulsion, bonded=bonded)
         return model
 
     def build_energy_force_model(
@@ -104,5 +110,10 @@ class ModelBuilder:
         atomistic_model = self.build_atomistic_model(
             displacement_fn, scale, shift, apply_mask, init_box=init_box
         )
-        model = EnergyForceModel(atomistic_model)
+        repulsion, bonded = None, None
+        if self.config["use_zbl"]:
+            repulsion = ZBLRepulsion(displacement_fn, apply_mask=apply_mask, r_max=self.config["r_max"], init_box=init_box)
+        if self.config["use_reax"]:
+            bonded = ReaxBonded(displacement_fn, apply_mask=apply_mask, r_max=self.config["r_max"], init_box=init_box)
+        model = EnergyForceModel(atomistic_model, repulsion=repulsion, bonded=bonded)
         return model

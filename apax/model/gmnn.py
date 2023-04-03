@@ -1,6 +1,6 @@
 import dataclasses
 import logging
-from typing import Callable, Tuple, Union
+from typing import Callable, Optional, Tuple, Union
 
 import flax.linen as nn
 import jax
@@ -12,17 +12,14 @@ from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDesc
 from apax.layers.masking import mask_by_atom
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
+from apax.layers.empirical import ZBLRepulsion, ReaxBonded
+from apax.model.utils import NeighborSpoof
 from apax.utils.math import fp64_sum
 
 DisplacementFn = Callable[[Array, Array], Array]
 MDModel = Tuple[partition.NeighborFn, Callable, Callable]
 
 log = logging.getLogger(__name__)
-
-
-@dataclasses.dataclass
-class NeighborSpoof:
-    idx: jnp.array
 
 
 class AtomisticModel(nn.Module):
@@ -51,22 +48,35 @@ class AtomisticModel(nn.Module):
 
 class EnergyModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
+    repulsion: Optional[ZBLRepulsion] = None
+    bonded: Optional[ReaxBonded] = None
 
     def __call__(self, R: Array, Z: Array, neighbor: Union[partition.NeighborList, NeighborSpoof, Array], box, perturbation=None):
         atomic_energies = self.atomistic_model(R, Z, neighbor, box, perturbation)
         total_energy = fp64_sum(atomic_energies)
+
+        # Corrections
+        if self.repulsion is not None:
+            repulsion_energy = self.repulsion(R, Z, neighbor, box, perturbation)
+            total_energy = total_energy + repulsion_energy
+
+        if self.bonded is not None:
+            bonded_energy = self.bonded(R, Z, neighbor, box, perturbation)
+            total_energy = total_energy + bonded_energy
         return total_energy
 
 
 class EnergyForceModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
+    repulsion: Optional[ZBLRepulsion] = None
+    bonded: Optional[ReaxBonded] = None
 
     def setup(self):
-        self.energy_fn = EnergyModel(atomistic_model=self.atomistic_model)
+        self.energy_fn = EnergyModel(atomistic_model=self.atomistic_model, repulsion=self.repulsion, bonded=self.bonded)
 
     def __call__(self, R: Array, Z: Array, neighbor: Union[partition.NeighborList, NeighborSpoof, Array], box, perturbation=None):
 
-        energy, neg_forces = jax.value_and_grad(self.energy_fn)(R, Z, neighbor, box, None)
+        energy, neg_forces = jax.value_and_grad(self.energy_fn)(R, Z, neighbor, box, perturbation)
         forces = -neg_forces
         prediction = {"energy": energy, "forces": forces}
         return prediction
