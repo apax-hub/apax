@@ -95,6 +95,10 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
     nn: List[PositiveInt] = [512, 512]
     b_init: Literal["normal", "zeros"] = "normal"
 
+    # corrections
+    use_zbl: bool = False
+    use_reax: bool = False
+
     descriptor_dtype: Literal["fp32", "fp64"] = "fp32"
     readout_dtype: Literal["fp32", "fp64"] = "fp32"
     scale_shift_dtype: Literal["fp32", "fp64"] = "fp32"
