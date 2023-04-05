@@ -1,17 +1,17 @@
 from typing import Any, Callable
-import numpy as np
-import flax.linen as nn
-from jax_md import space
-from jax import vmap
-import jax.numpy as jnp
-import jax
-from apax.layers.masking import mask_by_neighbor
-from apax.utils.math import fp64_sum
-from apax.layers.initializers import uniform_range
+
 import einops
+import flax.linen as nn
 import jax
-from jax_md import partition
+import jax.numpy as jnp
+import numpy as np
+from jax import vmap
+from jax_md import partition, space
+
+from apax.layers.initializers import uniform_range
+from apax.layers.masking import mask_by_neighbor
 from apax.model.utils import NeighborSpoof
+from apax.utils.math import fp64_sum
 
 
 def get_disp_fn(displacement):
@@ -29,8 +29,6 @@ class ZBLRepulsion(nn.Module):
     apply_mask: bool = True
 
     def setup(self):
-
-
         if not np.all(self.init_box < 1e-6):
             # displacement function used for training on periodic systems
             mappable_displacement_fn = get_disp_fn(self.displacement_fn)
@@ -41,7 +39,6 @@ class ZBLRepulsion(nn.Module):
 
         self.distance = vmap(space.distance, 0, 0)
 
-
         # TODO inv softplus + softplus
         # TODO option to 0 initialize?
 
@@ -49,17 +46,19 @@ class ZBLRepulsion(nn.Module):
         self.a_num = self.param("a_num", nn.initializers.constant(0.46850), (1,))
         self.coefficients = self.param(
             "coefficients",
-            nn.initializers.constant(jnp.array([0.18175, 0.50986, 0.28022, 0.02817])[:, None]),
-            (4,1)
+            nn.initializers.constant(
+                jnp.array([0.18175, 0.50986, 0.28022, 0.02817])[:, None]
+            ),
+            (4, 1),
         )
-        
+
         self.exponents = self.param(
             "exponents",
-            nn.initializers.constant(jnp.array([3.19980, 0.94229, 0.4029, 0.20162])[:, None]),
-            (4,1)
+            nn.initializers.constant(
+                jnp.array([3.19980, 0.94229, 0.4029, 0.20162])[:, None]
+            ),
+            (4, 1),
         )
-
-
 
     def __call__(self, R, Z, neighbor, box, perturbation=None):
         R = R.astype(jnp.float64)
@@ -80,7 +79,9 @@ class ZBLRepulsion(nn.Module):
         if not np.all(self.init_box < 1e-6):
             # distance vector for training on periodic systems
             # reverse conventnion to match TF
-            dr_vec = self.displacement(R[idx_j], R[idx_i], perturbation, box).astype(self.dtype)
+            dr_vec = self.displacement(R[idx_j], R[idx_i], perturbation, box).astype(
+                self.dtype
+            )
         else:
             # reverse conventnion to match TF
             # distance vector for gas phase training and predicting
@@ -92,19 +93,17 @@ class ZBLRepulsion(nn.Module):
         dr = jnp.clip(dr, a_min=0.02, a_max=self.r_max)
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
 
-        a_divisor = (Z_i**self.a_exp + Z_j**self.a_exp)
+        a_divisor = Z_i**self.a_exp + Z_j**self.a_exp
         dist = dr * a_divisor / self.a_num
-        f = self.coefficients * jnp.exp(- self.exponents * dist)
+        f = self.coefficients * jnp.exp(-self.exponents * dist)
         f = jnp.sum(f, axis=0)
 
-        E_ij = 0.5 * Z_i * Z_j / dr * f * cos_cutoff # TODO coulomb constant
+        E_ij = 0.5 * Z_i * Z_j / dr * f * cos_cutoff  # TODO coulomb constant
         if self.apply_mask:
             E_ij = mask_by_neighbor(E_ij, idx)
         E = fp64_sum(E_ij)
         return E
 
-
-from jax import debug
 
 class ReaxBonded(nn.Module):
     displacement_fn: Callable = space.free()[0]
@@ -125,48 +124,31 @@ class ReaxBonded(nn.Module):
 
         self.distance = vmap(space.distance, 0, 0)
 
-        self.r0 = self.param(
-            "r0",
-            nn.initializers.constant(1.7),
-            (self.n_species)
-        )
+        self.r0 = self.param("r0", nn.initializers.constant(1.7), (self.n_species))
         self.po_coeff = self.param(
-            "po_coeff",
-            nn.initializers.uniform(0.9),
-            (self.n_species, self.n_species, 3)
+            "po_coeff", nn.initializers.uniform(0.9), (self.n_species, self.n_species, 3)
         )
         self.po_exp = self.param(
-            "po_exp",
-            uniform_range(1,2),
-            (self.n_species, self.n_species, 3)
+            "po_exp", uniform_range(1, 2), (self.n_species, self.n_species, 3)
         )
         self.De = self.param(
-            "De",
-            uniform_range(0.01, 0.05),
-            (self.n_species, self.n_species)
+            "De", uniform_range(0.01, 0.05), (self.n_species, self.n_species)
         )
         self.pbe1 = self.param(
-            "pbe1",
-            uniform_range(-0.10, 0.10),
-            (self.n_species, self.n_species)
+            "pbe1", uniform_range(-0.10, 0.10), (self.n_species, self.n_species)
         )
         self.pbe2 = self.param(
-            "pbe2",
-            uniform_range(0.0, 1.0),
-            (self.n_species, self.n_species)
+            "pbe2", uniform_range(0.0, 1.0), (self.n_species, self.n_species)
         )
-
 
     def __call__(self, R, Z, neighbor, box, perturbation=None):
         R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms
-        n_atoms = R.shape[0]
         if type(neighbor) in [partition.NeighborList, NeighborSpoof]:
             idx = neighbor.idx
         else:
             idx = neighbor
-
 
         idx_i, idx_j = idx[0], idx[1]
 
@@ -177,7 +159,9 @@ class ReaxBonded(nn.Module):
         if not np.all(self.init_box < 1e-6):
             # distance vector for training on periodic systems
             # reverse conventnion to match TF
-            dr_vec = self.displacement(R[idx_j], R[idx_i], perturbation, box).astype(self.dtype)
+            dr_vec = self.displacement(R[idx_j], R[idx_i], perturbation, box).astype(
+                self.dtype
+            )
         else:
             # reverse conventnion to match TF
             # distance vector for gas phase training and predicting
@@ -196,13 +180,13 @@ class ReaxBonded(nn.Module):
         De = jax.nn.softplus(self.De[Z_i, Z_j])
         pbe1 = self.pbe1[Z_i, Z_j]
         pbe2 = jax.nn.softplus(self.pbe2[Z_i, Z_j] + 1.0)
-                
+
         r0_ij = (r0_i + r0_j) / 2
 
-        bo_terms = jnp.exp(- po_coeff * ((dr/r0_ij)[:,None] **po_exp))  * cutoff
+        bo_terms = jnp.exp(-po_coeff * ((dr / r0_ij)[:, None] ** po_exp)) * cutoff
         bo_ij = jnp.sum(bo_terms, axis=1)
 
-        E_ij = - De * bo_ij * jnp.exp(pbe1 * (1- (bo_ij ** pbe2)))
+        E_ij = -De * bo_ij * jnp.exp(pbe1 * (1 - (bo_ij**pbe2)))
 
         if self.apply_mask:
             E_ij = mask_by_neighbor(E_ij, idx)

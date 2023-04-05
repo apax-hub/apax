@@ -1,5 +1,4 @@
 import einops
-import jax.numpy as jnp
 
 
 def mask_by_atom(arr, Z):
@@ -10,7 +9,6 @@ def mask_by_atom(arr, Z):
 
 
 def mask_by_neighbor(arr, idx):
-    # mask = (jnp.sum(idx, axis=0) > 0).astype(arr.dtype)[..., None]
     mask = ((idx[0] - idx[1]) != 0).astype(arr.dtype)
     if len(arr.shape) == 2:
         mask = mask[..., None]

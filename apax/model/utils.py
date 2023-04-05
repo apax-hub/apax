@@ -1,5 +1,7 @@
-import jax.numpy as jnp
 import dataclasses
+
+import jax.numpy as jnp
+
 
 @dataclasses.dataclass
 class NeighborSpoof:

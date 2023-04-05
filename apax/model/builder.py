@@ -3,10 +3,10 @@ import numpy as np
 from apax.config import ModelConfig
 from apax.layers.descriptor.basis_functions import GaussianBasis, RadialFunction
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
+from apax.layers.empirical import ReaxBonded, ZBLRepulsion
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.model.gmnn import AtomisticModel, EnergyForceModel, EnergyModel
-from apax.layers.empirical import ZBLRepulsion, ReaxBonded
 
 
 class ModelBuilder:
@@ -93,9 +93,19 @@ class ModelBuilder:
         )
         repulsion, bonded = None, None
         if self.config["use_zbl"]:
-            repulsion = ZBLRepulsion(displacement_fn, apply_mask=apply_mask, r_max=self.config["r_max"], init_box=init_box)
+            repulsion = ZBLRepulsion(
+                displacement_fn,
+                apply_mask=apply_mask,
+                r_max=self.config["r_max"],
+                init_box=init_box,
+            )
         if self.config["use_reax"]:
-            bonded = ReaxBonded(displacement_fn, apply_mask=apply_mask, r_max=self.config["r_max"], init_box=init_box)
+            bonded = ReaxBonded(
+                displacement_fn,
+                apply_mask=apply_mask,
+                r_max=self.config["r_max"],
+                init_box=init_box,
+            )
         model = EnergyModel(atomistic_model, repulsion=repulsion, bonded=bonded)
         return model
 
@@ -112,8 +122,18 @@ class ModelBuilder:
         )
         repulsion, bonded = None, None
         if self.config["use_zbl"]:
-            repulsion = ZBLRepulsion(displacement_fn, apply_mask=apply_mask, r_max=self.config["r_max"], init_box=init_box)
+            repulsion = ZBLRepulsion(
+                displacement_fn,
+                apply_mask=apply_mask,
+                r_max=self.config["r_max"],
+                init_box=init_box,
+            )
         if self.config["use_reax"]:
-            bonded = ReaxBonded(displacement_fn, apply_mask=apply_mask, r_max=self.config["r_max"], init_box=init_box)
+            bonded = ReaxBonded(
+                displacement_fn,
+                apply_mask=apply_mask,
+                r_max=self.config["r_max"],
+                init_box=init_box,
+            )
         model = EnergyForceModel(atomistic_model, repulsion=repulsion, bonded=bonded)
         return model

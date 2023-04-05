@@ -60,7 +60,9 @@ class GaussianMomentDescriptor(nn.Module):
         if not np.all(self.init_box < 1e-6):
             # distance vector for training on periodic systems
             # reverse conventnion to match TF
-            dr_vec = self.displacement(R[idx_j], R[idx_i], perturbation, box).astype(self.dtype)
+            dr_vec = self.displacement(R[idx_j], R[idx_i], perturbation, box).astype(
+                self.dtype
+            )
         else:
             # reverse conventnion to match TF
             # distance vector for gas phase training and predicting
@@ -84,10 +86,16 @@ class GaussianMomentDescriptor(nn.Module):
         contr_1 = jnp.einsum("ari, asi -> rsa", moments[1], moments[1])
         contr_2 = jnp.einsum("arij, asij -> rsa", moments[2], moments[2])
         contr_3 = jnp.einsum("arijk, asijk -> rsa", moments[3], moments[3])
-        contr_4 = jnp.einsum("arij, asik, atjk -> rsta", moments[2], moments[2], moments[2]) # ignore []
-        contr_5 = jnp.einsum("ari, asj, atij -> rsta", moments[1], moments[1], moments[2]) # ignore []
-        contr_6 = jnp.einsum("arijk, asijl, atkl -> rsta", moments[3], moments[3], moments[2]) # ignore []
-        contr_7 = jnp.einsum("arijk, asij, atk -> rsta", moments[3], moments[2], moments[1]) # ignore []
+        contr_4 = jnp.einsum(
+            "arij, asik, atjk -> rsta", moments[2], moments[2], moments[2]
+        )
+        contr_5 = jnp.einsum("ari, asj, atij -> rsta", moments[1], moments[1], moments[2])
+        contr_6 = jnp.einsum(
+            "arijk, asijl, atkl -> rsta", moments[3], moments[3], moments[2]
+        )
+        contr_7 = jnp.einsum(
+            "arijk, asij, atk -> rsta", moments[3], moments[2], moments[1]
+        )
 
         n_symm01_features = self.triang_idxs_2d.shape[0] * self.n_radial
 
