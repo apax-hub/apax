@@ -139,6 +139,7 @@ class OptimizerConfig(BaseModel, frozen=True, extra=Extra.forbid):
     shift_lr: NonNegativeFloat = 0.05
     transition_begin: int = 0
     opt_kwargs: dict = {}
+    sam_rho: NonNegativeFloat = 0.0
 
 
 class MetricsConfig(BaseModel, extra=Extra.forbid):
