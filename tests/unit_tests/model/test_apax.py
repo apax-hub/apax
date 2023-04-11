@@ -54,7 +54,9 @@ def test_apax_variable_size():
     params = model.init(rng_key, R, Z, idx, box, offsets)
 
     results = model.apply(params, R, Z, idx, box, offsets)
-    results_padded = model_padded.apply(params, R_padded, Z_padded, idx_padded, box, offsets)
+    results_padded = model_padded.apply(
+        params, R_padded, Z_padded, idx_padded, box, offsets
+    )
 
     print(results["forces"])
     print(results_padded["forces"])

@@ -70,7 +70,7 @@ class GaussianMomentDescriptor(nn.Module):
             dr_vec = self.displacement(R[idx_j], R[idx_i]).astype(self.dtype)
 
         # dr_vec += box * offset
-        
+
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(self.dtype)
 

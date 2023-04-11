@@ -32,7 +32,12 @@ class AtomisticModel(nn.Module):
     mask_atoms: bool = True
 
     def __call__(
-        self, R: Array, Z: Array, neighbor: Union[partition.NeighborList, Array], box, offsets
+        self,
+        R: Array,
+        Z: Array,
+        neighbor: Union[partition.NeighborList, Array],
+        box,
+        offsets,
     ) -> Array:
         if type(neighbor) in [partition.NeighborList, NeighborSpoof]:
             idx = neighbor.idx
@@ -52,7 +57,9 @@ class AtomisticModel(nn.Module):
 class EnergyModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
 
-    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList, box, offsets):
+    def __call__(
+        self, R: Array, Z: Array, neighbor: partition.NeighborList, box, offsets
+    ):
         atomic_energies = self.atomistic_model(R, Z, neighbor, box=box, offsets=offsets)
         total_energy = fp64_sum(atomic_energies)
         return total_energy
@@ -65,7 +72,9 @@ class EnergyForceModel(nn.Module):
         neighbor = NeighborSpoof(idx)
 
         def energy_fn(R, Z, neighbor, box, offsets):
-            atomic_energies = self.atomistic_model(R, Z, neighbor, box=box, offsets=offsets)
+            atomic_energies = self.atomistic_model(
+                R, Z, neighbor, box=box, offsets=offsets
+            )
             total_energy = fp64_sum(atomic_energies)
             return total_energy
 

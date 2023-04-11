@@ -1,6 +1,8 @@
 import numpy as np
 import pytest
 import tensorflow as tf
+from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
 
 from apax.data.input_pipeline import (
     PadToSpecificSize,
@@ -11,8 +13,6 @@ from apax.data.input_pipeline import (
 from apax.train.run import find_largest_system
 from apax.utils.data import convert_atoms_to_arrays, split_atoms, split_idxs
 from apax.utils.random import seed_py_np_tf
-from ase.calculators.singlepoint import SinglePointCalculator
-from ase import Atoms
 
 
 @pytest.mark.parametrize(
@@ -189,18 +189,13 @@ def test_convert_atoms_to_arrays(example_atoms, pbc):
     assert len(labels["ragged"]["forces"]) == len(example_atoms)
 
 
-
-
 @pytest.mark.parametrize(
     "num_data, pbc, calc_results, external_labels",
-    (
-        [3, True, ["energy"], None],
-    ),
+    ([3, True, ["energy"], None],),
 )
 def test_mixed_ase_jax_neighbors(pbc, calc_results, num_data, external_labels):
     r_max = 2
 
-    num_atoms = 2
     numbers = np.array([1, 1])
     positions = np.array([[0.0, 0.0, 0.0], [1.5, 0.0, 0.0]])
 
@@ -219,8 +214,6 @@ def test_mixed_ase_jax_neighbors(pbc, calc_results, num_data, external_labels):
             results[key] = result_shapes[key]
         atoms.calc = SinglePointCalculator(atoms, **results)
 
-
-
     _, neighbor_fn = initialize_nbr_displacement_fns(atoms, r_max)
 
     inputs, _ = create_dict_dataset(
@@ -230,7 +223,7 @@ def test_mixed_ase_jax_neighbors(pbc, calc_results, num_data, external_labels):
         external_labels,
         disable_pbar=True,
     )
-    
+
     idx = inputs["ragged"]["idx"][0]
     n_true = idx.shape[1]
 

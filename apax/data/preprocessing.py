@@ -5,9 +5,9 @@ import logging
 import jax
 import jax.numpy as jnp
 import numpy as np
+from ase.neighborlist import PrimitiveNeighborList
 from jax_md.partition import NeighborFn
 from tqdm import trange
-from ase.neighborlist import PrimitiveNeighborList
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ def dataset_neighborlist(
     positions: list[np.array],
     n_atoms: list[int],
     box: list[np.array],
-    r_max : float,
+    r_max: float,
     atoms_list,
     disable_pbar: bool = False,
 ) -> list[int]:
@@ -57,9 +57,6 @@ def dataset_neighborlist(
     }
 
     pbar_update_freq = 10
-    frac_cell = [[1.0, 0.0, 0.0],
-                 [0.0, 1.0, 0.0],
-                 [0.0, 0.0, 1.0]]
     with trange(
         len(positions),
         desc="Precomputing NL",
@@ -74,14 +71,14 @@ def dataset_neighborlist(
                     last_n_atoms = n_atoms[i]
 
                 neighbors = extract_nl(neighbors, position)
-                
+
                 if neighbors.did_buffer_overflow:
                     log.info("Neighbor list overflowed, reallocating.")
                     neighbors = neighbor_fn.allocate(position)
-                    
+
                 neighbor_idxs = neighbors.idx
                 n_neighbors = neighbor_idxs.shape[1]
-                offsets = jnp.full([n_neighbors, 3] ,0)
+                offsets = jnp.full([n_neighbors, 3], 0)
 
             elif np.all(box[i] > 2 * r_max):
                 reallocate = True
@@ -102,17 +99,26 @@ def dataset_neighborlist(
                 if neighbors.did_buffer_overflow:
                     log.info("Neighbor list overflowed, reallocating.")
                     neighbors = neighbor_fn.allocate(position, box=box[i])
-                
+
                 neighbor_idxs = neighbors.idx
                 n_neighbors = neighbor_idxs.shape[1]
-                offsets = jnp.full([n_neighbors, 3] ,0)
+                offsets = jnp.full([n_neighbors, 3], 0)
 
             else:
-                cell=[[box[i][0], 0.0, 0.0],
-                      [0.0, box[i][1], 0.0],
-                      [0.0, 0.0, box[i][2]]]
-                ase_neighbor_fn = PrimitiveNeighborList(jnp.full(n_atoms[i], r_max/2), skin=0.0, self_interaction=False, bothways=True) #dict comparison possible like in jax_nl
-                ase_neighbor_fn.update(pbc=[True, True, True], cell=cell, coordinates=atoms_list[i].positions)
+                cell = [
+                    [box[i][0], 0.0, 0.0],
+                    [0.0, box[i][1], 0.0],
+                    [0.0, 0.0, box[i][2]],
+                ]
+                ase_neighbor_fn = PrimitiveNeighborList(
+                    jnp.full(n_atoms[i], r_max / 2),
+                    skin=0.0,
+                    self_interaction=False,
+                    bothways=True,
+                )  # dict comparison possible like in jax_nl
+                ase_neighbor_fn.update(
+                    pbc=[True, True, True], cell=cell, coordinates=atoms_list[i].positions
+                )
                 idxs_i = []
                 idxs_j = []
                 offsets = []
