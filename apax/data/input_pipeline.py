@@ -18,9 +18,10 @@ def initialize_nbr_displacement_fns(atoms, cutoff):
 
     box = jnp.asarray(atoms.cell.lengths())
     if np.all(box < 1e-6):
+        frac_coords = False
         displacement_fn, _ = space.free()
         box = default_box
-        frac_coords = False
+
     else:
         frac_coords = True
         displacement_fn, _ = space.periodic_general(
@@ -110,6 +111,7 @@ class PadToSpecificSize:
 def create_dict_dataset(
     atoms_list: list,
     neighbor_fn,
+    r_max: float,
     external_labels: dict = {},
     disable_pbar=False,
     pos_unit: str = "Ang",
@@ -121,15 +123,18 @@ def create_dict_dataset(
         for shape, label in external_labels.items():
             labels[shape].update(label)
 
-    idx = dataset_neighborlist(
+    idx, offsets = dataset_neighborlist(
         neighbor_fn,
         inputs["ragged"]["positions"],
         inputs["fixed"]["n_atoms"],
         box=inputs["fixed"]["box"],
+        r_max=r_max,
+        atoms_list=atoms_list,
         disable_pbar=disable_pbar,
     )
 
     inputs["ragged"]["idx"] = [np.array(i) for i in idx]
+    inputs["ragged"]["offsets"] = [np.array(i) for i in offsets]
     return inputs, labels
 
 

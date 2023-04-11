@@ -45,7 +45,7 @@ class GaussianMomentDescriptor(nn.Module):
         self.triang_idxs_2d = tril_2d_indices(self.n_radial)
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
 
-    def __call__(self, R, Z, neighbor_idxs, box):
+    def __call__(self, R, Z, neighbor_idxs, box, offsets):
         R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms
@@ -60,12 +60,17 @@ class GaussianMomentDescriptor(nn.Module):
         if not np.all(self.init_box < 1e-6):
             # distance vector for training on periodic systems
             # reverse conventnion to match TF
-            dr_vec = self.displacement(R[idx_j], R[idx_i], box).astype(self.dtype)
+            Ri = R[idx_i]
+            Rj = offsets + R[idx_j]
+
+            dr_vec = self.displacement(Rj, Ri, box).astype(self.dtype)
         else:
             # reverse conventnion to match TF
             # distance vector for gas phase training and predicting
             dr_vec = self.displacement(R[idx_j], R[idx_i]).astype(self.dtype)
 
+        # dr_vec += box * offset
+        
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(self.dtype)
 

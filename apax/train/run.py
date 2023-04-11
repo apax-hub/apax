@@ -98,6 +98,7 @@ def initialize_datasets(config, raw_datasets):
         train_atoms_list,
         neighbor_fn,
         train_label_dict,
+        r_max=config.model.r_max,
         disable_pbar=config.progress_bar.disable_nl_pbar,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
@@ -106,6 +107,7 @@ def initialize_datasets(config, raw_datasets):
         val_atoms_list,
         neighbor_fn,
         val_label_dict,
+        r_max=config.model.r_max,
         disable_pbar=config.progress_bar.disable_nl_pbar,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
@@ -262,7 +264,7 @@ def run(user_config, log_file="train.log", log_level="error"):
         source_params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
         params = param_transfer(source_params, params, config.checkpoints.reset_layers)
 
-    batched_model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0))
+    batched_model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
 
     steps_per_epoch = train_ds.steps_per_epoch()
     n_epochs = config.n_epochs

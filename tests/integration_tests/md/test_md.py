@@ -44,7 +44,7 @@ def test_run_md(get_tmp_path):
     )
     atomic_numbers = np.array([1, 2, 2])
     box = np.array([0.0, 0.0, 0.0], dtype=np.float64)
-
+    offsets = jnp.full([3, 3], 0)
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(md_config.initial_structure, atoms)
 
@@ -73,6 +73,7 @@ def test_run_md(get_tmp_path):
         atomic_numbers,
         neighbors.idx,
         box,
+        offsets,
     )
 
     ckpt = {"model": {"params": params}, "epoch": 0}
@@ -114,6 +115,7 @@ def test_ase_calc(get_tmp_path):
     )
     atomic_numbers = np.array([1, 1, 8])
     box = np.diag([cell_size] * 3)
+    offsets = jnp.full([3, 3], 0)
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(initial_structure_path.as_posix(), atoms)
 
@@ -141,6 +143,7 @@ def test_ase_calc(get_tmp_path):
         jnp.asarray(atomic_numbers),
         neighbors.idx,
         box,
+        offsets=offsets,
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = os.path.join(

@@ -32,14 +32,14 @@ class AtomisticModel(nn.Module):
     mask_atoms: bool = True
 
     def __call__(
-        self, R: Array, Z: Array, neighbor: Union[partition.NeighborList, Array], box
+        self, R: Array, Z: Array, neighbor: Union[partition.NeighborList, Array], box, offsets
     ) -> Array:
         if type(neighbor) in [partition.NeighborList, NeighborSpoof]:
             idx = neighbor.idx
         else:
             idx = neighbor
 
-        gm = self.descriptor(R, Z, idx, box)
+        gm = self.descriptor(R, Z, idx, box, offsets)
         h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
 
@@ -52,8 +52,8 @@ class AtomisticModel(nn.Module):
 class EnergyModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
 
-    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList, box):
-        atomic_energies = self.atomistic_model(R, Z, neighbor, box=box)
+    def __call__(self, R: Array, Z: Array, neighbor: partition.NeighborList, box, offsets):
+        atomic_energies = self.atomistic_model(R, Z, neighbor, box=box, offsets=offsets)
         total_energy = fp64_sum(atomic_energies)
         return total_energy
 
@@ -61,15 +61,15 @@ class EnergyModel(nn.Module):
 class EnergyForceModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
 
-    def __call__(self, R: Array, Z: Array, idx: Array, box):
+    def __call__(self, R: Array, Z: Array, idx: Array, box, offsets):
         neighbor = NeighborSpoof(idx)
 
-        def energy_fn(R, Z, neighbor, box):
-            atomic_energies = self.atomistic_model(R, Z, neighbor, box=box)
+        def energy_fn(R, Z, neighbor, box, offsets):
+            atomic_energies = self.atomistic_model(R, Z, neighbor, box=box, offsets=offsets)
             total_energy = fp64_sum(atomic_energies)
             return total_energy
 
-        energy, neg_forces = jax.value_and_grad(energy_fn)(R, Z, neighbor, box)
+        energy, neg_forces = jax.value_and_grad(energy_fn)(R, Z, neighbor, box, offsets)
         forces = -neg_forces
         prediction = {"energy": energy, "forces": forces}
         return prediction
