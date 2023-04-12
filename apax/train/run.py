@@ -237,7 +237,7 @@ def run(user_config, log_file="train.log", log_level="error"):
         jnp.asarray(init_input["numbers"][0]),
         jnp.asarray(init_input["idx"][0]),
         np.array(init_input["box"][0]),
-        jnp.array(init_input["offsets"][0])
+        jnp.array(init_input["offsets"][0]),
     )
 
     # TODO n_species should be optional since it's already
