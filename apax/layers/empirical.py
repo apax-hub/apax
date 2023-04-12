@@ -21,6 +21,10 @@ def get_disp_fn(displacement):
     return disp_fn
 
 
+def inverse_softplus(x):
+    return jnp.log(jnp.exp(x) - 1.0)
+
+
 class ZBLRepulsion(nn.Module):
     displacement_fn: Callable = space.free()[0]
     dtype: Any = jnp.float32
@@ -39,25 +43,35 @@ class ZBLRepulsion(nn.Module):
 
         self.distance = vmap(space.distance, 0, 0)
 
-        # TODO inv softplus + softplus
-        # TODO option to 0 initialize?
+        self.ke = 14.3996
 
-        self.a_exp = self.param("a_exp", nn.initializers.constant(0.23), (1,))
-        self.a_num = self.param("a_num", nn.initializers.constant(0.46850), (1,))
+        a_exp = 0.23
+        a_num = 0.46850
+        coeffs = jnp.array([0.18175, 0.50986, 0.28022, 0.02817])[:, None]
+        exps = jnp.array([3.19980, 0.94229, 0.4029, 0.20162])[:, None]
+
+        a_exp_isp = inverse_softplus(a_exp)
+        a_num_isp = inverse_softplus(a_num)
+        coeffs_isp = inverse_softplus(coeffs)
+        exps_isp = inverse_softplus(exps)
+        rep_scale_isp = inverse_softplus(1.0 / self.ke)
+
+        self.a_exp = self.param("a_exp", nn.initializers.constant(a_exp_isp), (1,))
+        self.a_num = self.param("a_num", nn.initializers.constant(a_num_isp), (1,))
         self.coefficients = self.param(
             "coefficients",
-            nn.initializers.constant(
-                jnp.array([0.18175, 0.50986, 0.28022, 0.02817])[:, None]
-            ),
+            nn.initializers.constant(coeffs_isp),
             (4, 1),
         )
 
         self.exponents = self.param(
             "exponents",
-            nn.initializers.constant(
-                jnp.array([3.19980, 0.94229, 0.4029, 0.20162])[:, None]
-            ),
+            nn.initializers.constant(exps_isp),
             (4, 1),
+        )
+
+        self.rep_scale = self.param(
+            "rep_scale", nn.initializers.constant(rep_scale_isp), (1,)
         )
 
     def __call__(self, R, Z, neighbor, box, perturbation=None):
@@ -93,16 +107,23 @@ class ZBLRepulsion(nn.Module):
         dr = jnp.clip(dr, a_min=0.02, a_max=self.r_max)
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
 
-        a_divisor = Z_i**self.a_exp + Z_j**self.a_exp
-        dist = dr * a_divisor / self.a_num
-        f = self.coefficients * jnp.exp(-self.exponents * dist)
+        # Ensure positive parameters
+        a_exp = jax.nn.softplus(self.a_exp)
+        a_num = jax.nn.softplus(self.a_num)
+        coefficients = jax.nn.softplus(self.coefficients)
+        exponents = jax.nn.softplus(self.exponents)
+        rep_scale = jax.nn.softplus(self.rep_scale)
+
+        a_divisor = Z_i**a_exp + Z_j**a_exp
+        dist = dr * a_divisor / a_num
+        f = coefficients * jnp.exp(-exponents * dist)
         f = jnp.sum(f, axis=0)
 
-        E_ij = 0.5 * Z_i * Z_j / dr * f * cos_cutoff  # TODO coulomb constant
+        E_ij = Z_i * Z_j / dr * f * cos_cutoff
         if self.apply_mask:
             E_ij = mask_by_neighbor(E_ij, idx)
-        E = fp64_sum(E_ij)
-        return E
+        E = 0.5 * rep_scale * self.ke * fp64_sum(E_ij)
+        return fp64_sum(E)
 
 
 class ReaxBonded(nn.Module):

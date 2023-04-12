@@ -90,6 +90,7 @@ def get_opt(
         "a_num": empirical_opt,
         "coefficients": empirical_opt,
         "exponents": empirical_opt,
+        "rep_scale": empirical_opt,
         "r0": empirical_opt,
         "po_coeff": empirical_opt,
         "po_exp": empirical_opt,
