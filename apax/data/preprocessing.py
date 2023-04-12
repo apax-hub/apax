@@ -76,9 +76,9 @@ def dataset_neighborlist(
                     log.info("Neighbor list overflowed, reallocating.")
                     neighbors = neighbor_fn.allocate(position)
 
-                neighbor_idxs = neighbors.idx
+                neighbor_idxs = np.asarray(neighbors.idx)
                 n_neighbors = neighbor_idxs.shape[1]
-                offsets = jnp.full([n_neighbors, 3], 0)
+                offsets = np.full([n_neighbors, 3], 0)
 
             elif np.all(box[i] > 2 * r_max):
                 reallocate = True
@@ -100,9 +100,9 @@ def dataset_neighborlist(
                     log.info("Neighbor list overflowed, reallocating.")
                     neighbors = neighbor_fn.allocate(position, box=box[i])
 
-                neighbor_idxs = neighbors.idx
+                neighbor_idxs = np.asarray(neighbors.idx)
                 n_neighbors = neighbor_idxs.shape[1]
-                offsets = jnp.full([n_neighbors, 3], 0)
+                offsets = np.full([n_neighbors, 3], 0)
 
             else:
                 cell = [
@@ -128,11 +128,12 @@ def dataset_neighborlist(
                     idxs_i.extend([atom_idx] * len(idx))
                     idxs_j.extend(idx)
                     offsets.extend(offset)
-                neighbor_idxs = jnp.array([idxs_i, idxs_j])
-                offsets = jnp.array(offset)
 
-            idx_list.append(neighbor_idxs)
+                neighbor_idxs = np.array([idxs_i, idxs_j])
+                offsets = np.array(offsets)
+
             offset_list.append(offsets)
+            idx_list.append(neighbor_idxs)
             if i % pbar_update_freq == 0:
                 nl_pbar.update(pbar_update_freq)
     return idx_list, offset_list

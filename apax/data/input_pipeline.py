@@ -84,6 +84,9 @@ class PadToSpecificSize:
             elif key == "idx":
                 shape = r_inputs[key].shape
                 padded_shape = [shape[0], shape[1], self.max_nbrs]  # batch, ij, nbrs
+            elif key == "offsets":
+                shape = r_inputs[key].shape
+                padded_shape = [shape[0], self.max_nbrs, 3]  # batch, ij, nbrs
             elif key == "numbers":
                 shape = r_inputs[key].shape
                 padded_shape = [shape[0], self.max_atoms]  # batch, atoms
@@ -133,8 +136,8 @@ def create_dict_dataset(
         disable_pbar=disable_pbar,
     )
 
-    inputs["ragged"]["idx"] = [np.array(i) for i in idx]
-    inputs["ragged"]["offsets"] = [np.array(i) for i in offsets]
+    inputs["ragged"]["idx"] = idx
+    inputs["ragged"]["offsets"] = offsets
     return inputs, labels
 
 
