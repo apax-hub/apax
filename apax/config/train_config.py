@@ -45,8 +45,6 @@ class DataConfig(BaseModel, extra=Extra.forbid):
     train_data_path: Optional[str] = None
     val_data_path: Optional[str] = None
     test_data_path: Optional[str] = None
-    pos_unit: Optional[str] = "Ang"
-    energy_unit: Optional[str] = "eV"
 
     n_train: PositiveInt = 1000
     n_valid: PositiveInt = 100
@@ -55,6 +53,9 @@ class DataConfig(BaseModel, extra=Extra.forbid):
     shuffle_buffer_size: PositiveInt = 1000
 
     energy_regularisation: NonNegativeFloat = 1.0
+
+    pos_unit: Optional[str] = "Ang"
+    energy_unit: Optional[str] = "eV"
 
     @root_validator(pre=False)
     def set_data_or_train_val_path(cls, values):
@@ -137,6 +138,8 @@ class OptimizerConfig(BaseModel, frozen=True, extra=Extra.forbid):
     nn_lr: NonNegativeFloat = 0.03
     scale_lr: NonNegativeFloat = 0.001
     shift_lr: NonNegativeFloat = 0.05
+    zbl_lr: NonNegativeFloat = 0.001
+    reax_lr: NonNegativeFloat = 0.001
     transition_begin: int = 0
     opt_kwargs: dict = {}
     sam_rho: NonNegativeFloat = 0.0
@@ -171,7 +174,7 @@ class LossConfig(BaseModel, extra=Extra.forbid):
     """
 
     name: str
-    loss_type: str = "molecules"
+    loss_type: str = "structures"
     weight: NonNegativeFloat = 1.0
 
 
