@@ -28,7 +28,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     n_species = int(np.max(Z) + 1)
     builder = ModelBuilder(config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_model(
-        displacement_fn=displacement_fn, apply_mask=False, init_box=np.array(box)
+        displacement_fn=displacement_fn, apply_mask=True, init_box=np.array(box)
     )
     energy_fn = partial(model.apply, params, Z=Z, box=box)
     neighbor_fn = partition.neighbor_list(

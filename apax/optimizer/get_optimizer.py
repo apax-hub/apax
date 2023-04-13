@@ -56,8 +56,10 @@ def get_opt(
     nn_lr: float = 0.03,
     scale_lr: float = 0.001,
     shift_lr: float = 0.05,
+    empirical_lr: float = 0.001,
     opt_name: str = "adam",
     opt_kwargs: dict = {},
+    **kwargs,
 ) -> optax._src.base.GradientTransformation:
     """
     Builds an optimizer with different learning rates for each parameter group.
@@ -74,6 +76,9 @@ def get_opt(
     shift_opt = make_optimizer(
         opt, shift_lr, transition_begin, transition_steps, opt_kwargs
     )
+    empirical_opt = make_optimizer(
+        opt, empirical_lr, transition_begin, transition_steps, opt_kwargs
+    )
 
     partition_optimizers = {
         "w": nn_opt,
@@ -81,7 +86,19 @@ def get_opt(
         "atomic_type_embedding": emb_opt,
         "scale_per_element": scale_opt,
         "shift_per_element": shift_opt,
+        "a_exp": empirical_opt,
+        "a_num": empirical_opt,
+        "coefficients": empirical_opt,
+        "exponents": empirical_opt,
+        "rep_scale": empirical_opt,
+        "r0": empirical_opt,
+        "po_coeff": empirical_opt,
+        "po_exp": empirical_opt,
+        "De": empirical_opt,
+        "pbe1": empirical_opt,
+        "pbe2": empirical_opt,
     }
+
     param_partitions = freeze(
         traverse_util.path_aware_map(lambda path, v: path[-1], params)
     )

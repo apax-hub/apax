@@ -3,6 +3,7 @@ import time
 from functools import partial
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 from tqdm import trange
 
@@ -22,8 +23,9 @@ def fit(
     n_epochs,
     ckpt_dir,
     ckpt_interval: int = 1,
-    disable_pbar: bool = False,
     val_ds=None,
+    sam_rho=0.0,
+    disable_pbar: bool = False,
 ):
     log.info("Begining Training")
     callbacks.on_train_begin()
@@ -32,7 +34,7 @@ def fit(
     best_dir = ckpt_dir + "/best"
     ckpt_manager = CheckpointManager()
 
-    train_step, val_step = make_step_fns(loss_fn, Metrics, model=model)
+    train_step, val_step = make_step_fns(loss_fn, Metrics, model=model, sam_rho=sam_rho)
 
     state, start_epoch = load_state(model, params, tx, latest_dir)
     if start_epoch >= n_epochs:
@@ -118,6 +120,16 @@ def fit(
             epoch_pbar.update()
 
 
+def global_norm(updates) -> jnp.ndarray:
+    """Returns the l2 norm of the input.
+    Args:
+      updates: A pytree of ndarrays representing the gradient.
+    """
+    return jnp.sqrt(
+        sum([jnp.sum(jnp.square(x)) for x in jax.tree_util.tree_leaves(updates)])
+    )
+
+
 def calc_loss(params, inputs, labels, loss_fn, model):
     R, Z, idx, box, offsets = (
         inputs["positions"],
@@ -131,13 +143,21 @@ def calc_loss(params, inputs, labels, loss_fn, model):
     return loss, predictions
 
 
-def make_step_fns(loss_fn, Metrics, model):
+def make_step_fns(loss_fn, Metrics, model, sam_rho):
     loss_calculator = partial(calc_loss, loss_fn=loss_fn, model=model)
+    rho = sam_rho
 
     @jax.jit
     def train_step(state, inputs, labels, batch_metrics):
         grad_fn = jax.value_and_grad(loss_calculator, 0, has_aux=True)
         (loss, predictions), grads = grad_fn(state.params, inputs, labels)
+
+        if rho > 1e-6:
+            grad_norm = global_norm(grads)
+            eps = jax.tree_map(lambda g: g * rho / grad_norm, grads)
+            params_eps = jax.tree_map(lambda p, e: p + e, state.params, eps)
+            (loss, _), grads = grad_fn(params_eps, inputs, labels)
+
         state = state.apply_gradients(grads=grads)
 
         new_batch_metrics = Metrics.single_from_model_output(
