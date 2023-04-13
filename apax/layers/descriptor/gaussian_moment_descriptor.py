@@ -63,9 +63,7 @@ class GaussianMomentDescriptor(nn.Module):
             Ri = R[idx_i]
             Rj = offsets + R[idx_j]
 
-            dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(
-                self.dtype
-            )
+            dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
         else:
             # reverse conventnion to match TF
             # distance vector for gas phase training and predicting
