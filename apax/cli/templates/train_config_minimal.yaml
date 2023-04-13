@@ -6,8 +6,8 @@ data:
   model_name: apax
   data_path: <PATH>
 
-  n_train: 100
-  n_valid: 10
+  n_train: 1000
+  n_valid: 100
   batch_size: 32
   valid_batch_size: 100
 
