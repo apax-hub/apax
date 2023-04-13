@@ -114,9 +114,6 @@ def run_nvt(
 
     log.info("initializing simulation")
     neighbor = neighbor_fn.allocate(R, extra_capacity=extra_capacity)
-    # neighbor_idxs = neighbor.idx
-    # n_neighbors = neighbor_idxs.shape[1]
-    # offsets = jnp.full([n_neighbors, 3] ,0)
 
     init_fn, apply_fn = simulate.nvt_nose_hoover(energy_fn, shift_fn, dt, kT)
     async_manager = checkpoints.AsyncManager()
