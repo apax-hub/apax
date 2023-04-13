@@ -174,13 +174,16 @@ class TFPipeline:
         if batch_size > self.n_data:
             raise ValueError("batch size is larger than the number of data points!")
 
+        # tf.RaggedTensors should be created from `tf.ragged.stack`
+        # instead of `tf.ragged.constant` for performance reasons.
+        # See https://github.com/tensorflow/tensorflow/issues/47853
         for key, val in inputs["ragged"].items():
-            inputs["ragged"][key] = tf.ragged.constant(val)
+            inputs["ragged"][key] = tf.ragged.stack(val)
         for key, val in inputs["fixed"].items():
             inputs["fixed"][key] = tf.constant(val)
 
         for key, val in labels["ragged"].items():
-            labels["ragged"][key] = tf.ragged.constant(val)
+            labels["ragged"][key] = tf.ragged.stack(val)
         for key, val in labels["fixed"].items():
             labels["fixed"][key] = tf.constant(val)
 
