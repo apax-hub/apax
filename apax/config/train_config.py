@@ -45,8 +45,6 @@ class DataConfig(BaseModel, extra=Extra.forbid):
     train_data_path: Optional[str] = None
     val_data_path: Optional[str] = None
     test_data_path: Optional[str] = None
-    pos_unit: Optional[str] = "Ang"
-    energy_unit: Optional[str] = "eV"
 
     n_train: PositiveInt = 1000
     n_valid: PositiveInt = 100
@@ -55,6 +53,9 @@ class DataConfig(BaseModel, extra=Extra.forbid):
     shuffle_buffer_size: PositiveInt = 1000
 
     energy_regularisation: NonNegativeFloat = 1.0
+
+    pos_unit: Optional[str] = "Ang"
+    energy_unit: Optional[str] = "eV"
 
     @root_validator(pre=False)
     def set_data_or_train_val_path(cls, values):
@@ -95,6 +96,10 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
     nn: List[PositiveInt] = [512, 512]
     b_init: Literal["normal", "zeros"] = "normal"
 
+    # corrections
+    use_zbl: bool = False
+    use_reax: bool = False
+
     descriptor_dtype: Literal["fp32", "fp64"] = "fp32"
     readout_dtype: Literal["fp32", "fp64"] = "fp32"
     scale_shift_dtype: Literal["fp32", "fp64"] = "fp32"
@@ -133,8 +138,11 @@ class OptimizerConfig(BaseModel, frozen=True, extra=Extra.forbid):
     nn_lr: NonNegativeFloat = 0.03
     scale_lr: NonNegativeFloat = 0.001
     shift_lr: NonNegativeFloat = 0.05
+    zbl_lr: NonNegativeFloat = 0.001
+    reax_lr: NonNegativeFloat = 0.001
     transition_begin: int = 0
     opt_kwargs: dict = {}
+    sam_rho: NonNegativeFloat = 0.0
 
 
 class MetricsConfig(BaseModel, extra=Extra.forbid):
@@ -166,7 +174,7 @@ class LossConfig(BaseModel, extra=Extra.forbid):
     """
 
     name: str
-    loss_type: str = "molecules"
+    loss_type: str = "structures"
     weight: NonNegativeFloat = 1.0
 
 

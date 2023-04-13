@@ -14,8 +14,8 @@ from apax.layers.masking import mask_by_neighbor
 
 
 def get_disp_fn(displacement):
-    def disp_fn(ri, rj, box):
-        return displacement(ri, rj, box=box)
+    def disp_fn(ri, rj, perturbation, box):
+        return displacement(ri, rj, perturbation, box=box)
 
     return disp_fn
 
@@ -35,7 +35,7 @@ class GaussianMomentDescriptor(nn.Module):
         if not np.all(self.init_box < 1e-6):
             # displacement function used for training on periodic systems
             mappable_displacement_fn = get_disp_fn(self.displacement_fn)
-            self.displacement = vmap(mappable_displacement_fn, (0, 0, None), 0)
+            self.displacement = vmap(mappable_displacement_fn, (0, 0, None, None), 0)
         else:
             # displacement function for gas phase training and predicting
             self.displacement = space.map_bond(self.displacement_fn)
@@ -45,7 +45,7 @@ class GaussianMomentDescriptor(nn.Module):
         self.triang_idxs_2d = tril_2d_indices(self.n_radial)
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
 
-    def __call__(self, R, Z, neighbor_idxs, box):
+    def __call__(self, R, Z, neighbor_idxs, box, perturbation=None):
         R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms
@@ -60,7 +60,9 @@ class GaussianMomentDescriptor(nn.Module):
         if not np.all(self.init_box < 1e-6):
             # distance vector for training on periodic systems
             # reverse conventnion to match TF
-            dr_vec = self.displacement(R[idx_j], R[idx_i], box).astype(self.dtype)
+            dr_vec = self.displacement(R[idx_j], R[idx_i], perturbation, box).astype(
+                self.dtype
+            )
         else:
             # reverse conventnion to match TF
             # distance vector for gas phase training and predicting
