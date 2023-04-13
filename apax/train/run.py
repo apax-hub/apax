@@ -97,7 +97,8 @@ def initialize_datasets(config, raw_datasets):
     train_inputs, train_labels = create_dict_dataset(
         train_atoms_list,
         neighbor_fn,
-        train_label_dict,
+        r_max=config.model.r_max,
+        external_labels=train_label_dict,
         disable_pbar=config.progress_bar.disable_nl_pbar,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
@@ -105,7 +106,8 @@ def initialize_datasets(config, raw_datasets):
     val_inputs, val_labels = create_dict_dataset(
         val_atoms_list,
         neighbor_fn,
-        val_label_dict,
+        r_max=config.model.r_max,
+        external_labels=val_label_dict,
         disable_pbar=config.progress_bar.disable_nl_pbar,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
@@ -230,11 +232,12 @@ def run(user_config, log_file="train.log", log_level="error"):
 
     log.info("Initializing Model")
     init_input = train_ds.init_input()
-    R, Z, idx, init_box = (
+    R, Z, idx, init_box, offsets = (
         jnp.asarray(init_input["positions"][0]),
         jnp.asarray(init_input["numbers"][0]),
         jnp.asarray(init_input["idx"][0]),
         np.array(init_input["box"][0]),
+        jnp.array(init_input["offsets"][0]),
     )
 
     # TODO n_species should be optional since it's already
@@ -249,7 +252,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     )
 
     rng_key, model_rng_key = jax.random.split(rng_key, num=2)
-    params = model.init(model_rng_key, R, Z, idx, init_box)
+    params = model.init(model_rng_key, R, Z, idx, init_box, offsets)
 
     do_transfer_learning = config.checkpoints.base_model_checkpoint is not None
     if do_transfer_learning:
@@ -262,7 +265,7 @@ def run(user_config, log_file="train.log", log_level="error"):
         source_params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
         params = param_transfer(source_params, params, config.checkpoints.reset_layers)
 
-    batched_model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0))
+    batched_model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
 
     steps_per_epoch = train_ds.steps_per_epoch()
     n_epochs = config.n_epochs

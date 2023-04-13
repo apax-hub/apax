@@ -5,6 +5,7 @@ import logging
 import jax
 import jax.numpy as jnp
 import numpy as np
+from ase.neighborlist import PrimitiveNeighborList
 from jax_md.partition import NeighborFn
 from tqdm import trange
 
@@ -23,6 +24,8 @@ def dataset_neighborlist(
     positions: list[np.array],
     n_atoms: list[int],
     box: list[np.array],
+    r_max: float,
+    atoms_list,
     disable_pbar: bool = False,
 ) -> list[int]:
     """Calculates the neighbor list of all systems within positions using
@@ -39,14 +42,15 @@ def dataset_neighborlist(
 
     Returns
     -------
-    idx :
+    idxs :
         Neighbor list of all structures.
     """
     log.info("Precomputing neighborlists")
     # The JaxMD NL throws an error if np arrays are passed to it in the CPU version
     positions = [jnp.asarray(pos) for pos in positions]
     neighbors = neighbor_fn.allocate(positions[0])
-    idx = []
+    idx_list = []
+    offset_list = []
     last_n_atoms = n_atoms[0]
     neighbors_dict = {
         "neighbor_fn_0": {"neighbors": neighbors, "box": box[0], "n_atoms": n_atoms[0]}
@@ -65,9 +69,18 @@ def dataset_neighborlist(
                 if n_atoms[i] != last_n_atoms:
                     neighbors = neighbor_fn.allocate(position)
                     last_n_atoms = n_atoms[i]
+
                 neighbors = extract_nl(neighbors, position)
 
-            else:
+                if neighbors.did_buffer_overflow:
+                    log.info("Neighbor list overflowed, reallocating.")
+                    neighbors = neighbor_fn.allocate(position)
+
+                neighbor_idxs = np.asarray(neighbors.idx)
+                n_neighbors = neighbor_idxs.shape[1]
+                offsets = np.full([n_neighbors, 3], 0)
+
+            elif np.all(box[i] > 2 * r_max):
                 reallocate = True
                 for neighbor_vals in neighbors_dict.values():
                     if (
@@ -76,7 +89,6 @@ def dataset_neighborlist(
                     ):
                         neighbors = extract_nl(neighbor_vals["neighbors"], position)
                         reallocate = False
-
                 if reallocate:
                     neighbors = neighbor_fn.allocate(position, box=box[i])
                     neighbors_dict[f"neighbor_fn_{i}"] = {
@@ -84,18 +96,47 @@ def dataset_neighborlist(
                         "box": box[i],
                         "n_atoms": n_atoms[i],
                     }
-
-            if neighbors.did_buffer_overflow:
-                log.info("Neighbor list overflowed, reallocating.")
-                if np.all(box[i] < 1e-6):
-                    neighbors = neighbor_fn.allocate(position)
-                else:
+                if neighbors.did_buffer_overflow:
+                    log.info("Neighbor list overflowed, reallocating.")
                     neighbors = neighbor_fn.allocate(position, box=box[i])
 
-            idx.append(neighbors.idx)
+                neighbor_idxs = np.asarray(neighbors.idx)
+                n_neighbors = neighbor_idxs.shape[1]
+                offsets = np.full([n_neighbors, 3], 0)
+
+            else:
+                cell = [
+                    [box[i][0], 0.0, 0.0],
+                    [0.0, box[i][1], 0.0],
+                    [0.0, 0.0, box[i][2]],
+                ]
+                ase_neighbor_fn = PrimitiveNeighborList(
+                    jnp.full(n_atoms[i], r_max / 2),
+                    skin=0.0,
+                    self_interaction=False,
+                    bothways=True,
+                )  # dict comparison possible like in jax_nl
+                ase_neighbor_fn.update(
+                    pbc=[True, True, True], cell=cell, coordinates=atoms_list[i].positions
+                )
+                idxs_i = []
+                idxs_j = []
+                offsets = []
+
+                for atom_idx in range(n_atoms[i]):
+                    idx, offset = ase_neighbor_fn.get_neighbors(atom_idx)
+                    idxs_i.extend([atom_idx] * len(idx))
+                    idxs_j.extend(idx)
+                    offsets.extend(offset)
+
+                neighbor_idxs = np.array([idxs_i, idxs_j])
+                offsets = np.array(offsets)
+
+            offset_list.append(offsets)
+            idx_list.append(neighbor_idxs)
             if i % pbar_update_freq == 0:
                 nl_pbar.update(pbar_update_freq)
-    return idx
+    return idx_list, offset_list
 
 
 def prefetch_to_single_device(iterator, size):

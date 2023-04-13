@@ -84,8 +84,11 @@ class ASECalculator(Calculator):
         @jax.jit
         def body_fn(positions, neighbor):
             neighbor = neighbor.update(positions)
+            neighbors = neighbor.idx
+            n_neighbors = neighbors.shape[1]
+            offsets = jnp.full([n_neighbors, 3], 0)
             energy, neg_forces = jax.value_and_grad(energy_fn)(
-                positions, neighbor=neighbor
+                positions, neighbor=neighbor, offsets=offsets
             )
             forces = -neg_forces
             return energy, forces, neighbor

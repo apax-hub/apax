@@ -114,6 +114,7 @@ def run_nvt(
 
     log.info("initializing simulation")
     neighbor = neighbor_fn.allocate(R, extra_capacity=extra_capacity)
+
     init_fn, apply_fn = simulate.nvt_nose_hoover(energy_fn, shift_fn, dt, kT)
     async_manager = checkpoints.AsyncManager()
     restart = False  # TODO needs to be implemented
@@ -254,7 +255,9 @@ def md_setup(model_config: Config, md_config: MDConfig):
     raw_restored = checkpoints.restore_checkpoint(best_dir, target=None, step=None)
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
 
-    energy_fn = partial(model.apply, params, Z=Z, box=box)
+    energy_fn = partial(
+        model.apply, params, Z=Z, box=box, offsets=jnp.array([0.0, 0.0, 0.0])
+    )
 
     return R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn
 

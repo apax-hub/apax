@@ -32,6 +32,7 @@ class AtomisticModel(nn.Module):
         Z: Array,
         neighbor: Union[partition.NeighborList, NeighborSpoof, Array],
         box,
+        offsets,
         perturbation=None,
     ) -> Array:
         if type(neighbor) in [partition.NeighborList, NeighborSpoof]:
@@ -39,7 +40,7 @@ class AtomisticModel(nn.Module):
         else:
             idx = neighbor
 
-        gm = self.descriptor(R, Z, idx, box, perturbation)
+        gm = self.descriptor(R, Z, idx, box, offsets, perturbation)
         h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
 
@@ -60,9 +61,10 @@ class EnergyModel(nn.Module):
         Z: Array,
         neighbor: Union[partition.NeighborList, NeighborSpoof, Array],
         box,
+        offsets,
         perturbation=None,
     ):
-        atomic_energies = self.atomistic_model(R, Z, neighbor, box, perturbation)
+        atomic_energies = self.atomistic_model(R, Z, neighbor, box, offsets, perturbation)
         total_energy = fp64_sum(atomic_energies)
 
         # Corrections
@@ -94,10 +96,11 @@ class EnergyForceModel(nn.Module):
         Z: Array,
         neighbor: Union[partition.NeighborList, NeighborSpoof, Array],
         box,
+        offsets,
         perturbation=None,
     ):
         energy, neg_forces = jax.value_and_grad(self.energy_fn)(
-            R, Z, neighbor, box, perturbation
+            R, Z, neighbor, box, offsets, perturbation
         )
         forces = -neg_forces
         prediction = {"energy": energy, "forces": forces}
