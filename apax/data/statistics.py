@@ -28,7 +28,7 @@ def energy_per_element(atoms_list, lambd=1.0):
     n_atoms_total = np.sum(system_sizes)
 
     mean_energy = ds_energy / n_atoms_total
-    n_species = max([max(n) for n in numbers]) + 1
+    n_species = 119  # max([max(n) for n in numbers]) + 1
 
     mean_err_sse = 0.0
     X = np.zeros(shape=(energies.shape[0], n_species))
