@@ -78,7 +78,7 @@ class Loss:
         divisor = self.determine_divisor(inputs["n_atoms"])
 
         loss = self.loss_fn(label[self.name], prediction[self.name], divisor=divisor)
-        return self.weight * jnp.sum(loss)
+        return self.weight * jnp.sum(jnp.mean(loss, axis=0))
 
     def determine_divisor(self, n_atoms: jnp.array) -> jnp.array:
         if self.name == "energy" and self.loss_type == "structures":
