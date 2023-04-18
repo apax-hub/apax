@@ -188,12 +188,12 @@ def visualize_model(
         console.print("Configuration Invalid!", style="red3")
         raise typer.Exit(code=1)
 
-    R, Z, idx, box = make_minimal_input()
+    R, Z, idx, box, offsets = make_minimal_input()
     builder = ModelBuilder(config.model.get_dict(), n_species=10)
     model = builder.build_energy_model(
         displacement_fn=space.free()[0],
     )
-    print(model.tabulate(jax.random.PRNGKey(0), R, Z, idx, box))
+    print(model.tabulate(jax.random.PRNGKey(0), R, Z, idx, box, offsets))
 
 
 @template_app.command("train")

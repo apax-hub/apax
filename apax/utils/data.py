@@ -18,7 +18,8 @@ def make_minimal_input():
         jnp.array([[1], [0]]),
     )
     box = np.array([0.0, 0.0, 0.0])
-    return R, Z, idx, box
+    offsets = np.array([0.0, 0.0, 0.0])
+    return R, Z, idx, box, offsets
 
 
 def load_data(data_path):
