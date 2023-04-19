@@ -19,7 +19,7 @@ def test_gaussian_basis():
 
 def test_radial_function():
     key = jax.random.PRNGKey(0)
-    n_species = 3
+    n_species = 119  # 3
     n_basis = 5
     n_radial = 2
 

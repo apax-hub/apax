@@ -48,7 +48,7 @@ def test_run_md(get_tmp_path):
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(md_config.initial_structure, atoms)
 
-    n_species = int(np.max(atomic_numbers) + 1)
+    n_species = 119  # int(np.max(atomic_numbers) + 1)
 
     displacement_fn, _ = space.free()
 
@@ -119,7 +119,7 @@ def test_ase_calc(get_tmp_path):
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(initial_structure_path.as_posix(), atoms)
 
-    n_species = int(np.max(atomic_numbers) + 1)
+    n_species = 119  # int(np.max(atomic_numbers) + 1)
 
     displacement_fn, _ = space.periodic_general(cell_size, fractional_coordinates=False)
 

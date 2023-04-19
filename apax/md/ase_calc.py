@@ -25,7 +25,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
         displacement_fn, _ = space.periodic_general(box, fractional_coordinates=False)
 
     Z = jnp.asarray(atomic_numbers)
-    n_species = int(np.max(Z) + 1)
+    n_species = 119  # int(np.max(Z) + 1)
     builder = ModelBuilder(config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_model(
         displacement_fn=displacement_fn, apply_mask=True, init_box=np.array(box)

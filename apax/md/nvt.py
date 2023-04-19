@@ -231,7 +231,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         )
 
     Z = jnp.asarray(atomic_numbers)
-    n_species = int(np.max(Z) + 1)
+    n_species = 119  # int(np.max(Z) + 1)
     builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_model(
         displacement_fn=displacement_fn, apply_mask=True, init_box=np.array(box)
