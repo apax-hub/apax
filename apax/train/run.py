@@ -16,7 +16,7 @@ from apax.data.input_pipeline import (
     create_dict_dataset,
     initialize_nbr_displacement_fns,
 )
-from apax.data.statistics import energy_per_element
+from apax.data.statistics import per_element_regression, isolated_atom_energies
 from apax.model import ModelBuilder
 from apax.optimizer import get_opt
 from apax.train.loss import Loss, LossCollection
@@ -81,12 +81,24 @@ def find_largest_system(list_of_inputs):
     return max_atoms, max_nbrs
 
 
+def compute_scale_shift_parameters(train_atoms_list, scale_shift_method, scale_shift_options):
+    methods = {"per_element_regression": per_element_regression, "isolated_atom_energies": isolated_atom_energies}
+    if scale_shift_method not in methods.keys():
+        raise KeyError(f"The scale shift method '{scale_shift_method}' is not among the implemented methods. Choose from {methods.keys()}")
+
+    method = methods[scale_shift_method]
+    ds_stats = method(
+        train_atoms_list, scale_shift_options
+    )
+    return ds_stats
+
+
 def initialize_datasets(config, raw_datasets):
     train_atoms_list, train_label_dict, val_atoms_list, val_label_dict = raw_datasets
 
-    ds_stats = energy_per_element(
-        train_atoms_list, lambd=config.data.energy_regularisation
-    )
+
+    ds_stats = compute_scale_shift_parameters(train_atoms_list, config.data.scale_shift_method, config.data.scale_shift_options)
+
     displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(
         train_atoms_list[0],
         config.model.r_max,

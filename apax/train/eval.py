@@ -16,7 +16,7 @@ from apax.data.input_pipeline import (
     create_dict_dataset,
     initialize_nbr_displacement_fns,
 )
-from apax.data.statistics import energy_per_element
+from apax.data.statistics import per_element_regression
 from apax.model import ModelBuilder
 from apax.train.metrics import initialize_metrics
 from apax.train.run import find_largest_system, initialize_callbacks, initialize_loss_fn
@@ -74,7 +74,7 @@ def load_test_data(
 
 
 def initialize_test_dataset(test_atoms_list, test_label_dict, config):
-    ds_stats = energy_per_element(
+    ds_stats = per_element_regression(
         atoms_list=test_atoms_list, lambd=config.data.energy_regularisation
     )
     displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(

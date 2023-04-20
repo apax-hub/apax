@@ -2,7 +2,7 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from apax.data.statistics import energy_per_element
+from apax.data.statistics import per_element_regression
 
 
 def test_energy_per_element():
@@ -20,7 +20,7 @@ def test_energy_per_element():
         energies.append(energy)
         atoms.calc = SinglePointCalculator(atoms, energy=energy)
 
-    ds_stats = energy_per_element(atoms_list, 0.0)
+    ds_stats = per_element_regression(atoms_list, 0.0)
     elemental_shift = ds_stats.elemental_shift
     regression_energies = []
     for atoms in atoms_list:

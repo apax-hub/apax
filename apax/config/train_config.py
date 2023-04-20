@@ -12,6 +12,13 @@ from pydantic import (
 )
 
 
+class ScaleShiftConfig(BaseModel, extra=Extra.forbid):
+    # energy_regularisation: NonNegativeFloat = 1.0
+    name: str = "per_element_regression"
+    options: dict = {"energy_regularisation": 1.0}
+
+
+
 class DataConfig(BaseModel, extra=Extra.forbid):
     """
     Configuration for data loading, preprocessing and training.
@@ -52,7 +59,9 @@ class DataConfig(BaseModel, extra=Extra.forbid):
     valid_batch_size: PositiveInt = 100
     shuffle_buffer_size: PositiveInt = 1000
 
-    energy_regularisation: NonNegativeFloat = 1.0
+    # scale_shift: ScaleShiftConfig = ScaleShiftConfig()
+    scale_shift_method: str = "per_element_regression"
+    scale_shift_options: dict = {"energy_regularisation": 1.0}
 
     pos_unit: Optional[str] = "Ang"
     energy_unit: Optional[str] = "eV"

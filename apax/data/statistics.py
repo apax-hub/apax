@@ -15,7 +15,17 @@ class DatasetStats:
     displacement_fn = None
 
 
-def energy_per_element(atoms_list, lambd=1.0):
+def per_element_regression(atoms_list, scale_shift_options):
+    if "energy_regularization" not in scale_shift_options:
+        raise KeyError("Per element regression requires the 'energy_regularization' key")
+    lambd=scale_shift_options["energy_regularization"]
+
+    key_words = scale_shift_options.keys()
+    key_words.remove("energy_regularization")
+    if len(key_words) > 0:
+        raise KeyError(f"Per element regression received unknown arguments: {key_words}")
+
+
     log.info("Computing per element energy regression.")
     energies = [atoms.get_potential_energy() for atoms in atoms_list]
     numbers = [atoms.numbers for atoms in atoms_list]
@@ -53,4 +63,16 @@ def energy_per_element(atoms_list, lambd=1.0):
     elemental_energies_std = np.sqrt(mean_err_sse / n_atoms_total)
 
     ds_stats = DatasetStats(elemental_energies_mean, elemental_energies_std, 0, n_species)
+    return ds_stats
+
+
+def isolated_atom_energies(train_atoms_list, E0s):
+    n_species = 119
+
+    elemental_energies_shift = np.zeros(n_species)
+    for k,v in E0s.items():
+        elemental_energies_shift[k] = v
+
+    elemental_energies_scale = np.zeros(n_species)
+    ds_stats = DatasetStats(elemental_energies_shift, elemental_energies_scale, 0, n_species)
     return ds_stats
