@@ -10,7 +10,7 @@ packages = [{include = "apax"}]
 
 [tool.poetry.dependencies]
 python = ">=3.10, <3.12"
-numpy = ">1.18, <1.24"
+numpy = "^1.18"
 ase = "^3.22.1"
 pydantic = "^1.10.2"
 tensorflow-cpu = "^2.11.0"
