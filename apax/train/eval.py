@@ -16,7 +16,7 @@ from apax.data.input_pipeline import (
     create_dict_dataset,
     initialize_nbr_displacement_fns,
 )
-from apax.data.statistics import per_element_regression_shift
+from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
 from apax.train.metrics import initialize_metrics
 from apax.train.run import find_largest_system, initialize_callbacks, initialize_loss_fn
@@ -74,9 +74,12 @@ def load_test_data(
 
 
 def initialize_test_dataset(test_atoms_list, test_label_dict, config):
-    ds_stats = per_element_regression_shift(
-        atoms_list=test_atoms_list, lambd=config.data.energy_regularisation
-    )
+    shift_method = config.data.shift_method
+    scale_method = config.data.scale_method
+    shift_options = config.data.shift_options
+    scale_options = config.data.scale_options
+
+    ds_stats = compute_scale_shift_parameters(test_atoms_list, shift_method, scale_method, shift_options, scale_options)
     displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(
         atoms=test_atoms_list[0], cutoff=config.model.r_max
     )

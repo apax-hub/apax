@@ -84,8 +84,12 @@ def find_largest_system(list_of_inputs):
 def initialize_datasets(config, raw_datasets):
     train_atoms_list, train_label_dict, val_atoms_list, val_label_dict = raw_datasets
 
+    shift_method = config.data.shift_method
+    scale_method = config.data.scale_method
+    shift_options = config.data.shift_options
+    scale_options = config.data.scale_options
 
-    ds_stats = compute_scale_shift_parameters(train_atoms_list, config.data.scale_shift_method, config.data.scale_shift_options)
+    ds_stats = compute_scale_shift_parameters(train_atoms_list, shift_method, scale_method, shift_options, scale_options)
 
     displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(
         train_atoms_list[0],
