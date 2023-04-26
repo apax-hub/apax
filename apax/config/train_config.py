@@ -4,6 +4,7 @@ from typing import List, Literal, Optional
 import yaml
 from pydantic import (
     BaseModel,
+    BaseConfig,
     Extra,
     NonNegativeFloat,
     PositiveFloat,
@@ -13,6 +14,11 @@ from pydantic import (
 )
 
 from apax.data.statistics import shift_method_list, scale_method_list
+
+
+class NoExtraConfig(BaseConfig):
+    extra = Extra.forbid
+
 
 class DataConfig(BaseModel, extra=Extra.forbid):
     """
@@ -54,7 +60,7 @@ class DataConfig(BaseModel, extra=Extra.forbid):
     valid_batch_size: PositiveInt = 100
     shuffle_buffer_size: PositiveInt = 1000
 
-    shift_method: str = "per_element_regression"
+    shift_method: str = "per_element_regression_shift"
     shift_options: dict = {"energy_regularisation": 1.0}
 
     scale_method: str = "per_element_force_rms_scale"
@@ -84,27 +90,18 @@ class DataConfig(BaseModel, extra=Extra.forbid):
 
         cases = zip(method_lists, requested_methods, requested_options)
         for method_list, requested_method, requested_params in cases:
-
-            methods = {method.name: method.parameters for method in method_list}
+            methods = {method.name: method for method in method_list}
 
             # check if method exists
             if requested_method not in methods.keys():
                 raise KeyError(f"The initialization method '{requested_method}' is not among the implemented methods. Choose from {methods.keys()}")
 
-            # keys = set(requested_params.keys())
-            
-            # expected_keys = method.keys()
-            # wrong_parameters = expected_keys.difference(keys)
-            # if len(wrong_parameters) > 0:
-            #     raise KeyError(f"The initialization method '{method}' expects the following parameters: {expected_keys}. Found{keys}")
-
             # check if parameters names are complete and correct
             method = methods[requested_method]
-            fields = {name: dtype for name, dtype in zip(method.parameters, method.dtypes)}
-            MethodConfig = create_model(f"{method}Config", **fields)
+            fields = {name: (dtype, ...) for name, dtype in zip(method.parameters, method.dtypes)}
+            MethodConfig = create_model(f"{method.name}Config", __config__=NoExtraConfig, **fields)
 
-            MethodConfig(**requested_params)           
-
+            _ = MethodConfig(**requested_params)       
 
         return values
 

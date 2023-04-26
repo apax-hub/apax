@@ -17,14 +17,14 @@ class DatasetStats:
 
 class PerElementRegressionShift:
     name = "per_element_regression_shift"
-    parameters = ["energy_regularization"]
+    parameters = ["energy_regularisation"]
     dtypes = [float]
 
     @staticmethod
     def compute(atoms_list, shift_options) -> np.ndarray:
         log.info("Computing per element energy regression.")
 
-        lambd=shift_options["energy_regularization"]
+        lambd=shift_options["energy_regularisation"]
         energies = [atoms.get_potential_energy() for atoms in atoms_list]
         numbers = [atoms.numbers for atoms in atoms_list]
         system_sizes = [num.shape[0] for num in numbers]
