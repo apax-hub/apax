@@ -9,15 +9,10 @@ from pydantic import (
     PositiveFloat,
     PositiveInt,
     root_validator,
+    create_model
 )
 
-
-class ScaleShiftConfig(BaseModel, extra=Extra.forbid):
-    # energy_regularisation: NonNegativeFloat = 1.0
-    name: str = "per_element_regression"
-    options: dict = {"energy_regularisation": 1.0}
-
-
+from apax.data.statistics import shift_method_list, scale_method_list
 
 class DataConfig(BaseModel, extra=Extra.forbid):
     """
@@ -59,9 +54,11 @@ class DataConfig(BaseModel, extra=Extra.forbid):
     valid_batch_size: PositiveInt = 100
     shuffle_buffer_size: PositiveInt = 1000
 
-    # scale_shift: ScaleShiftConfig = ScaleShiftConfig()
-    scale_shift_method: str = "per_element_regression"
-    scale_shift_options: dict = {"energy_regularisation": 1.0}
+    shift_method: str = "per_element_regression"
+    shift_options: dict = {"energy_regularisation": 1.0}
+
+    scale_method: str = "per_element_force_rms_scale"
+    scale_options: Optional[dict] = {}
 
     pos_unit: Optional[str] = "Ang"
     energy_unit: Optional[str] = "eV"
@@ -76,6 +73,38 @@ class DataConfig(BaseModel, extra=Extra.forbid):
 
         if neither_set or both_set:
             raise ValueError("Please specify either data_path or train_data_path")
+
+        return values
+
+    @root_validator(pre=False)
+    def validate_shift_scale_methods(cls, values):
+        method_lists = [shift_method_list, scale_method_list]
+        requested_methods = [values["shift_method"], values["scale_method"]]
+        requested_options = [values["shift_options"], values["scale_options"]]
+
+        cases = zip(method_lists, requested_methods, requested_options)
+        for method_list, requested_method, requested_params in cases:
+
+            methods = {method.name: method.parameters for method in method_list}
+
+            # check if method exists
+            if requested_method not in methods.keys():
+                raise KeyError(f"The initialization method '{requested_method}' is not among the implemented methods. Choose from {methods.keys()}")
+
+            # keys = set(requested_params.keys())
+            
+            # expected_keys = method.keys()
+            # wrong_parameters = expected_keys.difference(keys)
+            # if len(wrong_parameters) > 0:
+            #     raise KeyError(f"The initialization method '{method}' expects the following parameters: {expected_keys}. Found{keys}")
+
+            # check if parameters names are complete and correct
+            method = methods[requested_method]
+            fields = {name: dtype for name, dtype in zip(method.parameters, method.dtypes)}
+            MethodConfig = create_model(f"{method}Config", **fields)
+
+            MethodConfig(**requested_params)           
+
 
         return values
 
