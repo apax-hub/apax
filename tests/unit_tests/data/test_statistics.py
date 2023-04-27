@@ -20,7 +20,9 @@ def test_energy_per_element():
         energies.append(energy)
         atoms.calc = SinglePointCalculator(atoms, energy=energy)
 
-    elemental_shift = PerElementRegressionShift.compute(atoms_list, {"energy_regularisation": 0.0})
+    elemental_shift = PerElementRegressionShift.compute(
+        atoms_list, {"energy_regularisation": 0.0}
+    )
     regression_energies = []
     for atoms in atoms_list:
         energy = np.sum(elemental_shift[atoms.numbers])

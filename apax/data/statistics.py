@@ -24,7 +24,7 @@ class PerElementRegressionShift:
     def compute(atoms_list, shift_options) -> np.ndarray:
         log.info("Computing per element energy regression.")
 
-        lambd=shift_options["energy_regularisation"]
+        lambd = shift_options["energy_regularisation"]
         energies = [atoms.get_potential_energy() for atoms in atoms_list]
         numbers = [atoms.numbers for atoms in atoms_list]
         system_sizes = [num.shape[0] for num in numbers]
@@ -61,13 +61,13 @@ class PerElementRegressionShift:
 class IsolatedAtomEnergyShift:
     name = "isolated_atom_energy_shift"
     parameters = ["E0s"]
-    dtypes = [dict[int: float]]
+    dtypes = [dict[int:float]]
 
     @staticmethod
     def compute(atoms_list, shift_options):
         n_species = 119
         elemental_energies_shift = np.zeros(n_species)
-        for k,v in shift_options.items():
+        for k, v in shift_options.items():
             elemental_energies_shift[k] = v
 
         return elemental_energies_shift
@@ -80,7 +80,6 @@ class MeanEnergyRMSScale:
 
     @staticmethod
     def compute(atoms_list, scale_options):
-
         # log.info("Computing per element energy regression.")
         energies = [atoms.get_potential_energy() for atoms in atoms_list]
         numbers = [atoms.numbers for atoms in atoms_list]
@@ -111,7 +110,7 @@ class PerElementForceRMSScale:
 
     @staticmethod
     def compute(atoms_list, scale_options):
-        n_species= 119
+        n_species = 119
 
         forces = np.concatenate([atoms.get_forces() for atoms in atoms_list], axis=0)
         numbers = np.concatenate([atoms.numbers for atoms in atoms_list], axis=0)
@@ -137,7 +136,7 @@ class GlobalCustomScale:
     def compute(atoms_list, scale_options):
         element_scale = scale_options["factor"]
         return element_scale
-    
+
 
 class PerElementCustomScale:
     name = "per_element_custom_scale"
@@ -148,35 +147,43 @@ class PerElementCustomScale:
     def compute(atoms_list, scale_options):
         n_species = 119
         element_scale = np.ones(n_species)
-        for k,v in scale_options["factors"].items():
+        for k, v in scale_options["factors"].items():
             element_scale[k] = v
 
         return element_scale
 
 
 shift_method_list = [PerElementRegressionShift, IsolatedAtomEnergyShift]
-scale_method_list = [MeanEnergyRMSScale, PerElementForceRMSScale, GlobalCustomScale, PerElementCustomScale]
+scale_method_list = [
+    MeanEnergyRMSScale,
+    PerElementForceRMSScale,
+    GlobalCustomScale,
+    PerElementCustomScale,
+]
 
 
-def compute_scale_shift_parameters(train_atoms_list, shift_method, scale_method, shift_options, scale_options):
-
+def compute_scale_shift_parameters(
+    train_atoms_list, shift_method, scale_method, shift_options, scale_options
+):
     shift_methods = {method.name: method for method in shift_method_list}
     scale_methods = {method.name: method for method in scale_method_list}
-    
+
     if shift_method not in shift_methods.keys():
-        raise KeyError(f"The shift method '{shift_method}' is not among the implemented methods. Choose from {shift_method.keys()}")
+        raise KeyError(
+            f"The shift method '{shift_method}' is not among the implemented methods."
+            f" Choose from {shift_method.keys()}"
+        )
     if scale_method not in scale_methods.keys():
-        raise KeyError(f"The scale method '{scale_method}' is not among the implemented methods. Choose from {scale_method.keys()}")
+        raise KeyError(
+            f"The scale method '{scale_method}' is not among the implemented methods."
+            f" Choose from {scale_method.keys()}"
+        )
 
     shift_method = shift_methods[shift_method]
     scale_method = scale_methods[scale_method]
 
-    shift_parameters = shift_method.compute(
-        train_atoms_list, shift_options
-    )
-    scale_parameters = scale_method.compute(
-        train_atoms_list, scale_options
-    )
+    shift_parameters = shift_method.compute(train_atoms_list, shift_options)
+    scale_parameters = scale_method.compute(train_atoms_list, scale_options)
 
     ds_stats = DatasetStats(shift_parameters, scale_parameters)
     return ds_stats

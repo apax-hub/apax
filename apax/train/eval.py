@@ -79,7 +79,9 @@ def initialize_test_dataset(test_atoms_list, test_label_dict, config):
     shift_options = config.data.shift_options
     scale_options = config.data.scale_options
 
-    ds_stats = compute_scale_shift_parameters(test_atoms_list, shift_method, scale_method, shift_options, scale_options)
+    ds_stats = compute_scale_shift_parameters(
+        test_atoms_list, shift_method, scale_method, shift_options, scale_options
+    )
     displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(
         atoms=test_atoms_list[0], cutoff=config.model.r_max
     )

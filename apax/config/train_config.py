@@ -3,17 +3,17 @@ from typing import List, Literal, Optional
 
 import yaml
 from pydantic import (
-    BaseModel,
     BaseConfig,
+    BaseModel,
     Extra,
     NonNegativeFloat,
     PositiveFloat,
     PositiveInt,
+    create_model,
     root_validator,
-    create_model
 )
 
-from apax.data.statistics import shift_method_list, scale_method_list
+from apax.data.statistics import scale_method_list, shift_method_list
 
 
 class NoExtraConfig(BaseConfig):
@@ -94,14 +94,22 @@ class DataConfig(BaseModel, extra=Extra.forbid):
 
             # check if method exists
             if requested_method not in methods.keys():
-                raise KeyError(f"The initialization method '{requested_method}' is not among the implemented methods. Choose from {methods.keys()}")
+                raise KeyError(
+                    f"The initialization method '{requested_method}' is not among the"
+                    f" implemented methods. Choose from {methods.keys()}"
+                )
 
             # check if parameters names are complete and correct
             method = methods[requested_method]
-            fields = {name: (dtype, ...) for name, dtype in zip(method.parameters, method.dtypes)}
-            MethodConfig = create_model(f"{method.name}Config", __config__=NoExtraConfig, **fields)
+            fields = {
+                name: (dtype, ...)
+                for name, dtype in zip(method.parameters, method.dtypes)
+            }
+            MethodConfig = create_model(
+                f"{method.name}Config", __config__=NoExtraConfig, **fields
+            )
 
-            _ = MethodConfig(**requested_params)       
+            _ = MethodConfig(**requested_params)
 
         return values
 
