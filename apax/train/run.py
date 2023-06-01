@@ -201,8 +201,7 @@ def initialize_loss_fn(loss_config_list):
         loss_funcs.append(Loss(**loss.dict()))
     return LossCollection(loss_funcs)
 
-
-def run(user_config, log_file="train.log", log_level="error"):
+def setup_logging(log_file, log_level):
     log_levels = {
         "debug": logging.DEBUG,
         "info": logging.INFO,
@@ -210,9 +209,17 @@ def run(user_config, log_file="train.log", log_level="error"):
         "error": logging.ERROR,
         "critical": logging.CRITICAL,
     }
+
+    while len(logging.root.handlers) > 0:
+        logging.root.removeHandler(logging.root.handlers[-1])
+
     logging.basicConfig(filename=log_file, level=log_levels[log_level])
 
+
+def run(user_config, log_file="train.log", log_level="error"):
+    setup_logging(log_file, log_level)
     log.info("Loading user config")
+
     if isinstance(user_config, (str, os.PathLike)):
         with open(user_config, "r") as stream:
             user_config = yaml.safe_load(stream)
