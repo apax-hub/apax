@@ -201,6 +201,7 @@ def initialize_loss_fn(loss_config_list):
         loss_funcs.append(Loss(**loss.dict()))
     return LossCollection(loss_funcs)
 
+
 def setup_logging(log_file, log_level):
 
     log_levels = {
