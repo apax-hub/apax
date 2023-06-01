@@ -10,7 +10,7 @@ import yaml
 from flax.training import checkpoints
 from keras.callbacks import CSVLogger, TensorBoard
 
-from apax.config import Config
+from apax.config import parse_train_config
 from apax.data.input_pipeline import (
     TFPipeline,
     create_dict_dataset,
@@ -202,6 +202,7 @@ def initialize_loss_fn(loss_config_list):
     return LossCollection(loss_funcs)
 
 def setup_logging(log_file, log_level):
+
     log_levels = {
         "debug": logging.DEBUG,
         "info": logging.INFO,
@@ -219,12 +220,7 @@ def setup_logging(log_file, log_level):
 def run(user_config, log_file="train.log", log_level="error"):
     setup_logging(log_file, log_level)
     log.info("Loading user config")
-
-    if isinstance(user_config, (str, os.PathLike)):
-        with open(user_config, "r") as stream:
-            user_config = yaml.safe_load(stream)
-
-    config = Config.parse_obj(user_config)
+    config = parse_train_config(user_config)
 
     seed_py_np_tf(config.seed)
     rng_key = jax.random.PRNGKey(config.seed)

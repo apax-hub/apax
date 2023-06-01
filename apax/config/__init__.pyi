@@ -7,6 +7,7 @@ from .train_config import (
     MetricsConfig,
     ModelConfig,
     OptimizerConfig,
+    parse_train_config,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "OptimizerConfig",
     "MetricsConfig",
     "MDConfig",
+    "parse_train_config"
 ]
