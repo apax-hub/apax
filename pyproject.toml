@@ -9,7 +9,7 @@ readme = "README.md"
 packages = [{include = "apax"}]
 
 [tool.poetry.dependencies]
-python = "^3.10.0"
+python = ">=3.10,<3.12"
 numpy = "^1.23"
 ase = "^3.22.1"
 pydantic = "^1.10.2"
@@ -40,12 +40,6 @@ pre-commit = "^2.20.0"
 isort = "^5.10.1"
 flake8 = "^5.0.4"
 sphinx-autodoc-typehints = "^1.21.8"
-
-[[tool.poetry.source]]
-name = "jax"
-url = "https://storage.googleapis.com/jax-releases/jax_releases.html"
-default = false
-secondary = false
 
 [build-system]
 requires = ["poetry-core"]
