@@ -19,5 +19,5 @@ __all__ = [
     "OptimizerConfig",
     "MetricsConfig",
     "MDConfig",
-    "parse_train_config"
+    "parse_train_config",
 ]

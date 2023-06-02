@@ -18,6 +18,7 @@ from apax.data.statistics import scale_method_list, shift_method_list
 
 log = logging.getLogger(__name__)
 
+
 class NoExtraConfig(BaseConfig):
     extra = Extra.forbid
 

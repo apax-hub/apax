@@ -18,7 +18,12 @@ from apax.data.input_pipeline import (
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
 from apax.train.metrics import initialize_metrics
-from apax.train.run import find_largest_system, initialize_callbacks, initialize_loss_fn, setup_logging
+from apax.train.run import (
+    find_largest_system,
+    initialize_callbacks,
+    initialize_loss_fn,
+    setup_logging,
+)
 from apax.train.trainer import make_step_fns
 from apax.utils.data import load_data, split_atoms, split_label
 from apax.utils.random import seed_py_np_tf
@@ -161,7 +166,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     setup_logging(log_file, log_level)
     log.info("Starting model evaluation")
     config = parse_train_config(config_path)
-    
+
     seed_py_np_tf(config.seed)
 
     model_version_path = Path(config.data.model_path) / config.data.model_name

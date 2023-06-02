@@ -6,7 +6,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
-import yaml
 from flax.training import checkpoints
 from keras.callbacks import CSVLogger, TensorBoard
 
@@ -203,7 +202,6 @@ def initialize_loss_fn(loss_config_list):
 
 
 def setup_logging(log_file, log_level):
-
     log_levels = {
         "debug": logging.DEBUG,
         "info": logging.INFO,
