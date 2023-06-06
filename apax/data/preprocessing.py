@@ -5,9 +5,8 @@ import logging
 import jax
 import jax.numpy as jnp
 import numpy as np
-from ase.neighborlist import PrimitiveNeighborList
-from matscipy.neighbours import neighbour_list
 from jax_md.partition import NeighborFn
+from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
 log = logging.getLogger(__name__)
@@ -53,7 +52,7 @@ def dataset_neighborlist(
     neighbors = None
     last_n_atoms = -1
 
-    pbar_update_freq = max(int(len(atoms_list)/100), 50)
+    pbar_update_freq = max(int(len(atoms_list) / 100), 50)
     with trange(
         len(positions),
         desc="Precomputing NL",
