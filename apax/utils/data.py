@@ -56,7 +56,9 @@ def load_data(data_path):
         log.info(f"Loading data from {data_path}")
         atoms_list = read(data_path, index=":")
     except IOError:
-        log.error(f"data path ({data_path}) does not exist.")
+        msg = f"data path ({data_path}) does not exist."
+        log.error(msg)
+        raise FileNotFoundError(msg)
 
     label_path = Path(data_path)
     label_path = label_path.with_stem(label_path.stem + "_label").with_suffix(".npz")
