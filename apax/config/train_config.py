@@ -284,6 +284,7 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
     """
 
     n_epochs: PositiveInt
+    patience: Optional[PositiveInt] = None
     seed: int = 1
 
     data: DataConfig
