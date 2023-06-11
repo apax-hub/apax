@@ -9,7 +9,7 @@ import numpy as np
 import yaml
 from ase import Atoms, units
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.io import read
+from ase.io import read, write
 from ase.io.trajectory import TrajectoryWriter
 from flax.training import checkpoints
 from jax_md import partition, quantity, simulate, space
@@ -19,6 +19,7 @@ from tqdm import trange
 from apax.config import Config, MDConfig
 from apax.md.md_checkpoint import load_md_state, look_for_checkpoints
 from apax.model import ModelBuilder
+import znh5md
 
 log = logging.getLogger(__name__)
 
@@ -27,12 +28,18 @@ class TrajHandler:
     def __init__(self, R, atomic_numbers, box, traj_path, async_manager) -> None:
         self.atomic_numbers = atomic_numbers
         self.box = box
-        self.traj = TrajectoryWriter(traj_path, mode="w")
+        # self.traj = TrajectoryWriter(traj_path, mode="w")
+        self.traj_path = traj_path
         new_atoms = Atoms(atomic_numbers, R, cell=box)
-        self.traj.write(new_atoms)
-        self.async_manager = async_manager
+        # self.traj.write(new_atoms)
+        self.db = znh5md.io.DataWriter(self.traj_path)
+        self.db.initialize_database_groups()
+        self.sampling_rate=1
+        # self.async_manager = async_manager
+        self.buffer_size = 200
+        self.buffer = [new_atoms]
 
-    def write(self, state, energy, step):
+    def step(self, state, energy, step):
         if np.any(np.isnan(state.position)):
             raise ValueError(
                 f"Simulation failed after {step} outer steps. Unable to"
@@ -44,10 +51,51 @@ class TrajHandler:
         new_atoms.calc = SinglePointCalculator(
             new_atoms, energy=energy, forces=state.force
         )
-        self.traj.write(new_atoms)
+
+        self.buffer.append(new_atoms)
+
+        # if (step % self.buffer_size) == 0:
+        if len(self.buffer) >= self.buffer_size:
+            self.write()
+        # self.traj.write(new_atoms)
+
+    def write(self):
+        # if len(self.buffer) > 0:
+        # self.traj.write(self.buffer)
+        # write(self.traj_path, self.buffer, append=True)
+
+        self.db.add(
+            znh5md.io.AtomsReader(
+                self.buffer,
+                frames_per_chunk=self.buffer_size,
+                step=1,
+                time=self.sampling_rate,
+            )
+        )
+
+        self.buffer=[]
+        pass
+
 
     def close(self):
-        self.traj.close()
+        # self.traj.close()
+        pass
+
+# TODO implement separate traj and h5 traj handlers
+
+def hello(x, transform):
+    print(x)
+from jax.experimental.host_callback import id_tap
+
+
+class Printer:
+    def __init__(self) -> None:
+        self.counter = 0
+
+    def call(self, x, transform):
+        self.counter += x
+        print(self.counter)
+
 
 
 def run_nvt(
@@ -132,7 +180,7 @@ def run_nvt(
     # May require serializing the state instead of ASE Atoms trajectory + conversion
     # Maybe we can use flax checkpoints for that?
     # -> can't serialize NHState and chain for some reason?
-
+    # printer = Printer()
     @jax.jit
     def sim(state, neighbor):
         def body_fn(i, state):
@@ -146,11 +194,15 @@ def run_nvt(
             velocity=state.velocity, mass=state.mass
         )
         current_energy = energy_fn(R=state.position, neighbor=neighbor)
+        # id_tap(hello, current_energy)
+        # id_tap(printer.call, current_temperature / units.kB)
         return state, neighbor, current_temperature, current_energy
 
     traj_path = os.path.join(sim_dir, traj_name)
     traj_handler = TrajHandler(R, atomic_numbers, box, traj_path, async_manager)
     n_outer = int(np.ceil(n_steps / n_inner))
+    pbar_update_freq = 500 # TODO add to config
+    pbar_increment = n_inner * pbar_update_freq
 
     start = time.time()
     sim_time = n_outer * dt
@@ -170,14 +222,17 @@ def run_nvt(
                 state = new_state
                 step += 1
 
-                traj_handler.write(state, current_energy, step)
+                traj_handler.step(state, current_energy, step)
 
                 if step % checkpoint_interval == 0:
                     log.info("saving checkpoint at step: %d", step)
                     log.info("checkpoints not yet implemented")
 
-                sim_pbar.set_postfix(T=f"{(current_temperature / units.kB):.1f} K")
-                sim_pbar.update(n_inner)
+                if step % pbar_update_freq == 0:
+                    sim_pbar.set_postfix(T=f"{(current_temperature / units.kB):.1f} K")
+                    sim_pbar.update(pbar_increment)
+    
+    traj_handler.write()
     traj_handler.close()
 
     end = time.time()
