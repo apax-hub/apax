@@ -184,16 +184,16 @@ def run_nvt(
     @jax.jit
     def sim(state, neighbor):
         def body_fn(i, state):
-            state, neighbor = state
+            state, neighbor, current_energy = state
             neighbor = neighbor.update(state.position)
             state = apply_fn(state, neighbor=neighbor)
-            return state, neighbor
+            current_energy = energy_fn(R=state.position, neighbor=neighbor)
+            return state, neighbor, current_energy
 
-        state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
+        state, neighbor, current_energy = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor, 0.0))
         current_temperature = quantity.temperature(
             velocity=state.velocity, mass=state.mass
         )
-        current_energy = energy_fn(R=state.position, neighbor=neighbor)
         # id_tap(hello, current_energy)
         # id_tap(printer.call, current_temperature / units.kB)
         return state, neighbor, current_temperature, current_energy
@@ -201,7 +201,7 @@ def run_nvt(
     traj_path = os.path.join(sim_dir, traj_name)
     traj_handler = TrajHandler(R, atomic_numbers, box, traj_path, async_manager)
     n_outer = int(np.ceil(n_steps / n_inner))
-    pbar_update_freq = 500 # TODO add to config
+    pbar_update_freq = int(np.ceil(500 / n_inner)) # TODO add to config
     pbar_increment = n_inner * pbar_update_freq
 
     start = time.time()
