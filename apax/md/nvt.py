@@ -8,10 +8,8 @@ from jax.experimental.host_callback import id_tap
 import jax.numpy as jnp
 import numpy as np
 import yaml
-from ase import Atoms, units
-from ase.calculators.singlepoint import SinglePointCalculator
-from ase.io import read, write
-from ase.io.trajectory import TrajectoryWriter
+from ase import units
+from ase.io import read
 from flax.training import checkpoints
 from jax_md import partition, quantity, simulate, space
 from jax_md.util import Array
@@ -20,75 +18,10 @@ from tqdm import trange
 from apax.config import Config, MDConfig
 from apax.md.md_checkpoint import load_md_state, look_for_checkpoints
 from apax.model import ModelBuilder
-import znh5md
+from apax.md.io import H5TrajHandler
 
 log = logging.getLogger(__name__)
 
-
-class TrajHandler:
-    def __init__(self, R, atomic_numbers, box, traj_path, async_manager) -> None:
-        self.atomic_numbers = atomic_numbers
-        self.box = box
-        # self.traj = TrajectoryWriter(traj_path, mode="w")
-        self.traj_path = traj_path
-        new_atoms = Atoms(atomic_numbers, R, cell=box)
-        # self.traj.write(new_atoms)
-        self.db = znh5md.io.DataWriter(self.traj_path)
-        self.db.initialize_database_groups()
-        self.sampling_rate=10
-        self.sampling_counter = 0
-        # self.async_manager = async_manager
-        self.buffer_size = 20
-        self.buffer = [new_atoms]
-
-    def step(self, state_and_energy, transform):
-        state, energy = state_and_energy
-        
-
-        if self.sampling_counter < self.sampling_rate:
-            self.sampling_counter += 1
-            # print("counter", self.sampling_counter)
-        else:
-            new_atoms = Atoms(
-            self.atomic_numbers, state.position, momenta=state.momentum, cell=self.box
-            )
-            new_atoms.calc = SinglePointCalculator(
-                new_atoms, energy=energy, forces=state.force
-            )
-            self.buffer.append(new_atoms)
-            self.sampling_counter = 0
-            # print(len(self.buffer))
-
-            # if (step % self.buffer_size) == 0:
-            if len(self.buffer) >= self.buffer_size:
-                # print("writing")
-                self.write()
-            # self.traj.write(new_atoms)
-
-    def write(self):
-        # if len(self.buffer) > 0:
-        # self.traj.write(self.buffer)
-        # write(self.traj_path, self.buffer, append=True)
-        # print("writing")
-        print(len(self.buffer))
-
-
-        self.db.add(
-            znh5md.io.AtomsReader(
-                self.buffer,
-                frames_per_chunk=self.buffer_size,
-                step=1,
-                time=self.sampling_rate,
-            )
-        )
-
-        self.buffer=[]
-
-    def close(self):
-        # self.traj.close()
-        pass
-
-# TODO implement separate traj and h5 traj handlers
 
 def run_nvt(
     R: Array,
@@ -106,7 +39,7 @@ def run_nvt(
     rng_key: int,
     restart: bool = True,
     sim_dir: str = ".",
-    traj_name: str = "nvt.traj",
+    traj_name: str = "nvt.h5",
     disable_pbar: bool = False,
 ):
     """
@@ -150,13 +83,12 @@ def run_nvt(
     dt = dt * units.fs
     kT = units.kB * temperature
     step = 0
-    checkpoint_interval = 10  # TODO will be supplied in the future
+    checkpoint_interval = 5_000_000  # TODO will be supplied in the future
 
     log.info("initializing simulation")
     neighbor = neighbor_fn.allocate(R, extra_capacity=extra_capacity)
 
     init_fn, apply_fn = simulate.nvt_nose_hoover(energy_fn, shift_fn, dt, kT)
-    async_manager = checkpoints.AsyncManager()
     restart = False  # TODO needs to be implemented
     if restart:
         log.info("looking for checkpoints")
@@ -170,7 +102,8 @@ def run_nvt(
         state = init_fn(rng_key, R, masses, neighbor=neighbor)
 
     traj_path = os.path.join(sim_dir, traj_name)
-    traj_handler = TrajHandler(R, atomic_numbers, box, traj_path, async_manager)
+    traj_handler = H5TrajHandler(R, atomic_numbers, box, traj_path)
+        
     n_outer = int(np.ceil(n_steps / n_inner))
     pbar_update_freq = int(np.ceil(500 / n_inner)) # TODO add to config
     pbar_increment = n_inner * pbar_update_freq
@@ -187,15 +120,17 @@ def run_nvt(
             neighbor = neighbor.update(state.position)
             state = apply_fn(state, neighbor=neighbor)
             current_energy = energy_fn(R=state.position, neighbor=neighbor)
-            id_tap(traj_handler.step, (state, current_energy)) #traj_handler.step(state, current_energy, step)
+
+            id_tap(traj_handler.step, (state, current_energy))
+            
             return state, neighbor, current_energy
+        
+        id_tap(traj_handler.write, None)
 
         state, neighbor, current_energy = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor, 0.0))
         current_temperature = quantity.temperature(
             velocity=state.velocity, mass=state.mass
         )
-        # id_tap(hello, current_energy)
-        # id_tap(printer.call, current_temperature / units.kB)
         return state, neighbor, current_temperature, current_energy
 
 
@@ -212,15 +147,16 @@ def run_nvt(
 
             if neighbor.did_buffer_overflow:
                 log.info("step %d: neighbor list overflowed, reallocating.", step)
+                print("ALLOC")
+                traj_handler.reset_buffer()
                 neighbor = neighbor_fn.allocate(state.position)
             else:
                 state = new_state
                 step += 1
 
-                # traj_handler.step(state, current_energy, step)
-                if np.any(np.isnan(state.position)):
+                if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
                     raise ValueError(
-                        f"Simulation aborted. Unable to compute positions."
+                        f"NaN encountered, simulation aborted."
                     )
 
                 if step % checkpoint_interval == 0:
