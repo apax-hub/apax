@@ -10,7 +10,7 @@ import yaml
 from ase import units
 from ase.io import read
 from flax.training import checkpoints
-from jax.experimental.host_callback import id_tap
+from jax.experimental.host_callback import barrier_wait, id_tap
 from jax_md import partition, quantity, simulate, space
 from jax_md.util import Array
 from tqdm import trange
@@ -35,6 +35,7 @@ def run_nvt(
     temperature: float,
     n_steps: int,
     n_inner: int,
+    sampling_rate: int,
     extra_capacity: int,
     rng_key: int,
     restart: bool = True,
@@ -68,7 +69,9 @@ def run_nvt(
     n_steps:
         Total time steps.
     n_inner:
-        JIT compiled inner loop. Also determines the dump interval.
+        JIT compiled inner loop. Also determines atoms buffer size.
+    sampling_rate:
+        Trajectory dumping interval.
     extra_capacity:
         Extra capacity for the neighborlist.
     rng_key:
@@ -102,7 +105,7 @@ def run_nvt(
         state = init_fn(rng_key, R, masses, neighbor=neighbor)
 
     traj_path = os.path.join(sim_dir, traj_name)
-    traj_handler = H5TrajHandler(R, atomic_numbers, box, traj_path)
+    traj_handler = H5TrajHandler(R, atomic_numbers, box, sampling_rate, traj_path)
 
     n_outer = int(np.ceil(n_steps / n_inner))
     pbar_update_freq = int(np.ceil(500 / n_inner))  # TODO add to config
@@ -112,7 +115,6 @@ def run_nvt(
     # May require serializing the state instead of ASE Atoms trajectory + conversion
     # Maybe we can use flax checkpoints for that?
     # -> can't serialize NHState and chain for some reason?
-    # printer = Printer()
     @jax.jit
     def sim(state, neighbor):
         def body_fn(i, state):
@@ -148,7 +150,6 @@ def run_nvt(
 
             if neighbor.did_buffer_overflow:
                 log.info("step %d: neighbor list overflowed, reallocating.", step)
-                print("ALLOC")
                 traj_handler.reset_buffer()
                 neighbor = neighbor_fn.allocate(state.position)
             else:
@@ -168,9 +169,9 @@ def run_nvt(
                     sim_pbar.set_postfix(T=f"{(current_temperature / units.kB):.1f} K")
                     sim_pbar.update(pbar_increment)
 
+    barrier_wait()
     traj_handler.write()
     traj_handler.close()
-
     end = time.time()
     elapsed_time = end - start
     log.info("simulation finished after elapsed time: %.2f s", elapsed_time)
@@ -308,6 +309,7 @@ def run_md(
         temperature=md_config.temperature,
         n_steps=n_steps,
         n_inner=md_config.n_inner,
+        sampling_rate=md_config.sampling_rate,
         extra_capacity=md_config.extra_capacity,
         rng_key=md_init_rng_key,
         restart=md_config.restart,

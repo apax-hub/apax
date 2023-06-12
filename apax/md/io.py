@@ -28,15 +28,15 @@ class TrajHandler:
 
 
 class H5TrajHandler(TrajHandler):
-    def __init__(self, R, atomic_numbers, box, traj_path) -> None:
+    def __init__(self, R, atomic_numbers, box, sampling_rate, traj_path) -> None:
         self.atomic_numbers = atomic_numbers
         self.box = box
+        self.sampling_rate = sampling_rate
         self.traj_path = traj_path
         self.db = znh5md.io.DataWriter(self.traj_path)
         self.db.initialize_database_groups()
 
-        self.sampling_rate = 5
-        self.sampling_counter = 0
+        self.sampling_counter = 1
         self.buffer = []
 
     def reset_buffer(self):
@@ -50,13 +50,12 @@ class H5TrajHandler(TrajHandler):
         else:
             new_atoms = self.atoms_from_state(state, energy)
             self.buffer.append(new_atoms)
-            self.sampling_counter = 0
+            self.sampling_counter = 1
 
     def write(self, x=None, transform=None):
         if len(self.buffer) > 0:
             reader = znh5md.io.AtomsReader(
                 self.buffer,
-                frames_per_chunk=self.buffer_size,
                 step=1,
                 time=self.sampling_rate,
             )

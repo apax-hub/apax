@@ -14,7 +14,9 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
     dt: Time step in fs.
     duration: Total simulation time in fs.
     n_inner: Number of compiled simulation steps (i.e. number of iterations of the
-        `jax.lax.fori_loop` loop). Also determines sampling interval.
+        `jax.lax.fori_loop` loop). Also determines atoms buffer size.
+    sampling_rate:
+        Trajectory dumping interval.
     dr_threshold: Skin of the neighborlist.
     extra_capacity: JaxMD allocates a maximal number of neighbors.
         This argument lets you add additional capacity to avoid recompilation.
@@ -33,12 +35,13 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
     dt: PositiveFloat = 0.5
     duration: PositiveFloat
     n_inner: PositiveInt = 4
+    sampling_rate: PositiveInt = 1
     dr_threshold: PositiveFloat = 0.5
     extra_capacity: PositiveInt = 0
 
     initial_structure: str
     sim_dir: str = "."
-    traj_name: str = "md.traj"
+    traj_name: str = "md.h5"
     restart: bool = True
     disable_pbar: bool = False
 
