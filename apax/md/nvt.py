@@ -4,21 +4,21 @@ import time
 from functools import partial
 
 import jax
-from jax.experimental.host_callback import id_tap
 import jax.numpy as jnp
 import numpy as np
 import yaml
 from ase import units
 from ase.io import read
 from flax.training import checkpoints
+from jax.experimental.host_callback import id_tap
 from jax_md import partition, quantity, simulate, space
 from jax_md.util import Array
 from tqdm import trange
 
 from apax.config import Config, MDConfig
+from apax.md.io import H5TrajHandler
 from apax.md.md_checkpoint import load_md_state, look_for_checkpoints
 from apax.model import ModelBuilder
-from apax.md.io import H5TrajHandler
 
 log = logging.getLogger(__name__)
 
@@ -103,9 +103,9 @@ def run_nvt(
 
     traj_path = os.path.join(sim_dir, traj_name)
     traj_handler = H5TrajHandler(R, atomic_numbers, box, traj_path)
-        
+
     n_outer = int(np.ceil(n_steps / n_inner))
-    pbar_update_freq = int(np.ceil(500 / n_inner)) # TODO add to config
+    pbar_update_freq = int(np.ceil(500 / n_inner))  # TODO add to config
     pbar_increment = n_inner * pbar_update_freq
 
     # TODO capability to restart md.
@@ -122,17 +122,18 @@ def run_nvt(
             current_energy = energy_fn(R=state.position, neighbor=neighbor)
 
             id_tap(traj_handler.step, (state, current_energy))
-            
+
             return state, neighbor, current_energy
-        
+
         id_tap(traj_handler.write, None)
 
-        state, neighbor, current_energy = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor, 0.0))
+        state, neighbor, current_energy = jax.lax.fori_loop(
+            0, n_inner, body_fn, (state, neighbor, 0.0)
+        )
         current_temperature = quantity.temperature(
             velocity=state.velocity, mass=state.mass
         )
         return state, neighbor, current_temperature, current_energy
-
 
     start = time.time()
     sim_time = n_outer * dt
@@ -156,7 +157,7 @@ def run_nvt(
 
                 if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
                     raise ValueError(
-                        f"NaN encountered, simulation aborted."
+                        f"NaN encountered, simulation aborted after {step} steps."
                     )
 
                 if step % checkpoint_interval == 0:
@@ -166,7 +167,7 @@ def run_nvt(
                 if step % pbar_update_freq == 0:
                     sim_pbar.set_postfix(T=f"{(current_temperature / units.kB):.1f} K")
                     sim_pbar.update(pbar_increment)
-    
+
     traj_handler.write()
     traj_handler.close()
 

@@ -1,9 +1,7 @@
+import numpy as np
+import znh5md
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.io.trajectory import TrajectoryWriter
-import znh5md
-import numpy as np
-
 
 
 class TrajHandler:
@@ -24,12 +22,8 @@ class TrajHandler:
         momenta = np.asarray(state.momentum)
         forces = np.asarray(state.force)
 
-        atoms = Atoms(
-            self.atomic_numbers, positions, momenta=momenta, cell=self.box # , momenta=momenta
-        )
-        atoms.calc = SinglePointCalculator(
-            atoms, energy=float(energy), forces=forces
-        )
+        atoms = Atoms(self.atomic_numbers, positions, momenta=momenta, cell=self.box)
+        atoms.calc = SinglePointCalculator(atoms, energy=float(energy), forces=forces)
         return atoms
 
 
@@ -41,7 +35,7 @@ class H5TrajHandler(TrajHandler):
         self.db = znh5md.io.DataWriter(self.traj_path)
         self.db.initialize_database_groups()
 
-        self.sampling_rate=5
+        self.sampling_rate = 5
         self.sampling_counter = 0
         self.buffer = []
 
@@ -50,7 +44,7 @@ class H5TrajHandler(TrajHandler):
 
     def step(self, state_and_energy, transform):
         state, energy = state_and_energy
-        
+
         if self.sampling_counter < self.sampling_rate:
             self.sampling_counter += 1
         else:
