@@ -5,6 +5,7 @@ import flax.linen as nn
 import jax
 from jax_md import partition
 from jax_md.util import Array
+from jax_md import quantity
 
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.empirical import ReaxBonded, ZBLRepulsion
@@ -78,10 +79,11 @@ class EnergyModel(nn.Module):
         return total_energy
 
 
-class EnergyForceModel(nn.Module):
+class EnergyDerivativeModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
     repulsion: Optional[ZBLRepulsion] = None
     bonded: Optional[ReaxBonded] = None
+    calc_stress: bool = False
 
     def setup(self):
         self.energy_fn = EnergyModel(
@@ -104,4 +106,17 @@ class EnergyForceModel(nn.Module):
         )
         forces = -neg_forces
         prediction = {"energy": energy, "forces": forces}
+
+        if self.calc_stress:
+            # TODO maybe omit volume?
+            stress = quantity.stress(
+                lambda R, box, **kwargs: self.energy_fn(
+                    R, Z, neighbor, box, offsets, **kwargs
+                ),
+                R,
+                box
+            )
+            prediction["stress"] = stress
+
+
         return prediction

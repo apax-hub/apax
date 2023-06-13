@@ -6,7 +6,7 @@ from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDesc
 from apax.layers.empirical import ReaxBonded, ZBLRepulsion
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
-from apax.model.gmnn import AtomisticModel, EnergyForceModel, EnergyModel
+from apax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
 
 
 class ModelBuilder:
@@ -29,8 +29,7 @@ class ModelBuilder:
             n_radial=self.config["n_radial"],
             basis_fn=basis_fn,
             n_species=self.n_species,
-            # n_contr=self.config["n_contr"], # TODO uncomment when hk is removed.
-            # emb_init=self.config["emb_init"],
+            emb_init=self.config["emb_init"],
             dtype=self.config["descriptor_dtype"],
         )
         return radial_fn
@@ -42,6 +41,7 @@ class ModelBuilder:
         descriptor = GaussianMomentDescriptor(
             displacement_fn=displacement_fn,
             radial_fn=radial_fn,
+            n_contr=self.config["n_contr"],
             dtype=self.config["descriptor_dtype"],
             apply_mask=apply_mask,
             init_box=init_box,
@@ -109,7 +109,7 @@ class ModelBuilder:
         model = EnergyModel(atomistic_model, repulsion=repulsion, bonded=bonded)
         return model
 
-    def build_energy_force_model(
+    def build_energy_derivative_model(
         self,
         displacement_fn,
         scale=1.0,
@@ -135,5 +135,5 @@ class ModelBuilder:
                 r_max=self.config["r_max"],
                 init_box=init_box,
             )
-        model = EnergyForceModel(atomistic_model, repulsion=repulsion, bonded=bonded)
+        model = EnergyDerivativeModel(atomistic_model, repulsion=repulsion, bonded=bonded, calc_stress=self.config["calc_stress"])
         return model

@@ -79,6 +79,11 @@ def load_data(data_path):
     return atoms_list, external_labels
 
 
+def prune_dict(data_dict):
+    pruned = {key: val for key, val in data_dict.items() if len(val) != 0}
+    return pruned
+
+
 def convert_atoms_to_arrays(
     atoms_list: list[Atoms],
     pos_unit: str = "Ang",
@@ -118,6 +123,7 @@ def convert_atoms_to_arrays(
         },
         "fixed": {
             "energy": [],
+            "stress": [],
         },
     }
     DTYPE = np.float64
@@ -166,15 +172,13 @@ def convert_atoms_to_arrays(
                 )
             elif key == "energy":
                 labels["fixed"][key].append(val * unit_dict[energy_unit])
-
-    inputs["ragged"] = {
-        key: val for key, val in inputs["ragged"].items() if len(val) != 0
-    }
-    inputs["fixed"] = {key: val for key, val in inputs["fixed"].items() if len(val) != 0}
-    labels["ragged"] = {
-        key: val for key, val in labels["ragged"].items() if len(val) != 0
-    }
-    labels["fixed"] = {key: val for key, val in labels["fixed"].items() if len(val) != 0}
+            elif key == "stress":
+                stress = atoms.get_stress(voigt=False) * unit_dict[energy_unit] / (unit_dict[pos_unit]**2)
+                labels["fixed"][key].append(stress)# / atoms.cell.volume)
+    inputs["fixed"] = prune_dict(inputs["fixed"])
+    labels["fixed"] = prune_dict(labels["fixed"])
+    inputs["ragged"] = prune_dict(inputs["ragged"])
+    labels["ragged"] = prune_dict(labels["ragged"])
     return inputs, labels
 
 
