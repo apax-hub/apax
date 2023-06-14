@@ -22,6 +22,8 @@ einops = "^0.6.0"
 clu = "^0.0.7"
 jaxtyping = "^0.2.8"
 typer = "^0.7.0"
+lazy-loader = "^0.2"
+matscipy = "^0.8.0"
 znh5md = "^0.1.7"
 
 [tool.poetry.scripts]

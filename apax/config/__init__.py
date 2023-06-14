@@ -1,21 +1,3 @@
-from apax.config.md_config import MDConfig
-from apax.config.train_config import (
-    CallbackConfig,
-    Config,
-    DataConfig,
-    LossConfig,
-    MetricsConfig,
-    ModelConfig,
-    OptimizerConfig,
-)
+import lazy_loader as lazy
 
-__all__ = [
-    "Config",
-    "DataConfig",
-    "LossConfig",
-    "CallbackConfig",
-    "ModelConfig",
-    "OptimizerConfig",
-    "MetricsConfig",
-    "MDConfig",
-]
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)

@@ -6,11 +6,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
-import yaml
 from flax.training import checkpoints
 from keras.callbacks import CSVLogger, TensorBoard
 
-from apax.config import Config
+from apax.config import parse_train_config
 from apax.data.input_pipeline import (
     TFPipeline,
     create_dict_dataset,
@@ -119,8 +118,7 @@ def initialize_datasets(config, raw_datasets):
         energy_unit=config.data.energy_unit,
     )
 
-    max_atoms, max_nbrs = find_largest_system([train_inputs, val_inputs])
-    ds_stats.n_atoms = max_atoms
+    max_atoms, max_nbrs = find_largest_system([train_inputs])
 
     train_ds = TFPipeline(
         train_inputs,
@@ -131,6 +129,8 @@ def initialize_datasets(config, raw_datasets):
         max_nbrs=max_nbrs,
         buffer_size=config.data.shuffle_buffer_size,
     )
+
+    max_atoms, max_nbrs = find_largest_system([val_inputs])
     val_ds = TFPipeline(
         val_inputs,
         val_labels,
@@ -202,7 +202,7 @@ def initialize_loss_fn(loss_config_list):
     return LossCollection(loss_funcs)
 
 
-def run(user_config, log_file="train.log", log_level="error"):
+def setup_logging(log_file, log_level):
     log_levels = {
         "debug": logging.DEBUG,
         "info": logging.INFO,
@@ -210,14 +210,17 @@ def run(user_config, log_file="train.log", log_level="error"):
         "error": logging.ERROR,
         "critical": logging.CRITICAL,
     }
+
+    while len(logging.root.handlers) > 0:
+        logging.root.removeHandler(logging.root.handlers[-1])
+
     logging.basicConfig(filename=log_file, level=log_levels[log_level])
 
-    log.info("Loading user config")
-    if isinstance(user_config, (str, os.PathLike)):
-        with open(user_config, "r") as stream:
-            user_config = yaml.safe_load(stream)
 
-    config = Config.parse_obj(user_config)
+def run(user_config, log_file="train.log", log_level="error"):
+    setup_logging(log_file, log_level)
+    log.info("Loading user config")
+    config = parse_train_config(user_config)
 
     seed_py_np_tf(config.seed)
     rng_key = jax.random.PRNGKey(config.seed)
