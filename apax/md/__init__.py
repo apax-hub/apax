@@ -1,4 +1,3 @@
-from apax.md.ase_calc import ASECalculator
-from apax.md.nvt import run_md
+import lazy_loader as lazy
 
-__all__ = ["run_md", "ASECalculator"]
+__getattr__, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
