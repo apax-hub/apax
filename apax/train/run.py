@@ -298,5 +298,6 @@ def run(user_config, log_file="train.log", log_level="error"):
         ckpt_interval=config.checkpoints.ckpt_interval,
         val_ds=val_ds,
         sam_rho=config.optimizer.sam_rho,
+        patience=config.patience,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
     )
