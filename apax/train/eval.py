@@ -6,11 +6,10 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 import numpy as np
-import yaml
 from flax.training import checkpoints
 from tqdm import trange
 
-from apax.config import Config
+from apax.config import parse_train_config
 from apax.data.input_pipeline import (
     TFPipeline,
     create_dict_dataset,
@@ -19,7 +18,12 @@ from apax.data.input_pipeline import (
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
 from apax.train.metrics import initialize_metrics
-from apax.train.run import find_largest_system, initialize_callbacks, initialize_loss_fn
+from apax.train.run import (
+    find_largest_system,
+    initialize_callbacks,
+    initialize_loss_fn,
+    setup_logging,
+)
 from apax.train.trainer import make_step_fns
 from apax.utils.data import load_data, split_atoms, split_label
 from apax.utils.random import seed_py_np_tf
@@ -90,6 +94,7 @@ def initialize_test_dataset(test_atoms_list, test_label_dict, config):
     test_inputs, test_labels = create_dict_dataset(
         atoms_list=test_atoms_list,
         neighbor_fn=neighbor_fn,
+        r_max=config.model.r_max,
         external_labels=test_label_dict,
         disable_pbar=config.progress_bar.disable_nl_pbar,
         pos_unit=config.data.pos_unit,
@@ -123,7 +128,7 @@ def load_params(model_version_path):
 
 def predict(model, params, Metrics, loss_fn, test_ds, callbacks):
     callbacks.on_train_begin()
-    _, test_step_fn = make_step_fns(loss_fn, Metrics, model=model)
+    _, test_step_fn = make_step_fns(loss_fn, Metrics, model=model, sam_rho=0.0)
 
     test_steps_per_epoch = test_ds.steps_per_epoch()
     batch_test_ds = test_ds.shuffle_and_batch()
@@ -158,22 +163,9 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks):
 
 
 def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
-    log_levels = {
-        "debug": logging.DEBUG,
-        "info": logging.INFO,
-        "warning": logging.WARNING,
-        "error": logging.ERROR,
-        "critical": logging.CRITICAL,
-    }
-    logging.basicConfig(filename=log_file, level=log_levels[log_level])
-
+    setup_logging(log_file, log_level)
     log.info("Starting model evaluation")
-    log.info("Loading user config")
-    if isinstance(config_path, (str, os.PathLike)):
-        with open(config_path, "r") as stream:
-            config = yaml.safe_load(stream)
-
-    config = Config.parse_obj(config)
+    config = parse_train_config(config_path)
 
     seed_py_np_tf(config.seed)
 
@@ -201,7 +193,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
         init_box=init_box,
     )
 
-    model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0))
+    model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
 
     params = load_params(model_version_path)
 

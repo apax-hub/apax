@@ -247,6 +247,24 @@ files = [
 ]
 
 [[package]]
+name = "chemfiles"
+version = "0.10.4"
+description = "Read and write computational chemistry files"
+optional = false
+python-versions = "*"
+files = [
+    {file = "chemfiles-0.10.4-1-py2.py3-none-win_amd64.whl", hash = "sha256:5c1b50a7fd56d014f930e38a838c92098bd047a3e989ba4b89ff657c6d16e38a"},
+    {file = "chemfiles-0.10.4-py2.py3-none-macosx_10_9_x86_64.whl", hash = "sha256:10a4e641605db56321316310f620746db350691d7c9edc433fe2a65984e2278b"},
+    {file = "chemfiles-0.10.4-py2.py3-none-macosx_11_0_arm64.whl", hash = "sha256:626725b0ea907d995cbbba99df1d19c474f8ebecdea8d0d390b7f3eaf2c91039"},
+    {file = "chemfiles-0.10.4-py2.py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:4dbf6fa7ad5b2a1ad1415fbca905ce3a02c71cc2aa7fbce18a2b7d13c01a3664"},
+    {file = "chemfiles-0.10.4-py2.py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ef8f2b9fa65885658088180bb33971d1337bc8542220c710d1f6f3c1a6d661d4"},
+    {file = "chemfiles-0.10.4.tar.gz", hash = "sha256:f9e5ece3fcc8b63fdc2708d4ecc2ba5862ae2ab6790447bffc10c1b34ef2f445"},
+]
+
+[package.dependencies]
+numpy = "*"
+
+[[package]]
 name = "chex"
 version = "0.1.7"
 description = "Chex: Testing made fun, in JAX!"
@@ -318,6 +336,20 @@ files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
 ]
+
+[[package]]
+name = "commonmark"
+version = "0.9.1"
+description = "Python parser for the CommonMark Markdown spec"
+optional = false
+python-versions = "*"
+files = [
+    {file = "commonmark-0.9.1-py2.py3-none-any.whl", hash = "sha256:da2f38c92590f83de410ba1a3cbceafbc74fee9def35f9251ba9a971d6d66fd9"},
+    {file = "commonmark-0.9.1.tar.gz", hash = "sha256:452f9dc859be7f06631ddcb328b6919c67984aca654e5fefb3914d54691aed60"},
+]
+
+[package.extras]
+test = ["flake8 (==3.7.8)", "hypothesis (==3.55.3)"]
 
 [[package]]
 name = "contextlib2"
@@ -1286,6 +1318,21 @@ files = [
 ]
 
 [[package]]
+name = "lazy-loader"
+version = "0.2"
+description = "lazy_loader"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "lazy_loader-0.2-py3-none-any.whl", hash = "sha256:c35875f815c340f823ce3271ed645045397213f961b40ad0c0d395c3f5218eeb"},
+    {file = "lazy_loader-0.2.tar.gz", hash = "sha256:0edc7a5175c400acb108f283749951fefdadedeb00adcec6e88b974a9254f18a"},
+]
+
+[package.extras]
+lint = ["pre-commit (>=3.1)"]
+test = ["pytest (>=7.2)", "pytest-cov (>=4.0)"]
+
+[[package]]
 name = "libclang"
 version = "16.0.0"
 description = "Clang Python Bindings, mirrored from the official LLVM repo: https://github.com/llvm/llvm-project/tree/main/clang/bindings/python, to make the installation process easier."
@@ -1315,30 +1362,6 @@ files = [
 
 [package.extras]
 testing = ["coverage", "pyyaml"]
-
-[[package]]
-name = "markdown-it-py"
-version = "2.2.0"
-description = "Python port of markdown-it. Markdown parsing, done right!"
-optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "markdown-it-py-2.2.0.tar.gz", hash = "sha256:7c9a5e412688bc771c67432cbfebcdd686c93ce6484913dccf06cb5a0bea35a1"},
-    {file = "markdown_it_py-2.2.0-py3-none-any.whl", hash = "sha256:5a35f8d1870171d9acc47b99612dc146129b631baf04970128b568f190d0cc30"},
-]
-
-[package.dependencies]
-mdurl = ">=0.1,<1.0"
-
-[package.extras]
-benchmarking = ["psutil", "pytest", "pytest-benchmark"]
-code-style = ["pre-commit (>=3.0,<4.0)"]
-compare = ["commonmark (>=0.9,<1.0)", "markdown (>=3.4,<4.0)", "mistletoe (>=1.0,<2.0)", "mistune (>=2.0,<3.0)", "panflute (>=2.3,<3.0)"]
-linkify = ["linkify-it-py (>=1,<3)"]
-plugins = ["mdit-py-plugins"]
-profiling = ["gprof2dot"]
-rtd = ["attrs", "myst-parser", "pyyaml", "sphinx", "sphinx-copybutton", "sphinx-design", "sphinx_book_theme"]
-testing = ["coverage", "pytest", "pytest-cov", "pytest-regressions"]
 
 [[package]]
 name = "markupsafe"
@@ -1461,6 +1484,49 @@ pyparsing = ">=2.3.1"
 python-dateutil = ">=2.7"
 
 [[package]]
+name = "matscipy"
+version = "0.8.0"
+description = "Generic Python Materials Science tools"
+optional = false
+python-versions = ">=3.7.0"
+files = [
+    {file = "matscipy-0.8.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:a2793c24058465758ef03747ab2d2d4a5015b96d81401c9f6bd5a7456143390b"},
+    {file = "matscipy-0.8.0-cp310-cp310-macosx_12_0_arm64.whl", hash = "sha256:cc53ac66cc061ecb635255eded75691488b0e13a2fdd0764f4e36c013f3e300c"},
+    {file = "matscipy-0.8.0-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:c0525ed8393c2e800d9e63447b70c22e5ce3a5a7e3b4d90298829dcc43062d5b"},
+    {file = "matscipy-0.8.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9c8e4ea06726df0342705808775055be54d73af2bdb663b8d83ca0789eb6d712"},
+    {file = "matscipy-0.8.0-cp310-cp310-musllinux_1_1_aarch64.whl", hash = "sha256:aee19e1822b0fc02c7b74c775ef9b602c0a867730aa2c087cd244f32c2208cea"},
+    {file = "matscipy-0.8.0-cp310-cp310-win_amd64.whl", hash = "sha256:360cad44d1c5fe07a9220338987f31d3ba63f2c031151937321c297a7e1e0719"},
+    {file = "matscipy-0.8.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:5c185b7a53a447a7e54f01caba298354560f14744a53c62a1f13442f72cb75d4"},
+    {file = "matscipy-0.8.0-cp311-cp311-macosx_12_0_arm64.whl", hash = "sha256:445414d10006e46f4732a590e164e5a4e5586052ae1d4e9555baca409978a064"},
+    {file = "matscipy-0.8.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8b31d4d5414a6436c653ad98db8b28c8a0e78e2bc426c9358c4f8fa6d88253e2"},
+    {file = "matscipy-0.8.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:93bcd26b0c7a522fdd05d620828fb6d92a69831b06ee28736b2d8c8c0b233fbc"},
+    {file = "matscipy-0.8.0-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:1aa882e27a446ad03a00b0ffdf7b387ec4ffce1ad944c4d4c6c02906a0e5765e"},
+    {file = "matscipy-0.8.0-cp311-cp311-win_amd64.whl", hash = "sha256:a37187285d21455b096882f23018c3a0f2fb68723ca0484e4dd8c740e56e602d"},
+    {file = "matscipy-0.8.0-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:82de2474e2be3fa464265d6d1327c18e3e7542fc1cf8c09e4115019faeb4ff00"},
+    {file = "matscipy-0.8.0-cp38-cp38-macosx_12_0_arm64.whl", hash = "sha256:aa603724d7f99d8e1288a552f7d36907ee26a4ad2b349be44a4d2279c2a23074"},
+    {file = "matscipy-0.8.0-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:238491e088b6f9643f6134e5690daa10307e433a88f701cb943aa57bb8c58926"},
+    {file = "matscipy-0.8.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:afed8c57022b0e6514c4e4e95427c6260c223a8755a228aacfb94eefd71a1772"},
+    {file = "matscipy-0.8.0-cp38-cp38-musllinux_1_1_aarch64.whl", hash = "sha256:0765f1911209e37ce84fb7cf2014ccbd01f2d8f1d280aee647bde07efcaee90e"},
+    {file = "matscipy-0.8.0-cp38-cp38-win_amd64.whl", hash = "sha256:b5b42b60e97d178f191afb5451ed6391a8c046463191a94058d0e87f78072181"},
+    {file = "matscipy-0.8.0-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:8d3af56774bbfbaa7118793af8f4a7affec10d07631e937dd6f2fda7425924d9"},
+    {file = "matscipy-0.8.0-cp39-cp39-macosx_12_0_arm64.whl", hash = "sha256:1111a259760aa0449aa070c60de95645430ffd43e264457d2b71477bcc9f91a5"},
+    {file = "matscipy-0.8.0-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:4daaf2a413f48fc2c29df577304af0fe846b472ebde1b56056f31fd1a7865854"},
+    {file = "matscipy-0.8.0-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5c5f4b6e4824cfbf0b4a85e0ef63e014d240943cc02dba48efb4dc591e9da9e3"},
+    {file = "matscipy-0.8.0-cp39-cp39-musllinux_1_1_aarch64.whl", hash = "sha256:5b8ba7354580bd928da22214659fef514763579f472e14a8c9a1246b9bb31cf6"},
+    {file = "matscipy-0.8.0-cp39-cp39-win_amd64.whl", hash = "sha256:b14c8c50935b61ceefffcc0e25a68c15fca058afaff458dd40ba58e785d58e38"},
+    {file = "matscipy-0.8.0.tar.gz", hash = "sha256:c6284e9d74cbcc30d705d9c6d02d84b7dbfa15fe07b9f7358ed8c2b525c7026f"},
+]
+
+[package.dependencies]
+ase = ">=3.16.0"
+numpy = ">=1.16.0"
+scipy = ">=1.2.3"
+
+[package.extras]
+docs = ["sphinx", "sphinx-rtd-theme"]
+test = ["pytest", "sympy"]
+
+[[package]]
 name = "mccabe"
 version = "0.7.0"
 description = "McCabe checker, plugin for flake8"
@@ -1469,17 +1535,6 @@ python-versions = ">=3.6"
 files = [
     {file = "mccabe-0.7.0-py2.py3-none-any.whl", hash = "sha256:6c2d30ab6be0e4a46919781807b4f0d834ebdd6c6e3dca0bda5a15f863427b6e"},
     {file = "mccabe-0.7.0.tar.gz", hash = "sha256:348e0240c33b60bbdf4e523192ef919f28cb2c3d7d5c7794f74009290f236325"},
-]
-
-[[package]]
-name = "mdurl"
-version = "0.1.2"
-description = "Markdown URL utilities"
-optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},
-    {file = "mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"},
 ]
 
 [[package]]
@@ -2331,21 +2386,21 @@ rsa = ["oauthlib[signedtoken] (>=3.0.0)"]
 
 [[package]]
 name = "rich"
-version = "13.4.1"
+version = "12.6.0"
 description = "Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal"
 optional = false
-python-versions = ">=3.7.0"
+python-versions = ">=3.6.3,<4.0.0"
 files = [
-    {file = "rich-13.4.1-py3-none-any.whl", hash = "sha256:d204aadb50b936bf6b1a695385429d192bc1fdaf3e8b907e8e26f4c4e4b5bf75"},
-    {file = "rich-13.4.1.tar.gz", hash = "sha256:76f6b65ea7e5c5d924ba80e322231d7cb5b5981aa60bfc1e694f1bc097fe6fe1"},
+    {file = "rich-12.6.0-py3-none-any.whl", hash = "sha256:a4eb26484f2c82589bd9a17c73d32a010b1e29d89f1604cd9bf3a2097b81bb5e"},
+    {file = "rich-12.6.0.tar.gz", hash = "sha256:ba3a3775974105c221d31141f2c116f4fd65c5ceb0698657a11e9f295ec93fd0"},
 ]
 
 [package.dependencies]
-markdown-it-py = ">=2.2.0,<3.0.0"
-pygments = ">=2.13.0,<3.0.0"
+commonmark = ">=0.9.0,<0.10.0"
+pygments = ">=2.6.0,<3.0.0"
 
 [package.extras]
-jupyter = ["ipywidgets (>=7.5.1,<9)"]
+jupyter = ["ipywidgets (>=7.5.1,<8.0.0)"]
 
 [[package]]
 name = "rsa"
@@ -2414,6 +2469,17 @@ files = [
 docs = ["furo", "jaraco.packaging (>=9)", "jaraco.tidelift (>=1.4)", "pygments-github-lexers (==0.0.5)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-favicon", "sphinx-hoverxref (<2)", "sphinx-inline-tabs", "sphinx-lint", "sphinx-notfound-page (==0.8.3)", "sphinx-reredirects", "sphinxcontrib-towncrier"]
 testing = ["build[virtualenv]", "filelock (>=3.4.0)", "flake8-2020", "ini2toml[lite] (>=0.9)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "pip (>=19.1)", "pip-run (>=8.8)", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.3)", "pytest-mypy (>=0.9.1)", "pytest-perf", "pytest-ruff", "pytest-timeout", "pytest-xdist", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel"]
 testing-integration = ["build[virtualenv]", "filelock (>=3.4.0)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "pytest", "pytest-enabler", "pytest-xdist", "tomli", "virtualenv (>=13.0.0)", "wheel"]
+
+[[package]]
+name = "shellingham"
+version = "1.5.0.post1"
+description = "Tool to Detect Surrounding Shell"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "shellingham-1.5.0.post1-py2.py3-none-any.whl", hash = "sha256:368bf8c00754fd4f55afb7bbb86e272df77e4dc76ac29dbcbb81a59e9fc15744"},
+    {file = "shellingham-1.5.0.post1.tar.gz", hash = "sha256:823bc5fb5c34d60f285b624e7264f4dda254bc803a3774a147bf99c0e3004a28"},
+]
 
 [[package]]
 name = "six"
@@ -3017,6 +3083,9 @@ files = [
 
 [package.dependencies]
 click = ">=7.1.1,<9.0.0"
+colorama = {version = ">=0.4.3,<0.5.0", optional = true, markers = "extra == \"all\""}
+rich = {version = ">=10.11.0,<13.0.0", optional = true, markers = "extra == \"all\""}
+shellingham = {version = ">=1.3.0,<2.0.0", optional = true, markers = "extra == \"all\""}
 
 [package.extras]
 all = ["colorama (>=0.4.3,<0.5.0)", "rich (>=10.11.0,<13.0.0)", "shellingham (>=1.3.0,<2.0.0)"]
@@ -3229,7 +3298,28 @@ files = [
 docs = ["furo", "jaraco.packaging (>=9)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
 testing = ["big-O", "flake8 (<5)", "jaraco.functools", "jaraco.itertools", "more-itertools", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.3)", "pytest-flake8", "pytest-mypy (>=0.9.1)"]
 
+[[package]]
+name = "znh5md"
+version = "0.1.7"
+description = "High Performance Interface for H5MD Trajectories"
+optional = false
+python-versions = ">=3.9,<4.0"
+files = [
+    {file = "znh5md-0.1.7-py3-none-any.whl", hash = "sha256:2d5505738c92c79e2de907acf89956662c94472a350f1ddfd55c509c0cc44960"},
+    {file = "znh5md-0.1.7.tar.gz", hash = "sha256:fa437c805da4a7a24d6265f632ebbc36863fd15c952e2ce1a3b2d35c6241e00d"},
+]
+
+[package.dependencies]
+ase = ">=3.22.1,<4.0.0"
+chemfiles = ">=0.10.3,<0.11.0"
+h5py = ">=3.7.0,<4.0.0"
+tqdm = ">=4.65.0,<5.0.0"
+typer = {version = ">=0.7.0,<0.8.0", extras = ["all"]}
+
+[package.extras]
+dask = ["dask[array] (>=2022.11.1,<2023.0.0)"]
+
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "3e2266ac9cc06512e9659a11982c959bc5e1f827e4d37e5d0473850aa5598572"
+content-hash = "3a5f104791d1333efc37a842864775e3e8f0883bce702dffa15b81b20d1cb24b"
