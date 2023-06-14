@@ -194,7 +194,7 @@ def test_convert_atoms_to_arrays(example_atoms, pbc):
     ([3, True, ["energy"], None],),
 )
 def test_mixed_ase_jax_neighbors(pbc, calc_results, num_data, external_labels):
-    r_max = 2
+    r_max = 2.0
 
     numbers = np.array([1, 1])
     positions = np.array([[0.0, 0.0, 0.0], [1.5, 0.0, 0.0]])

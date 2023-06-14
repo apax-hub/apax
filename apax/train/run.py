@@ -118,8 +118,7 @@ def initialize_datasets(config, raw_datasets):
         energy_unit=config.data.energy_unit,
     )
 
-    max_atoms, max_nbrs = find_largest_system([train_inputs, val_inputs])
-    ds_stats.n_atoms = max_atoms
+    max_atoms, max_nbrs = find_largest_system([train_inputs])
 
     train_ds = TFPipeline(
         train_inputs,
@@ -130,6 +129,8 @@ def initialize_datasets(config, raw_datasets):
         max_nbrs=max_nbrs,
         buffer_size=config.data.shuffle_buffer_size,
     )
+
+    max_atoms, max_nbrs = find_largest_system([val_inputs])
     val_ds = TFPipeline(
         val_inputs,
         val_labels,
