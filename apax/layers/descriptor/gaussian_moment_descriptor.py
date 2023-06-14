@@ -59,7 +59,7 @@ class GaussianMomentDescriptor(nn.Module):
         # dr_vec shape: neighbors x 3
         if not np.all(self.init_box < 1e-6):
             # distance vector for training on periodic systems
-            # we do not need to matmul the offsets with the box 
+            # we do not need to matmul the offsets with the box
             # since everything is in fractional coords
             Ri = R[idx_i]
             Rj = offsets + R[idx_j]

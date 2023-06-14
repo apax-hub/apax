@@ -135,5 +135,10 @@ class ModelBuilder:
                 r_max=self.config["r_max"],
                 init_box=init_box,
             )
-        model = EnergyDerivativeModel(atomistic_model, repulsion=repulsion, bonded=bonded, calc_stress=self.config["calc_stress"])
+        model = EnergyDerivativeModel(
+            atomistic_model,
+            repulsion=repulsion,
+            bonded=bonded,
+            calc_stress=self.config["calc_stress"],
+        )
         return model

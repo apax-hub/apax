@@ -173,8 +173,14 @@ def convert_atoms_to_arrays(
             elif key == "energy":
                 labels["fixed"][key].append(val * unit_dict[energy_unit])
             elif key == "stress":
-                stress = atoms.get_stress(voigt=False) * unit_dict[energy_unit] / (unit_dict[pos_unit]**2)
-                labels["fixed"][key].append(stress)# / atoms.cell.volume)
+                stress = (
+                    atoms.get_stress(voigt=False)
+                    * unit_dict[energy_unit]
+                    / (unit_dict[pos_unit] ** 3)
+                    * atoms.cell.volume
+                )
+                labels["fixed"][key].append(stress)
+
     inputs["fixed"] = prune_dict(inputs["fixed"])
     labels["fixed"] = prune_dict(labels["fixed"])
     inputs["ragged"] = prune_dict(inputs["ragged"])

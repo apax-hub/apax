@@ -51,16 +51,6 @@ def force_angle_exponential_weight(
     return (1.0 - dotp) * jnp.exp(F_0_norm)
 
 
-# def stress_frobenius(label: jnp.array, prediction: jnp.array, divisor: float = 1.0) -> jnp.array:
-
-#     deviation = (label - prediction)**2 / divisor
-#     deviation = einops.rearrange(deviation, "batch i j -> batch (i j)")
-
-#     loss = jnp.sum(deviation, axis=1)
-#     return loss
-
-
-from jax import debug
 @dataclasses.dataclass
 class Loss:
     """
@@ -79,8 +69,6 @@ class Loss:
             self.loss_fn = force_angle_div_force_label
         elif self.loss_type == "cosine_sim_exp_magnitude":
             self.loss_fn = force_angle_exponential_weight
-        # elif self.name == "stress":
-        #     self.loss_fn = stress_frobenius
         else:
             self.loss_fn = weighted_squared_error
 
@@ -88,14 +76,7 @@ class Loss:
         # TODO add stress multiplication with cell volume as dataset.map
         # TODO we may want to insert an additional `mask` argument for this method
         divisor = self.determine_divisor(inputs["n_atoms"])
-        # if self.name=="stress":
-        #     debug.print("label {x}", x=label[self.name])
-        #     debug.print("pred {x}", x=prediction[self.name])
-        #     debug.breakpoint()
-
         loss = self.loss_fn(label[self.name], prediction[self.name], divisor=divisor)
-        # if self.name=="stress":
-        #     debug.breakpoint()
         return self.weight * jnp.sum(jnp.mean(loss, axis=0))
 
     def determine_divisor(self, n_atoms: jnp.array) -> jnp.array:
@@ -107,6 +88,8 @@ class Loss:
             divisor = einops.repeat(n_atoms, "batch -> batch 1 1")
         elif self.name == "stress" and self.loss_type == "structures":
             divisor = einops.repeat(n_atoms**2, "batch -> batch 1 1")
+        elif self.name == "stress" and self.loss_type == "vibrations":
+            divisor = einops.repeat(n_atoms, "batch -> batch 1 1")
         else:
             divisor = jnp.array(1.0)
 
