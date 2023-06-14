@@ -25,6 +25,7 @@ def fit(
     ckpt_interval: int = 1,
     val_ds=None,
     sam_rho=0.0,
+    patience=None,
     disable_pbar: bool = False,
 ):
     log.info("Begining Training")
@@ -50,6 +51,7 @@ def fit(
         batch_val_ds = val_ds.shuffle_and_batch()
 
     best_loss = np.inf
+    early_stopping_counter = 0
     epoch_loss = {}
     with trange(
         start_epoch, n_epochs, desc="Epochs", ncols=100, disable=disable_pbar, leave=True
@@ -113,11 +115,22 @@ def fit(
             if epoch_metrics["val_loss"] < best_loss:
                 best_loss = epoch_metrics["val_loss"]
                 ckpt_manager.save_checkpoint(ckpt, epoch, best_dir)
+                early_stopping_counter = 0
+            else:
+                early_stopping_counter += 1
 
             callbacks.on_epoch_end(epoch=epoch, logs=epoch_metrics)
 
             epoch_pbar.set_postfix(val_loss=epoch_metrics["val_loss"])
             epoch_pbar.update()
+            print(early_stopping_counter)
+
+            if patience is not None and early_stopping_counter >= patience:
+                log.info(
+                    "Early stopping patience exceeded. Stopping training after"
+                    f" {epoch} epochs."
+                )
+                break
 
 
 def global_norm(updates) -> jnp.ndarray:

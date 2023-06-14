@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import yaml
+import znh5md
 from ase import Atoms
 from ase.io import read, write
 from flax.training import checkpoints
@@ -89,8 +90,8 @@ def test_run_md(get_tmp_path):
 
     run_md(model_config_dict, md_config_dict)
 
-    traj = read(md_config.sim_dir + "/" + md_config.traj_name, index=":")
-    assert len(traj) == 3  # inital + 4 steps/ 2 inner steps
+    traj = znh5md.ASEH5MD(md_config.sim_dir + "/" + md_config.traj_name).get_atoms_list()
+    assert len(traj) == 2  # 2 steps
 
 
 def test_ase_calc(get_tmp_path):

@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import List, Literal, Optional
 
@@ -14,6 +15,8 @@ from pydantic import (
 )
 
 from apax.data.statistics import scale_method_list, shift_method_list
+
+log = logging.getLogger(__name__)
 
 
 class NoExtraConfig(BaseConfig):
@@ -286,6 +289,7 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
     """
 
     n_epochs: PositiveInt
+    patience: Optional[PositiveInt] = None
     seed: int = 1
 
     data: DataConfig
@@ -308,3 +312,13 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
         """
         with open(os.path.join(save_path, "config.yaml"), "w") as conf:
             yaml.dump(self.dict(), conf, default_flow_style=False)
+
+
+def parse_train_config(config_path):
+    log.info("Loading user config")
+    if isinstance(config_path, (str, os.PathLike)):
+        with open(config_path, "r") as stream:
+            config = yaml.safe_load(stream)
+
+    config = Config.parse_obj(config)
+    return config
