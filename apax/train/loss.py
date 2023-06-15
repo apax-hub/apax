@@ -51,6 +51,16 @@ def force_angle_exponential_weight(
     return (1.0 - dotp) * jnp.exp(F_0_norm)
 
 
+loss_functions = {
+    "molecules": weighted_squared_error,
+    "structures": weighted_squared_error,
+    "vibrations": weighted_squared_error,
+    "cosine_sim": force_angle_loss,
+    "cosine_sim_div_magnitude": force_angle_div_force_label,
+    "cosine_sim_exp_magnitude": force_angle_exponential_weight,
+}
+
+
 @dataclasses.dataclass
 class Loss:
     """
@@ -63,35 +73,31 @@ class Loss:
     weight: float = 1.0
 
     def __post_init__(self):
-        if self.loss_type == "cosine_sim":
-            self.loss_fn = force_angle_loss
-        elif self.loss_type == "cosine_sim_div_magnitude":
-            self.loss_fn = force_angle_div_force_label
-        elif self.loss_type == "cosine_sim_exp_magnitude":
-            self.loss_fn = force_angle_exponential_weight
-        else:
-            self.loss_fn = weighted_squared_error
+        if self.loss_type not in loss_functions.keys():
+            raise NotImplementedError(
+                f"the loss function '{self.loss_type}' is not known."
+            )
+
+        if self.name not in ["energy", "forces", "stress"]:
+            raise NotImplementedError(f"the quantity '{self.name}' is not known.")
+        self.loss_fn = loss_functions[self.loss_type]
 
     def __call__(self, inputs: dict, prediction: dict, label: dict) -> float:
-        # TODO add stress multiplication with cell volume as dataset.map
         # TODO we may want to insert an additional `mask` argument for this method
         divisor = self.determine_divisor(inputs["n_atoms"])
         loss = self.loss_fn(label[self.name], prediction[self.name], divisor=divisor)
         return self.weight * jnp.sum(jnp.mean(loss, axis=0))
 
     def determine_divisor(self, n_atoms: jnp.array) -> jnp.array:
-        if self.name == "energy" and self.loss_type == "structures":
-            divisor = n_atoms**2
-        elif self.name == "energy" and self.loss_type == "vibrations":
-            divisor = n_atoms
-        elif self.name == "forces" and self.loss_type == "structures":
-            divisor = einops.repeat(n_atoms, "batch -> batch 1 1")
-        elif self.name == "stress" and self.loss_type == "structures":
-            divisor = einops.repeat(n_atoms**2, "batch -> batch 1 1")
-        elif self.name == "stress" and self.loss_type == "vibrations":
-            divisor = einops.repeat(n_atoms, "batch -> batch 1 1")
-        else:
-            divisor = jnp.array(1.0)
+        divisor_id = self.name + "_" + self.loss_type
+        divisor_dict = {
+            "energy_structures": n_atoms**2,
+            "energy_vibrations": n_atoms,
+            "forces_structures": einops.repeat(n_atoms, "batch -> batch 1 1"),
+            "stress_structures": einops.repeat(n_atoms**2, "batch -> batch 1 1"),
+            "stress_vibrations": einops.repeat(n_atoms, "batch -> batch 1 1"),
+        }
+        divisor = divisor_dict.get(divisor_id, jnp.array(1.0))
 
         return divisor
 
