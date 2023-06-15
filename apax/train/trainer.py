@@ -123,7 +123,6 @@ def fit(
 
             epoch_pbar.set_postfix(val_loss=epoch_metrics["val_loss"])
             epoch_pbar.update()
-            print(early_stopping_counter)
 
             if patience is not None and early_stopping_counter >= patience:
                 log.info(
