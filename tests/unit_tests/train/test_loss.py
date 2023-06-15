@@ -45,6 +45,7 @@ def test_force_angle_loss():
                 [0.5, 0.5, 0.0],
                 [0.0, 0.5, 0.0],
                 [0.0, 0.5, 0.0],
+                [0.0, 0.0, 0.0], # padding
             ]
         ]
     )
@@ -57,21 +58,22 @@ def test_force_angle_loss():
                 [0.5, 0.0, 0.0],
                 [0.5, 0.0, 0.0],
                 [0.9, 0.0, 0.0],
+                [0.0, 0.0, 0.0], # padding
             ]
         ]
     )
 
     F_angle_loss = force_angle_loss(F_pred, F_0)
     F_angle_loss = jnp.arccos(-F_angle_loss + 1) * 360 / (2 * np.pi)
-    assert F_angle_loss.shape == (1, 5)
-    ref = jnp.array([0.0, 0.0, 45.0, 90.0, 90.0])
-    assert jnp.all(abs(F_angle_loss - ref) < 1e-5)
+    assert F_angle_loss.shape == (1, 6)
+    ref = jnp.array([0.0, 0.0, 45.0, 90.0, 90.0, 90.0])
+    assert jnp.allclose(F_angle_loss, ref)
 
     F_angle_loss = force_angle_div_force_label(F_pred, F_0)
-    assert F_angle_loss.shape == (1, 5)
+    assert F_angle_loss.shape == (1, 6)
 
     F_angle_loss = force_angle_exponential_weight(F_pred, F_0)
-    assert F_angle_loss.shape == (1, 5)
+    assert F_angle_loss.shape == (1, 6)
 
 
 def test_force_loss():
