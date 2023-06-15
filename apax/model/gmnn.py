@@ -3,12 +3,13 @@ from typing import Callable, Optional, Tuple, Union
 
 import flax.linen as nn
 import jax
-from jax_md import partition, quantity
+from jax_md import partition
 from jax_md.util import Array
 
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.empirical import ReaxBonded, ZBLRepulsion
 from apax.layers.masking import mask_by_atom
+from apax.layers.properties import stress_times_vol
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.model.utils import NeighborSpoof
@@ -78,19 +79,6 @@ class EnergyModel(nn.Module):
         return total_energy
 
 
-import jax.numpy as jnp
-
-
-def volume(dimension: int, box) -> float:
-    if jnp.isscalar(box) or not box.ndim:
-        return box**dimension
-    elif box.ndim == 1:
-        return jnp.prod(box)
-    elif box.ndim == 2:
-        return jnp.linalg.det(box)
-    raise ValueError(f"Box must be either: a scalar, a vector, or a matrix. Found {box}.")
-
-
 class EnergyDerivativeModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
     repulsion: Optional[ZBLRepulsion] = None
@@ -120,15 +108,9 @@ class EnergyDerivativeModel(nn.Module):
         prediction = {"energy": energy, "forces": forces}
 
         if self.calc_stress:
-            stress = quantity.stress(
-                lambda R, box, **kwargs: self.energy_fn(
-                    R, Z, neighbor, box, offsets, **kwargs
-                ),
-                R,
-                box,
+            stress = stress_times_vol(
+                self.energy_fn, R, box, Z=Z, neighbor=neighbor, offsets=offsets
             )
-            dim = R.shape[1]
-            vol_0 = volume(dim, box)
-            prediction["stress"] = stress * vol_0
+            prediction["stress"] = stress
 
         return prediction
