@@ -24,7 +24,7 @@ def force_angle_loss(
     Consine similarity loss function. Contributions are summed in `Loss`.
     """
     dotp = normed_dotp(label, prediction)
-    return 1.0 - dotp
+    return (1.0 - dotp) / divisor
 
 
 def force_angle_div_force_label(
@@ -36,7 +36,8 @@ def force_angle_div_force_label(
     """
     dotp = normed_dotp(label, prediction)
     F_0_norm = jnp.linalg.norm(label, ord=2, axis=2, keepdims=False)
-    return (1.0 - dotp) / F_0_norm
+    loss = jnp.where(F_0_norm > 1e-6, (1.0 - dotp) / F_0_norm, jnp.zeros_like(dotp))
+    return loss
 
 
 def force_angle_exponential_weight(
@@ -48,7 +49,7 @@ def force_angle_exponential_weight(
     """
     dotp = normed_dotp(label, prediction)
     F_0_norm = jnp.linalg.norm(label, ord=2, axis=2, keepdims=False)
-    return (1.0 - dotp) * jnp.exp(F_0_norm)
+    return (1.0 - dotp) * jnp.exp(-F_0_norm) / divisor
 
 
 loss_functions = {
@@ -94,6 +95,11 @@ class Loss:
             "energy_structures": n_atoms**2,
             "energy_vibrations": n_atoms,
             "forces_structures": einops.repeat(n_atoms, "batch -> batch 1 1"),
+            "forces_cosine_sim": einops.repeat(n_atoms, "batch -> batch 1 1"),
+            "cosine_sim_div_magnitude": einops.repeat(n_atoms, "batch -> batch 1 1"),
+            "forces_cosine_sim_exp_magnitude": einops.repeat(
+                n_atoms, "batch -> batch 1 1"
+            ),
             "stress_structures": einops.repeat(n_atoms**2, "batch -> batch 1 1"),
             "stress_vibrations": einops.repeat(n_atoms, "batch -> batch 1 1"),
         }
