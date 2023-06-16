@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "apax"
 version = "0.1.0"
-description = "Atomistic Learned Potentail Package in JAX"
+description = "Atomistic Learned Potential Package in JAX"
 authors = ["Moritz René Schäfer <schaefer@theochem.uni-stuttgart.de>", "Nico Segreto <segreto@theochem.uni-stuttgart.de>"]
 keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
 license = "MIT"

@@ -28,7 +28,7 @@ def fit(
     patience=None,
     disable_pbar: bool = False,
 ):
-    log.info("Begining Training")
+    log.info("Beginning Training")
     callbacks.on_train_begin()
 
     latest_dir = ckpt_dir + "/latest"

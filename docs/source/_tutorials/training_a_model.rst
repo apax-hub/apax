@@ -63,7 +63,7 @@ callbacks:
     - CSV
 ```
 
-If training is interupted for any reason, re-running the above `train` command will resume training from the latest checkpoint.
+If training is interrupted for any reason, re-running the above `train` command will resume training from the latest checkpoint.
 
 ## Evaluation
 

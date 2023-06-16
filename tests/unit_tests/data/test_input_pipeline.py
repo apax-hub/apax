@@ -1,17 +1,11 @@
 import numpy as np
 import pytest
 import tensorflow as tf
-from ase import Atoms
-from ase.calculators.singlepoint import SinglePointCalculator
 
-from apax.data.input_pipeline import (
-    PadToSpecificSize,
-    TFPipeline,
-    create_dict_dataset,
-    initialize_nbr_displacement_fns,
-)
+from apax.data.input_pipeline import PadToSpecificSize, TFPipeline, create_dict_dataset
 from apax.train.run import find_largest_system
-from apax.utils.data import convert_atoms_to_arrays, split_atoms, split_idxs
+from apax.utils.convert import atoms_to_arrays
+from apax.utils.data import split_atoms, split_idxs
 from apax.utils.random import seed_py_np_tf
 
 
@@ -33,15 +27,12 @@ from apax.utils.random import seed_py_np_tf
         ],
     ),
 )
-def test_input_pipeline(example_atoms, pbc, calc_results, num_data, external_labels):
+def test_input_pipeline(example_atoms, calc_results, num_data, external_labels):
     batch_size = 2
     r_max = 6.0
 
-    _, neighbor_fn = initialize_nbr_displacement_fns(example_atoms[0], r_max)
-
     inputs, labels = create_dict_dataset(
         example_atoms,
-        neighbor_fn,
         r_max,
         external_labels,
         disable_pbar=True,
@@ -162,7 +153,7 @@ def test_split_data(example_atoms):
     ),
 )
 def test_convert_atoms_to_arrays(example_atoms, pbc):
-    inputs, labels = convert_atoms_to_arrays(example_atoms)
+    inputs, labels = atoms_to_arrays(example_atoms)
 
     assert "fixed" in inputs
     assert "ragged" in inputs
@@ -189,46 +180,46 @@ def test_convert_atoms_to_arrays(example_atoms, pbc):
     assert len(labels["ragged"]["forces"]) == len(example_atoms)
 
 
-@pytest.mark.parametrize(
-    "num_data, pbc, calc_results, external_labels",
-    ([3, True, ["energy"], None],),
-)
-def test_mixed_ase_jax_neighbors(pbc, calc_results, num_data, external_labels):
-    r_max = 2.0
+# TODO auf distanzen testen da nurnoch ase neighbor verwendet werden
+# @pytest.mark.parametrize(
+#     "num_data, pbc, calc_results, external_labels",
+#     ([3, True, ["energy"], None],),
+# )
+# def test_mixed_ase_jax_neighbors(pbc, calc_results, num_data, external_labels):
+#     r_max = 2.0
 
-    numbers = np.array([1, 1])
-    positions = np.array([[0.0, 0.0, 0.0], [1.5, 0.0, 0.0]])
+#     numbers = np.array([1, 1])
+#     positions = np.array([[0.0, 0.0, 0.0], [1.5, 0.0, 0.0]])
 
-    additional_data = {}
-    additional_data["pbc"] = pbc
-    additional_data["cell"] = np.array([1.8, 2.5, 2.5])
+#     additional_data = {}
+#     additional_data["pbc"] = pbc
+#     additional_data["cell"] = np.array([1.8, 2.5, 2.5])
 
-    result_shapes = {
-        "energy": (np.random.rand() - 5.0) * 10_000,
-    }
+#     result_shapes = {
+#         "energy": (np.random.rand() - 5.0) * 10_000,
+#     }
 
-    atoms = Atoms(numbers=numbers, positions=positions, **additional_data)
-    if calc_results:
-        results = {}
-        for key in calc_results:
-            results[key] = result_shapes[key]
-        atoms.calc = SinglePointCalculator(atoms, **results)
+#     atoms = Atoms(numbers=numbers, positions=positions, **additional_data)
+#     if calc_results:
+#         results = {}
+#         for key in calc_results:
+#             results[key] = result_shapes[key]
+#         atoms.calc = SinglePointCalculator(atoms, **results)
 
-    _, neighbor_fn = initialize_nbr_displacement_fns(atoms, r_max)
+#     neighbor_fn = initialize_nbr_fn(atoms, r_max)
 
-    inputs, _ = create_dict_dataset(
-        [atoms],
-        neighbor_fn,
-        r_max,
-        external_labels,
-        disable_pbar=True,
-    )
+#     inputs, _ = create_dict_dataset(
+#         [atoms],
+#         r_max,
+#         external_labels,
+#         disable_pbar=True,
+#     )
 
-    idx = inputs["ragged"]["idx"][0]
-    n_true = idx.shape[1]
+#     idx = inputs["ragged"]["idx"][0]
+#     n_true = idx.shape[1]
 
-    neighbors = neighbor_fn.allocate(atoms.positions)
-    neighbor_idxs = neighbors.idx
-    n_false = neighbor_idxs.shape[1]
+#     neighbors = neighbor_fn.allocate(atoms.positions)
+#     neighbor_idxs = neighbors.idx
+#     n_false = neighbor_idxs.shape[1]
 
-    assert n_true > n_false
+#     assert n_true > n_false

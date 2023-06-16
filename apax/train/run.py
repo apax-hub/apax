@@ -10,11 +10,7 @@ from flax.training import checkpoints
 from keras.callbacks import CSVLogger, TensorBoard
 
 from apax.config import parse_train_config
-from apax.data.input_pipeline import (
-    TFPipeline,
-    create_dict_dataset,
-    initialize_nbr_displacement_fns,
-)
+from apax.data.input_pipeline import TFPipeline, create_dict_dataset
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
 from apax.optimizer import get_opt
@@ -92,16 +88,9 @@ def initialize_datasets(config, raw_datasets):
         train_atoms_list, shift_method, scale_method, shift_options, scale_options
     )
 
-    displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(
-        train_atoms_list[0],
-        config.model.r_max,
-    )
-    ds_stats.displacement_fn = displacement_fn
-
     # Note(Moritz): external labels are actually not read in anywhere
     train_inputs, train_labels = create_dict_dataset(
         train_atoms_list,
-        neighbor_fn,
         r_max=config.model.r_max,
         external_labels=train_label_dict,
         disable_pbar=config.progress_bar.disable_nl_pbar,
@@ -110,7 +99,6 @@ def initialize_datasets(config, raw_datasets):
     )
     val_inputs, val_labels = create_dict_dataset(
         val_atoms_list,
-        neighbor_fn,
         r_max=config.model.r_max,
         external_labels=val_label_dict,
         disable_pbar=config.progress_bar.disable_nl_pbar,
@@ -253,7 +241,6 @@ def run(user_config, log_file="train.log", log_level="error"):
     # TODO determined by the shape of shift and scale
     builder = ModelBuilder(config.model.get_dict(), n_species=ds_stats.n_species)
     model = builder.build_energy_force_model(
-        displacement_fn=ds_stats.displacement_fn,
         scale=ds_stats.elemental_scale,
         shift=ds_stats.elemental_shift,
         apply_mask=True,
@@ -266,7 +253,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     do_transfer_learning = config.checkpoints.base_model_checkpoint is not None
     if do_transfer_learning:
         log.info(
-            "Transfering parameters from %s", config.checkpoints.base_model_checkpoint
+            "Transferring parameters from %s", config.checkpoints.base_model_checkpoint
         )
         raw_restored = checkpoints.restore_checkpoint(
             config.checkpoints.base_model_checkpoint, target=None, step=None

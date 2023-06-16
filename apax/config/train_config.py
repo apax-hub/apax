@@ -209,7 +209,7 @@ class MetricsConfig(BaseModel, extra=Extra.forbid):
 
 class LossConfig(BaseModel, extra=Extra.forbid):
     """
-    Confuration of the loss functions used during training.
+    Configuration of the loss functions used during training.
 
     Parameters
     ----------
@@ -226,7 +226,7 @@ class LossConfig(BaseModel, extra=Extra.forbid):
 
 class CallbackConfig(BaseModel, frozen=True, extra=Extra.forbid):
     """
-    Configuraton of the training callbacks.
+    Configuration of the training callbacks.
 
     Parameters
     ----------

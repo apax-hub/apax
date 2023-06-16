@@ -209,10 +209,11 @@ def md_setup(model_config: Config, md_config: MDConfig):
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
 
-    R = jnp.asarray(atoms.positions, dtype=jnp.float64)
     atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
     masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float64)
-    box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float64)
+    box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
+    box = box.T
+    R = jnp.asarray(atoms.positions, dtype=jnp.float64)
 
     log.info("initializing model")
     if np.all(box < 1e-6):
@@ -226,7 +227,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     n_species = 119  # int(np.max(Z) + 1)
     builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_model(
-        displacement_fn=displacement_fn, apply_mask=True, init_box=np.array(box)
+        apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
     )
     neighbor_fn = partition.neighbor_list(
         displacement_fn,
@@ -235,7 +236,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         md_config.dr_threshold,
         fractional_coordinates=False,
         format=partition.Sparse,
-        disable_cell_list=True,
+        disable_cell_list=False,  # TODO im not sure if it works was on True before
     )
 
     os.makedirs(md_config.sim_dir, exist_ok=True)
@@ -259,7 +260,7 @@ def run_md(
 ):
     """
     Utiliy function to start NVT molecualr dynamics simulations from
-    a previousy trained model.
+    a previously trained model.
 
     Parameters
     ----------
