@@ -240,7 +240,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     # TODO n_species should be optional since it's already
     # TODO determined by the shape of shift and scale
     builder = ModelBuilder(config.model.get_dict(), n_species=ds_stats.n_species)
-    model = builder.build_energy_force_model(
+    model = builder.build_energy_derivative_model(
         scale=ds_stats.elemental_scale,
         shift=ds_stats.elemental_shift,
         apply_mask=True,

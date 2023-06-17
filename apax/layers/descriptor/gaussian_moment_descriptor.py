@@ -79,11 +79,12 @@ class GaussianMomentDescriptor(nn.Module):
             dr_vec = self.displacement(R[idx_j], R[idx_i]).astype(self.dtype)
         else:
             # distance vector for training on periodic systems
-            # reverse conventnion to match TF
             Ri = R[idx_i]
             Rj = R[idx_j]
 
             dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
+            # one can think about making this option for inference 
+            # because there offstets are alwayes non
             dr_vec -= offsets
 
         # dr shape: neighbors

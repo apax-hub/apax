@@ -1,4 +1,4 @@
 from .builder import ModelBuilder
-from .gmnn import AtomisticModel, EnergyForceModel, EnergyModel
+from .gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
 
-__all__ = ["AtomisticModel", "EnergyModel", "EnergyForceModel", "ModelBuilder"]
+__all__ = ["AtomisticModel", "EnergyModel", "EnergyDerivativeModel", "ModelBuilder"]

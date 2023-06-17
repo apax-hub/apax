@@ -16,8 +16,8 @@ def normed_dotp(F_0, F_pred):
     F_0_norm = jnp.linalg.norm(F_0, ord=2, axis=2, keepdims=True)
     F_p_norm = jnp.linalg.norm(F_pred, ord=2, axis=2, keepdims=True)
 
-    F_0_n = F_0 / F_0_norm
-    F_p_n = F_pred / F_p_norm
+    F_0_n = jnp.where(F_0_norm > 1e-6, F_0 / F_0_norm, jnp.zeros_like(F_0))
+    F_p_n = jnp.where(F_p_norm > 1e-6, F_pred / F_p_norm, jnp.zeros_like(F_pred))
 
     dotp = jnp.einsum("bai, bai -> ba", F_0_n, F_p_n)
     return dotp

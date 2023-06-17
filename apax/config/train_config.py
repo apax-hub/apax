@@ -136,8 +136,8 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
     n_radial: PositiveInt = 5
     r_min: NonNegativeFloat = 0.5
     r_max: PositiveFloat = 6.0
-    # n_contr: int = -1
-    # emb_init: Optional[str] = "uniform"
+    n_contr: int = -1
+    emb_init: Optional[str] = "uniform"
 
     nn: List[PositiveInt] = [512, 512]
     b_init: Literal["normal", "zeros"] = "normal"
@@ -145,6 +145,8 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
     # corrections
     use_zbl: bool = False
     use_reax: bool = False
+
+    calc_stress: bool = False
 
     descriptor_dtype: Literal["fp32", "fp64"] = "fp32"
     readout_dtype: Literal["fp32", "fp64"] = "fp32"
