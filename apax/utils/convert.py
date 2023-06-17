@@ -34,7 +34,7 @@ def atoms_to_arrays(
     energy_unit: str = "eV",
 ) -> tuple[dict[str, dict[str, list]], dict[str, dict[str, list]]]:
     """Converts an list of ASE atoms to two dicts where all inputs and labels
-    are sorted by there shape (ragged/fixed), and proberty. Units are
+    are sorted by there shape (ragged/fixed), and property. Units are
     adjusted if ASE compatible and provided in the inputpipeline.
 
 

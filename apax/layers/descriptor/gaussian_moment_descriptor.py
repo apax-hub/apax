@@ -83,8 +83,8 @@ class GaussianMomentDescriptor(nn.Module):
             Rj = R[idx_j]
 
             dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
-            # one can think about making this option for inference 
-            # because there offstets are alwayes non
+            # one can think about making this option for inference
+            # because there offsets are alwayes non
             dr_vec -= offsets
 
         # dr shape: neighbors
