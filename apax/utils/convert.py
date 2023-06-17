@@ -22,6 +22,7 @@ def tf_to_jax_dict(data_dict: dict[str, list]) -> dict:
     data_dict = {k: jnp.asarray(v) for k, v in data_dict.items()}
     return data_dict
 
+
 def prune_dict(data_dict):
     pruned = {key: val for key, val in data_dict.items() if len(val) != 0}
     return pruned
@@ -79,11 +80,12 @@ def atoms_to_arrays(
         "Hartree": Hartree,
         "kJ/mol": kJ / mol,
     }
-    box = np.array(atoms_list[0].cell.lengths())
+    box = np.array(atoms_list[0].cell.array)
     pbc = np.all(box > 1e-6)
 
     for atoms in atoms_list:
-        box = np.diagonal(atoms.cell * unit_dict[pos_unit]).astype(DTYPE)
+        box = (atoms.cell.array * unit_dict[pos_unit]).astype(DTYPE)
+        box = box.T  # takes row and column convention of ase into account
         inputs["fixed"]["box"].append(box)
 
         if pbc != np.all(box > 1e-6):
@@ -96,7 +98,7 @@ def atoms_to_arrays(
                 (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
             )
         else:
-            inv_box = np.divide(1, box, where=box != 0)
+            inv_box = np.linalg.inv(box)
             inputs["ragged"]["positions"].append(
                 np.array(
                     space.transform(

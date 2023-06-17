@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 def initialize_nbr_fn(atoms, cutoff):
     neighbor_fn = None
     default_box = 100
-    box = jnp.asarray(atoms.cell)
+    box = jnp.asarray(atoms.cell.array)
 
     if np.all(box < 1e-6):
         displacement_fn, _ = space.free()
