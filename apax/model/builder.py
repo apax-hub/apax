@@ -139,12 +139,15 @@ class ModelBuilder:
                 apply_mask=apply_mask,
                 r_max=self.config["r_max"],
                 init_box=init_box,
+                inference_disp_fn=inference_disp_fn,
             )
         if self.config["use_reax"]:
             bonded = ReaxBonded(
                 apply_mask=apply_mask,
                 r_max=self.config["r_max"],
                 init_box=init_box,
+                inference_disp_fn=inference_disp_fn,
+
             )
         model = EnergyDerivativeModel(
             atomistic_model,

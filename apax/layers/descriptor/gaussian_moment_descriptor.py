@@ -34,12 +34,12 @@ def get_disp_fn(displacement):
 class GaussianMomentDescriptor(nn.Module):
     radial_fn: nn.Module = (
         RadialFunction()
-    )  # braucht doch displacement fn damit damit md gemacht werden kann!
+    )
     n_contr: int = 8
     dtype: Any = jnp.float32
     apply_mask: bool = True
     init_box: np.array = np.array([0.0, 0.0, 0.0])
-    inference_disp_fn: Any = None
+    inference_disp_fn: Any = None # is nessesary to have fast md simulation
 
     def setup(self):
         self.r_max = self.radial_fn.r_max
@@ -62,6 +62,7 @@ class GaussianMomentDescriptor(nn.Module):
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
 
     def __call__(self, R, Z, neighbor_idxs, box, offsets, perturbation=None):
+        # TODO default offsets for inference?
         R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms
@@ -85,7 +86,7 @@ class GaussianMomentDescriptor(nn.Module):
             dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
             # one can think about making this option for inference
             # because there offsets are alwayes non
-            dr_vec -= offsets
+            dr_vec -= offsets.astype(self.dtype)
 
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(self.dtype)
