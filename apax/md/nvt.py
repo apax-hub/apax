@@ -235,7 +235,8 @@ def md_setup(model_config: Config, md_config: MDConfig):
         box,
         model_config.model.r_max,
         md_config.dr_threshold,
-        fractional_coordinates=False, # TODO should this be True to enable variable cell sizes?
+        fractional_coordinates=False,
+        # TODO should this be True to enable variable cell sizes?
         format=partition.Sparse,
         disable_cell_list=False,  # TODO im not sure if it works was on True before
     )

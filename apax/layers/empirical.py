@@ -71,9 +71,7 @@ class ZBLRepulsion(nn.Module):
             "rep_scale", nn.initializers.constant(rep_scale_isp), (1,)
         )
 
-    def __call__(
-        self, R, Z, neighbor, box, offsets, perturbation=None
-    ):
+    def __call__(self, R, Z, neighbor, box, offsets, perturbation=None):
         R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms
@@ -166,9 +164,7 @@ class ReaxBonded(nn.Module):
             "pbe2", uniform_range(0.0, 1.0), (self.n_species, self.n_species)
         )
 
-    def __call__(
-        self, R, Z, neighbor, box, offsets, perturbation=None
-    ):
+    def __call__(self, R, Z, neighbor, box, offsets, perturbation=None):
         R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms

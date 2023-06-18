@@ -147,7 +147,6 @@ class ModelBuilder:
                 r_max=self.config["r_max"],
                 init_box=init_box,
                 inference_disp_fn=inference_disp_fn,
-
             )
         model = EnergyDerivativeModel(
             atomistic_model,

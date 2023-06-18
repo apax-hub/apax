@@ -32,14 +32,12 @@ def get_disp_fn(displacement):
 
 
 class GaussianMomentDescriptor(nn.Module):
-    radial_fn: nn.Module = (
-        RadialFunction()
-    )
+    radial_fn: nn.Module = RadialFunction()
     n_contr: int = 8
     dtype: Any = jnp.float32
     apply_mask: bool = True
     init_box: np.array = np.array([0.0, 0.0, 0.0])
-    inference_disp_fn: Any = None # is nessesary to have fast md simulation
+    inference_disp_fn: Any = None  # is necessary to have fast md simulation
 
     def setup(self):
         self.r_max = self.radial_fn.r_max

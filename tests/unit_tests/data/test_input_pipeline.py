@@ -1,16 +1,16 @@
 import numpy as np
 import pytest
 import tensorflow as tf
+from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
+from jax import vmap
 
 from apax.data.input_pipeline import PadToSpecificSize, TFPipeline, create_dict_dataset
+from apax.layers.descriptor.gaussian_moment_descriptor import disp_fn
 from apax.train.run import find_largest_system
 from apax.utils.convert import atoms_to_arrays
 from apax.utils.data import split_atoms, split_idxs
 from apax.utils.random import seed_py_np_tf
-from ase import Atoms
-from ase.calculators.singlepoint import SinglePointCalculator
-from apax.layers.descriptor.gaussian_moment_descriptor import disp_fn
-from jax import vmap
 
 
 @pytest.mark.parametrize(
@@ -193,11 +193,13 @@ def test_neighbors_and_displacements(pbc, calc_results, num_data, external_label
     r_max = 2.0
 
     numbers = np.array([1, 1])
-    positions = np.array([[0.0, 0.0, 0.0], [1., 0.0, 1.0]])
+    positions = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 1.0]])
 
     additional_data = {}
     additional_data["pbc"] = pbc
-    additional_data["cell"] = np.array([[1.8, 0.1, 0.], [0.0, 2.5, 0.1], [0.1, 0.0, 2.5]])
+    additional_data["cell"] = np.array(
+        [[1.8, 0.1, 0.0], [0.0, 2.5, 0.1], [0.1, 0.0, 2.5]]
+    )
 
     result_shapes = {
         "energy": (np.random.rand() - 5.0) * 10_000,
@@ -218,15 +220,15 @@ def test_neighbors_and_displacements(pbc, calc_results, num_data, external_label
     )
 
     idx = np.asarray(inputs["ragged"]["idx"])[0]
-    offsets =  np.asarray(inputs["ragged"]["offsets"][0])
-    box =  np.asarray(inputs["fixed"]["box"][0])
+    offsets = np.asarray(inputs["ragged"]["offsets"][0])
+    box = np.asarray(inputs["fixed"]["box"][0])
 
     Ri = positions[idx[0]]
     Rj = positions[idx[1]] + offsets
     matscipy_dr_vec = Ri - Rj
     matscipy_dr_vec = np.asarray(matscipy_dr_vec)
 
-    positions =  np.asarray(inputs["ragged"]["positions"][0])
+    positions = np.asarray(inputs["ragged"]["positions"][0])
     Ri = positions[idx[0]]
     Rj = positions[idx[1]]
     displacement = vmap(disp_fn, (0, 0, None, None), 0)
