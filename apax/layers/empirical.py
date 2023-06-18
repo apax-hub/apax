@@ -24,7 +24,7 @@ class ZBLRepulsion(nn.Module):
     init_box: np.array = np.array([0.0, 0.0, 0.0])
     r_max: float = 6.0
     apply_mask: bool = True
-    inference_disp_fn = None
+    inference_disp_fn: Any = None
 
     def setup(self):
         if np.all(self.init_box < 1e-6):
@@ -72,8 +72,8 @@ class ZBLRepulsion(nn.Module):
         )
 
     def __call__(
-        self, R, Z, neighbor, box, perturbation=None
-    ):  # TODO how can you calc distancies without offset?
+        self, R, Z, neighbor, box, offsets, perturbation=None
+    ):
         R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms
@@ -100,7 +100,7 @@ class ZBLRepulsion(nn.Module):
             Rj = R[idx_j]
 
             dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
-            # dr_vec -= offsets
+            dr_vec -= offsets
 
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(self.dtype)
@@ -133,7 +133,7 @@ class ReaxBonded(nn.Module):
     init_box: np.array = np.array([0.0, 0.0, 0.0])
     r_max: float = 6.0
     apply_mask: bool = True
-    inference_disp_fn = None
+    inference_disp_fn: Any = None
 
     def setup(self):
         if np.all(self.init_box < 1e-6):
@@ -167,8 +167,8 @@ class ReaxBonded(nn.Module):
         )
 
     def __call__(
-        self, R, Z, neighbor, box, perturbation=None
-    ):  # TODO how can you calc distancies without offset?
+        self, R, Z, neighbor, box, offsets, perturbation=None
+    ):
         R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms
@@ -194,7 +194,7 @@ class ReaxBonded(nn.Module):
             Rj = R[idx_j]
 
             dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
-            # dr_vec -= offsets
+            dr_vec -= offsets
 
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(self.dtype)
