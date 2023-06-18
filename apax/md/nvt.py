@@ -208,6 +208,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     """
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
+    # atoms = atoms * (2, 1, 1) # TODO box has to be checked
 
     atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
     masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float64)
@@ -234,7 +235,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         box,
         model_config.model.r_max,
         md_config.dr_threshold,
-        fractional_coordinates=False,
+        fractional_coordinates=False, # TODO should this be True to enable variable cell sizes?
         format=partition.Sparse,
         disable_cell_list=False,  # TODO im not sure if it works was on True before
     )
