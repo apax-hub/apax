@@ -7,6 +7,10 @@ from apax.train.run import find_largest_system
 from apax.utils.convert import atoms_to_arrays
 from apax.utils.data import split_atoms, split_idxs
 from apax.utils.random import seed_py_np_tf
+from ase import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
+from apax.layers.descriptor.gaussian_moment_descriptor import disp_fn
+from jax import vmap
 
 
 @pytest.mark.parametrize(
@@ -181,45 +185,60 @@ def test_convert_atoms_to_arrays(example_atoms, pbc):
 
 
 # TODO auf distanzen testen da nurnoch ase neighbor verwendet werden
-# @pytest.mark.parametrize(
-#     "num_data, pbc, calc_results, external_labels",
-#     ([3, True, ["energy"], None],),
-# )
-# def test_mixed_ase_jax_neighbors(pbc, calc_results, num_data, external_labels):
-#     r_max = 2.0
+@pytest.mark.parametrize(
+    "num_data, pbc, calc_results, external_labels",
+    ([3, True, ["energy"], None],),
+)
+def test_neighbors_and_displacements(pbc, calc_results, num_data, external_labels):
+    r_max = 2.0
 
-#     numbers = np.array([1, 1])
-#     positions = np.array([[0.0, 0.0, 0.0], [1.5, 0.0, 0.0]])
+    numbers = np.array([1, 1])
+    positions = np.array([[0.0, 0.0, 0.0], [1., 0.0, 1.0]])
 
-#     additional_data = {}
-#     additional_data["pbc"] = pbc
-#     additional_data["cell"] = np.array([1.8, 2.5, 2.5])
+    additional_data = {}
+    additional_data["pbc"] = pbc
+    additional_data["cell"] = np.array([[1.8, 0.1, 0.], [0.0, 2.5, 0.1], [0.1, 0.0, 2.5]])
 
-#     result_shapes = {
-#         "energy": (np.random.rand() - 5.0) * 10_000,
-#     }
+    result_shapes = {
+        "energy": (np.random.rand() - 5.0) * 10_000,
+    }
 
-#     atoms = Atoms(numbers=numbers, positions=positions, **additional_data)
-#     if calc_results:
-#         results = {}
-#         for key in calc_results:
-#             results[key] = result_shapes[key]
-#         atoms.calc = SinglePointCalculator(atoms, **results)
+    atoms = Atoms(numbers=numbers, positions=positions, **additional_data)
+    if calc_results:
+        results = {}
+        for key in calc_results:
+            results[key] = result_shapes[key]
+        atoms.calc = SinglePointCalculator(atoms, **results)
 
-#     neighbor_fn = initialize_nbr_fn(atoms, r_max)
+    inputs, _ = create_dict_dataset(
+        [atoms],
+        r_max,
+        external_labels,
+        disable_pbar=True,
+    )
 
-#     inputs, _ = create_dict_dataset(
-#         [atoms],
-#         r_max,
-#         external_labels,
-#         disable_pbar=True,
-#     )
+    idx = np.asarray(inputs["ragged"]["idx"])[0]
+    offsets =  np.asarray(inputs["ragged"]["offsets"][0])
+    box =  np.asarray(inputs["fixed"]["box"][0])
 
-#     idx = inputs["ragged"]["idx"][0]
-#     n_true = idx.shape[1]
+    Ri = positions[idx[0]]
+    Rj = positions[idx[1]] + offsets
+    matscipy_dr_vec = Ri - Rj
+    matscipy_dr_vec = np.asarray(matscipy_dr_vec)
 
-#     neighbors = neighbor_fn.allocate(atoms.positions)
-#     neighbor_idxs = neighbors.idx
-#     n_false = neighbor_idxs.shape[1]
+    positions =  np.asarray(inputs["ragged"]["positions"][0])
+    Ri = positions[idx[0]]
+    Rj = positions[idx[1]]
+    displacement = vmap(disp_fn, (0, 0, None, None), 0)
+    apax_dr_vec = displacement(Ri, Rj, None, box)
+    apax_dr_vec -= offsets
+    apax_dr_vec = np.asarray(apax_dr_vec)
 
-#     assert n_true > n_false
+    matscipy_dist = np.linalg.norm(matscipy_dr_vec, axis=1)
+    apax_dist = np.linalg.norm(apax_dr_vec, axis=1)
+
+    print(matscipy_dist)
+    print(apax_dist)
+
+    assert np.all(matscipy_dr_vec - apax_dr_vec < 10e-8)
+    assert np.all(matscipy_dist - apax_dist < 10e-8)
