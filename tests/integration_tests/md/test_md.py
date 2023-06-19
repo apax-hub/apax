@@ -134,7 +134,7 @@ def test_ase_calc(get_tmp_path):
     neighbors = neighbor_fn.allocate(positions)
 
     builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
-    model = builder.build_energy_force_model(
+    model = builder.build_energy_derivative_model(
         displacement_fn=displacement_fn,
     )
     rng_key = jax.random.PRNGKey(model_config.seed)

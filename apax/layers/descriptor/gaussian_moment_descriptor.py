@@ -59,7 +59,8 @@ class GaussianMomentDescriptor(nn.Module):
         # dr_vec shape: neighbors x 3
         if not np.all(self.init_box < 1e-6):
             # distance vector for training on periodic systems
-            # reverse conventnion to match TF
+            # we do not need to matmul the offsets with the box
+            # since everything is in fractional coords
             Ri = R[idx_i]
             Rj = offsets + R[idx_j]
 
@@ -68,8 +69,6 @@ class GaussianMomentDescriptor(nn.Module):
             # reverse conventnion to match TF
             # distance vector for gas phase training and predicting
             dr_vec = self.displacement(R[idx_j], R[idx_i]).astype(self.dtype)
-
-        # dr_vec += box * offset
 
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(self.dtype)

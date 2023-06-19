@@ -180,7 +180,10 @@ class TFPipeline:
         self.n_data = len(inputs["fixed"]["n_atoms"])
 
         if batch_size > self.n_data:
-            raise ValueError("batch size is larger than the number of data points!")
+            raise ValueError(
+                f"batch size ({batch_size}) is larger than the number of data points"
+                f" ({self.n_data})!"
+            )
 
         # tf.RaggedTensors should be created from `tf.ragged.stack`
         # instead of `tf.ragged.constant` for performance reasons.
@@ -207,7 +210,7 @@ class TFPipeline:
     def steps_per_epoch(self) -> int:
         """Returns the number of steps per epoch dependent on the number of data and the
         batch size. Steps per epoch are calculated in a way that all epochs have the same
-        number of steps, and all batches have the same length. To do so some training
+        number of steps, and all batches have the same length. To do so, some training
         data are dropped in each epoch.
         """
         return self.n_data // self.batch_size

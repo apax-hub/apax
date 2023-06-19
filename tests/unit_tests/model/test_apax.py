@@ -4,7 +4,12 @@ import numpy as np
 
 from apax.layers.descriptor import GaussianMomentDescriptor
 from apax.layers.scaling import PerElementScaleShift
-from apax.model.gmnn import AtomisticModel, EnergyForceModel, EnergyModel, NeighborSpoof
+from apax.model.gmnn import (
+    AtomisticModel,
+    EnergyDerivativeModel,
+    EnergyModel,
+    NeighborSpoof,
+)
 
 
 def test_apax_variable_size():
@@ -34,14 +39,14 @@ def test_apax_variable_size():
     shift = jnp.array([0.0, 100.0, 200.0])
     scale = jnp.array([1.0, 1.2, 1.6])[..., None]
 
-    model = EnergyForceModel(
+    model = EnergyDerivativeModel(
         AtomisticModel(
             descriptor=GaussianMomentDescriptor(apply_mask=False),
             scale_shift=PerElementScaleShift(scale=scale, shift=shift),
             mask_atoms=False,
         )
     )
-    model_padded = EnergyForceModel(
+    model_padded = EnergyDerivativeModel(
         AtomisticModel(
             descriptor=GaussianMomentDescriptor(apply_mask=True),
             scale_shift=PerElementScaleShift(scale=scale, shift=shift),
@@ -153,7 +158,7 @@ def test_energy_force_model():
 
     box = np.array([0.0, 0.0, 0.0])
 
-    model = EnergyForceModel()
+    model = EnergyDerivativeModel()
 
     params = model.init(key, R, Z, idx, box, offsets)
     result = model.apply(params, R, Z, idx, box, offsets)

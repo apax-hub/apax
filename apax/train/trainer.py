@@ -123,7 +123,6 @@ def fit(
 
             epoch_pbar.set_postfix(val_loss=epoch_metrics["val_loss"])
             epoch_pbar.update()
-            print(early_stopping_counter)
 
             if patience is not None and early_stopping_counter >= patience:
                 log.info(
@@ -138,9 +137,8 @@ def global_norm(updates) -> jnp.ndarray:
     Args:
       updates: A pytree of ndarrays representing the gradient.
     """
-    return jnp.sqrt(
-        sum([jnp.sum(jnp.square(x)) for x in jax.tree_util.tree_leaves(updates)])
-    )
+    norm = jax.tree_map(lambda u: jnp.sqrt(jnp.sum(jnp.square(u))), updates)
+    return norm
 
 
 def calc_loss(params, inputs, labels, loss_fn, model):
@@ -167,7 +165,7 @@ def make_step_fns(loss_fn, Metrics, model, sam_rho):
 
         if rho > 1e-6:
             grad_norm = global_norm(grads)
-            eps = jax.tree_map(lambda g: g * rho / grad_norm, grads)
+            eps = jax.tree_map(lambda g, n: g * rho / n, grads, grad_norm)
             params_eps = jax.tree_map(lambda p, e: p + e, state.params, eps)
             (loss, _), grads = grad_fn(params_eps, inputs, labels)
 

@@ -9,6 +9,7 @@ from jax_md.util import Array
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.empirical import ReaxBonded, ZBLRepulsion
 from apax.layers.masking import mask_by_atom
+from apax.layers.properties import stress_times_vol
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.model.utils import NeighborSpoof
@@ -78,10 +79,11 @@ class EnergyModel(nn.Module):
         return total_energy
 
 
-class EnergyForceModel(nn.Module):
+class EnergyDerivativeModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
     repulsion: Optional[ZBLRepulsion] = None
     bonded: Optional[ReaxBonded] = None
+    calc_stress: bool = False
 
     def setup(self):
         self.energy_fn = EnergyModel(
@@ -104,4 +106,11 @@ class EnergyForceModel(nn.Module):
         )
         forces = -neg_forces
         prediction = {"energy": energy, "forces": forces}
+
+        if self.calc_stress:
+            stress = stress_times_vol(
+                self.energy_fn, R, box, Z=Z, neighbor=neighbor, offsets=offsets
+            )
+            prediction["stress"] = stress
+
         return prediction
