@@ -1,18 +1,16 @@
-import os
 from functools import partial
 from pathlib import Path
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-import yaml
 from ase.calculators.calculator import Calculator, all_changes
-from flax.training import checkpoints
 from jax_md import partition, space
 
-from apax.config.train_config import Config
+from apax.config.train_config import parse_train_config
 from apax.md.md_checkpoint import look_for_checkpoints
 from apax.model import ModelBuilder
+from apax.train.eval import load_params
 
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
@@ -22,59 +20,51 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     if np.all(box < 1e-6):
         displacement_fn, _ = space.free()
     else:
-        displacement_fn, _ = space.periodic_general(box, fractional_coordinates=False)
+        displacement_fn, _ = space.periodic_general(box, fractional_coordinates=True)
 
     Z = jnp.asarray(atomic_numbers)
     n_species = 119  # int(np.max(Z) + 1)
     builder = ModelBuilder(config.model.get_dict(), n_species=n_species)
-    model = builder.build_energy_model(
+    model = builder.build_energy_derivative_model(
         displacement_fn=displacement_fn, apply_mask=True, init_box=np.array(box)
     )
-    energy_fn = partial(model.apply, params, Z=Z, box=box)
+    energy_fn = partial(model.apply, params, Z=Z)
     neighbor_fn = partition.neighbor_list(
         displacement_fn,
         box,
         config.model.r_max,
         dr_threshold,
-        fractional_coordinates=False,
+        fractional_coordinates=True,
+        disable_cell_list=True,
         format=partition.Sparse,
     )
-
     return energy_fn, neighbor_fn
 
 
 class ASECalculator(Calculator):
     """
-    DOES NOT SUPPORT CHANING PARTICLE NUMBERS DURING THE SIMULATION!
+    ASE Calculator for APAX models.
     """
 
-    implemented_properties = ["energy", "forces"]
+    implemented_properties = ["energy", "forces", "stress"]
 
     def __init__(self, model_dir: Path, dr_threshold: float = 0.5, **kwargs):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
 
-        model_config = Path(model_dir) / "config.yaml"
-        with open(model_config, "r") as stream:
-            model_config = yaml.safe_load(stream)
-
-        self.model_config = Config.parse_obj(model_config)
-
-        ckpt_dir = os.path.join(
-            self.model_config.data.model_path, self.model_config.data.model_name, "best"
-        )
-
-        ckpt_exists = look_for_checkpoints(ckpt_dir)
-        assert ckpt_exists
-        raw_restored = checkpoints.restore_checkpoint(ckpt_dir, target=None, step=None)
-        self.params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
+        self.model_config = parse_train_config(model_dir + "config.yaml")
+        ckpt_dir = Path(self.model_config.data.model_path) / self.model_config.data.model_name
+        ckpt_exists = look_for_checkpoints(ckpt_dir / "best")
+        if not ckpt_exists:
+            raise FileNotFoundError(f"No checkpoint found at {ckpt_dir}")
+        self.params = load_params(ckpt_dir)
 
         self.step = None
         self.neighbor_fn = None
         self.neighbors = None
 
     def initialize(self, atoms):
-        energy_fn, neighbor_fn = build_energy_neighbor_fns(
+        model, neighbor_fn = build_energy_neighbor_fns(
             atoms,
             self.model_config,
             self.params,
@@ -82,39 +72,39 @@ class ASECalculator(Calculator):
         )
 
         @jax.jit
-        def body_fn(positions, neighbor):
-            neighbor = neighbor.update(positions)
-            neighbors = neighbor.idx
-            n_neighbors = neighbors.shape[1]
-            offsets = jnp.full([n_neighbors, 3], 0)
-            energy, neg_forces = jax.value_and_grad(energy_fn)(
-                positions, neighbor=neighbor, offsets=offsets
-            )
-            forces = -neg_forces
-            return energy, forces, neighbor
+        def step_fn(positions, neighbor, box):
+            if np.any(atoms.get_cell().lengths() > 1e-6):
+                inv_box = jnp.linalg.inv(box)
+                positions = space.transform(inv_box, positions)
+                neighbor = neighbor.update(positions, box=box)
+                # print("frac")
+            else:
+                neighbor = neighbor.update(positions)
+            offsets = jnp.full([neighbor.idx.shape[1], 3], 0)
+            results = model(positions, neighbor=neighbor, box=box, offsets=offsets)
+            return results, neighbor
 
-        self.step = body_fn
+        self.step = step_fn
         self.neighbor_fn = neighbor_fn
 
     def calculate(self, atoms, properties=["energy"], system_changes=all_changes):
+        atoms.wrap()
         Calculator.calculate(self, atoms, properties, system_changes)
 
-        positions = jnp.asarray(atoms.positions, dtype=jnp.float32)
-
-        if self.step is None or "numbers" in system_changes or "box" in system_changes:
+        positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
+        box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
+        if self.step is None or "numbers" in system_changes:
             self.initialize(atoms)
-
             self.neighbors = self.neighbor_fn.allocate(positions)
-            energy, forces, self.neighbors = self.step(positions, self.neighbors)
 
-        energy, forces, self.neighbors = self.step(positions, self.neighbors)
+        results, self.neighbors = self.step(positions, self.neighbors, box)
 
         if self.neighbors.did_buffer_overflow:
             print("neighbor list overflowed, reallocating.")
             self.neighbors = self.neighbor_fn.allocate(positions)
-            energy, forces, self.neighbors = self.step(positions, self.neighbors)
+            results, self.neighbors = self.step(positions, self.neighbors, box)
 
-        self.results = {
-            "energy": np.array(energy, dtype=np.float64).item(),
-            "forces": np.array(forces, dtype=np.float64),
-        }
+        self.results = {k: np.array(v, dtype=np.float64) for k,v in results.items()}
+        self.results["energy"] = self.results["energy"].item()
+        self.results['free_energy'] = self.results["energy"]
+        # print(self.results["stress"])
