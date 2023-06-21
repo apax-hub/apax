@@ -184,12 +184,29 @@ def test_convert_atoms_to_arrays(example_atoms, pbc):
     assert len(labels["ragged"]["forces"]) == len(example_atoms)
 
 
-# TODO auf distanzen testen da nurnoch ase neighbor verwendet werden
 @pytest.mark.parametrize(
-    "num_data, pbc, calc_results, external_labels",
-    ([3, True, ["energy"], None],),
+    "pbc, calc_results, external_labels, cell",
+    ([
+        True,
+        ["energy"],
+        None,
+        np.array([[1.8, 0.1, 0.0], [0.0, 2.5, 0.1], [0.1, 0.0, 2.5]]),
+    ],
+    [
+        True,
+        ["energy"],
+        None,
+        np.array([[1.8, 0.0, 0.0], [0.0, 2.5, 0.0], [0.0, 0.0, 2.5]]),
+    ],
+    [
+        True,
+        ["energy"],
+        None,
+        np.array([[0.5, 0.0, 0.5], [0.0, 2.5, 0.0], [0.0, 0.5, 0.5]]),
+    ],
+    ),
 )
-def test_neighbors_and_displacements(pbc, calc_results, num_data, external_labels):
+def test_neighbors_and_displacements(pbc, calc_results, external_labels, cell):
     r_max = 2.0
 
     numbers = np.array([1, 1])
@@ -197,9 +214,10 @@ def test_neighbors_and_displacements(pbc, calc_results, num_data, external_label
 
     additional_data = {}
     additional_data["pbc"] = pbc
-    additional_data["cell"] = np.array(
-        [[1.8, 0.1, 0.0], [0.0, 2.5, 0.1], [0.1, 0.0, 2.5]]
-    )
+    additional_data["cell"] = cell
+    # np.array(
+        # [[1.8, 0.1, 0.0], [0.0, 2.5, 0.1], [0.1, 0.0, 2.5]]
+    # )
 
     result_shapes = {
         "energy": (np.random.rand() - 5.0) * 10_000,
