@@ -98,7 +98,7 @@ class ZBLRepulsion(nn.Module):
             Rj = R[idx_j]
 
             dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
-            dr_vec -= offsets
+            dr_vec += offsets
 
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(self.dtype)
@@ -190,7 +190,7 @@ class ReaxBonded(nn.Module):
             Rj = R[idx_j]
 
             dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
-            dr_vec -= offsets
+            dr_vec += offsets
 
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(self.dtype)

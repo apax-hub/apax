@@ -4,7 +4,7 @@ import einops
 import flax.linen as nn
 import jax.numpy as jnp
 import numpy as np
-from jax import vmap
+from jax import vmap, debug
 from jax_md import space
 from jax_md.space import pairwise_displacement, raw_transform, transform
 
@@ -84,10 +84,14 @@ class GaussianMomentDescriptor(nn.Module):
             dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
             # one can think about making this option for inference
             # because there offsets are alwayes non
-            dr_vec -= offsets.astype(self.dtype)
+            dr_vec += offsets.astype(self.dtype)
 
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(self.dtype)
+        # for i, dist in enumerate(dr):
+        #     debug.print("{x}", x=dist)
+            # debug.print("{x}", x=idx_i[i])
+            # debug.print("{x}", x=idx_j[i])
 
         # TODO: maybe try jnp where
         dr_repeated = einops.repeat(dr + 1e-5, "neighbors -> neighbors 1")
