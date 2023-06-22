@@ -186,24 +186,25 @@ def test_convert_atoms_to_arrays(example_atoms, pbc):
 
 @pytest.mark.parametrize(
     "pbc, calc_results, external_labels, cell",
-    ([
-        True,
-        ["energy"],
-        None,
-        np.array([[1.8, 0.1, 0.0], [0.0, 2.5, 0.1], [0.1, 0.0, 2.5]]),
-    ],
-    [
-        True,
-        ["energy"],
-        None,
-        np.array([[1.8, 0.0, 0.0], [0.0, 2.5, 0.0], [0.0, 0.0, 2.5]]),
-    ],
-    [
-        True,
-        ["energy"],
-        None,
-        np.array([[1.5, 0.0, 0.5], [0.0, 2.5, 0.0], [0.0, 0.5, 1.5]]),
-    ],
+    (
+        [
+            True,
+            ["energy"],
+            None,
+            np.array([[1.8, 0.1, 0.0], [0.0, 2.5, 0.1], [0.1, 0.0, 2.5]]),
+        ],
+        [
+            True,
+            ["energy"],
+            None,
+            np.array([[1.8, 0.0, 0.0], [0.0, 2.5, 0.0], [0.0, 0.0, 2.5]]),
+        ],
+        [
+            True,
+            ["energy"],
+            None,
+            np.array([[1.5, 0.0, 0.5], [0.0, 2.5, 0.0], [0.0, 0.5, 1.5]]),
+        ],
     ),
 )
 def test_neighbors_and_displacements(pbc, calc_results, external_labels, cell):
