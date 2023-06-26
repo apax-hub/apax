@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 import yaml
 from pydantic import (
@@ -319,7 +319,8 @@ def parse_train_config(config: Union[str, os.PathLike, dict]) -> Config:
     
     Attributes
     ----------
-        config: Path to the config file or a dictionary containing the config.
+        config: Path to the config file or a dictionary
+        containing the config.
     """
     log.info("Loading user config")
     if isinstance(config, (str, os.PathLike)):
