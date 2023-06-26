@@ -52,8 +52,10 @@ class ASECalculator(Calculator):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
 
-        self.model_config = parse_train_config(model_dir + "config.yaml")
-        ckpt_dir = Path(self.model_config.data.model_path) / self.model_config.data.model_name
+        self.model_config = parse_train_config(Path(model_dir) / "config.yaml")
+        ckpt_dir = (
+            Path(self.model_config.data.model_path) / self.model_config.data.model_name
+        )
         ckpt_exists = look_for_checkpoints(ckpt_dir / "best")
         if not ckpt_exists:
             raise FileNotFoundError(f"No checkpoint found at {ckpt_dir}")
@@ -77,7 +79,6 @@ class ASECalculator(Calculator):
                 inv_box = jnp.linalg.inv(box)
                 positions = space.transform(inv_box, positions)
                 neighbor = neighbor.update(positions, box=box)
-                # print("frac")
             else:
                 neighbor = neighbor.update(positions)
             offsets = jnp.full([neighbor.idx.shape[1], 3], 0)
@@ -104,7 +105,5 @@ class ASECalculator(Calculator):
             self.neighbors = self.neighbor_fn.allocate(positions)
             results, self.neighbors = self.step(positions, self.neighbors, box)
 
-        self.results = {k: np.array(v, dtype=np.float64) for k,v in results.items()}
+        self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
-        self.results['free_energy'] = self.results["energy"]
-
