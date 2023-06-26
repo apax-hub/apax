@@ -23,7 +23,7 @@ from apax.model import ModelBuilder
 log = logging.getLogger(__name__)
 
 
-def hights_of_box_sids(box):
+def heights_of_box_sides(box):
     heights = []
 
     for i in range(len(box)):
@@ -234,7 +234,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     if np.all(box < 1e-6):
         displacement_fn, shift_fn = space.free()
     else:
-        hights = hights_of_box_sids(box)
+        heights = heights_of_box_sides(box)
 
         if np.any(atoms.cell.lengths() / 2 < r_max):
             log.error(
@@ -242,10 +242,10 @@ def md_setup(model_config: Config, md_config: MDConfig):
                 f"one cell vector direction {atoms.cell.lengths()/2} < {r_max}",
                 "can not calculate the correct neighbors",
             )
-        if np.any(hights / 2 < r_max):
+        if np.any(heights / 2 < r_max):
             log.error(
                 "cutoff is larger than box/2 in at least",
-                f"one cell vector direction {hights/2} < {r_max}",
+                f"one cell vector direction {heights/2} < {r_max}",
                 "can not calculate the correct neighbors",
             )
         displacement_fn, shift_fn = space.periodic_general(
