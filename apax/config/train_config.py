@@ -316,7 +316,7 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
 
 def parse_train_config(config: Union[str, os.PathLike, dict]) -> Config:
     """Load the training configuration from file or a dictionary.
-    
+
     Attributes
     ----------
         config: Path to the config file or a dictionary
