@@ -10,11 +10,7 @@ from flax.training import checkpoints
 from tqdm import trange
 
 from apax.config import parse_train_config
-from apax.data.input_pipeline import (
-    TFPipeline,
-    create_dict_dataset,
-    initialize_nbr_displacement_fns,
-)
+from apax.data.input_pipeline import TFPipeline, create_dict_dataset
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
 from apax.train.metrics import initialize_metrics
@@ -86,14 +82,9 @@ def initialize_test_dataset(test_atoms_list, test_label_dict, config):
     ds_stats = compute_scale_shift_parameters(
         test_atoms_list, shift_method, scale_method, shift_options, scale_options
     )
-    displacement_fn, neighbor_fn = initialize_nbr_displacement_fns(
-        atoms=test_atoms_list[0], cutoff=config.model.r_max
-    )
-    ds_stats.displacement_fn = displacement_fn
 
     test_inputs, test_labels = create_dict_dataset(
         atoms_list=test_atoms_list,
-        neighbor_fn=neighbor_fn,
         r_max=config.model.r_max,
         external_labels=test_label_dict,
         disable_pbar=config.progress_bar.disable_nl_pbar,
@@ -186,7 +177,6 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
 
     builder = ModelBuilder(config.model.get_dict(), n_species=ds_stats.n_species)
     model = builder.build_energy_force_model(
-        displacement_fn=ds_stats.displacement_fn,
         scale=ds_stats.elemental_scale,
         shift=ds_stats.elemental_shift,
         apply_mask=True,

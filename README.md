@@ -67,7 +67,7 @@ apax template train # use --full for a template with all input options
 ```
 
 Please refer to the documentation LINK for a detailed explanation of all parameters.
-The documentation can convenienty be accessed by runnning `apax docs`.
+The documentation can convenienty be accessed by running `apax docs`.
 
 ## Molecular Dynamics
 

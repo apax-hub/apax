@@ -1,42 +1,11 @@
 import logging
 
-import jax.numpy as jnp
-import numpy as np
 import tensorflow as tf
-from jax_md import partition, space
 
 from apax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
-from apax.utils.data import convert_atoms_to_arrays
+from apax.utils.convert import atoms_to_arrays
 
 log = logging.getLogger(__name__)
-
-
-def initialize_nbr_displacement_fns(atoms, cutoff):
-    # frac coord have to be managed in the config oder
-    # dependent of the dataset dependent of the performence
-    default_box = 100
-
-    box = jnp.asarray(atoms.cell.lengths())
-    if np.all(box < 1e-6):
-        frac_coords = False
-        displacement_fn, _ = space.free()
-        box = default_box
-
-    else:
-        frac_coords = True
-        displacement_fn, _ = space.periodic_general(
-            box, fractional_coordinates=frac_coords
-        )
-
-    neighbor_fn = partition.neighbor_list(
-        displacement_or_metric=displacement_fn,
-        box=box,
-        r_cutoff=cutoff,
-        format=partition.Sparse,
-        fractional_coordinates=frac_coords,
-    )
-
-    return displacement_fn, neighbor_fn
 
 
 class PadToSpecificSize:
@@ -113,21 +82,19 @@ class PadToSpecificSize:
 
 def create_dict_dataset(
     atoms_list: list,
-    neighbor_fn,
     r_max: float,
     external_labels: dict = {},
     disable_pbar=False,
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
 ) -> None:
-    inputs, labels = convert_atoms_to_arrays(atoms_list, pos_unit, energy_unit)
+    inputs, labels = atoms_to_arrays(atoms_list, pos_unit, energy_unit)
 
     if external_labels:
         for shape, label in external_labels.items():
             labels[shape].update(label)
 
     idx, offsets = dataset_neighborlist(
-        neighbor_fn,
         inputs["ragged"]["positions"],
         inputs["fixed"]["n_atoms"],
         box=inputs["fixed"]["box"],

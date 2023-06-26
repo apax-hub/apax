@@ -49,6 +49,7 @@ class H5TrajHandler(TrajHandler):
             self.sampling_counter += 1
         else:
             new_atoms = self.atoms_from_state(state, energy)
+            new_atoms.cell = new_atoms.cell.T
             self.buffer.append(new_atoms)
             self.sampling_counter = 1
 

@@ -66,7 +66,7 @@ loss_functions = {
 class Loss:
     """
     Represents a single weighted loss function that is constructed from a `name`
-    and a type of comparisson metric.
+    and a type of comparison metric.
     """
 
     name: str

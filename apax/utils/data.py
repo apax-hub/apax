@@ -3,10 +3,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
-from ase import Atoms
 from ase.io import read
-from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
-from jax_md import space
 
 log = logging.getLogger(__name__)
 
@@ -23,8 +20,8 @@ def make_minimal_input():
 
 
 def load_data(data_path):
-    """Non ASE compatibel parameters have to be saved in an exta file that has the same
-        name as the datapath but with the extention '_labels.npz'.
+    """Non ASE compatible parameters have to be saved in an exta file that has the same
+        name as the datapath but with the extension '_labels.npz'.
         example for the npz-file:
                 dipole = np.random.rand(3, 1)
                 charge = np.random.rand(3, 2)
@@ -51,6 +48,7 @@ def load_data(data_path):
         List of all structures where entries are ASE atoms objects.
     """
     external_labels = {}
+    # TODO external labels can be included via hdf5 files only? this would clean up a lot
 
     try:
         log.info(f"Loading data from {data_path}")
@@ -79,115 +77,6 @@ def load_data(data_path):
                 i += 1
 
     return atoms_list, external_labels
-
-
-def prune_dict(data_dict):
-    pruned = {key: val for key, val in data_dict.items() if len(val) != 0}
-    return pruned
-
-
-def convert_atoms_to_arrays(
-    atoms_list: list[Atoms],
-    pos_unit: str = "Ang",
-    energy_unit: str = "eV",
-) -> tuple[dict[str, dict[str, list]], dict[str, dict[str, list]]]:
-    """Converts an list of ASE atoms to two dicts where all inputs and labels
-    are sorted by there shape (ragged/fixed), and proberty. Units are
-    adjusted if ASE compatible and provided in the inputpipeline.
-
-
-    Parameters
-    ----------
-    atoms_list :
-        List of all structures. Enties are ASE atoms objects.
-
-    Returns
-    -------
-    inputs :
-        Inputs are untrainable system-determining properties.
-    labels :
-        Labels are trainable system properties.
-    """
-    inputs = {
-        "ragged": {
-            "positions": [],
-            "numbers": [],
-        },
-        "fixed": {
-            "n_atoms": [],
-            "box": [],
-        },
-    }
-
-    labels = {
-        "ragged": {
-            "forces": [],
-        },
-        "fixed": {
-            "energy": [],
-            "stress": [],
-        },
-    }
-    DTYPE = np.float64
-
-    unit_dict = {
-        "Ang": Ang,
-        "Bohr": Bohr,
-        "eV": eV,
-        "kcal/mol": kcal / mol,
-        "Hartree": Hartree,
-        "kJ/mol": kJ / mol,
-    }
-    box = np.array(atoms_list[0].cell.lengths())
-    pbc = np.all(box > 1e-6)
-
-    for atoms in atoms_list:
-        box = np.diagonal(atoms.cell * unit_dict[pos_unit]).astype(DTYPE)
-        inputs["fixed"]["box"].append(box)
-
-        if pbc != np.all(box > 1e-6):
-            raise ValueError(
-                "Apax does not support dataset periodic and non periodic structures"
-            )
-
-        if np.all(box < 1e-6):
-            inputs["ragged"]["positions"].append(
-                (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
-            )
-        else:
-            inv_box = np.divide(1, box, where=box != 0)
-            inputs["ragged"]["positions"].append(
-                np.array(
-                    space.transform(
-                        inv_box, (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
-                    )
-                )
-            )
-
-        inputs["ragged"]["numbers"].append(atoms.numbers)
-        inputs["fixed"]["n_atoms"].append(len(atoms))
-
-        for key, val in atoms.calc.results.items():
-            if key == "forces":
-                labels["ragged"][key].append(
-                    val * unit_dict[energy_unit] / unit_dict[pos_unit]
-                )
-            elif key == "energy":
-                labels["fixed"][key].append(val * unit_dict[energy_unit])
-            elif key == "stress":
-                stress = (
-                    atoms.get_stress(voigt=False)
-                    * unit_dict[energy_unit]
-                    / (unit_dict[pos_unit] ** 3)
-                    * atoms.cell.volume
-                )
-                labels["fixed"][key].append(stress)
-
-    inputs["fixed"] = prune_dict(inputs["fixed"])
-    labels["fixed"] = prune_dict(labels["fixed"])
-    inputs["ragged"] = prune_dict(inputs["ragged"])
-    labels["ragged"] = prune_dict(labels["ragged"])
-    return inputs, labels
 
 
 def split_idxs(atoms_list, n_train, n_valid):

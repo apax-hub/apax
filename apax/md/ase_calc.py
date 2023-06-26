@@ -17,7 +17,8 @@ from apax.model import ModelBuilder
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     atomic_numbers = jnp.asarray(atoms.numbers)
-    box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float32)
+    box = jnp.asarray(atoms.cell.array, dtype=jnp.float32)
+    box = box.T
 
     if np.all(box < 1e-6):
         displacement_fn, _ = space.free()
@@ -28,7 +29,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     n_species = 119  # int(np.max(Z) + 1)
     builder = ModelBuilder(config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_model(
-        displacement_fn=displacement_fn, apply_mask=True, init_box=np.array(box)
+        apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
     )
     energy_fn = partial(model.apply, params, Z=Z, box=box)
     neighbor_fn = partition.neighbor_list(
@@ -39,13 +40,13 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
         fractional_coordinates=False,
         format=partition.Sparse,
     )
-
     return energy_fn, neighbor_fn
 
 
 class ASECalculator(Calculator):
     """
-    DOES NOT SUPPORT CHANING PARTICLE NUMBERS DURING THE SIMULATION!
+    DOES NOT SUPPORT CHAINING PARTICLE NUMBERS OR THE BOX SIZE DURING THE SIMULATION!
+    DOES NOT SUPPORT CUTOFFS LARGER THAN MIN(BOX SIZE / 2)!
     """
 
     implemented_properties = ["energy", "forces"]

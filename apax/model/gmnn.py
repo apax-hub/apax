@@ -70,11 +70,11 @@ class EnergyModel(nn.Module):
 
         # Corrections
         if self.repulsion is not None:
-            repulsion_energy = self.repulsion(R, Z, neighbor, box, perturbation)
+            repulsion_energy = self.repulsion(R, Z, neighbor, box, offsets, perturbation)
             total_energy = total_energy + repulsion_energy
 
         if self.bonded is not None:
-            bonded_energy = self.bonded(R, Z, neighbor, box, perturbation)
+            bonded_energy = self.bonded(R, Z, neighbor, box, offsets, perturbation)
             total_energy = total_energy + bonded_energy
         return total_energy
 
