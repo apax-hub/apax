@@ -22,6 +22,18 @@ from apax.model import ModelBuilder
 
 log = logging.getLogger(__name__)
 
+def hights_of_box_sids(box):
+    heights = []
+
+    for i in range(len(box)):
+        for j in range(i+1, len(box)):
+            area = np.linalg.norm(np.cross(box[i], box[j]))
+            height = area / np.linalg.norm(box[i])
+            heights.append(height)
+            height = area / np.linalg.norm(box[j])
+            heights.append(height)
+
+    return heights
 
 def run_nvt(
     R: Array,
@@ -208,13 +220,27 @@ def md_setup(model_config: Config, md_config: MDConfig):
     """
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
-    # atoms = atoms * (2, 1, 1) # TODO box has to be checked
-
+    r_max = model_config.model.r_max
+    
     atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
     masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float64)
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
     box = box.T
     R = jnp.asarray(atoms.positions, dtype=jnp.float64)
+
+    hights = hights_of_box_sids(box)
+
+    if np.any(atoms.cell.lengths()/2 < r_max):
+        log.error(
+            f'cutoff is larger than box/2 in at least',
+            f'one cell vector direction {atoms.cell.lengths()/2 < {r_max}}',
+            'can not calculate the correct neighbors')
+    if np.any(hights/2 < r_max):
+        log.error(
+            f'cutoff is larger than box/2 in at least',
+            f'one cell vector direction {hights/2 < {r_max}}',
+            'can not calculate the correct neighbors')
+
 
     log.info("initializing model")
     if np.all(box < 1e-6):
@@ -233,12 +259,12 @@ def md_setup(model_config: Config, md_config: MDConfig):
     neighbor_fn = partition.neighbor_list(
         displacement_fn,
         box,
-        model_config.model.r_max,
+        r_max,
         md_config.dr_threshold,
         fractional_coordinates=False,
         # TODO should this be True to enable variable cell sizes?
         format=partition.Sparse,
-        disable_cell_list=False,  # TODO im not sure if it works was on True before
+        disable_cell_list=False,
     )
 
     os.makedirs(md_config.sim_dir, exist_ok=True)
