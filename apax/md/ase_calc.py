@@ -89,7 +89,6 @@ class ASECalculator(Calculator):
         self.neighbor_fn = neighbor_fn
 
     def calculate(self, atoms, properties=["energy"], system_changes=all_changes):
-        atoms.wrap()
         Calculator.calculate(self, atoms, properties, system_changes)
 
         positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
