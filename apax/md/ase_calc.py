@@ -35,7 +35,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
         config.model.r_max,
         dr_threshold,
         fractional_coordinates=True,
-        disable_cell_list=True,
+        disable_cell_list=False,
         format=partition.Sparse,
     )
     return energy_fn, neighbor_fn
