@@ -59,7 +59,9 @@ class GaussianMomentDescriptor(nn.Module):
         self.triang_idxs_2d = tril_2d_indices(self.n_radial)
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
 
-    def __call__(self, R, Z, neighbor_idxs, box, offsets=np.full([3, 3], 0), perturbation=None):
+    def __call__(
+        self, R, Z, neighbor_idxs, box, offsets=np.full([3, 3], 0), perturbation=None
+    ):
         R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms
