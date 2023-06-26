@@ -230,25 +230,24 @@ def md_setup(model_config: Config, md_config: MDConfig):
     box = box.T
     R = jnp.asarray(atoms.positions, dtype=jnp.float64)
 
-    hights = hights_of_box_sids(box)
-
-    if np.any(atoms.cell.lengths() / 2 < r_max):
-        log.error(
-            "cutoff is larger than box/2 in at least",
-            f"one cell vector direction {atoms.cell.lengths()/2 < {r_max}}",
-            "can not calculate the correct neighbors",
-        )
-    if np.any(hights / 2 < r_max):
-        log.error(
-            "cutoff is larger than box/2 in at least",
-            f"one cell vector direction {hights/2 < {r_max}}",
-            "can not calculate the correct neighbors",
-        )
-
     log.info("initializing model")
     if np.all(box < 1e-6):
         displacement_fn, shift_fn = space.free()
     else:
+        hights = hights_of_box_sids(box)
+
+        if np.any(atoms.cell.lengths() / 2 < r_max):
+            log.error(
+                "cutoff is larger than box/2 in at least",
+                f"one cell vector direction {atoms.cell.lengths()/2} < {r_max}",
+                "can not calculate the correct neighbors",
+            )
+        if np.any(hights / 2 < r_max):
+            log.error(
+                "cutoff is larger than box/2 in at least",
+                f"one cell vector direction {hights/2} < {r_max}",
+                "can not calculate the correct neighbors",
+            )
         displacement_fn, shift_fn = space.periodic_general(
             box, fractional_coordinates=False
         )
