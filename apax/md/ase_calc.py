@@ -107,4 +107,4 @@ class ASECalculator(Calculator):
         self.results = {k: np.array(v, dtype=np.float64) for k,v in results.items()}
         self.results["energy"] = self.results["energy"].item()
         self.results['free_energy'] = self.results["energy"]
-        # print(self.results["stress"])
+
