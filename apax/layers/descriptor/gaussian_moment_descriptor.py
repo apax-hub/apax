@@ -37,7 +37,7 @@ class GaussianMomentDescriptor(nn.Module):
     dtype: Any = jnp.float32
     apply_mask: bool = True
     init_box: np.array = np.array([0.0, 0.0, 0.0])
-    inference_disp_fn: Any = None  # is necessary to have fast md simulation
+    inference_disp_fn: Any = None
 
     def setup(self):
         self.r_max = self.radial_fn.r_max
@@ -59,8 +59,7 @@ class GaussianMomentDescriptor(nn.Module):
         self.triang_idxs_2d = tril_2d_indices(self.n_radial)
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
 
-    def __call__(self, R, Z, neighbor_idxs, box, offsets, perturbation=None):
-        # TODO default offsets for inference?
+    def __call__(self, R, Z, neighbor_idxs, box, offsets=np.full([3, 3], 0), perturbation=None):
         R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms
@@ -71,27 +70,21 @@ class GaussianMomentDescriptor(nn.Module):
         # shape: neighbors
         Z_i, Z_j = Z[idx_i, ...], Z[idx_j, ...]
 
+        Ri = R[idx_i]
+        Rj = R[idx_j]
+
         # dr_vec shape: neighbors x 3
         if np.all(self.init_box < 1e-6):
             # reverse conventnion to match TF
             # distance vector for gas phase training and predicting
-            dr_vec = self.displacement(R[idx_j], R[idx_i]).astype(self.dtype)
+            dr_vec = self.displacement(Rj, Ri).astype(self.dtype)
         else:
             # distance vector for training on periodic systems
-            Ri = R[idx_i]
-            Rj = R[idx_j]
-
             dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
-            # one can think about making this option for inference
-            # because there offsets are alwayes non
             dr_vec += offsets.astype(self.dtype)
 
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(self.dtype)
-        # for i, dist in enumerate(dr):
-        #     debug.print("{x}", x=dist)
-        # debug.print("{x}", x=idx_i[i])
-        # debug.print("{x}", x=idx_j[i])
 
         # TODO: maybe try jnp where
         dr_repeated = einops.repeat(dr + 1e-5, "neighbors -> neighbors 1")
