@@ -27,7 +27,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     n_species = 119  # int(np.max(Z) + 1)
     builder = ModelBuilder(config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_derivative_model(
-        displacement_fn=displacement_fn, apply_mask=True, init_box=np.array(box)
+        apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
     )
     energy_fn = partial(model.apply, params, Z=Z)
     neighbor_fn = jax_md_reduced.partition.neighbor_list(
@@ -45,6 +45,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
 class ASECalculator(Calculator):
     """
     ASE Calculator for APAX models.
+    DOES NOT SUPPORT CUTOFFS LARGER THAN MIN(BOX SIZE / 2)!
     """
 
     implemented_properties = ["energy", "forces", "stress"]

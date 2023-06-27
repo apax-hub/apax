@@ -5,11 +5,31 @@ import logging
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax_md.partition import NeighborFn
+from jax_md import partition, space
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
 log = logging.getLogger(__name__)
+
+
+def initialize_nbr_fn(atoms, cutoff):
+    neighbor_fn = None
+    default_box = 100
+    box = jnp.asarray(atoms.cell.array)
+
+    if np.all(box < 1e-6):
+        displacement_fn, _ = space.free()
+        box = default_box
+
+        neighbor_fn = partition.neighbor_list(
+            displacement_or_metric=displacement_fn,
+            box=box,
+            r_cutoff=cutoff,
+            format=partition.Sparse,
+            fractional_coordinates=False,
+        )
+
+    return neighbor_fn
 
 
 @jax.jit
@@ -20,7 +40,6 @@ def extract_nl(neighbors, position):
 
 
 def dataset_neighborlist(
-    neighbor_fn: NeighborFn,
     positions: list[np.array],
     n_atoms: list[int],
     box: list[np.array],
@@ -52,6 +71,11 @@ def dataset_neighborlist(
     neighbors = None
     last_n_atoms = -1
 
+    neighbor_fn = initialize_nbr_fn(
+        atoms_list[0],
+        r_max,
+    )
+
     pbar_update_freq = max(int(len(atoms_list) / 100), 50)
     with trange(
         len(positions),
@@ -78,6 +102,7 @@ def dataset_neighborlist(
                 offsets = np.full([n_neighbors, 3], 0)
             else:
                 idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms_list[i], r_max)
+                offsets = np.matmul(offsets, box[i])
                 neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
 
             offset_list.append(offsets)

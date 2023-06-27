@@ -24,6 +24,20 @@ from apax.utils import jax_md_reduced
 log = logging.getLogger(__name__)
 
 
+def heights_of_box_sides(box):
+    heights = []
+
+    for i in range(len(box)):
+        for j in range(i + 1, len(box)):
+            area = np.linalg.norm(np.cross(box[i], box[j]))
+            height = area / np.linalg.norm(box[i])
+            heights.append(height)
+            height = area / np.linalg.norm(box[j])
+            heights.append(height)
+
+    return heights
+
+
 def run_nvt(
     R: Array,
     atomic_numbers: Array,
@@ -209,16 +223,32 @@ def md_setup(model_config: Config, md_config: MDConfig):
     """
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
+    r_max = model_config.model.r_max
 
-    R = jnp.asarray(atoms.positions, dtype=jnp.float64)
     atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
     masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float64)
-    box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float64)
+    box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
+    box = box.T
+    R = jnp.asarray(atoms.positions, dtype=jnp.float64)
 
     log.info("initializing model")
     if np.all(box < 1e-6):
         displacement_fn, shift_fn = space.free()
     else:
+        heights = heights_of_box_sides(box)
+
+        if np.any(atoms.cell.lengths() / 2 < r_max):
+            log.error(
+                "cutoff is larger than box/2 in at least",
+                f"one cell vector direction {atoms.cell.lengths()/2} < {r_max}",
+                "can not calculate the correct neighbors",
+            )
+        if np.any(heights / 2 < r_max):
+            log.error(
+                "cutoff is larger than box/2 in at least",
+                f"one cell vector direction {heights/2} < {r_max}",
+                "can not calculate the correct neighbors",
+            )
         displacement_fn, shift_fn = space.periodic_general(
             box, fractional_coordinates=False
         )
@@ -227,16 +257,17 @@ def md_setup(model_config: Config, md_config: MDConfig):
     n_species = 119  # int(np.max(Z) + 1)
     builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_model(
-        displacement_fn=displacement_fn, apply_mask=True, init_box=np.array(box)
+        apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
     )
     neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_fn,
         box,
-        model_config.model.r_max,
+        r_max,
         md_config.dr_threshold,
         fractional_coordinates=False,
+        # TODO should this be True to enable variable cell sizes?
         format=partition.Sparse,
-        disable_cell_list=True,
+        disable_cell_list=False,
     )
 
     os.makedirs(md_config.sim_dir, exist_ok=True)
@@ -260,7 +291,7 @@ def run_md(
 ):
     """
     Utiliy function to start NVT molecualr dynamics simulations from
-    a previousy trained model.
+    a previously trained model.
 
     Parameters
     ----------

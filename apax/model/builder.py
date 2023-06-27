@@ -35,16 +35,19 @@ class ModelBuilder:
         return radial_fn
 
     def build_descriptor(
-        self, displacement_fn, apply_mask, init_box: np.array = np.array([0.0, 0.0, 0.0])
+        self,
+        apply_mask,
+        init_box: np.array = np.array([0.0, 0.0, 0.0]),
+        inference_disp_fn=None,
     ):
         radial_fn = self.build_radial_function()
         descriptor = GaussianMomentDescriptor(
-            displacement_fn=displacement_fn,
             radial_fn=radial_fn,
             n_contr=self.config["n_contr"],
             dtype=self.config["descriptor_dtype"],
             apply_mask=apply_mask,
             init_box=init_box,
+            inference_disp_fn=inference_disp_fn,
         )
         return descriptor
 
@@ -67,13 +70,15 @@ class ModelBuilder:
 
     def build_atomistic_model(
         self,
-        displacement_fn,
         scale,
         shift,
         apply_mask,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
+        inference_disp_fn=None,
     ):
-        descriptor = self.build_descriptor(displacement_fn, apply_mask, init_box=init_box)
+        descriptor = self.build_descriptor(
+            apply_mask, init_box=init_box, inference_disp_fn=inference_disp_fn
+        )
         readout = self.build_readout()
         scale_shift = self.build_scale_shift(scale, shift)
 
@@ -82,58 +87,66 @@ class ModelBuilder:
 
     def build_energy_model(
         self,
-        displacement_fn,
         scale=1.0,
         shift=0.0,
         apply_mask=True,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
+        inference_disp_fn=None,
     ):
         atomistic_model = self.build_atomistic_model(
-            displacement_fn, scale, shift, apply_mask, init_box=init_box
+            scale,
+            shift,
+            apply_mask,
+            init_box=init_box,
+            inference_disp_fn=inference_disp_fn,
         )
         repulsion, bonded = None, None
         if self.config["use_zbl"]:
             repulsion = ZBLRepulsion(
-                displacement_fn,
                 apply_mask=apply_mask,
                 r_max=self.config["r_max"],
                 init_box=init_box,
+                inference_disp_fn=inference_disp_fn,
             )
         if self.config["use_reax"]:
             bonded = ReaxBonded(
-                displacement_fn,
                 apply_mask=apply_mask,
                 r_max=self.config["r_max"],
                 init_box=init_box,
+                inference_disp_fn=inference_disp_fn,
             )
         model = EnergyModel(atomistic_model, repulsion=repulsion, bonded=bonded)
         return model
 
     def build_energy_derivative_model(
         self,
-        displacement_fn,
         scale=1.0,
         shift=0.0,
         apply_mask=True,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
+        inference_disp_fn=None,
     ):
         atomistic_model = self.build_atomistic_model(
-            displacement_fn, scale, shift, apply_mask, init_box=init_box
+            scale,
+            shift,
+            apply_mask,
+            init_box=init_box,
+            inference_disp_fn=inference_disp_fn,
         )
         repulsion, bonded = None, None
         if self.config["use_zbl"]:
             repulsion = ZBLRepulsion(
-                displacement_fn,
                 apply_mask=apply_mask,
                 r_max=self.config["r_max"],
                 init_box=init_box,
+                inference_disp_fn=inference_disp_fn,
             )
         if self.config["use_reax"]:
             bonded = ReaxBonded(
-                displacement_fn,
                 apply_mask=apply_mask,
                 r_max=self.config["r_max"],
                 init_box=init_box,
+                inference_disp_fn=inference_disp_fn,
             )
         model = EnergyDerivativeModel(
             atomistic_model,

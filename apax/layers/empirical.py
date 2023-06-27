@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any
 
 import einops
 import flax.linen as nn
@@ -8,17 +8,11 @@ import numpy as np
 from jax import vmap
 from jax_md import partition, space
 
+from apax.layers.descriptor.gaussian_moment_descriptor import disp_fn, get_disp_fn
 from apax.layers.initializers import uniform_range
 from apax.layers.masking import mask_by_neighbor
 from apax.model.utils import NeighborSpoof
 from apax.utils.math import fp64_sum
-
-
-def get_disp_fn(displacement):
-    def disp_fn(ri, rj, perturbation, box):
-        return displacement(ri, rj, perturbation, box=box)
-
-    return disp_fn
 
 
 def inverse_softplus(x):
@@ -26,20 +20,23 @@ def inverse_softplus(x):
 
 
 class ZBLRepulsion(nn.Module):
-    displacement_fn: Callable = space.free()[0]
     dtype: Any = jnp.float32
     init_box: np.array = np.array([0.0, 0.0, 0.0])
     r_max: float = 6.0
     apply_mask: bool = True
+    inference_disp_fn: Any = None
 
     def setup(self):
-        if not np.all(self.init_box < 1e-6):
-            # displacement function used for training on periodic systems
-            mappable_displacement_fn = get_disp_fn(self.displacement_fn)
-            self.displacement = vmap(mappable_displacement_fn, (0, 0, None, None), 0)
-        else:
+        if np.all(self.init_box < 1e-6):
             # displacement function for gas phase training and predicting
-            self.displacement = space.map_bond(self.displacement_fn)
+            displacement_fn = space.free()[0]
+            self.displacement = space.map_bond(displacement_fn)
+        elif self.inference_disp_fn is None:
+            # displacement function used for training on periodic systems
+            self.displacement = vmap(disp_fn, (0, 0, None, None), 0)
+        else:
+            mappable_displacement_fn = get_disp_fn(self.inference_disp_fn)
+            self.displacement = vmap(mappable_displacement_fn, (0, 0, None, None), 0)
 
         self.distance = vmap(space.distance, 0, 0)
 
@@ -74,7 +71,7 @@ class ZBLRepulsion(nn.Module):
             "rep_scale", nn.initializers.constant(rep_scale_isp), (1,)
         )
 
-    def __call__(self, R, Z, neighbor, box, perturbation=None):
+    def __call__(self, R, Z, neighbor, box, offsets, perturbation=None):
         R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms
@@ -90,16 +87,18 @@ class ZBLRepulsion(nn.Module):
         Z_i, Z_j = Z[idx_i, ...], Z[idx_j, ...]
 
         # dr_vec shape: neighbors x 3
-        if not np.all(self.init_box < 1e-6):
-            # distance vector for training on periodic systems
-            # reverse conventnion to match TF
-            dr_vec = self.displacement(R[idx_j], R[idx_i], perturbation, box).astype(
-                self.dtype
-            )
-        else:
+        if np.all(self.init_box < 1e-6):
             # reverse conventnion to match TF
             # distance vector for gas phase training and predicting
             dr_vec = self.displacement(R[idx_j], R[idx_i]).astype(self.dtype)
+        else:
+            # distance vector for training on periodic systems
+            # reverse conventnion to match TF
+            Ri = R[idx_i]
+            Rj = R[idx_j]
+
+            dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
+            dr_vec += offsets
 
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(self.dtype)
@@ -127,21 +126,24 @@ class ZBLRepulsion(nn.Module):
 
 
 class ReaxBonded(nn.Module):
-    displacement_fn: Callable = space.free()[0]
     dtype: Any = jnp.float64
     n_species: int = 119
     init_box: np.array = np.array([0.0, 0.0, 0.0])
     r_max: float = 6.0
     apply_mask: bool = True
+    inference_disp_fn: Any = None
 
     def setup(self):
-        if not np.all(self.init_box < 1e-6):
-            # displacement function used for training on periodic systems
-            mappable_displacement_fn = get_disp_fn(self.displacement_fn)
-            self.displacement = vmap(mappable_displacement_fn, (0, 0, None, None), 0)
-        else:
+        if np.all(self.init_box < 1e-6):
             # displacement function for gas phase training and predicting
-            self.displacement = space.map_bond(self.displacement_fn)
+            displacement_fn = space.free()[0]
+            self.displacement = space.map_bond(displacement_fn)
+        elif self.inference_disp_fn is None:
+            # displacement function used for training on periodic systems
+            self.displacement = vmap(disp_fn, (0, 0, None, None), 0)
+        else:
+            mappable_displacement_fn = get_disp_fn(self.inference_disp_fn)
+            self.displacement = vmap(mappable_displacement_fn, (0, 0, None, None), 0)
 
         self.distance = vmap(space.distance, 0, 0)
 
@@ -162,7 +164,7 @@ class ReaxBonded(nn.Module):
             "pbe2", uniform_range(0.0, 1.0), (self.n_species, self.n_species)
         )
 
-    def __call__(self, R, Z, neighbor, box, perturbation=None):
+    def __call__(self, R, Z, neighbor, box, offsets, perturbation=None):
         R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms
@@ -177,16 +179,18 @@ class ReaxBonded(nn.Module):
         Z_i, Z_j = Z[idx_i, ...], Z[idx_j, ...]
 
         # dr_vec shape: neighbors x 3
-        if not np.all(self.init_box < 1e-6):
-            # distance vector for training on periodic systems
-            # reverse conventnion to match TF
-            dr_vec = self.displacement(R[idx_j], R[idx_i], perturbation, box).astype(
-                self.dtype
-            )
-        else:
+        if np.all(self.init_box < 1e-6):
             # reverse conventnion to match TF
             # distance vector for gas phase training and predicting
             dr_vec = self.displacement(R[idx_j], R[idx_i]).astype(self.dtype)
+        else:
+            # distance vector for training on periodic systems
+            # reverse conventnion to match TF
+            Ri = R[idx_i]
+            Rj = R[idx_j]
+
+            dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
+            dr_vec += offsets
 
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(self.dtype)

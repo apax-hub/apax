@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 import yaml
 from pydantic import (
@@ -211,7 +211,7 @@ class MetricsConfig(BaseModel, extra=Extra.forbid):
 
 class LossConfig(BaseModel, extra=Extra.forbid):
     """
-    Confuration of the loss functions used during training.
+    Configuration of the loss functions used during training.
 
     Parameters
     ----------
@@ -228,7 +228,7 @@ class LossConfig(BaseModel, extra=Extra.forbid):
 
 class CallbackConfig(BaseModel, frozen=True, extra=Extra.forbid):
     """
-    Configuraton of the training callbacks.
+    Configuration of the training callbacks.
 
     Parameters
     ----------
@@ -314,11 +314,17 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
             yaml.dump(self.dict(), conf, default_flow_style=False)
 
 
-def parse_train_config(config_path):
+def parse_train_config(config: Union[str, os.PathLike, dict]) -> Config:
+    """Load the training configuration from file or a dictionary.
+
+    Attributes
+    ----------
+        config: Path to the config file or a dictionary
+        containing the config.
+    """
     log.info("Loading user config")
-    if isinstance(config_path, (str, os.PathLike)):
-        with open(config_path, "r") as stream:
+    if isinstance(config, (str, os.PathLike)):
+        with open(config, "r") as stream:
             config = yaml.safe_load(stream)
 
-    config = Config.parse_obj(config)
-    return config
+    return Config.parse_obj(config)

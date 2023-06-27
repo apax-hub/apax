@@ -56,7 +56,7 @@ def md(
 ):
     """
     Starts performing a molecular dynamics simulation (currently only NHC thermostat)
-    with paramters provided by a configuration file.
+    with parameters provided by a configuration file.
     """
     from apax.md import run_md
 
@@ -172,7 +172,6 @@ def visualize_model(
     config_path: Path to the training configuration file.
     """
     import jax
-    from jax_md import space
 
     from apax.config import Config
     from apax.model.builder import ModelBuilder
@@ -190,9 +189,7 @@ def visualize_model(
 
     R, Z, idx, box, offsets = make_minimal_input()
     builder = ModelBuilder(config.model.get_dict(), n_species=10)
-    model = builder.build_energy_model(
-        displacement_fn=space.free()[0],
-    )
+    model = builder.build_energy_model()
     print(model.tabulate(jax.random.PRNGKey(0), R, Z, idx, box, offsets))
 
 

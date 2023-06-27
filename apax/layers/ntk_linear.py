@@ -21,7 +21,7 @@ class NTKLinear(nn.Module):
             b_initializer = nn.initializers.constant(0.0, dtype=self.dtype)
         else:
             raise NotImplementedError(
-                "Only random normal and zeros intialization of the bias is supported."
+                "Only random normal and zeros initialization of the bias is supported."
             )
         w = self.param("w", w_initializer, (inputs.shape[0], self.units), self.dtype)
         b = self.param("b", b_initializer, [self.units], self.dtype)
