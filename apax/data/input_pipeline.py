@@ -6,6 +6,7 @@ import tensorflow as tf
 from jax_md import partition, space
 
 from apax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
+from apax.utils import jax_md_reduced
 from apax.utils.data import convert_atoms_to_arrays
 
 log = logging.getLogger(__name__)
@@ -28,12 +29,13 @@ def initialize_nbr_displacement_fns(atoms, cutoff):
             box, fractional_coordinates=frac_coords
         )
 
-    neighbor_fn = partition.neighbor_list(
+    neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=cutoff,
         format=partition.Sparse,
         fractional_coordinates=frac_coords,
+        disable_cell_list=True,
     )
 
     return displacement_fn, neighbor_fn

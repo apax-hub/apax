@@ -11,6 +11,7 @@ from apax.config.train_config import parse_train_config
 from apax.md.md_checkpoint import look_for_checkpoints
 from apax.model import ModelBuilder
 from apax.train.eval import load_params
+from apax.utils import jax_md_reduced
 
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
@@ -29,7 +30,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
         displacement_fn=displacement_fn, apply_mask=True, init_box=np.array(box)
     )
     energy_fn = partial(model.apply, params, Z=Z)
-    neighbor_fn = partition.neighbor_list(
+    neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_fn,
         box,
         config.model.r_max,

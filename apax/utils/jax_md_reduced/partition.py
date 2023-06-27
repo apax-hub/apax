@@ -133,7 +133,6 @@ def neighbor_list(
     box = lax.stop_gradient(box)
     r_cutoff = lax.stop_gradient(r_cutoff)
     dr_threshold = lax.stop_gradient(dr_threshold)
-
     box = f32(box)
 
     cutoff = r_cutoff + dr_threshold
@@ -143,7 +142,7 @@ def neighbor_list(
 
     @jit
     def candidate_fn(position: Array) -> Array:
-        candidates = jnp.arange(position.shape[0])
+        candidates = jnp.arange(position.shape[0], dtype=i32)
         return jnp.broadcast_to(
             candidates[None, :], (position.shape[0], position.shape[0])
         )
@@ -207,7 +206,8 @@ def neighbor_list(
         d = space.map_bond(d)
 
         N = position.shape[0]
-        sender_idx = jnp.broadcast_to(jnp.arange(N)[:, None], idx.shape)
+        # explicit i32 type
+        sender_idx = jnp.broadcast_to(jnp.arange(N, dtype=i32)[:, None], idx.shape)
 
         sender_idx = jnp.reshape(sender_idx, (-1,))
         receiver_idx = jnp.reshape(idx, (-1,))
@@ -316,7 +316,7 @@ def neighbor_list(
                     "if fractional_coordinates is not enabled."
                 )
 
-            # ALTERED CODE
+            # Added conditional
             if not disable_cell_list:
                 # `cell_size` is really the minimum cell size.
                 cur_cell_size = _cell_size(1.0, nbrs.cell_size)

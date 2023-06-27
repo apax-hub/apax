@@ -19,6 +19,7 @@ from apax.config import Config, MDConfig
 from apax.md.io import H5TrajHandler
 from apax.md.md_checkpoint import load_md_state, look_for_checkpoints
 from apax.model import ModelBuilder
+from apax.utils import jax_md_reduced
 
 log = logging.getLogger(__name__)
 
@@ -228,7 +229,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     model = builder.build_energy_model(
         displacement_fn=displacement_fn, apply_mask=True, init_box=np.array(box)
     )
-    neighbor_fn = partition.neighbor_list(
+    neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_fn,
         box,
         model_config.model.r_max,

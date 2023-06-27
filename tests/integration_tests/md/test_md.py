@@ -15,6 +15,7 @@ from apax.config import Config, MDConfig
 from apax.md import run_md
 from apax.md.ase_calc import ASECalculator
 from apax.model.builder import ModelBuilder
+from apax.utils import jax_md_reduced
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
@@ -53,7 +54,7 @@ def test_run_md(get_tmp_path):
 
     displacement_fn, _ = space.free()
 
-    neighbor_fn = partition.neighbor_list(
+    neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=model_config.model.r_max,
@@ -124,7 +125,7 @@ def test_ase_calc(get_tmp_path):
 
     displacement_fn, _ = space.periodic_general(cell_size, fractional_coordinates=False)
 
-    neighbor_fn = partition.neighbor_list(
+    neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=model_config.model.r_max,
