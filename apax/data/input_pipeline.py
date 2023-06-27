@@ -3,7 +3,6 @@ import logging
 import tensorflow as tf
 
 from apax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
-from apax.utils import jax_md_reduced
 from apax.utils.convert import atoms_to_arrays
 
 log = logging.getLogger(__name__)
