@@ -1,3 +1,3 @@
-from .utils import convert, data, math, random
+from . import convert, data, jax_md_reduced, math, random
 
-__all__ = ["convert", "data", "math", "random"]
+__all__ = ["convert", "data", "math", "random", "jax_md_reduced"]

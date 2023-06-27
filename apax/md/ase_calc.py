@@ -15,7 +15,7 @@ from apax.train.eval import load_params
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     atomic_numbers = jnp.asarray(atoms.numbers)
-    box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float32)
+    box = jnp.asarray(atoms.get_cell().array, dtype=jnp.float32)
 
     if np.all(box < 1e-6):
         displacement_fn, _ = space.free()
@@ -35,7 +35,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
         config.model.r_max,
         dr_threshold,
         fractional_coordinates=True,
-        disable_cell_list=False,
+        disable_cell_list=True,
         format=partition.Sparse,
     )
     return energy_fn, neighbor_fn
