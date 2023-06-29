@@ -35,7 +35,7 @@ def heights_of_box_sides(box):
             height = area / np.linalg.norm(box[j])
             heights.append(height)
 
-    return heights
+    return np.array(heights)
 
 
 def run_nvt(
