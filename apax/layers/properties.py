@@ -17,7 +17,7 @@ def stress_times_vol(energy_fn, position: Array, box, **kwargs) -> Array:
         volume of the unit cell.
 
     Returns:
-    A float specifying the pressure of the system.
+    A float specifying the stress of the system.
     """
     dim = position.shape[1]
     zero = jnp.zeros((dim, dim), position.dtype)
@@ -27,4 +27,4 @@ def stress_times_vol(energy_fn, position: Array, box, **kwargs) -> Array:
         return energy_fn(position, box=box, perturbation=(identity + eps), **kwargs)
 
     dUdV = jax.grad(U)
-    return -dUdV(zero)
+    return dUdV(zero)
