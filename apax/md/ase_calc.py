@@ -1,22 +1,20 @@
 from functools import partial
 from pathlib import Path
 from typing import Union
-import os
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
-from jax_md import partition, space
 from flax.core.frozen_dict import freeze, unfreeze
 from flax.traverse_util import flatten_dict, unflatten_dict
+from jax_md import partition, quantity, space
 
 from apax.config.train_config import parse_train_config
 from apax.md.md_checkpoint import look_for_checkpoints
 from apax.model import ModelBuilder
 from apax.train.eval import load_params
 from apax.utils import jax_md_reduced
-
 
 
 def stack_parameters(param_list):
@@ -49,7 +47,6 @@ def maybe_vmap(apply, params, Z):
     return energy_fn
 
 
-
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     atomic_numbers = jnp.asarray(atoms.numbers)
     box = jnp.asarray(atoms.get_cell().array, dtype=jnp.float32)
@@ -65,7 +62,6 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     model = builder.build_energy_derivative_model(
         apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
     )
-
     energy_fn = maybe_vmap(model.apply, params, Z)
     neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_fn,
@@ -85,9 +81,18 @@ class ASECalculator(Calculator):
     DOES NOT SUPPORT CUTOFFS LARGER THAN MIN(BOX SIZE / 2)!
     """
 
-    implemented_properties = ["energy", "free_energy", "forces", "stress", "energy_uncertainty", "forces_uncertainty", "stress_uncertainty"]
+    implemented_properties = [
+        "energy",
+        "forces",
+        "stress",
+        "energy_uncertainty",
+        "forces_uncertainty",
+        "stress_uncertainty",
+    ]
 
-    def __init__(self, model_dir: Union[Path, list[Path]], dr_threshold: float = 0.5, **kwargs):
+    def __init__(
+        self, model_dir: Union[Path, list[Path]], dr_threshold: float = 0.5, **kwargs
+    ):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
         self.is_ensemble = False
@@ -98,17 +103,19 @@ class ASECalculator(Calculator):
             params = []
             for path in model_dir:
                 params.append(self.restore_parameters(path))
-            
+
             stacked_params = stack_parameters(params)
             self.params = stacked_params
             self.is_ensemble = True
         else:
-            raise NotImplementedError("Please provide either a path or list of paths to trained models")
+            raise NotImplementedError(
+                "Please provide either a path or list of paths to trained models"
+            )
 
         self.step = None
         self.neighbor_fn = None
         self.neighbors = None
-    
+
     def restore_parameters(self, model_dir):
         self.model_config = parse_train_config(Path(model_dir) / "config.yaml")
         ckpt_dir = (
@@ -117,7 +124,7 @@ class ASECalculator(Calculator):
         ckpt_exists = look_for_checkpoints(ckpt_dir / "best")
         if not ckpt_exists:
             raise FileNotFoundError(f"No checkpoint found at {ckpt_dir}")
-        
+
         return load_params(ckpt_dir)
 
     def initialize(self, atoms):
@@ -142,10 +149,20 @@ class ASECalculator(Calculator):
             results = model(positions, Z, neighbor.idx, box, offsets)
 
             if self.is_ensemble:
-                uncertainty = {k + "_uncertainty": jnp.std(v, axis=0) for k,v in results.items()}
-                results = {k: jnp.mean(v, axis=0) for k,v in results.items()}
+                uncertainty = {
+                    k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()
+                }
+                results = {k: jnp.mean(v, axis=0) for k, v in results.items()}
                 results.update(uncertainty)
-                
+
+            if "stress" in results.keys():
+                dim = positions.shape[1]
+                V = quantity.volume(dim, box)
+                results = {
+                    k: (val / V if k.startswith("stress") else val)
+                    for k, val in results.items()
+                }
+
             return results, neighbor
 
         self.step = step_fn
@@ -153,7 +170,6 @@ class ASECalculator(Calculator):
 
     def calculate(self, atoms, properties=["energy"], system_changes=all_changes):
         Calculator.calculate(self, atoms, properties, system_changes)
-
         positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
         if self.step is None or "numbers" in system_changes:
@@ -169,4 +185,3 @@ class ASECalculator(Calculator):
 
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
-        self.results["stress"] /= atoms.cell.volume
