@@ -34,8 +34,8 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
     temperature: PositiveFloat
     dt: PositiveFloat = 0.5
     duration: PositiveFloat
-    n_inner: PositiveInt = 4
-    sampling_rate: PositiveInt = 1
+    n_inner: PositiveInt = 100
+    sampling_rate: PositiveInt = 10
     dr_threshold: PositiveFloat = 0.5
     extra_capacity: PositiveInt = 0
 

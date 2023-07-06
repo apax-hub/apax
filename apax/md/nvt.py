@@ -19,6 +19,7 @@ from apax.config import Config, MDConfig
 from apax.md.io import H5TrajHandler
 from apax.md.md_checkpoint import load_md_state, look_for_checkpoints
 from apax.model import ModelBuilder
+from apax.utils import jax_md_reduced
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ def heights_of_box_sides(box):
             height = area / np.linalg.norm(box[j])
             heights.append(height)
 
-    return heights
+    return np.array(heights)
 
 
 def run_nvt(
@@ -258,7 +259,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     model = builder.build_energy_model(
         apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
     )
-    neighbor_fn = partition.neighbor_list(
+    neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_fn,
         box,
         r_max,

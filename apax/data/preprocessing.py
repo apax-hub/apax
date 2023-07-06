@@ -9,6 +9,8 @@ from jax_md import partition, space
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
+from apax.utils import jax_md_reduced
+
 log = logging.getLogger(__name__)
 
 
@@ -21,7 +23,7 @@ def initialize_nbr_fn(atoms, cutoff):
         displacement_fn, _ = space.free()
         box = default_box
 
-        neighbor_fn = partition.neighbor_list(
+        neighbor_fn = jax_md_reduced.partition.neighbor_list(
             displacement_or_metric=displacement_fn,
             box=box,
             r_cutoff=cutoff,
