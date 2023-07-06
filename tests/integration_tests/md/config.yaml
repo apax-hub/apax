@@ -17,6 +17,7 @@ model:
   descriptor_dtype: fp64
   readout_dtype: fp32
   scale_shift_dtype: fp64
+  calc_stress: true
 
 metrics:
   - name: energy

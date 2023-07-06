@@ -99,10 +99,9 @@ class EnergyDerivativeModel(nn.Module):
         neighbor: Union[partition.NeighborList, NeighborSpoof, Array],
         box,
         offsets,
-        perturbation=None,
     ):
         energy, neg_forces = jax.value_and_grad(self.energy_fn)(
-            R, Z, neighbor, box, offsets, perturbation
+            R, Z, neighbor, box, offsets
         )
         forces = -neg_forces
         prediction = {"energy": energy, "forces": forces}

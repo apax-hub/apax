@@ -1,17 +1,50 @@
 from functools import partial
 from pathlib import Path
+from typing import Union
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
-from jax_md import partition, space
+from flax.core.frozen_dict import freeze, unfreeze
+from flax.traverse_util import flatten_dict, unflatten_dict
+from jax_md import partition, quantity, space
 
 from apax.config.train_config import parse_train_config
 from apax.md.md_checkpoint import look_for_checkpoints
 from apax.model import ModelBuilder
 from apax.train.eval import load_params
 from apax.utils import jax_md_reduced
+
+
+def stack_parameters(param_list):
+    flat_param_list = []
+    for params in param_list:
+        params = unfreeze(params)
+        flat_params = flatten_dict(params)
+        flat_param_list.append(flat_params)
+
+    stacked_flat_params = flat_params
+    for p in flat_param_list[0].keys():
+        stacked_flat_params[p] = jnp.stack(
+            [flat_param[p] for flat_param in flat_param_list]
+        )
+
+    stacked_params = unflatten_dict(stacked_flat_params)
+    stack_params = freeze(stacked_params)
+    return stack_params
+
+
+def maybe_vmap(apply, params, Z):
+    flat_params = flatten_dict(params)
+    shapes = [v.shape[0] for v in flat_params.values()]
+    is_ensemble = shapes == shapes[::-1]
+
+    if is_ensemble:
+        apply = jax.vmap(apply, in_axes=(0, None, None, None, None, None))
+
+    energy_fn = partial(apply, params)
+    return energy_fn
 
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
@@ -30,7 +63,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     model = builder.build_energy_derivative_model(
         apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
     )
-    energy_fn = partial(model.apply, params, Z=Z)
+    energy_fn = maybe_vmap(model.apply, params, Z)
     neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_fn,
         box,
@@ -45,16 +78,46 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
 
 class ASECalculator(Calculator):
     """
-    ASE Calculator for APAX models.
+    ASE Calculator for apax models.
     DOES NOT SUPPORT CUTOFFS LARGER THAN MIN(BOX SIZE / 2)!
     """
 
-    implemented_properties = ["energy", "forces", "stress"]
+    implemented_properties = [
+        "energy",
+        "forces",
+        "stress",
+        "energy_uncertainty",
+        "forces_uncertainty",
+        "stress_uncertainty",
+    ]
 
-    def __init__(self, model_dir: Path, dr_threshold: float = 0.5, **kwargs):
+    def __init__(
+        self, model_dir: Union[Path, list[Path]], dr_threshold: float = 0.5, **kwargs
+    ):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
+        self.is_ensemble = False
 
+        if isinstance(model_dir, Path) or isinstance(model_dir, str):
+            self.params = self.restore_parameters(model_dir)
+        elif isinstance(model_dir, list):
+            params = []
+            for path in model_dir:
+                params.append(self.restore_parameters(path))
+
+            stacked_params = stack_parameters(params)
+            self.params = stacked_params
+            self.is_ensemble = True
+        else:
+            raise NotImplementedError(
+                "Please provide either a path or list of paths to trained models"
+            )
+
+        self.step = None
+        self.neighbor_fn = None
+        self.neighbors = None
+
+    def restore_parameters(self, model_dir):
         self.model_config = parse_train_config(Path(model_dir) / "config.yaml")
         ckpt_dir = (
             Path(self.model_config.data.model_path) / self.model_config.data.model_name
@@ -62,11 +125,8 @@ class ASECalculator(Calculator):
         ckpt_exists = look_for_checkpoints(ckpt_dir / "best")
         if not ckpt_exists:
             raise FileNotFoundError(f"No checkpoint found at {ckpt_dir}")
-        self.params = load_params(ckpt_dir)
 
-        self.step = None
-        self.neighbor_fn = None
-        self.neighbors = None
+        return load_params(ckpt_dir)
 
     def initialize(self, atoms):
         model, neighbor_fn = build_energy_neighbor_fns(
@@ -75,6 +135,7 @@ class ASECalculator(Calculator):
             self.params,
             self.dr_threshold,
         )
+        Z = jnp.asarray(atoms.numbers)
 
         @jax.jit
         def step_fn(positions, neighbor, box):
@@ -85,7 +146,24 @@ class ASECalculator(Calculator):
             else:
                 neighbor = neighbor.update(positions)
             offsets = jnp.full([neighbor.idx.shape[1], 3], 0)
-            results = model(positions, neighbor=neighbor, box=box, offsets=offsets)
+
+            results = model(positions, Z, neighbor.idx, box, offsets)
+
+            if self.is_ensemble:
+                uncertainty = {
+                    k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()
+                }
+                results = {k: jnp.mean(v, axis=0) for k, v in results.items()}
+                results.update(uncertainty)
+
+            if "stress" in results.keys():
+                dim = positions.shape[1]
+                V = quantity.volume(dim, box)
+                results = {
+                    k: (val / V if k.startswith("stress") else val)
+                    for k, val in results.items()
+                }
+
             return results, neighbor
 
         self.step = step_fn
@@ -93,7 +171,6 @@ class ASECalculator(Calculator):
 
     def calculate(self, atoms, properties=["energy"], system_changes=all_changes):
         Calculator.calculate(self, atoms, properties, system_changes)
-
         positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64).T
         if self.step is None or "numbers" in system_changes:

@@ -156,11 +156,19 @@ def test_ase_calc(get_tmp_path):
     )
 
     atoms = read(initial_structure_path.as_posix())
-    calc = ASECalculator(model_config_dict["data"]["model_path"])
+    calc = ASECalculator(
+        [model_config_dict["data"]["model_path"], model_config_dict["data"]["model_path"]]
+    )
 
     atoms.calc = calc
     E = atoms.get_potential_energy()
     F = atoms.get_forces()
+    S = atoms.get_stress()
 
     assert E != 0
     assert F.shape == (3, 3)
+    assert S.shape == (6,)
+
+    assert "energy_uncertainty" in atoms.calc.results.keys()
+    assert "forces_uncertainty" in atoms.calc.results.keys()
+    assert "stress_uncertainty" in atoms.calc.results.keys()
