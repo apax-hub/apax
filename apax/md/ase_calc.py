@@ -17,6 +17,7 @@ from apax.utils import jax_md_reduced
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     atomic_numbers = jnp.asarray(atoms.numbers)
     box = jnp.asarray(atoms.get_cell().array, dtype=jnp.float32)
+    box = box.T
 
     if np.all(box < 1e-6):
         displacement_fn, _ = space.free()
@@ -94,7 +95,7 @@ class ASECalculator(Calculator):
         Calculator.calculate(self, atoms, properties, system_changes)
 
         positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
-        box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
+        box = jnp.asarray(atoms.cell.array, dtype=jnp.float64).T
         if self.step is None or "numbers" in system_changes:
             self.initialize(atoms)
             self.neighbors = self.neighbor_fn.allocate(positions)
