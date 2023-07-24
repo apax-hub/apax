@@ -140,6 +140,7 @@ class ASECalculator(Calculator):
         @jax.jit
         def step_fn(positions, neighbor, box):
             if np.any(atoms.get_cell().lengths() > 1e-6):
+                box = box.T
                 inv_box = jnp.linalg.inv(box)
                 positions = space.transform(inv_box, positions)
                 neighbor = neighbor.update(positions, box=box)
@@ -160,7 +161,9 @@ class ASECalculator(Calculator):
                 dim = positions.shape[1]
                 V = quantity.volume(dim, box)
                 results = {
-                    k: (val / V if k.startswith("stress") else val)
+                    # We should properly check whether CP2K uses the ASE cell convention
+                    # for tetragonal strain, it doesn't matter whether we transpose or not
+                    k: (val.T / V if k.startswith("stress") else val)
                     for k, val in results.items()
                 }
 
@@ -172,7 +175,7 @@ class ASECalculator(Calculator):
     def calculate(self, atoms, properties=["energy"], system_changes=all_changes):
         Calculator.calculate(self, atoms, properties, system_changes)
         positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
-        box = jnp.asarray(atoms.cell.array, dtype=jnp.float64).T
+        box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
         if self.step is None or "numbers" in system_changes:
             self.initialize(atoms)
             self.neighbors = self.neighbor_fn.allocate(positions)
