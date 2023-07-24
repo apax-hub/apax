@@ -118,8 +118,8 @@ def atoms_to_arrays(
             elif key == "energy":
                 labels["fixed"][key].append(val * unit_dict[energy_unit])
             elif key == "stress":
-                stress = ( # TODO check whether we should transpose
-                    atoms.get_stress(voigt=False) #.T
+                stress = (  # TODO check whether we should transpose
+                    atoms.get_stress(voigt=False)  # .T
                     * unit_dict[energy_unit]
                     / (unit_dict[pos_unit] ** 3)
                     * atoms.cell.volume
