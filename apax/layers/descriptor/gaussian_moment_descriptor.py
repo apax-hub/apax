@@ -19,7 +19,11 @@ def disp_fn(ri, rj, perturbation, box):
     dR = transform(box, dR)
 
     if perturbation is not None:
-        dR = raw_transform(perturbation, dR)
+        dR = dR + raw_transform(perturbation, dR)
+        # https://github.com/mir-group/nequip/blob/c56f48fcc9b4018a84e1ed28f762fadd5bc763f1/nequip/nn/_grad_output.py#L267
+        # https://github.com/sirmarcel/glp/blob/main/glp/calculators/utils.py
+        # other codes do R = R + strain, not dR
+        # can be implemented for efficiency
 
     return dR
 
