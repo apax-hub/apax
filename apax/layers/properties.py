@@ -21,6 +21,7 @@ def stress_times_vol(energy_fn, position: Array, box, **kwargs) -> Array:
     """
     dim = position.shape[1]
     zero = jnp.zeros((dim, dim), position.dtype)
+    zero = 0.5 * (zero + zero.T)
     identity = jnp.eye(dim, dtype=position.dtype)
 
     def U(eps):
