@@ -616,13 +616,13 @@ files = [
 
 [[package]]
 name = "e3nn-jax"
-version = "0.19.3"
+version = "0.19.1"
 description = "Equivariant convolutional neural networks for the group E(3) of 3 dimensional rotations, translations, and mirrors."
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "e3nn_jax-0.19.3-py3-none-any.whl", hash = "sha256:c4fcf8e3df8db3d33cad4b6e9bbf993dfb71f212cd0f8fbaafe4320faea4ee9f"},
-    {file = "e3nn_jax-0.19.3.tar.gz", hash = "sha256:2f1429de463b22f0e03a14f0703734181efb53acd3ea727ebe931f0057e021c2"},
+    {file = "e3nn_jax-0.19.1-py3-none-any.whl", hash = "sha256:676ad6e7c1fe67c365342e3455c62593415818732922b1adf7173d4842bfb0da"},
+    {file = "e3nn_jax-0.19.1.tar.gz", hash = "sha256:16f34b2a09aec355eeb67186281681f848860854aa78c3e9e7778f991a1650c7"},
 ]
 
 [package.dependencies]
@@ -3372,4 +3372,4 @@ dask = ["dask[array] (>=2022.11.1,<2023.0.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "f10dd13cb5ff1bf3933df9769a3e4807890fefeb0a77a6eeb153de50f56fd2d8"
+content-hash = "3b57015a2b8b5d5baab1ab2cc21e4f2ab5cb4f5a5c422318d667f7432a4c94f1"
