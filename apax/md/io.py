@@ -23,6 +23,8 @@ class TrajHandler:
         forces = np.asarray(state.force)
 
         atoms = Atoms(self.atomic_numbers, positions, momenta=momenta, cell=self.box)
+        atoms.cell = atoms.cell.T
+        atoms.pbc = np.diag(atoms.cell.array) > 1e-7
         atoms.calc = SinglePointCalculator(atoms, energy=float(energy), forces=forces)
         return atoms
 
@@ -49,7 +51,6 @@ class H5TrajHandler(TrajHandler):
             self.sampling_counter += 1
         else:
             new_atoms = self.atoms_from_state(state, energy)
-            new_atoms.cell = new_atoms.cell.T
             self.buffer.append(new_atoms)
             self.sampling_counter = 1
 
