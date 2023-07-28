@@ -1161,28 +1161,31 @@ optax = "*"
 
 [[package]]
 name = "jaxlib"
-version = "0.4.14"
+version = "0.4.13"
 description = "XLA library for JAX"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.8"
 files = [
-    {file = "jaxlib-0.4.14-cp310-cp310-macosx_10_14_x86_64.whl", hash = "sha256:843839faa8ac82d80eaddbdb8f1b14808ef7716e806a1f0d2e384f7b890c02c3"},
-    {file = "jaxlib-0.4.14-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:2dadf061b1828d64e5ee4ac10fa05a051ab2043f11e77d0b7246f3d005afd053"},
-    {file = "jaxlib-0.4.14-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:9f2ca54997ea1de7ed96f56025914237595d8e5b99549218bb8652b15c6f5dff"},
-    {file = "jaxlib-0.4.14-cp310-cp310-win_amd64.whl", hash = "sha256:504e478acde687fd3ba8ee0b250fb675e26d92b4063d97435d4ea8c5fec360b3"},
-    {file = "jaxlib-0.4.14-cp311-cp311-macosx_10_14_x86_64.whl", hash = "sha256:fb06229143c586bbd05bc932d76aa78c83895c03a1670e267da39f7bc61223e9"},
-    {file = "jaxlib-0.4.14-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:6b38dae702bb8c1b4b54241bf04acefbada9813e606233e59fbc2a51395f650a"},
-    {file = "jaxlib-0.4.14-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:5739b7af01d8765c982fd3e5c462ff3ac63d37d583114df639bdc318deb790cb"},
-    {file = "jaxlib-0.4.14-cp311-cp311-win_amd64.whl", hash = "sha256:b03714c869fb78f1166a8a0371a160dd27fc047bee9cfea39c93ad64a0496e35"},
-    {file = "jaxlib-0.4.14-cp39-cp39-macosx_10_14_x86_64.whl", hash = "sha256:137763b4321a86a84cde4f2ee6f51d74416ca8f7dd79059ebf88403f779829ba"},
-    {file = "jaxlib-0.4.14-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:b934e1dbbe1adf49bdf080197db6681c59c80ad07af5e36968dd69825e79a40e"},
-    {file = "jaxlib-0.4.14-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:aacea888b9de76ea3b001f0952ba7ae88a4e40a7ede302344b305bbc8d2f5cde"},
-    {file = "jaxlib-0.4.14-cp39-cp39-win_amd64.whl", hash = "sha256:fbd3fb60b3a11585e2db58c340f70a1b51a4a37fadc0c77fbe819677ed75ee78"},
+    {file = "jaxlib-0.4.13-cp310-cp310-macosx_10_14_x86_64.whl", hash = "sha256:532ebc4fb11386282ad63b83941d4557f4038c1144acf026f1f8565f64c7e9c0"},
+    {file = "jaxlib-0.4.13-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:a259bb35429bfbd3b76e43019dfc8f7d6ea94bb217400b78f7d0824ce07a58ac"},
+    {file = "jaxlib-0.4.13-cp310-cp310-manylinux2014_x86_64.whl", hash = "sha256:ea1bc9811ef7d73a15e3213115e88fe7f5d14b59d95027bea9fccc98e5a14af8"},
+    {file = "jaxlib-0.4.13-cp310-cp310-win_amd64.whl", hash = "sha256:fde66a93e9be89d99e5792f677ed8e319667d6b2396865b1c52c1312844c47f9"},
+    {file = "jaxlib-0.4.13-cp311-cp311-macosx_10_14_x86_64.whl", hash = "sha256:49690fcdd26560515fd15399fc3a44777e0bfc5db5c48fe76ff7bc7228e8b2fb"},
+    {file = "jaxlib-0.4.13-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:f4e9e34e5d8a6556f62fead14aee0b1614c2c6296f0078d8e6139d6aff109649"},
+    {file = "jaxlib-0.4.13-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:8000c0d15c107328e8f7b7b3ac91dd822f5c287a80231882b620503ed141fa89"},
+    {file = "jaxlib-0.4.13-cp311-cp311-win_amd64.whl", hash = "sha256:19ae4c316b17a49342432c69f7f89f190b975333f3f9e9e175f686a651bc7347"},
+    {file = "jaxlib-0.4.13-cp38-cp38-macosx_10_14_x86_64.whl", hash = "sha256:522635d5e159401a386c79f1236c218c1f68fbb4ca6648115c3ad3c2c3f518ab"},
+    {file = "jaxlib-0.4.13-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:411334d903df07dc1ace8d52fc53c17f6bc1d55aff7f6e0e5cf61ec149f758a0"},
+    {file = "jaxlib-0.4.13-cp38-cp38-manylinux2014_x86_64.whl", hash = "sha256:839173b2e9593f5e9a6d3c42852cd15070fe80a939246efbb5cf40eec815de89"},
+    {file = "jaxlib-0.4.13-cp39-cp39-macosx_10_14_x86_64.whl", hash = "sha256:c230ef85712e608d0f048869766a5a63afeb2e72309943db0df9f959ab17307f"},
+    {file = "jaxlib-0.4.13-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:d19c05c15f962e098d49b45e2758aacf19330d192ec5395f9ef136f62db90edc"},
+    {file = "jaxlib-0.4.13-cp39-cp39-manylinux2014_x86_64.whl", hash = "sha256:b5c0a9737efd95fe18fd7715ce30dfce476546705ea8934aad6731777a9631a5"},
+    {file = "jaxlib-0.4.13-cp39-cp39-win_amd64.whl", hash = "sha256:bebb4cf001f180dc431f9604daf930c2d9cc778e4dda26f401ac939b7bac912e"},
 ]
 
 [package.dependencies]
-ml-dtypes = ">=0.2.0"
-numpy = ">=1.22"
+ml-dtypes = ">=0.1.0"
+numpy = ">=1.21"
 scipy = ">=1.7"
 
 [package.extras]
@@ -1762,13 +1765,13 @@ files = [
 
 [[package]]
 name = "nest-asyncio"
-version = "1.5.7"
+version = "1.5.6"
 description = "Patch asyncio to allow nested event loops"
 optional = false
 python-versions = ">=3.5"
 files = [
-    {file = "nest_asyncio-1.5.7-py3-none-any.whl", hash = "sha256:5301c82941b550b3123a1ea772ba9a1c80bad3a182be8c1a5ae6ad3be57a9657"},
-    {file = "nest_asyncio-1.5.7.tar.gz", hash = "sha256:6a80f7b98f24d9083ed24608977c09dd608d83f91cccc24c9d2cba6d10e01c10"},
+    {file = "nest_asyncio-1.5.6-py3-none-any.whl", hash = "sha256:b9a953fb40dceaa587d109609098db21900182b16440652454a146cffb06e8b8"},
+    {file = "nest_asyncio-1.5.6.tar.gz", hash = "sha256:d267cc1ff794403f7df692964d1d2a3fa9418ffea2a3f6859a439ff482fef290"},
 ]
 
 [[package]]

@@ -26,7 +26,7 @@ typer = "^0.7.0"
 lazy-loader = "^0.2"
 matscipy = "^0.8.0"
 znh5md = "^0.1.7"
-e3nn-jax = "0.19.1"
+e3nn-jax = "0.19.1" # avoid clash with jaxmd
 
 [tool.poetry.scripts]
 apax = 'apax.cli.apax_app:app'
