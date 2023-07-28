@@ -1,6 +1,7 @@
 import dataclasses
 import logging
 import os
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
@@ -24,11 +25,9 @@ from apax.utils.random import seed_py_np_tf
 log = logging.getLogger(__name__)
 
 
-def initialize_directories(model_name, model_path):
+def initialize_directories(model_version_path: Path) -> None:
     log.info("Initializing directories")
-    model_version_path = os.path.join(model_path, model_name)
     os.makedirs(model_version_path, exist_ok=True)
-    return model_version_path
 
 
 def load_data_files(data_config, model_version_path):
@@ -148,19 +147,20 @@ class TFModelSpoof:
     stop_training = False
 
 
-def initialize_callbacks(callback_configs, model_version_path):
+def initialize_callbacks(callback_configs, model_path, model_name):
     log.info("Initializing Callbacks")
+
     callback_dict = {
         "csv": {
             "class": CSVLogger,
-            "path": "log.csv",
+            "log_path": model_path / model_name / "log.csv",
             "path_arg_name": "filename",
             "kwargs": {"append": True},
             "model": TFModelSpoof(),
         },
         "tensorboard": {
             "class": TensorBoard,
-            "path": "tb_logs",
+            "log_path": model_path / "tb_logs" / model_name,
             "path_arg_name": "log_dir",
             "kwargs": {},
             "model": tf.keras.Model(),
@@ -170,9 +170,8 @@ def initialize_callbacks(callback_configs, model_version_path):
     for callback_config in callback_configs:
         callback_info = callback_dict[callback_config.name]
 
-        log_path = os.path.join(model_version_path, callback_info["path"])
         path_arg_name = callback_info["path_arg_name"]
-        path = {path_arg_name: log_path}
+        path = {path_arg_name: callback_info["log_path"]}
 
         kwargs = callback_info["kwargs"]
         callback = callback_info["class"](**path, **kwargs)
@@ -215,12 +214,14 @@ def run(user_config, log_file="train.log", log_level="error"):
     if config.maximize_l2_cache:
         maximize_l2_cache()
 
-    model_version_path = initialize_directories(
-        config.data.model_name, config.data.model_path
-    )
+    model_name = Path(config.data.model_name)
+    model_path = Path(config.data.model_path)
+    model_version_path = model_path / model_name
+
+    initialize_directories(model_version_path)
     config.dump_config(model_version_path)
 
-    callbacks = initialize_callbacks(config.callbacks, model_version_path)
+    callbacks = initialize_callbacks(config.callbacks, model_path, model_name)
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
 
