@@ -162,9 +162,24 @@ def initialize_callbacks(callback_configs, model_version_path):
             "model": dummy_model,
         },
     }
-    callbacks = []  # pop one and warn if both csv and tb are supplied
+
+    callback_configs = [config.name for config in callback_configs]
+    if "csv" in callback_configs and "tensorboard" in callback_configs:
+        csv_idx, tb_idx = callback_configs.index("csv"), callback_configs.index(
+            "tensorboard"
+        )
+        log.warning(
+            "Using both csv and tensorboard callbacks is not supported at the moment."
+            " Only the first of the two will be used."
+        )
+        if csv_idx < tb_idx:
+            callback_configs.pop(tb_idx)
+        else:
+            callback_configs.pop(csv_idx)
+
+    callbacks = []
     for callback_config in callback_configs:
-        callback_info = callback_dict[callback_config.name]
+        callback_info = callback_dict[callback_config]
 
         path_arg_name = callback_info["path_arg_name"]
         path = {path_arg_name: callback_info["log_path"]}
