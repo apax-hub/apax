@@ -4,19 +4,18 @@ import time
 from pathlib import Path
 
 import jax
-import jax.numpy as jnp
 import numpy as np
-from flax.training import checkpoints
 from tqdm import trange
 
 from apax.config import parse_train_config
-from apax.data.input_pipeline import TFPipeline, create_dict_dataset
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
+from apax.train.checkpoints import load_params
 from apax.train.metrics import initialize_metrics
 from apax.train.run import (
-    find_largest_system,
+    RawDataset,
     initialize_callbacks,
+    initialize_dataset,
     initialize_loss_fn,
     setup_logging,
 )
@@ -58,63 +57,20 @@ def load_test_data(
             test_idxs=test_idxs,
         )
 
-        test_atoms_list, _ = split_atoms(atoms_list, test_idxs)
-        test_label_dict, _ = split_label(label_dict, test_idxs)
+        atoms_list, _ = split_atoms(atoms_list, test_idxs)
+        label_dict, _ = split_label(label_dict, test_idxs)
 
     elif config.data.test_data_path is not None:
         log.info(f"Read test data file {config.data.test_data_path}")
-        test_atoms_list, test_label_dict = load_data(config.data.test_data_path)
-        test_atoms_list = test_atoms_list[:n_test]
-        for key, val in test_label_dict.items():
-            test_label_dict[key] = val[:n_test]
+        atoms_list, label_dict = load_data(config.data.test_data_path)
+        atoms_list = atoms_list[:n_test]
+        for key, val in label_dict.items():
+            label_dict[key] = val[:n_test]
     else:
         raise ValueError("input data path/paths not defined")
 
-    return test_atoms_list, test_label_dict
-
-
-def initialize_test_dataset(test_atoms_list, test_label_dict, config):
-    shift_method = config.data.shift_method
-    scale_method = config.data.scale_method
-    shift_options = config.data.shift_options
-    scale_options = config.data.scale_options
-
-    ds_stats = compute_scale_shift_parameters(
-        test_atoms_list, shift_method, scale_method, shift_options, scale_options
-    )
-
-    test_inputs, test_labels = create_dict_dataset(
-        atoms_list=test_atoms_list,
-        r_max=config.model.r_max,
-        external_labels=test_label_dict,
-        disable_pbar=config.progress_bar.disable_nl_pbar,
-        pos_unit=config.data.pos_unit,
-        energy_unit=config.data.energy_unit,
-    )
-
-    max_atoms, max_nbrs = find_largest_system([test_inputs])
-    ds_stats.n_atoms = max_atoms
-
-    test_ds = TFPipeline(
-        inputs=test_inputs,
-        labels=test_labels,
-        n_epoch=1,
-        batch_size=config.data.batch_size,
-        max_atoms=max_atoms,
-        max_nbrs=max_nbrs,
-        buffer_size=config.data.shuffle_buffer_size,
-    )
-
-    return test_ds, ds_stats
-
-
-def load_params(model_version_path):
-    best_dir = model_version_path / "best"
-    log.info(f"load checkpoint from {best_dir}")
-    raw_restored = checkpoints.restore_checkpoint(best_dir, target=None, step=None)
-    params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
-
-    return params
+    test_raw_ds = RawDataset(atoms_list=atoms_list, additional_labels=label_dict)
+    return test_raw_ds
 
 
 def predict(model, params, Metrics, loss_fn, test_ds, callbacks):
@@ -151,6 +107,7 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks):
     epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
     callbacks.on_epoch_end(epoch=1, logs=epoch_metrics)
     callbacks.on_train_end()
+    # TODO currently this has no informative output
 
 
 def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
@@ -167,16 +124,22 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
 
-    test_atoms_list, test_label_dict = load_test_data(
-        config, model_version_path, eval_path, n_test
+    test_raw_ds = load_test_data(config, model_version_path, eval_path, n_test)
+
+    test_ds = initialize_dataset(config, test_raw_ds)
+    ds_stats = compute_scale_shift_parameters(
+        test_raw_ds.atoms_list,
+        config.data.shift_method,
+        config.data.scale_method,
+        config.data.shift_options,
+        config.data.scale_options,
     )
 
-    test_ds, ds_stats = initialize_test_dataset(test_atoms_list, test_label_dict, config)
     init_input = test_ds.init_input()
     init_box = np.array(init_input["box"][0])
 
     builder = ModelBuilder(config.model.get_dict(), n_species=ds_stats.n_species)
-    model = builder.build_energy_force_model(
+    model = builder.build_energy_derivative_model(
         scale=ds_stats.elemental_scale,
         shift=ds_stats.elemental_shift,
         apply_mask=True,
