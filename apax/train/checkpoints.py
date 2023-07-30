@@ -1,6 +1,8 @@
 import logging
 from pathlib import Path
 
+import jax
+import jax.numpy as jnp
 from flax.training import checkpoints, train_state
 
 log = logging.getLogger(__name__)
@@ -38,3 +40,17 @@ class CheckpointManager:
             keep=2,
             async_manager=self.async_manager,
         )
+
+
+def load_params(model_version_path, best=True):
+    if best:
+        model_version_path = model_version_path / "best"
+    log.info(f"loading checkpoint from {model_version_path}")
+    raw_restored = checkpoints.restore_checkpoint(
+        model_version_path,
+        target=None,
+        step=None
+    )
+    params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
+
+    return params
