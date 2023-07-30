@@ -142,31 +142,27 @@ def maximize_l2_cache():
     assert pValue.contents.value == 128
 
 
-@dataclasses.dataclass
-class TFModelSpoof:
-    stop_training = False
-
-
 def initialize_callbacks(callback_configs, model_path, model_name):
     log.info("Initializing Callbacks")
 
+    dummy_model = tf.keras.Model()
     callback_dict = {
         "csv": {
             "class": CSVLogger,
             "log_path": model_path / model_name / "log.csv",
             "path_arg_name": "filename",
             "kwargs": {"append": True},
-            "model": TFModelSpoof(),
+            "model": dummy_model,
         },
         "tensorboard": {
             "class": TensorBoard,
             "log_path": model_path / "tb_logs" / model_name,
             "path_arg_name": "log_dir",
             "kwargs": {},
-            "model": tf.keras.Model(),
+            "model": dummy_model,
         },
     }
-    callbacks = []
+    callbacks = [] # pop one and warn if both csv and tb are supplied
     for callback_config in callback_configs:
         callback_info = callback_dict[callback_config.name]
 
