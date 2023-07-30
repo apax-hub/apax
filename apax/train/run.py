@@ -142,27 +142,27 @@ def maximize_l2_cache():
     assert pValue.contents.value == 128
 
 
-def initialize_callbacks(callback_configs, model_path, model_name):
+def initialize_callbacks(callback_configs, model_version_path):
     log.info("Initializing Callbacks")
 
     dummy_model = tf.keras.Model()
     callback_dict = {
         "csv": {
             "class": CSVLogger,
-            "log_path": model_path / model_name / "log.csv",
+            "log_path": model_version_path / "log.csv",
             "path_arg_name": "filename",
             "kwargs": {"append": True},
             "model": dummy_model,
         },
         "tensorboard": {
             "class": TensorBoard,
-            "log_path": model_path / "tb_logs" / model_name,
+            "log_path": model_version_path,
             "path_arg_name": "log_dir",
             "kwargs": {},
             "model": dummy_model,
         },
     }
-    callbacks = [] # pop one and warn if both csv and tb are supplied
+    callbacks = []  # pop one and warn if both csv and tb are supplied
     for callback_config in callback_configs:
         callback_info = callback_dict[callback_config.name]
 
@@ -217,7 +217,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     initialize_directories(model_version_path)
     config.dump_config(model_version_path)
 
-    callbacks = initialize_callbacks(config.callbacks, model_path, model_name)
+    callbacks = initialize_callbacks(config.callbacks, model_version_path)
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
 
