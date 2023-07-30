@@ -164,6 +164,7 @@ def make_step_fns(loss_fn, Metrics, model, sam_rho):
         (loss, predictions), grads = grad_fn(state.params, inputs, labels)
 
         if rho > 1e-6:
+            # SAM step
             grad_norm = global_norm(grads)
             eps = jax.tree_map(lambda g, n: g * rho / n, grads, grad_norm)
             params_eps = jax.tree_map(lambda p, e: p + e, state.params, eps)
