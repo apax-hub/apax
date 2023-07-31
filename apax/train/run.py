@@ -167,10 +167,12 @@ def initialize_callbacks(callback_configs, model_version_path):
         csv_idx, tb_idx = callback_configs.index("csv"), callback_configs.index(
             "tensorboard"
         )
-        log.warning(
+        msg = (
             "Using both csv and tensorboard callbacks is not supported at the moment."
             " Only the first of the two will be used."
         )
+        print("Warning: " + msg)
+        log.warning(msg)
         if csv_idx < tb_idx:
             callback_configs.pop(tb_idx)
         else:
