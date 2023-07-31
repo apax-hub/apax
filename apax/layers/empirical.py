@@ -185,8 +185,6 @@ class ReaxBonded(EmpiricalEnergyTerm):
 
         # dr_vec shape: neighbors x 3
         if np.all(self.init_box < 1e-6):
-            # TODO check if this is still necessary
-            # TODO factor this out
             # reverse conventnion to match TF
             # distance vector for gas phase training and predicting
             dr_vec = self.displacement(R[idx_j], R[idx_i]).astype(self.dtype)

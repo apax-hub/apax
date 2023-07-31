@@ -100,7 +100,7 @@ class ModelBuilder:
             init_box=init_box,
             inference_disp_fn=inference_disp_fn,
         )
-        repulsion, bonded = None, None
+        corrections = []
         if self.config["use_zbl"]:
             repulsion = ZBLRepulsion(
                 apply_mask=apply_mask,
@@ -108,14 +108,16 @@ class ModelBuilder:
                 init_box=init_box,
                 inference_disp_fn=inference_disp_fn,
             )
+            corrections.append(repulsion)
         if self.config["use_reax"]:
-            bonded = ReaxBonded(
+            reax = ReaxBonded(
                 apply_mask=apply_mask,
                 r_max=self.config["r_max"],
                 init_box=init_box,
                 inference_disp_fn=inference_disp_fn,
             )
-        model = EnergyModel(atomistic_model, repulsion=repulsion, bonded=bonded)
+            corrections.append(reax)
+        model = EnergyModel(atomistic_model, corrections=corrections)
         return model
 
     def build_energy_derivative_model(
