@@ -7,7 +7,6 @@ from jax import vmap
 
 from apax.data.input_pipeline import PadToSpecificSize, TFPipeline, create_dict_dataset
 from apax.layers.descriptor.gaussian_moment_descriptor import disp_fn
-from apax.train.run import find_largest_system
 from apax.utils.convert import atoms_to_arrays
 from apax.utils.data import split_atoms, split_idxs
 from apax.utils.random import seed_py_np_tf
@@ -41,15 +40,12 @@ def test_input_pipeline(example_atoms, calc_results, num_data, external_labels):
         external_labels,
         disable_pbar=True,
     )
-    max_atoms, max_nbrs = find_largest_system([inputs])
 
     ds = TFPipeline(
         inputs,
         labels,
         1,
         batch_size,
-        max_atoms=max_atoms,
-        max_nbrs=max_nbrs,
         buffer_size=1000,
     )
     assert ds.steps_per_epoch() == num_data // batch_size
