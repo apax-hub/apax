@@ -1,3 +1,4 @@
+from dataclasses import field
 import logging
 from typing import Callable, Optional, Tuple, Union
 
@@ -53,7 +54,7 @@ class AtomisticModel(nn.Module):
 
 class EnergyModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
-    corrections: list[EmpiricalEnergyTerm] = []
+    corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: [])
 
     def __call__(
         self,
@@ -76,7 +77,7 @@ class EnergyModel(nn.Module):
 
 class EnergyDerivativeModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
-    corrections: list[EmpiricalEnergyTerm] = []
+    corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: [])
     calc_stress: bool = False
 
     def setup(self):
