@@ -85,10 +85,6 @@ class ASECalculator(Calculator):
     implemented_properties = [
         "energy",
         "forces",
-        "stress",
-        "energy_uncertainty",
-        "forces_uncertainty",
-        "stress_uncertainty",
     ]
 
     def __init__(
@@ -100,6 +96,12 @@ class ASECalculator(Calculator):
 
         if isinstance(model_dir, Path) or isinstance(model_dir, str):
             self.params = self.restore_parameters(model_dir)
+            if self.model_config.model.calc_stress:
+                self.implemented_properties.extend(
+                    [
+                        "stress",
+                    ]
+                )
         elif isinstance(model_dir, list):
             params = []
             for path in model_dir:
@@ -108,6 +110,20 @@ class ASECalculator(Calculator):
             stacked_params = stack_parameters(params)
             self.params = stacked_params
             self.is_ensemble = True
+            self.implemented_properties.extend(
+                [
+                    "energy_uncertainty",
+                    "forces_uncertainty",
+                ]
+            )
+
+            if self.model_config.model.calc_stress:
+                self.implemented_properties.extend(
+                    [
+                        "stress",
+                        "stress_uncertainty",
+                    ]
+                )
         else:
             raise NotImplementedError(
                 "Please provide either a path or list of paths to trained models"
