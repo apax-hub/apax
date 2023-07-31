@@ -19,14 +19,11 @@ def inverse_softplus(x):
     return jnp.log(jnp.exp(x) - 1.0)
 
 
-
 class EmpiricalEnergyTerm(nn.Module):
     dtype: Any = jnp.float32
 
 
-
 class ZBLRepulsion(EmpiricalEnergyTerm):
-    
     init_box: np.array = np.array([0.0, 0.0, 0.0])
     r_max: float = 6.0
     apply_mask: bool = True

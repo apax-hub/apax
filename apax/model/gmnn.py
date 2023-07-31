@@ -1,6 +1,6 @@
-from dataclasses import field
 import logging
-from typing import Callable, Optional, Tuple, Union
+from dataclasses import field
+from typing import Callable, Tuple, Union
 
 import flax.linen as nn
 import jax
