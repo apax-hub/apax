@@ -1,16 +1,16 @@
-from apax.config.md_config import MDConfig
-from apax.config.train_config import Config
-
-import yaml
-
 import logging
 import os
 from typing import Union
 
+import yaml
+
+from apax.config.md_config import MDConfig
+from apax.config.train_config import Config
+
 log = logging.getLogger(__name__)
 
 
-def parse_config(config: Union[str, os.PathLike, dict], mode: str= "train") -> Config:
+def parse_config(config: Union[str, os.PathLike, dict], mode: str = "train") -> Config:
     """Load the training configuration from file or a dictionary.
 
     Attributes

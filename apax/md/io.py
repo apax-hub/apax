@@ -30,9 +30,9 @@ class TrajHandler:
 
 
 class H5TrajHandler(TrajHandler):
-    def __init__(self, R, atomic_numbers, box, sampling_rate, traj_path) -> None:
-        self.atomic_numbers = atomic_numbers
-        self.box = box
+    def __init__(self, system, sampling_rate, traj_path) -> None:
+        self.atomic_numbers = system.atomic_numbers
+        self.box = system.box
         self.sampling_rate = sampling_rate
         self.traj_path = traj_path
         self.db = znh5md.io.DataWriter(self.traj_path)

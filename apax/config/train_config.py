@@ -312,5 +312,3 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
         """
         with open(os.path.join(save_path, "config.yaml"), "w") as conf:
             yaml.dump(self.dict(), conf, default_flow_style=False)
-
-

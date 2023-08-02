@@ -1,18 +1,18 @@
+import dataclasses
 import logging
 import os
 import time
 from functools import partial
+from typing import Optional
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-import yaml
 from ase import units
 from ase.io import read
 from flax.training import checkpoints
 from jax.experimental.host_callback import barrier_wait, id_tap
 from jax_md import partition, quantity, simulate, space
-from jax_md.util import Array
 from tqdm import trange
 
 from apax.config import Config, MDConfig
@@ -39,11 +39,36 @@ def heights_of_box_sides(box):
     return np.array(heights)
 
 
+@dataclasses.dataclass
+class System:
+    atomic_numbers: jnp.array
+    masses: jnp.array
+    positions: jnp.array
+    box: jnp.array
+    momenta: Optional[jnp.array]
+
+    @classmethod
+    def from_atoms(cls, atoms):
+        atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
+        masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float64)
+        positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
+        box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
+        box = box.T
+        momenta = atoms.get_momenta()
+
+        system = cls(
+            atomic_numbers=atomic_numbers,
+            masses=masses,
+            positions=positions,
+            box=box,
+            momenta=momenta,
+        )
+
+        return system
+
+
 def run_nvt(
-    R: Array,
-    atomic_numbers: Array,
-    masses: Array,
-    box: np.array,
+    system: System,
     energy_fn,
     neighbor_fn,
     shift_fn,
@@ -105,7 +130,7 @@ def run_nvt(
     checkpoint_interval = 5_000_000  # TODO will be supplied in the future
 
     log.info("initializing simulation")
-    neighbor = neighbor_fn.allocate(R, extra_capacity=extra_capacity)
+    neighbor = neighbor_fn.allocate(system.positions, extra_capacity=extra_capacity)
 
     init_fn, apply_fn = simulate.nvt_nose_hoover(energy_fn, shift_fn, dt, kT)
     restart = False  # TODO needs to be implemented
@@ -116,12 +141,12 @@ def run_nvt(
             log.info("loading previous md state")
             state, step = load_md_state(sim_dir)
         else:
-            state = init_fn(rng_key, R, masses, neighbor=neighbor)
+            state = init_fn(rng_key, system.positions, system.masses, neighbor=neighbor)
     else:
-        state = init_fn(rng_key, R, masses, neighbor=neighbor)
+        state = init_fn(rng_key, system.positions, system.masses, neighbor=neighbor)
 
     traj_path = os.path.join(sim_dir, traj_name)
-    traj_handler = H5TrajHandler(R, atomic_numbers, box, sampling_rate, traj_path)
+    traj_handler = H5TrajHandler(system, sampling_rate, traj_path)
 
     n_outer = int(np.ceil(n_steps / n_inner))
     pbar_update_freq = int(np.ceil(500 / n_inner))
@@ -132,7 +157,7 @@ def run_nvt(
     # Maybe we can use flax checkpoints for that?
     # -> can't serialize NHState and chain for some reason?
     @jax.jit
-    def sim(state, neighbor): # TODO make more modular
+    def sim(state, neighbor):  # TODO make more modular
         def body_fn(i, state):
             state, neighbor, current_energy = state
             neighbor = neighbor.update(state.position)
@@ -167,7 +192,9 @@ def run_nvt(
             if neighbor.did_buffer_overflow:
                 log.info("step %d: neighbor list overflowed, reallocating.", step)
                 traj_handler.reset_buffer()
-                neighbor = neighbor_fn.allocate(state.position) # TODO check that this actually works
+                neighbor = neighbor_fn.allocate(
+                    state.position
+                )  # TODO check that this actually works
             else:
                 state = new_state
                 step += 1
@@ -224,19 +251,14 @@ def md_setup(model_config: Config, md_config: MDConfig):
     """
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
+    system = System.from_atoms(atoms)
+
     r_max = model_config.model.r_max
-
-    atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
-    masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float64)
-    box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
-    box = box.T
-    R = jnp.asarray(atoms.positions, dtype=jnp.float64)
-
     log.info("initializing model")
-    if np.all(box < 1e-6):
+    if np.all(system.box < 1e-6):
         displacement_fn, shift_fn = space.free()
     else:
-        heights = heights_of_box_sides(box)
+        heights = heights_of_box_sides(system.box)
 
         if np.any(atoms.cell.lengths() / 2 < r_max):
             log.error(
@@ -251,18 +273,17 @@ def md_setup(model_config: Config, md_config: MDConfig):
                 "can not calculate the correct neighbors",
             )
         displacement_fn, shift_fn = space.periodic_general(
-            box, fractional_coordinates=False
+            system.box, fractional_coordinates=False
         )
 
-    Z = jnp.asarray(atomic_numbers)
     n_species = 119  # int(np.max(Z) + 1)
     builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_model(
-        apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
+        apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
     )
     neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_fn,
-        box,
+        system.box,
         r_max,
         md_config.dr_threshold,
         fractional_coordinates=False,
@@ -281,10 +302,14 @@ def md_setup(model_config: Config, md_config: MDConfig):
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
 
     energy_fn = partial(
-        model.apply, params, Z=Z, box=box, offsets=jnp.array([0.0, 0.0, 0.0])
+        model.apply,
+        params,
+        Z=system.atomic_numbers,
+        box=system.box,
+        offsets=jnp.array([0.0, 0.0, 0.0]),
     )
 
-    return R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn
+    return system, energy_fn, neighbor_fn, shift_fn
 
 
 def run_md(
@@ -318,18 +343,11 @@ def run_md(
     rng_key = jax.random.PRNGKey(md_config.seed)
     md_init_rng_key, rng_key = jax.random.split(rng_key, 2)
 
-    # Introduce system dataclass with optional momenta
-
-    R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn = md_setup(
-        model_config, md_config
-    )
+    system, energy_fn, neighbor_fn, shift_fn = md_setup(model_config, md_config)
     n_steps = int(np.ceil(md_config.duration / md_config.dt))
 
     run_nvt(
-        R=R,
-        atomic_numbers=atomic_numbers,
-        masses=masses,
-        box=box,
+        system,
         energy_fn=energy_fn,
         neighbor_fn=neighbor_fn,
         shift_fn=shift_fn,
