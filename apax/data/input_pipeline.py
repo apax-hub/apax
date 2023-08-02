@@ -139,7 +139,6 @@ class TFPipeline:
             value.
         """
         self.n_epoch = n_epoch
-        self.batch_size = batch_size
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
         self.buffer_size = buffer_size
@@ -147,10 +146,14 @@ class TFPipeline:
         self.n_data = len(inputs["fixed"]["n_atoms"])
 
         if batch_size > self.n_data:
-            raise ValueError(
-                f"batch size ({batch_size}) is larger than the number of data points"
-                f" ({self.n_data})!"
+            msg = (
+                f"requested batch size {batch_size} is larger than the number of data"
+                f" points {self.n_data}. Setting batch size = {self.n_data}"
             )
+            print("Warning: " + msg)
+            log.warning(msg)
+            batch_size = self.n_data
+        self.batch_size = batch_size
 
         # tf.RaggedTensors should be created from `tf.ragged.stack`
         # instead of `tf.ragged.constant` for performance reasons.
