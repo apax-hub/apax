@@ -123,7 +123,7 @@ def run_nvt(
     traj_handler = H5TrajHandler(R, atomic_numbers, box, sampling_rate, traj_path)
 
     n_outer = int(np.ceil(n_steps / n_inner))
-    pbar_update_freq = int(np.ceil(500 / n_inner))  # TODO add to config
+    pbar_update_freq = int(np.ceil(500 / n_inner))  # TODO turn into max or just plain n_inner
     pbar_increment = n_inner * pbar_update_freq
 
     # TODO capability to restart md.
@@ -131,7 +131,7 @@ def run_nvt(
     # Maybe we can use flax checkpoints for that?
     # -> can't serialize NHState and chain for some reason?
     @jax.jit
-    def sim(state, neighbor):
+    def sim(state, neighbor): # TODO make more modular
         def body_fn(i, state):
             state, neighbor, current_energy = state
             neighbor = neighbor.update(state.position)
@@ -166,7 +166,7 @@ def run_nvt(
             if neighbor.did_buffer_overflow:
                 log.info("step %d: neighbor list overflowed, reallocating.", step)
                 traj_handler.reset_buffer()
-                neighbor = neighbor_fn.allocate(state.position)
+                neighbor = neighbor_fn.allocate(state.position) # TODO check that this actually works
             else:
                 state = new_state
                 step += 1
@@ -311,7 +311,7 @@ def run_md(
 
     log.info("loading configs for md")
     if isinstance(model_config, (str, os.PathLike)):
-        with open(model_config, "r") as stream:
+        with open(model_config, "r") as stream: # use load params fn
             model_config = yaml.safe_load(stream)
 
     if isinstance(md_config, (str, os.PathLike)):
@@ -323,6 +323,8 @@ def run_md(
 
     rng_key = jax.random.PRNGKey(md_config.seed)
     md_init_rng_key, rng_key = jax.random.split(rng_key, 2)
+
+    # Introduce system dataclass with optional momenta
 
     R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn = md_setup(
         model_config, md_config
