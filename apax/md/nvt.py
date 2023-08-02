@@ -159,24 +159,24 @@ def run_nvt(
     @jax.jit
     def sim(state, neighbor):  # TODO make more modular
         def body_fn(i, state):
-            state, neighbor, current_energy = state
+            state, neighbor = state
             neighbor = neighbor.update(state.position)
             state = apply_fn(state, neighbor=neighbor)
             current_energy = energy_fn(R=state.position, neighbor=neighbor)
 
             id_tap(traj_handler.step, (state, current_energy))
 
-            return state, neighbor, current_energy
+            return state, neighbor
 
         id_tap(traj_handler.write, None)
 
-        state, neighbor, current_energy = jax.lax.fori_loop(
+        state, neighbor = jax.lax.fori_loop(
             0, n_inner, body_fn, (state, neighbor, 0.0)
         )
         current_temperature = quantity.temperature(
             velocity=state.velocity, mass=state.mass
         )
-        return state, neighbor, current_temperature, current_energy
+        return state, neighbor, current_temperature
 
     start = time.time()
     sim_time = n_outer * dt
@@ -185,7 +185,7 @@ def run_nvt(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
     ) as sim_pbar:
         while step < n_outer:
-            new_state, neighbor, current_temperature, current_energy = sim(
+            new_state, neighbor, current_temperature = sim(
                 state, neighbor
             )
 
