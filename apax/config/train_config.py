@@ -118,7 +118,7 @@ class DataConfig(BaseModel, extra=Extra.forbid):
         return values
 
     def model_version_path(self):
-        version_path = Path(self.model_name) / self.model_path
+        version_path = Path(self.model_path) / self.model_name
         return version_path
 
     def best_model_path(self):
