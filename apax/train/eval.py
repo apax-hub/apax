@@ -9,7 +9,7 @@ import numpy as np
 from flax.training import checkpoints
 from tqdm import trange
 
-from apax.config import parse_train_config
+from apax.config.common import parse_config
 from apax.data.input_pipeline import TFPipeline, create_dict_dataset
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
@@ -156,7 +156,7 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks):
 def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     setup_logging(log_file, log_level)
     log.info("Starting model evaluation")
-    config = parse_train_config(config_path)
+    config = parse_config(config_path)
 
     seed_py_np_tf(config.seed)
 

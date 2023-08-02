@@ -10,7 +10,7 @@ from flax.core.frozen_dict import freeze, unfreeze
 from flax.traverse_util import flatten_dict, unflatten_dict
 from jax_md import partition, quantity, space
 
-from apax.config.train_config import parse_train_config
+from apax.config.common import parse_config
 from apax.md.md_checkpoint import look_for_checkpoints
 from apax.model import ModelBuilder
 from apax.train.eval import load_params
@@ -118,7 +118,7 @@ class ASECalculator(Calculator):
         self.neighbors = None
 
     def restore_parameters(self, model_dir):
-        self.model_config = parse_train_config(Path(model_dir) / "config.yaml")
+        self.model_config = parse_config(Path(model_dir) / "config.yaml")
         ckpt_dir = (
             Path(self.model_config.data.model_path) / self.model_config.data.model_name
         )

@@ -16,6 +16,7 @@ from jax_md.util import Array
 from tqdm import trange
 
 from apax.config import Config, MDConfig
+from apax.config.common import parse_config
 from apax.md.io import H5TrajHandler
 from apax.md.md_checkpoint import load_md_state, look_for_checkpoints
 from apax.model import ModelBuilder
@@ -123,7 +124,7 @@ def run_nvt(
     traj_handler = H5TrajHandler(R, atomic_numbers, box, sampling_rate, traj_path)
 
     n_outer = int(np.ceil(n_steps / n_inner))
-    pbar_update_freq = int(np.ceil(500 / n_inner))  # TODO turn into max or just plain n_inner
+    pbar_update_freq = int(np.ceil(500 / n_inner))
     pbar_increment = n_inner * pbar_update_freq
 
     # TODO capability to restart md.
@@ -310,16 +311,9 @@ def run_md(
     logging.basicConfig(filename=log_file, level=log_levels[log_level])
 
     log.info("loading configs for md")
-    if isinstance(model_config, (str, os.PathLike)):
-        with open(model_config, "r") as stream: # use load params fn
-            model_config = yaml.safe_load(stream)
 
-    if isinstance(md_config, (str, os.PathLike)):
-        with open(md_config, "r") as stream:
-            md_config = yaml.safe_load(stream)
-
-    model_config = Config.parse_obj(model_config)
-    md_config = MDConfig.parse_obj(md_config)
+    model_config = parse_config(model_config)
+    md_config = parse_config(md_config, mode="md")
 
     rng_key = jax.random.PRNGKey(md_config.seed)
     md_init_rng_key, rng_key = jax.random.split(rng_key, 2)
