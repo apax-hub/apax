@@ -10,7 +10,6 @@ import jax.numpy as jnp
 import numpy as np
 from ase import units
 from ase.io import read
-from flax.training import checkpoints
 from jax.experimental.host_callback import barrier_wait, id_tap
 from jax_md import partition, quantity, simulate, space
 from tqdm import trange
@@ -20,6 +19,7 @@ from apax.config.common import parse_config
 from apax.md.io import H5TrajHandler
 from apax.md.md_checkpoint import load_md_state, look_for_checkpoints
 from apax.model import ModelBuilder
+from apax.train.eval import load_params
 from apax.utils import jax_md_reduced
 
 log = logging.getLogger(__name__)
@@ -170,9 +170,7 @@ def run_nvt(
 
         id_tap(traj_handler.write, None)
 
-        state, neighbor = jax.lax.fori_loop(
-            0, n_inner, body_fn, (state, neighbor, 0.0)
-        )
+        state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor, 0.0))
         current_temperature = quantity.temperature(
             velocity=state.velocity, mass=state.mass
         )
@@ -185,9 +183,7 @@ def run_nvt(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
     ) as sim_pbar:
         while step < n_outer:
-            new_state, neighbor, current_temperature = sim(
-                state, neighbor
-            )
+            new_state, neighbor, current_temperature = sim(state, neighbor)
 
             if neighbor.did_buffer_overflow:
                 log.info("step %d: neighbor list overflowed, reallocating.", step)
@@ -249,6 +245,8 @@ def md_setup(model_config: Config, md_config: MDConfig):
     shift_fn:
         Shift function for the integrator.
     """
+    os.makedirs(md_config.sim_dir, exist_ok=True)
+
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
     system = System.from_atoms(atoms)
@@ -292,15 +290,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         disable_cell_list=False,
     )
 
-    os.makedirs(md_config.sim_dir, exist_ok=True)
-
-    log.info("loading model parameters")
-    best_dir = os.path.join(
-        model_config.data.model_path, model_config.data.model_name, "best"
-    )
-    raw_restored = checkpoints.restore_checkpoint(best_dir, target=None, step=None)
-    params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
-
+    params = load_params(model_config.data.model_version_path())
     energy_fn = partial(
         model.apply,
         params,
@@ -340,9 +330,6 @@ def run_md(
     model_config = parse_config(model_config)
     md_config = parse_config(md_config, mode="md")
 
-    rng_key = jax.random.PRNGKey(md_config.seed)
-    md_init_rng_key, rng_key = jax.random.split(rng_key, 2)
-
     system, energy_fn, neighbor_fn, shift_fn = md_setup(model_config, md_config)
     n_steps = int(np.ceil(md_config.duration / md_config.dt))
 
@@ -357,7 +344,7 @@ def run_md(
         n_inner=md_config.n_inner,
         sampling_rate=md_config.sampling_rate,
         extra_capacity=md_config.extra_capacity,
-        rng_key=md_init_rng_key,
+        rng_key=jax.random.PRNGKey(md_config.seed),
         restart=md_config.restart,
         sim_dir=md_config.sim_dir,
         traj_name=md_config.traj_name,

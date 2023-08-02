@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 from typing import List, Literal, Optional
 
 import yaml
@@ -115,6 +116,13 @@ class DataConfig(BaseModel, extra=Extra.forbid):
             _ = MethodConfig(**requested_params)
 
         return values
+
+    def model_version_path(self):
+        version_path = Path(self.model_name) / self.model_path
+        return version_path
+
+    def best_model_path(self):
+        return self.model_version_path() / "best"
 
 
 class ModelConfig(BaseModel, extra=Extra.forbid):
