@@ -130,6 +130,7 @@ def fit(
                     f" {epoch} epochs."
                 )
                 break
+    callbacks.on_train_end()
 
 
 def global_norm(updates) -> jnp.ndarray:

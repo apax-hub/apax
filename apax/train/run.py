@@ -1,6 +1,6 @@
-import dataclasses
 import logging
 import os
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
@@ -24,11 +24,9 @@ from apax.utils.random import seed_py_np_tf
 log = logging.getLogger(__name__)
 
 
-def initialize_directories(model_name, model_path):
+def initialize_directories(model_version_path: Path) -> None:
     log.info("Initializing directories")
-    model_version_path = os.path.join(model_path, model_name)
     os.makedirs(model_version_path, exist_ok=True)
-    return model_version_path
 
 
 def load_data_files(data_config, model_version_path):
@@ -143,36 +141,49 @@ def maximize_l2_cache():
     assert pValue.contents.value == 128
 
 
-@dataclasses.dataclass
-class TFModelSpoof:
-    stop_training = False
-
-
 def initialize_callbacks(callback_configs, model_version_path):
     log.info("Initializing Callbacks")
+
+    dummy_model = tf.keras.Model()
     callback_dict = {
         "csv": {
             "class": CSVLogger,
-            "path": "log.csv",
+            "log_path": model_version_path / "log.csv",
             "path_arg_name": "filename",
             "kwargs": {"append": True},
-            "model": TFModelSpoof(),
+            "model": dummy_model,
         },
         "tensorboard": {
             "class": TensorBoard,
-            "path": "tb_logs",
+            "log_path": model_version_path,
             "path_arg_name": "log_dir",
             "kwargs": {},
-            "model": tf.keras.Model(),
+            "model": dummy_model,
         },
     }
+
+    callback_configs = [config.name for config in callback_configs]
+    if "csv" in callback_configs and "tensorboard" in callback_configs:
+        csv_idx, tb_idx = callback_configs.index("csv"), callback_configs.index(
+            "tensorboard"
+        )
+        msg = (
+            "Using both csv and tensorboard callbacks is not supported at the moment."
+            " Only the first of the two will be used."
+        )
+        print("Warning: " + msg)
+        log.warning(msg)
+        if csv_idx < tb_idx:
+            callback_configs.pop(tb_idx)
+        else:
+            callback_configs.pop(csv_idx)
+
     callbacks = []
     for callback_config in callback_configs:
-        callback_info = callback_dict[callback_config.name]
+        callback_info = callback_dict[callback_config]
 
-        log_path = os.path.join(model_version_path, callback_info["path"])
         path_arg_name = callback_info["path_arg_name"]
-        path = {path_arg_name: log_path}
+        path = {path_arg_name: callback_info["log_path"]}
 
         kwargs = callback_info["kwargs"]
         callback = callback_info["class"](**path, **kwargs)
@@ -215,9 +226,11 @@ def run(user_config, log_file="train.log", log_level="error"):
     if config.maximize_l2_cache:
         maximize_l2_cache()
 
-    model_version_path = initialize_directories(
-        config.data.model_name, config.data.model_path
-    )
+    model_name = Path(config.data.model_name)
+    model_path = Path(config.data.model_path)
+    model_version_path = model_path / model_name
+
+    initialize_directories(model_version_path)
     config.dump_config(model_version_path)
 
     callbacks = initialize_callbacks(config.callbacks, model_version_path)
