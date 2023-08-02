@@ -40,6 +40,7 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
     extra_capacity: PositiveInt = 0
 
     initial_structure: str
+    load_momenta: bool = False
     sim_dir: str = "."
     traj_name: str = "md.h5"
     restart: bool = True

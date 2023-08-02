@@ -79,6 +79,7 @@ def run_nvt(
     sampling_rate: int,
     extra_capacity: int,
     rng_key: int,
+    load_momenta: bool = False,
     restart: bool = True,
     sim_dir: str = ".",
     traj_name: str = "nvt.h5",
@@ -141,9 +142,13 @@ def run_nvt(
             log.info("loading previous md state")
             state, step = load_md_state(sim_dir)
         else:
-            state = init_fn(rng_key, system.positions, system.masses, neighbor=neighbor)
+            raise FileNotFoundError(f"No checkpoint exists in {sim_dir}")
     else:
         state = init_fn(rng_key, system.positions, system.masses, neighbor=neighbor)
+
+        if load_momenta:
+            log.info("loading momenta from starting configuration")
+            state = state.set(momentum=system.momenta)
 
     traj_path = os.path.join(sim_dir, traj_name)
     traj_handler = H5TrajHandler(system, sampling_rate, traj_path)
@@ -170,7 +175,7 @@ def run_nvt(
 
         id_tap(traj_handler.write, None)
 
-        state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor, 0.0))
+        state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
         current_temperature = quantity.temperature(
             velocity=state.velocity, mass=state.mass
         )
@@ -326,7 +331,6 @@ def run_md(
     logging.basicConfig(filename=log_file, level=log_levels[log_level])
 
     log.info("loading configs for md")
-
     model_config = parse_config(model_config)
     md_config = parse_config(md_config, mode="md")
 
@@ -344,6 +348,7 @@ def run_md(
         n_inner=md_config.n_inner,
         sampling_rate=md_config.sampling_rate,
         extra_capacity=md_config.extra_capacity,
+        load_momenta=md_config.load_momenta,
         rng_key=jax.random.PRNGKey(md_config.seed),
         restart=md_config.restart,
         sim_dir=md_config.sim_dir,
