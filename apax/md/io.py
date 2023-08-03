@@ -18,15 +18,23 @@ class TrajHandler:
         pass
 
     def atoms_from_state(self, state, energy, nbr_kwargs):
+
+
         if "box" in nbr_kwargs.keys():
-            positions = transform(nbr_kwargs["box"], state.position)
+            box = nbr_kwargs["box"]
+        else:
+            box = self.box
+
+        if self.fractional:
+            positions = transform(box, state.position)
         else:
             positions = state.position
+
         positions = np.asarray(positions)
         momenta = np.asarray(state.momentum)
         forces = np.asarray(state.force)
 
-        atoms = Atoms(self.atomic_numbers, positions, momenta=momenta, cell=self.box)
+        atoms = Atoms(self.atomic_numbers, positions, momenta=momenta, cell=box)
         atoms.cell = atoms.cell.T
         atoms.pbc = np.diag(atoms.cell.array) > 1e-7
         atoms.calc = SinglePointCalculator(atoms, energy=float(energy), forces=forces)
@@ -37,6 +45,7 @@ class H5TrajHandler(TrajHandler):
     def __init__(self, system, sampling_rate, traj_path) -> None:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
+        self.fractional = np.any(self.box < 1e-6)
         self.sampling_rate = sampling_rate
         self.traj_path = traj_path
         self.db = znh5md.io.DataWriter(self.traj_path)
