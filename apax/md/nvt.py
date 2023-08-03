@@ -97,7 +97,7 @@ def get_ensemble(ensemble, sim_fns):
         kT = units.kB * ensemble.temperature
         thermostat_chain = dict(ensemble.thermostat_chain)
         if thermostat_chain["tau"]:
-            thermostat_chain["tau"] *= units.fs
+            thermostat_chain["tau"] *= dt
 
         init_fn, apply_fn = simulate.nvt_nose_hoover(energy, shift, dt, kT)
 
@@ -107,9 +107,9 @@ def get_ensemble(ensemble, sim_fns):
         thermostat_chain = dict(ensemble.thermostat_chain)
         barostat_chain = dict(ensemble.barostat_chain)
         if thermostat_chain["tau"]:
-            thermostat_chain["tau"] *= units.fs
+            thermostat_chain["tau"] *= dt
         if barostat_chain["tau"]:
-            barostat_chain["tau"] *= units.fs
+            barostat_chain["tau"] *= dt
 
         init_fn, apply_fn = simulate.npt_nose_hoover(
             energy, shift, dt, pressure, kT, thermostat_kwargs=thermostat_chain, barostat_kwargs=barostat_chain
@@ -192,8 +192,6 @@ def run_nvt(
             log.info("loading momenta from starting configuration")
             state = state.set(momentum=system.momenta)
 
-    # print(state)
-    # quit()
     traj_path = os.path.join(sim_dir, traj_name)
     traj_handler = H5TrajHandler(system, sampling_rate, traj_path)
 
