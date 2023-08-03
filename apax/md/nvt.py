@@ -74,10 +74,18 @@ class SimulationFunctions:
     neighbor_fn: Callable
 
 
+def nbr_update_options_default(state):
+    return {}
+
+def nbr_update_options_npt(state):
+    box = simulate.npt_box(state)
+    return {"box": box}
+
 def get_ensemble(ensemble, sim_fns):
     energy, shift = sim_fns.energy_fn, sim_fns.shift_fn
 
     dt = ensemble.dt * units.fs
+    nbr_options = nbr_update_options_default
 
     if ensemble.name == "nve":
         init_fn, apply_fn = simulate.nve(energy, shift, dt)
@@ -102,12 +110,13 @@ def get_ensemble(ensemble, sim_fns):
         init_fn, apply_fn = simulate.npt_nose_hoover(
             energy, shift, dt, pressure, kT, barostat_kwargs={"tau": 50000 * dt}
         )
+        nbr_options = nbr_update_options_npt
     else:
         raise NotImplementedError(
             "Only the NVE and Nose Hoover NVT/NPT thermostats are currently interfaced."
         )
 
-    return init_fn, apply_fn
+    return init_fn, apply_fn, nbr_options
 
 
 def run_nvt(
@@ -157,7 +166,7 @@ def run_nvt(
     neighbor_fn = sim_fns.neighbor_fn
 
     log.info("initializing simulation")
-    init_fn, apply_fn = get_ensemble(ensemble, sim_fns)
+    init_fn, apply_fn, nbr_options = get_ensemble(ensemble, sim_fns)
 
     neighbor = sim_fns.neighbor_fn.allocate(
         system.positions, extra_capacity=extra_capacity
@@ -195,8 +204,11 @@ def run_nvt(
         def body_fn(i, state):
             state, neighbor = state
             # TODO neighbor update kword factory f(state) -> {}
-            neighbor = neighbor.update(state.position)
             state = apply_fn(state, neighbor=neighbor)
+            
+            nbr_kwargs = nbr_options(state)
+            neighbor = neighbor.update(state.position, **nbr_kwargs)
+
             current_energy = energy_fn(R=state.position, neighbor=neighbor)
 
             id_tap(traj_handler.step, (state, current_energy))
@@ -205,7 +217,7 @@ def run_nvt(
 
         id_tap(traj_handler.write, None)
 
-        # TODO callback for logging to pbar
+        
         state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
         current_temperature = (
             quantity.temperature(velocity=state.velocity, mass=state.mass) / units.kB
@@ -213,7 +225,7 @@ def run_nvt(
         return state, neighbor, current_temperature
 
     start = time.time()
-    sim_time = n_outer * ensemble.dt  # wrong
+    sim_time = n_outer * ensemble.dt # * units.fs
     log.info("running nvt for %.1f fs", sim_time)
     with trange(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
@@ -241,7 +253,7 @@ def run_nvt(
                     log.info("checkpoints not yet implemented")
 
                 if step % pbar_update_freq == 0:
-                    sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")
+                    sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K") # set string
                     sim_pbar.update(pbar_increment)
 
     barrier_wait()
@@ -366,7 +378,7 @@ def run_md(
     md_config = parse_config(md_config, mode="md")
 
     system, sim_fns = md_setup(model_config, md_config)
-    n_steps = int(np.ceil(md_config.duration / md_config.dt))
+    n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
 
     run_nvt(
         system,
