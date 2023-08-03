@@ -212,14 +212,12 @@ def run_nvt(
             state, neighbor = state
             # TODO neighbor update kword factory f(state) -> {}
             state = apply_fn(state, neighbor=neighbor)
-            debug.breakpoint()
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
             current_energy = energy_fn(R=state.position, neighbor=neighbor)
 
             id_tap(traj_handler.step, (state, current_energy, nbr_kwargs))
-            debug.breakpoint()
             return state, neighbor
 
         id_tap(traj_handler.write, None)
@@ -326,7 +324,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
                 "can not calculate the correct neighbors",
             )
         displacement_fn, shift_fn = space.periodic_general(
-            system.box, fractional_coordinates=False
+            system.box, fractional_coordinates=True
         )
 
     n_species = 119  # int(np.max(Z) + 1)
