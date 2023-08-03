@@ -34,13 +34,6 @@ class NPTOptions(NVTOptions, extra=Extra.forbid):
     barostat_chain: NHCOptions = NHCOptions()
 
 
-class Ensemble(BaseModel):
-    # https://docs.pydantic.dev/latest/usage/types/unions/#discriminated-unions-aka-tagged-unions
-    ensemble: Union[NVEOptions, NVTOptions, NPTOptions] = Field(
-        NVTOptions(name="nvt"), discriminator="name"
-    )
-
-
 class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
     """
     Configuration for a NHC molecular dynamics simulation.
@@ -68,7 +61,10 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
 
     seed: int = 1
 
-    ensemble: Ensemble = Ensemble()
+    # https://docs.pydantic.dev/latest/usage/types/unions/#discriminated-unions-aka-tagged-unions
+    ensemble: Union[NVEOptions, NVTOptions, NPTOptions] = Field(
+        NVTOptions(name="nvt"), discriminator="name"
+    )
 
     duration: PositiveFloat
     n_inner: PositiveInt = 100
