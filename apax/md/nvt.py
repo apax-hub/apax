@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from functools import partial
-from typing import Optional
+from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
@@ -67,13 +67,53 @@ class System:
         return system
 
 
+@dataclasses.dataclass
+class SimulationFunctions:
+    energy_fn: Callable
+    shift_fn: Callable
+    neighbor_fn: Callable
+
+
+def get_ensemble(ensemble, sim_fns):
+    energy, shift = sim_fns.energy_fn, sim_fns.shift_fn
+
+    dt = ensemble.dt * units.fs
+
+    if ensemble.name == "nve":
+        init_fn, apply_fn = simulate.nve(energy, shift, dt)
+    elif ensemble.name == "nvt":
+        kT = units.kB * ensemble.temperature
+        thermostat_chain = dict(ensemble.thermostat_chain)
+        if thermostat_chain["tau"]:
+            thermostat_chain["tau"] *= units.fs
+
+        init_fn, apply_fn = simulate.nvt_nose_hoover(energy, shift, dt, kT)
+
+    elif ensemble.name == "npt":
+        kT = units.kB * ensemble.temperature
+        pressure = ensemble.pressure * units.bar
+        thermostat_chain = dict(ensemble.thermostat_chain)
+        barostat_chain = dict(ensemble.barostat_chain)
+        if thermostat_chain["tau"]:
+            thermostat_chain["tau"] *= units.fs
+        if barostat_chain["tau"]:
+            barostat_chain["tau"] *= units.fs
+
+        init_fn, apply_fn = simulate.npt_nose_hoover(
+            energy, shift, dt, pressure, kT, barostat_kwargs={"tau": 50000 * dt}
+        )
+    else:
+        raise NotImplementedError(
+            "Only the NVE and Nose Hoover NVT/NPT thermostats are currently interfaced."
+        )
+
+    return init_fn, apply_fn
+
+
 def run_nvt(
     system: System,
-    energy_fn,
-    neighbor_fn,
-    shift_fn,
-    dt: float,
-    temperature: float,
+    sim_fns,
+    ensemble,
     n_steps: int,
     n_inner: int,
     sampling_rate: int,
@@ -90,22 +130,8 @@ def run_nvt(
 
     Parameters
     ----------
-    R:
-        Initial positions in Angstrom.
-    atomic_numbers:
-        Atomic numbers of the system.
-    masses:
-        Atomic masses in ASE units.
-    box:
-        Side length of the cubic box.
-    energy_fn:
-        Interatomic potential.
-    neighbor_fn:
-        Neighborlist function.
-    shift_fn:
-        Shift function for the integrator.
-    dt:
-        Time step in fs.
+    ensemble:
+        Thermodynamic ensemble.
     temperature:
         Temperature of the system in K.
     n_steps:
@@ -125,15 +151,18 @@ def run_nvt(
     traj_name:
         File name of the ASE trajectory.
     """
-    dt = dt * units.fs
-    kT = units.kB * temperature
     step = 0
     checkpoint_interval = 5_000_000  # TODO will be supplied in the future
+    energy_fn = sim_fns.energy_fn
+    neighbor_fn = sim_fns.neighbor_fn
 
     log.info("initializing simulation")
-    neighbor = neighbor_fn.allocate(system.positions, extra_capacity=extra_capacity)
+    init_fn, apply_fn = get_ensemble(ensemble, sim_fns)
 
-    init_fn, apply_fn = simulate.nvt_nose_hoover(energy_fn, shift_fn, dt, kT)
+    neighbor = sim_fns.neighbor_fn.allocate(
+        system.positions, extra_capacity=extra_capacity
+    )
+
     restart = False  # TODO needs to be implemented
     if restart:
         log.info("looking for checkpoints")
@@ -165,6 +194,7 @@ def run_nvt(
     def sim(state, neighbor):  # TODO make more modular
         def body_fn(i, state):
             state, neighbor = state
+            # TODO neighbor update kword factory f(state) -> {}
             neighbor = neighbor.update(state.position)
             state = apply_fn(state, neighbor=neighbor)
             current_energy = energy_fn(R=state.position, neighbor=neighbor)
@@ -175,14 +205,15 @@ def run_nvt(
 
         id_tap(traj_handler.write, None)
 
+        # TODO callback for logging to pbar
         state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
-        current_temperature = quantity.temperature(
-            velocity=state.velocity, mass=state.mass
+        current_temperature = (
+            quantity.temperature(velocity=state.velocity, mass=state.mass) / units.kB
         )
         return state, neighbor, current_temperature
 
     start = time.time()
-    sim_time = n_outer * dt
+    sim_time = n_outer * ensemble.dt  # wrong
     log.info("running nvt for %.1f fs", sim_time)
     with trange(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
@@ -210,7 +241,7 @@ def run_nvt(
                     log.info("checkpoints not yet implemented")
 
                 if step % pbar_update_freq == 0:
-                    sim_pbar.set_postfix(T=f"{(current_temperature / units.kB):.1f} K")
+                    sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")
                     sim_pbar.update(pbar_increment)
 
     barrier_wait()
@@ -303,8 +334,8 @@ def md_setup(model_config: Config, md_config: MDConfig):
         box=system.box,
         offsets=jnp.array([0.0, 0.0, 0.0]),
     )
-
-    return system, energy_fn, neighbor_fn, shift_fn
+    sim_fns = SimulationFunctions(energy_fn, shift_fn, neighbor_fn)
+    return system, sim_fns
 
 
 def run_md(
@@ -334,16 +365,13 @@ def run_md(
     model_config = parse_config(model_config)
     md_config = parse_config(md_config, mode="md")
 
-    system, energy_fn, neighbor_fn, shift_fn = md_setup(model_config, md_config)
+    system, sim_fns = md_setup(model_config, md_config)
     n_steps = int(np.ceil(md_config.duration / md_config.dt))
 
     run_nvt(
         system,
-        energy_fn=energy_fn,
-        neighbor_fn=neighbor_fn,
-        shift_fn=shift_fn,
-        dt=md_config.dt,
-        temperature=md_config.temperature,
+        sim_fns,
+        md_config.ensemble,
         n_steps=n_steps,
         n_inner=md_config.n_inner,
         sampling_rate=md_config.sampling_rate,
