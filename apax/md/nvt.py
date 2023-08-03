@@ -12,6 +12,7 @@ from ase import units
 from ase.io import read
 from jax.experimental.host_callback import barrier_wait, id_tap
 from jax_md import partition, quantity, simulate, space
+from jax_md.space import transform
 from tqdm import trange
 
 from apax.config import Config, MDConfig
@@ -51,10 +52,13 @@ class System:
     def from_atoms(cls, atoms):
         atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
         masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float64)
-        positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
+        momenta = atoms.get_momenta()
+
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
         box = box.T
-        momenta = atoms.get_momenta()
+        positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
+        if np.any(box > 1e-6):
+            positions = transform(jnp.linalg.inv(box), positions)
 
         system = cls(
             atomic_numbers=atomic_numbers,
@@ -108,7 +112,7 @@ def get_ensemble(ensemble, sim_fns):
             barostat_chain["tau"] *= units.fs
 
         init_fn, apply_fn = simulate.npt_nose_hoover(
-            energy, shift, dt, pressure, kT, barostat_kwargs={"tau": 50000 * dt}
+            energy, shift, dt, pressure, kT, thermostat_kwargs=thermostat_chain, barostat_kwargs=barostat_chain
         )
         nbr_options = nbr_update_options_npt
     else:
@@ -182,12 +186,14 @@ def run_nvt(
         else:
             raise FileNotFoundError(f"No checkpoint exists in {sim_dir}")
     else:
-        state = init_fn(rng_key, system.positions, system.masses, neighbor=neighbor)
+        state = init_fn(rng_key, system.positions, box=system.box, mass=system.masses, neighbor=neighbor)
 
         if load_momenta:
             log.info("loading momenta from starting configuration")
             state = state.set(momentum=system.momenta)
 
+    # print(state)
+    # quit()
     traj_path = os.path.join(sim_dir, traj_name)
     traj_handler = H5TrajHandler(system, sampling_rate, traj_path)
 
@@ -195,6 +201,7 @@ def run_nvt(
     pbar_update_freq = int(np.ceil(500 / n_inner))
     pbar_increment = n_inner * pbar_update_freq
 
+    from jax import debug
     # TODO capability to restart md.
     # May require serializing the state instead of ASE Atoms trajectory + conversion
     # Maybe we can use flax checkpoints for that?
@@ -205,14 +212,14 @@ def run_nvt(
             state, neighbor = state
             # TODO neighbor update kword factory f(state) -> {}
             state = apply_fn(state, neighbor=neighbor)
-            
+            debug.breakpoint()
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
             current_energy = energy_fn(R=state.position, neighbor=neighbor)
 
-            id_tap(traj_handler.step, (state, current_energy))
-
+            id_tap(traj_handler.step, (state, current_energy, nbr_kwargs))
+            debug.breakpoint()
             return state, neighbor
 
         id_tap(traj_handler.write, None)
@@ -323,6 +330,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         )
 
     n_species = 119  # int(np.max(Z) + 1)
+    # TODO large forces at init, maybe displacement fn is incorrect?
     builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_model(
         apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
@@ -332,10 +340,9 @@ def md_setup(model_config: Config, md_config: MDConfig):
         system.box,
         r_max,
         md_config.dr_threshold,
-        fractional_coordinates=False,
-        # TODO should this be True to enable variable cell sizes?
+        fractional_coordinates=True,
         format=partition.Sparse,
-        disable_cell_list=False,
+        disable_cell_list=True,
     )
 
     params = load_params(model_config.data.model_version_path())

@@ -2,7 +2,7 @@ import numpy as np
 import znh5md
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-
+from jax_md.space import transform
 
 class TrajHandler:
     def step(self, state_and_energy, transform):
@@ -17,8 +17,12 @@ class TrajHandler:
     def reset_buffer(self):
         pass
 
-    def atoms_from_state(self, state, energy):
-        positions = np.asarray(state.position)
+    def atoms_from_state(self, state, energy, nbr_kwargs):
+        if "box" in nbr_kwargs.keys():
+            positions = transform(nbr_kwargs["box"], state.position)
+        else:
+            positions = state.position
+        positions = np.asarray(positions)
         momenta = np.asarray(state.momentum)
         forces = np.asarray(state.force)
 
@@ -44,13 +48,13 @@ class H5TrajHandler(TrajHandler):
     def reset_buffer(self):
         self.buffer = []
 
-    def step(self, state_and_energy, transform):
-        state, energy = state_and_energy
+    def step(self, state, transform):
+        state, energy, nbr_kwargs = state
 
         if self.sampling_counter < self.sampling_rate:
             self.sampling_counter += 1
         else:
-            new_atoms = self.atoms_from_state(state, energy)
+            new_atoms = self.atoms_from_state(state, energy, nbr_kwargs)
             self.buffer.append(new_atoms)
             self.sampling_counter = 1
 
