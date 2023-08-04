@@ -11,7 +11,7 @@ class NHCOptions(BaseModel, extra=Extra.forbid):
     chain_length: PositiveInt = 3
     chain_steps: PositiveInt = 2
     sy_steps: PositiveInt = 3
-    tau: Optional[PositiveFloat]
+    tau: PositiveFloat = 100
 
 
 class Integrator(BaseModel, extra=Extra.forbid):
@@ -31,7 +31,7 @@ class NVTOptions(Integrator, extra=Extra.forbid):
 class NPTOptions(NVTOptions, extra=Extra.forbid):
     name: Literal["npt"]
     pressure: PositiveFloat = 1.01325  # bar
-    barostat_chain: NHCOptions = NHCOptions()
+    barostat_chain: NHCOptions = NHCOptions(tau=1000)
 
 
 class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):

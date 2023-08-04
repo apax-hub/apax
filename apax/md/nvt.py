@@ -96,8 +96,7 @@ def get_ensemble(ensemble, sim_fns):
     elif ensemble.name == "nvt":
         kT = units.kB * ensemble.temperature
         thermostat_chain = dict(ensemble.thermostat_chain)
-        if thermostat_chain["tau"]:
-            thermostat_chain["tau"] *= dt
+        thermostat_chain["tau"] *= dt
 
         init_fn, apply_fn = simulate.nvt_nose_hoover(energy, shift, dt, kT)
 
@@ -106,10 +105,8 @@ def get_ensemble(ensemble, sim_fns):
         pressure = ensemble.pressure * units.bar
         thermostat_chain = dict(ensemble.thermostat_chain)
         barostat_chain = dict(ensemble.barostat_chain)
-        if thermostat_chain["tau"]:
-            thermostat_chain["tau"] *= dt
-        if barostat_chain["tau"]:
-            barostat_chain["tau"] *= dt
+        thermostat_chain["tau"] *= dt
+        barostat_chain["tau"] *= dt
 
         init_fn, apply_fn = simulate.npt_nose_hoover(
             energy, shift, dt, pressure, kT, thermostat_kwargs=thermostat_chain, barostat_kwargs=barostat_chain
