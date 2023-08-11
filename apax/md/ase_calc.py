@@ -11,7 +11,6 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 from jax_md import partition, quantity, space
 
 from apax.config.train_config import parse_train_config
-from apax.md.md_checkpoint import look_for_checkpoints
 from apax.model import ModelBuilder
 from apax.train.eval import load_params
 from apax.utils import jax_md_reduced
@@ -138,10 +137,6 @@ class ASECalculator(Calculator):
         ckpt_dir = (
             Path(self.model_config.data.model_path) / self.model_config.data.model_name
         )
-        ckpt_exists = look_for_checkpoints(ckpt_dir / "best")
-        if not ckpt_exists:
-            raise FileNotFoundError(f"No checkpoint found at {ckpt_dir}")
-
         return load_params(ckpt_dir)
 
     def initialize(self, atoms):

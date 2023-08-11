@@ -6,8 +6,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
-from flax.training import checkpoints
 from flax.core.frozen_dict import freeze
+from flax.training import checkpoints
 from keras.callbacks import CSVLogger, TensorBoard
 
 from apax.config import parse_train_config

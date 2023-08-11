@@ -17,7 +17,7 @@ from tqdm import trange
 
 from apax.config import Config, MDConfig
 from apax.md.io import H5TrajHandler
-from apax.md.md_checkpoint import load_md_state, look_for_checkpoints
+from apax.md.md_checkpoint import load_md_state
 from apax.model import ModelBuilder
 from apax.utils import jax_md_reduced
 
@@ -109,13 +109,7 @@ def run_nvt(
     init_fn, apply_fn = simulate.nvt_nose_hoover(energy_fn, shift_fn, dt, kT)
     restart = False  # TODO needs to be implemented
     if restart:
-        log.info("looking for checkpoints")
-        ckpts_exist = look_for_checkpoints(sim_dir)
-        if ckpts_exist:
-            log.info("loading previous md state")
-            state, step = load_md_state(sim_dir)
-        else:
-            state = init_fn(rng_key, R, masses, neighbor=neighbor)
+        state, step = load_md_state(sim_dir)
     else:
         state = init_fn(rng_key, R, masses, neighbor=neighbor)
 

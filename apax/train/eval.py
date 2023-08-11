@@ -111,7 +111,10 @@ def initialize_test_dataset(test_atoms_list, test_label_dict, config):
 def load_params(model_version_path):
     best_dir = model_version_path / "best"
     log.info(f"load checkpoint from {best_dir}")
-    raw_restored = checkpoints.restore_checkpoint(best_dir, target=None, step=None)
+    try:
+        raw_restored = checkpoints.restore_checkpoint(best_dir, target=None, step=None)
+    except FileNotFoundError:
+        print(f"No checkpoint found at {best_dir}")
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
 
     return params
