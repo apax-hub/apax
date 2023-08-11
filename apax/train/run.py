@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
 from flax.training import checkpoints
+from flax.core.frozen_dict import freeze
 from keras.callbacks import CSVLogger, TensorBoard
 
 from apax.config import parse_train_config
@@ -262,6 +263,7 @@ def run(user_config, log_file="train.log", log_level="error"):
 
     rng_key, model_rng_key = jax.random.split(rng_key, num=2)
     params = model.init(model_rng_key, R, Z, idx, init_box, offsets)
+    params = freeze(params)
 
     do_transfer_learning = config.checkpoints.base_model_checkpoint is not None
     if do_transfer_learning:
