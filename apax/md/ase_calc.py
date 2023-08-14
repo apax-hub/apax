@@ -75,6 +75,33 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     return energy_fn, neighbor_fn
 
 
+def process_stress(results, box):
+    V = quantity.volume(3, box)
+    results = {
+        # We should properly check whether CP2K uses the ASE cell convention
+        # for tetragonal strain, it doesn't matter whether we transpose or not
+        k: (val.T / V if k.startswith("stress") else val)
+        for k, val in results.items()
+    }
+    return results
+
+
+def make_ensemble(model):
+
+    def ensemble(positions, Z, idx, box, offsets):
+        results = model(positions, Z, idx, box, offsets)
+        uncertainty = {
+            k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()
+        }
+        results = {k: jnp.mean(v, axis=0) for k, v in results.items()}
+        results.update(uncertainty)
+
+        return results
+    
+    return ensemble
+
+
+
 class ASECalculator(Calculator):
     """
     ASE Calculator for apax models.
@@ -146,6 +173,10 @@ class ASECalculator(Calculator):
             self.params,
             self.dr_threshold,
         )
+
+        if self.is_ensemble:
+            model = make_ensemble(model)
+
         Z = jnp.asarray(atoms.numbers)
 
         @jax.jit
@@ -161,22 +192,8 @@ class ASECalculator(Calculator):
 
             results = model(positions, Z, neighbor.idx, box, offsets)
 
-            if self.is_ensemble:
-                uncertainty = {
-                    k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()
-                }
-                results = {k: jnp.mean(v, axis=0) for k, v in results.items()}
-                results.update(uncertainty)
-
             if "stress" in results.keys():
-                dim = positions.shape[1]
-                V = quantity.volume(dim, box)
-                results = {
-                    # We should properly check whether CP2K uses the ASE cell convention
-                    # for tetragonal strain, it doesn't matter whether we transpose or not
-                    k: (val.T / V if k.startswith("stress") else val)
-                    for k, val in results.items()
-                }
+                results = process_stress(results, box)
 
             return results, neighbor
 
