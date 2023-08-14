@@ -43,6 +43,8 @@ def maybe_vmap(apply, params, Z):
     if is_ensemble:
         apply = jax.vmap(apply, in_axes=(0, None, None, None, None, None))
 
+    # Maybe the partial mapping should happen at the very end of initialize
+    # That way other functions can mae use of the parameter shape information
     energy_fn = partial(apply, params)
     return energy_fn
 
@@ -119,7 +121,7 @@ class UncertaintyDrivenDynamics:
         def udd_energy_force(positions, Z, idx, box, offsets):
             udd_fn = jax.value_and_grad(udd_energy, has_aux=True)
 
-            (E_bias, F_bias), results = udd_fn(positions, Z, idx, box, offsets)
+            (E_bias, results), F_bias  = udd_fn(positions, Z, idx, box, offsets)
 
             results["energy_unbiased"] = results["energy"]
             results["forces_unbiased"] = results["forces"]
