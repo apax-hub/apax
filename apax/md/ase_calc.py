@@ -1,6 +1,7 @@
+import dataclasses
 from functools import partial
 from pathlib import Path
-from typing import Union
+from typing import Callable, Union
 
 import jax
 import jax.numpy as jnp
@@ -87,19 +88,48 @@ def process_stress(results, box):
 
 
 def make_ensemble(model):
-
     def ensemble(positions, Z, idx, box, offsets):
         results = model(positions, Z, idx, box, offsets)
-        uncertainty = {
-            k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()
-        }
+        uncertainty = {k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()}
         results = {k: jnp.mean(v, axis=0) for k, v in results.items()}
         results.update(uncertainty)
 
         return results
-    
+
     return ensemble
 
+
+@dataclasses.dataclass
+class UncertaintyDrivenDynamics:
+    a: float
+    b: float
+
+    def apply(self, model, n_models):
+        def udd_energy(positions, Z, idx, box, offsets):
+            n_atoms = positions.shape[0]
+            results = model(positions, Z, idx, box, offsets)
+
+            sigma2 = results["energy_uncertainty"] ** 2
+
+            gauss = jnp.exp(-sigma2 / (n_models * n_atoms * self.b**2))
+            E_udd = self.a * (gauss - 1)
+
+            return E_udd, results
+
+        def udd_energy_force(positions, Z, idx, box, offsets):
+            udd_fn = jax.value_and_grad(udd_energy, has_aux=True)
+
+            (E_bias, F_bias), results = udd_fn(positions, Z, idx, box, offsets)
+
+            results["energy_unbiased"] = results["energy"]
+            results["forces_unbiased"] = results["forces"]
+
+            results["energy"] = results["energy"] + E_bias
+            results["forces"] = results["forces"] + F_bias
+
+            return results
+
+        return udd_energy_force
 
 
 class ASECalculator(Calculator):
@@ -114,11 +144,17 @@ class ASECalculator(Calculator):
     ]
 
     def __init__(
-        self, model_dir: Union[Path, list[Path]], dr_threshold: float = 0.5, **kwargs
+        self,
+        model_dir: Union[Path, list[Path]],
+        dr_threshold: float = 0.5,
+        transformations: Callable = [],
+        **kwargs
     ):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
         self.is_ensemble = False
+        self.transformations = transformations
+        self.n_models = 1
 
         if isinstance(model_dir, Path) or isinstance(model_dir, str):
             self.params = self.restore_parameters(model_dir)
@@ -129,6 +165,7 @@ class ASECalculator(Calculator):
                     ]
                 )
         elif isinstance(model_dir, list):
+            self.n_models = len(model_dir)
             params = []
             for path in model_dir:
                 params.append(self.restore_parameters(path))
@@ -176,6 +213,9 @@ class ASECalculator(Calculator):
 
         if self.is_ensemble:
             model = make_ensemble(model)
+
+        for transformation in self.transformations:
+            model = transformation.apply(model, self.n_models)
 
         Z = jnp.asarray(atoms.numbers)
 
