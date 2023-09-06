@@ -17,7 +17,7 @@ from tqdm import trange
 
 from apax.config import Config, MDConfig
 from apax.md.io import H5TrajHandler
-from apax.md.md_checkpoint import load_md_state, look_for_checkpoints
+from apax.md.md_checkpoint import load_md_state
 from apax.model import ModelBuilder
 from apax.utils import jax_md_reduced
 
@@ -109,13 +109,7 @@ def run_nvt(
     init_fn, apply_fn = simulate.nvt_nose_hoover(energy_fn, shift_fn, dt, kT)
     restart = False  # TODO needs to be implemented
     if restart:
-        log.info("looking for checkpoints")
-        ckpts_exist = look_for_checkpoints(sim_dir)
-        if ckpts_exist:
-            log.info("loading previous md state")
-            state, step = load_md_state(sim_dir)
-        else:
-            state = init_fn(rng_key, R, masses, neighbor=neighbor)
+        state, step = load_md_state(sim_dir)
     else:
         state = init_fn(rng_key, R, masses, neighbor=neighbor)
 
@@ -274,7 +268,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
 
     log.info("loading model parameters")
     best_dir = os.path.join(
-        model_config.data.model_path, model_config.data.model_name, "best"
+        model_config.data.directory, model_config.data.experiment, "best"
     )
     raw_restored = checkpoints.restore_checkpoint(best_dir, target=None, step=None)
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
@@ -318,8 +312,8 @@ def run_md(
         with open(md_config, "r") as stream:
             md_config = yaml.safe_load(stream)
 
-    model_config = Config.parse_obj(model_config)
-    md_config = MDConfig.parse_obj(md_config)
+    model_config = Config.model_validate(model_config)
+    md_config = MDConfig.model_validate(md_config)
 
     rng_key = jax.random.PRNGKey(md_config.seed)
     md_init_rng_key, rng_key = jax.random.split(rng_key, 2)

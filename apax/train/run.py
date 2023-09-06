@@ -1,11 +1,12 @@
-import dataclasses
 import logging
 import os
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
+from flax.core.frozen_dict import freeze
 from ase import Atoms
 from keras.callbacks import CSVLogger, TensorBoard
 
@@ -25,11 +26,15 @@ from apax.utils.random import seed_py_np_tf
 log = logging.getLogger(__name__)
 
 
-def initialize_directories(model_name, model_path):
+def initialize_directories(model_version_path: Path) -> None:
     log.info("Initializing directories")
-    model_version_path = os.path.join(model_path, model_name)
     os.makedirs(model_version_path, exist_ok=True)
-    return model_version_path
+
+
+@dataclasses.dataclass
+class RawDataset:
+    atoms_list: list[Atoms]
+    additional_labels: dict
 
 
 @dataclasses.dataclass
@@ -104,36 +109,49 @@ def maximize_l2_cache():
     assert pValue.contents.value == 128
 
 
-@dataclasses.dataclass
-class TFModelSpoof:
-    stop_training = False
-
-
 def initialize_callbacks(callback_configs, model_version_path):
     log.info("Initializing Callbacks")
+
+    dummy_model = tf.keras.Model()
     callback_dict = {
         "csv": {
             "class": CSVLogger,
-            "path": "log.csv",
+            "log_path": model_version_path / "log.csv",
             "path_arg_name": "filename",
             "kwargs": {"append": True},
-            "model": TFModelSpoof(),
+            "model": dummy_model,
         },
         "tensorboard": {
             "class": TensorBoard,
-            "path": "tb_logs",
+            "log_path": model_version_path,
             "path_arg_name": "log_dir",
             "kwargs": {},
-            "model": tf.keras.Model(),
+            "model": dummy_model,
         },
     }
+
+    callback_configs = [config.name for config in callback_configs]
+    if "csv" in callback_configs and "tensorboard" in callback_configs:
+        csv_idx, tb_idx = callback_configs.index("csv"), callback_configs.index(
+            "tensorboard"
+        )
+        msg = (
+            "Using both csv and tensorboard callbacks is not supported at the moment."
+            " Only the first of the two will be used."
+        )
+        print("Warning: " + msg)
+        log.warning(msg)
+        if csv_idx < tb_idx:
+            callback_configs.pop(tb_idx)
+        else:
+            callback_configs.pop(csv_idx)
+
     callbacks = []
     for callback_config in callback_configs:
-        callback_info = callback_dict[callback_config.name]
+        callback_info = callback_dict[callback_config]
 
-        log_path = os.path.join(model_version_path, callback_info["path"])
         path_arg_name = callback_info["path_arg_name"]
-        path = {path_arg_name: log_path}
+        path = {path_arg_name: callback_info["log_path"]}
 
         kwargs = callback_info["kwargs"]
         callback = callback_info["class"](**path, **kwargs)
@@ -147,7 +165,7 @@ def initialize_loss_fn(loss_config_list):
     log.info("Initializing Loss Function")
     loss_funcs = []
     for loss in loss_config_list:
-        loss_funcs.append(Loss(**loss.dict()))
+        loss_funcs.append(Loss(**loss.model_dump()))
     return LossCollection(loss_funcs)
 
 
@@ -176,9 +194,11 @@ def run(user_config, log_file="train.log", log_level="error"):
     if config.maximize_l2_cache:
         maximize_l2_cache()
 
-    model_version_path = initialize_directories(
-        config.data.model_name, config.data.model_path
-    )
+    experiment = Path(config.data.experiment)
+    directory = Path(config.data.directory)
+    model_version_path = directory / experiment
+
+    initialize_directories(model_version_path)
     config.dump_config(model_version_path)
 
     callbacks = initialize_callbacks(config.callbacks, model_version_path)
@@ -219,6 +239,7 @@ def run(user_config, log_file="train.log", log_level="error"):
 
     rng_key, model_rng_key = jax.random.split(rng_key, num=2)
     params = model.init(model_rng_key, R, Z, idx, init_box, offsets)
+    params = freeze(params)
 
     base_checkpoint = config.checkpoints.base_model_checkpoint
     do_transfer_learning = base_checkpoint is not None
@@ -235,7 +256,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     tx = get_opt(
         params,
         transition_steps=transition_steps,
-        **config.optimizer.dict(),
+        **config.optimizer.model_dump(),
     )
 
     fit(
@@ -247,7 +268,7 @@ def run(user_config, log_file="train.log", log_level="error"):
         Metrics,
         callbacks,
         n_epochs,
-        ckpt_dir=os.path.join(config.data.model_path, config.data.model_name),
+        ckpt_dir=os.path.join(config.data.directory, config.data.experiment),
         ckpt_interval=config.checkpoints.ckpt_interval,
         val_ds=val_ds,
         sam_rho=config.optimizer.sam_rho,

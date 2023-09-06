@@ -113,7 +113,7 @@ def validate_train_config(
         user_config = yaml.safe_load(stream)
 
     try:
-        _ = Config.parse_obj(user_config)
+        _ = Config.model_validate(user_config)
     except ValidationError as e:
         print(e)
         console.print("Configuration Invalid!", style="red3")
@@ -142,7 +142,7 @@ def validate_md_config(
         user_config = yaml.safe_load(stream)
 
     try:
-        _ = MDConfig.parse_obj(user_config)
+        _ = MDConfig.model_validate(user_config)
     except ValidationError as e:
         print(e)
         console.print("Configuration Invalid!", style="red3")
@@ -181,7 +181,7 @@ def visualize_model(
         user_config = yaml.safe_load(stream)
 
     try:
-        config = Config.parse_obj(user_config)
+        config = Config.model_validate(user_config)
     except ValidationError as e:
         print(e)
         console.print("Configuration Invalid!", style="red3")

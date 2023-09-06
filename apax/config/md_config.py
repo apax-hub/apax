@@ -1,10 +1,10 @@
 import os
 
 import yaml
-from pydantic import BaseModel, Extra, PositiveFloat, PositiveInt
+from pydantic import BaseModel, PositiveFloat, PositiveInt
 
 
-class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
+class MDConfig(BaseModel, frozen=True, extra="forbid"):
     """
     Configuration for a NHC molecular dynamics simulation.
 
@@ -50,4 +50,4 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
         Writes the current config file to the MD directory.
         """
         with open(os.path.join(self.sim_dir, "md_config.yaml"), "w") as conf:
-            yaml.dump(self.dict(), conf, default_flow_style=False)
+            yaml.dump(self.model_dump(), conf, default_flow_style=False)

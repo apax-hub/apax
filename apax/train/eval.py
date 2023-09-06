@@ -4,7 +4,9 @@ import time
 from pathlib import Path
 
 import jax
+import jax.numpy as jnp
 import numpy as np
+from flax.training import checkpoints
 from tqdm import trange
 
 from apax.config import parse_train_config
@@ -73,6 +75,17 @@ def load_test_data(
     return test_raw_ds
 
 
+def load_params(model_version_path):
+    best_dir = model_version_path / "best"
+    log.info(f"load checkpoint from {best_dir}")
+    try:
+        raw_restored = checkpoints.restore_checkpoint(best_dir, target=None, step=None)
+    except FileNotFoundError:
+        print(f"No checkpoint found at {best_dir}")
+    params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
+
+    return params
+
 def predict(model, params, Metrics, loss_fn, test_ds, callbacks):
     callbacks.on_train_begin()
     _, test_step_fn = make_step_fns(loss_fn, Metrics, model=model, sam_rho=0.0)
@@ -117,7 +130,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
 
     seed_py_np_tf(config.seed)
 
-    model_version_path = Path(config.data.model_path) / config.data.model_name
+    model_version_path = Path(config.data.directory) / config.data.experiment
     eval_path = model_version_path / "eval"
 
     callbacks = initialize_callbacks(config.callbacks, eval_path)

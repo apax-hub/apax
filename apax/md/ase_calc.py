@@ -11,7 +11,6 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 from jax_md import partition, quantity, space
 
 from apax.config.train_config import parse_train_config
-from apax.md.md_checkpoint import look_for_checkpoints
 from apax.model import ModelBuilder
 from apax.train.eval import load_params
 from apax.utils import jax_md_reduced
@@ -85,10 +84,6 @@ class ASECalculator(Calculator):
     implemented_properties = [
         "energy",
         "forces",
-        "stress",
-        "energy_uncertainty",
-        "forces_uncertainty",
-        "stress_uncertainty",
     ]
 
     def __init__(
@@ -100,6 +95,12 @@ class ASECalculator(Calculator):
 
         if isinstance(model_dir, Path) or isinstance(model_dir, str):
             self.params = self.restore_parameters(model_dir)
+            if self.model_config.model.calc_stress:
+                self.implemented_properties.extend(
+                    [
+                        "stress",
+                    ]
+                )
         elif isinstance(model_dir, list):
             params = []
             for path in model_dir:
@@ -108,6 +109,20 @@ class ASECalculator(Calculator):
             stacked_params = stack_parameters(params)
             self.params = stacked_params
             self.is_ensemble = True
+            self.implemented_properties.extend(
+                [
+                    "energy_uncertainty",
+                    "forces_uncertainty",
+                ]
+            )
+
+            if self.model_config.model.calc_stress:
+                self.implemented_properties.extend(
+                    [
+                        "stress",
+                        "stress_uncertainty",
+                    ]
+                )
         else:
             raise NotImplementedError(
                 "Please provide either a path or list of paths to trained models"
@@ -120,12 +135,8 @@ class ASECalculator(Calculator):
     def restore_parameters(self, model_dir):
         self.model_config = parse_train_config(Path(model_dir) / "config.yaml")
         ckpt_dir = (
-            Path(self.model_config.data.model_path) / self.model_config.data.model_name
+            Path(self.model_config.data.directory) / self.model_config.data.experiment
         )
-        ckpt_exists = look_for_checkpoints(ckpt_dir / "best")
-        if not ckpt_exists:
-            raise FileNotFoundError(f"No checkpoint found at {ckpt_dir}")
-
         return load_params(ckpt_dir)
 
     def initialize(self, atoms):
@@ -184,6 +195,7 @@ class ASECalculator(Calculator):
 
         if self.neighbors.did_buffer_overflow:
             print("neighbor list overflowed, reallocating.")
+            self.initialize(atoms)
             self.neighbors = self.neighbor_fn.allocate(positions)
             results, self.neighbors = self.step(positions, self.neighbors, box)
 
