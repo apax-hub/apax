@@ -4,14 +4,13 @@ from typing import List, Literal, Optional, Union
 
 import yaml
 from pydantic import (
-    BaseConfig,
+    model_validator, BaseConfig,
     BaseModel,
     Extra,
     NonNegativeFloat,
     PositiveFloat,
     PositiveInt,
     create_model,
-    root_validator,
 )
 
 from apax.data.statistics import scale_method_list, shift_method_list
@@ -72,7 +71,8 @@ class DataConfig(BaseModel, extra=Extra.forbid):
     pos_unit: Optional[str] = "Ang"
     energy_unit: Optional[str] = "eV"
 
-    @root_validator(pre=False)
+    @model_validator(mode="after")
+    @classmethod
     def set_data_or_train_val_path(cls, values):
         not_data_path = values["data_path"] is None
         not_train_path = values["train_data_path"] is None
@@ -85,7 +85,8 @@ class DataConfig(BaseModel, extra=Extra.forbid):
 
         return values
 
-    @root_validator(pre=False)
+    @model_validator(mode="after")
+    @classmethod
     def validate_shift_scale_methods(cls, values):
         method_lists = [shift_method_list, scale_method_list]
         requested_methods = [values["shift_method"], values["scale_method"]]
