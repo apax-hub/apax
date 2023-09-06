@@ -121,7 +121,7 @@ class UncertaintyDrivenDynamics:
         def udd_energy_force(positions, Z, idx, box, offsets):
             udd_fn = jax.value_and_grad(udd_energy, has_aux=True)
 
-            (E_bias, results), F_bias  = udd_fn(positions, Z, idx, box, offsets)
+            (E_bias, results), F_bias = udd_fn(positions, Z, idx, box, offsets)
 
             results["energy_unbiased"] = results["energy"]
             results["forces_unbiased"] = results["forces"]
