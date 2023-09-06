@@ -46,11 +46,14 @@ def load_params(model_version_path, best=True):
     if best:
         model_version_path = model_version_path / "best"
     log.info(f"loading checkpoint from {model_version_path}")
-    raw_restored = checkpoints.restore_checkpoint(
-        model_version_path,
-        target=None,
-        step=None
-    )
+    try:
+        raw_restored = checkpoints.restore_checkpoint(
+            model_version_path,
+            target=None,
+            step=None
+        )
+    except FileNotFoundError:
+        print(f"No checkpoint found at {model_version_path}")
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
 
     return params
