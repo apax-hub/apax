@@ -312,8 +312,8 @@ def run_md(
         with open(md_config, "r") as stream:
             md_config = yaml.safe_load(stream)
 
-    model_config = Config.parse_obj(model_config)
-    md_config = MDConfig.parse_obj(md_config)
+    model_config = Config.model_validate(model_config)
+    md_config = MDConfig.model_validate(md_config)
 
     rng_key = jax.random.PRNGKey(md_config.seed)
     md_init_rng_key, rng_key = jax.random.split(rng_key, 2)

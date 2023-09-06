@@ -33,8 +33,8 @@ def test_run_md(get_tmp_path):
     md_config_dict["sim_dir"] = get_tmp_path.as_posix()
     md_config_dict["initial_structure"] = get_tmp_path.as_posix() + "/atoms.extxyz"
 
-    model_config = Config.parse_obj(model_config_dict)
-    md_config = MDConfig.parse_obj(md_config_dict)
+    model_config = Config.model_validate(model_config_dict)
+    md_config = MDConfig.model_validate(md_config_dict)
 
     positions = jnp.array(
         [
@@ -103,7 +103,7 @@ def test_ase_calc(get_tmp_path):
 
     model_config_dict["data"]["model_path"] = get_tmp_path.as_posix()
 
-    model_config = Config.parse_obj(model_config_dict)
+    model_config = Config.model_validate(model_config_dict)
     model_config.dump_config(model_config_dict["data"]["model_path"])
 
     cell_size = 10.0

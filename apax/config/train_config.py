@@ -322,4 +322,4 @@ def parse_train_config(config: Union[str, os.PathLike, dict]) -> Config:
         with open(config, "r") as stream:
             config = yaml.safe_load(stream)
 
-    return Config.parse_obj(config)
+    return Config.model_validate(config)
