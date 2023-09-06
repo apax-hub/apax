@@ -198,7 +198,7 @@ def initialize_loss_fn(loss_config_list):
     log.info("Initializing Loss Function")
     loss_funcs = []
     for loss in loss_config_list:
-        loss_funcs.append(Loss(**loss.dict()))
+        loss_funcs.append(Loss(**loss.model_dump()))
     return LossCollection(loss_funcs)
 
 
@@ -227,9 +227,9 @@ def run(user_config, log_file="train.log", log_level="error"):
     if config.maximize_l2_cache:
         maximize_l2_cache()
 
-    model_name = Path(config.data.model_name)
-    model_path = Path(config.data.model_path)
-    model_version_path = model_path / model_name
+    experiment = Path(config.data.experiment)
+    directory = Path(config.data.directory)
+    model_version_path = directory / experiment
 
     initialize_directories(model_version_path)
     config.dump_config(model_version_path)
@@ -284,7 +284,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     tx = get_opt(
         params,
         transition_steps=transition_steps,
-        **config.optimizer.dict(),
+        **config.optimizer.model_dump(),
     )
 
     fit(
@@ -296,7 +296,7 @@ def run(user_config, log_file="train.log", log_level="error"):
         Metrics,
         callbacks,
         n_epochs,
-        ckpt_dir=os.path.join(config.data.model_path, config.data.model_name),
+        ckpt_dir=os.path.join(config.data.directory, config.data.experiment),
         ckpt_interval=config.checkpoints.ckpt_interval,
         val_ds=val_ds,
         sam_rho=config.optimizer.sam_rho,

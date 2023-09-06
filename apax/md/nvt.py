@@ -268,7 +268,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
 
     log.info("loading model parameters")
     best_dir = os.path.join(
-        model_config.data.model_path, model_config.data.model_name, "best"
+        model_config.data.directory, model_config.data.experiment, "best"
     )
     raw_restored = checkpoints.restore_checkpoint(best_dir, target=None, step=None)
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
@@ -312,8 +312,8 @@ def run_md(
         with open(md_config, "r") as stream:
             md_config = yaml.safe_load(stream)
 
-    model_config = Config.parse_obj(model_config)
-    md_config = MDConfig.parse_obj(md_config)
+    model_config = Config.model_validate(model_config)
+    md_config = MDConfig.model_validate(md_config)
 
     rng_key = jax.random.PRNGKey(md_config.seed)
     md_init_rng_key, rng_key = jax.random.split(rng_key, 2)

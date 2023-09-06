@@ -163,7 +163,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
 
     seed_py_np_tf(config.seed)
 
-    model_version_path = Path(config.data.model_path) / config.data.model_name
+    model_version_path = Path(config.data.directory) / config.data.experiment
     eval_path = model_version_path / "eval"
 
     callbacks = initialize_callbacks(config.callbacks, eval_path)

@@ -135,7 +135,7 @@ class ASECalculator(Calculator):
     def restore_parameters(self, model_dir):
         self.model_config = parse_train_config(Path(model_dir) / "config.yaml")
         ckpt_dir = (
-            Path(self.model_config.data.model_path) / self.model_config.data.model_name
+            Path(self.model_config.data.directory) / self.model_config.data.experiment
         )
         return load_params(ckpt_dir)
 

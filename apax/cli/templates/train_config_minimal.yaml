@@ -2,8 +2,8 @@
 n_epochs: <NUMBER OF EPOCHS>
 
 data:
-  model_path: models
-  model_name: apax
+  directory: models
+  experiment: apax
   data_path: <PATH>
 
   n_train: 1000
