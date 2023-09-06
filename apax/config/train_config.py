@@ -306,7 +306,7 @@ class Config(BaseModel, frozen=True, extra=Extra.forbid):
         save_path: Path to the directory.
         """
         with open(os.path.join(save_path, "config.yaml"), "w") as conf:
-            yaml.dump(self.dict(), conf, default_flow_style=False)
+            yaml.dump(self.model_dump(), conf, default_flow_style=False)
 
 
 def parse_train_config(config: Union[str, os.PathLike, dict]) -> Config:

@@ -198,7 +198,7 @@ def initialize_loss_fn(loss_config_list):
     log.info("Initializing Loss Function")
     loss_funcs = []
     for loss in loss_config_list:
-        loss_funcs.append(Loss(**loss.dict()))
+        loss_funcs.append(Loss(**loss.model_dump()))
     return LossCollection(loss_funcs)
 
 
@@ -284,7 +284,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     tx = get_opt(
         params,
         transition_steps=transition_steps,
-        **config.optimizer.dict(),
+        **config.optimizer.model_dump(),
     )
 
     fit(
