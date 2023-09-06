@@ -227,9 +227,9 @@ def run(user_config, log_file="train.log", log_level="error"):
     if config.maximize_l2_cache:
         maximize_l2_cache()
 
-    model_name = Path(config.data.model_name)
-    model_path = Path(config.data.model_path)
-    model_version_path = model_path / model_name
+    experiment = Path(config.data.experiment)
+    directory = Path(config.data.directory)
+    model_version_path = directory / experiment
 
     initialize_directories(model_version_path)
     config.dump_config(model_version_path)
@@ -296,7 +296,7 @@ def run(user_config, log_file="train.log", log_level="error"):
         Metrics,
         callbacks,
         n_epochs,
-        ckpt_dir=os.path.join(config.data.model_path, config.data.model_name),
+        ckpt_dir=os.path.join(config.data.directory, config.data.experiment),
         ckpt_interval=config.checkpoints.ckpt_interval,
         val_ds=val_ds,
         sam_rho=config.optimizer.sam_rho,

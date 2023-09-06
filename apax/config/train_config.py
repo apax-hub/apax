@@ -23,10 +23,10 @@ class DataConfig(BaseModel, extra="forbid"):
 
     Parameters
     ----------
-    model_path: Path to the directory where the training results and
+    directory: Path to the directory where the training results and
         checkpoints will be written.
-    model_name: Name of  the model. Distinguishes it from the other models
-        trained in the same `model_path`.
+    experiment: Name of  the model. Distinguishes it from the other models
+        trained in the same `directory`.
     data_path: Path to a single dataset file. Set either this or `val_data_path` and
         `train_data_path`.
     train_data_path: Path to a training dataset. Set this and `val_data_path`
@@ -44,8 +44,8 @@ class DataConfig(BaseModel, extra="forbid"):
         energy regression.
     """
 
-    model_path: str
-    model_name: str
+    directory: str
+    experiment: str
     data_path: Optional[str] = None
     train_data_path: Optional[str] = None
     val_data_path: Optional[str] = None
@@ -149,7 +149,7 @@ class ModelConfig(BaseModel, extra="forbid"):
     def get_dict(self):
         import jax.numpy as jnp
 
-        model_dict = self.dict()
+        model_dict = self.model_dump()
         prec_dict = {"fp32": jnp.float32, "fp64": jnp.float64}
         model_dict["descriptor_dtype"] = prec_dict[model_dict["descriptor_dtype"]]
         model_dict["readout_dtype"] = prec_dict[model_dict["readout_dtype"]]
