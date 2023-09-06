@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import os
 from pathlib import Path
@@ -6,8 +7,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
+from ase import Atoms
 from flax.core.frozen_dict import freeze
-from flax.training import checkpoints
 from keras.callbacks import CSVLogger, TensorBoard
 
 from apax.config import parse_train_config
@@ -15,6 +16,7 @@ from apax.data.input_pipeline import TFPipeline, create_dict_dataset
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
 from apax.optimizer import get_opt
+from apax.train.checkpoints import load_params
 from apax.train.loss import Loss, LossCollection
 from apax.train.metrics import initialize_metrics
 from apax.train.trainer import fit
@@ -28,6 +30,12 @@ log = logging.getLogger(__name__)
 def initialize_directories(model_version_path: Path) -> None:
     log.info("Initializing directories")
     os.makedirs(model_version_path, exist_ok=True)
+
+
+@dataclasses.dataclass
+class RawDataset:
+    atoms_list: list[Atoms]
+    additional_labels: dict
 
 
 def load_data_files(data_config, model_version_path):
@@ -56,78 +64,32 @@ def load_data_files(data_config, model_version_path):
     else:
         raise ValueError("input data path/paths not defined")
 
-    return train_atoms_list, train_label_dict, val_atoms_list, val_label_dict
-
-
-def find_largest_system(list_of_inputs):
-    max_atoms = 0
-    max_nbrs = 0
-    for inputs in list_of_inputs:
-        max_atoms_i = np.max(inputs["fixed"]["n_atoms"])
-        if max_atoms_i > max_atoms:
-            max_atoms = max_atoms_i
-
-        nbr_shapes = [idx.shape[1] for idx in inputs["ragged"]["idx"]]
-        max_nbrs_i = np.max(nbr_shapes)
-        if max_nbrs_i > max_nbrs:
-            max_nbrs = max_nbrs_i
-
-    return max_atoms, max_nbrs
-
-
-def initialize_datasets(config, raw_datasets):
-    train_atoms_list, train_label_dict, val_atoms_list, val_label_dict = raw_datasets
-
-    shift_method = config.data.shift_method
-    scale_method = config.data.scale_method
-    shift_options = config.data.shift_options
-    scale_options = config.data.scale_options
-
-    ds_stats = compute_scale_shift_parameters(
-        train_atoms_list, shift_method, scale_method, shift_options, scale_options
+    train_raw_ds = RawDataset(
+        atoms_list=train_atoms_list, additional_labels=train_label_dict
     )
+    val_raw_ds = RawDataset(atoms_list=val_atoms_list, additional_labels=val_label_dict)
 
+    return train_raw_ds, val_raw_ds
+
+
+def initialize_dataset(config, raw_ds):
     # Note(Moritz): external labels are actually not read in anywhere
-    train_inputs, train_labels = create_dict_dataset(
-        train_atoms_list,
+    inputs, labels = create_dict_dataset(
+        raw_ds.atoms_list,
         r_max=config.model.r_max,
-        external_labels=train_label_dict,
+        external_labels=raw_ds.additional_labels,
         disable_pbar=config.progress_bar.disable_nl_pbar,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
     )
-    val_inputs, val_labels = create_dict_dataset(
-        val_atoms_list,
-        r_max=config.model.r_max,
-        external_labels=val_label_dict,
-        disable_pbar=config.progress_bar.disable_nl_pbar,
-        pos_unit=config.data.pos_unit,
-        energy_unit=config.data.energy_unit,
-    )
-
-    max_atoms, max_nbrs = find_largest_system([train_inputs])
-
-    train_ds = TFPipeline(
-        train_inputs,
-        train_labels,
+    dataset = TFPipeline(
+        inputs,
+        labels,
         config.n_epochs,
         config.data.batch_size,
-        max_atoms=max_atoms,
-        max_nbrs=max_nbrs,
         buffer_size=config.data.shuffle_buffer_size,
     )
-
-    max_atoms, max_nbrs = find_largest_system([val_inputs])
-    val_ds = TFPipeline(
-        val_inputs,
-        val_labels,
-        config.n_epochs,
-        config.data.valid_batch_size,
-        max_atoms=max_atoms,
-        max_nbrs=max_nbrs,
-        buffer_size=config.data.shuffle_buffer_size,
-    )
-    return train_ds, val_ds, ds_stats
+    return dataset
 
 
 def maximize_l2_cache():
@@ -198,7 +160,7 @@ def initialize_loss_fn(loss_config_list):
     log.info("Initializing Loss Function")
     loss_funcs = []
     for loss in loss_config_list:
-        loss_funcs.append(Loss(**loss.dict()))
+        loss_funcs.append(Loss(**loss.model_dump()))
     return LossCollection(loss_funcs)
 
 
@@ -227,9 +189,9 @@ def run(user_config, log_file="train.log", log_level="error"):
     if config.maximize_l2_cache:
         maximize_l2_cache()
 
-    model_name = Path(config.data.model_name)
-    model_path = Path(config.data.model_path)
-    model_version_path = model_path / model_name
+    experiment = Path(config.data.experiment)
+    directory = Path(config.data.directory)
+    model_version_path = directory / experiment
 
     initialize_directories(model_version_path)
     config.dump_config(model_version_path)
@@ -238,8 +200,17 @@ def run(user_config, log_file="train.log", log_level="error"):
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
 
-    raw_datasets = load_data_files(config.data, model_version_path)
-    train_ds, val_ds, ds_stats = initialize_datasets(config, raw_datasets)
+    train_raw_ds, val_raw_ds = load_data_files(config.data, model_version_path)
+    train_ds = initialize_dataset(config, train_raw_ds)
+    val_ds = initialize_dataset(config, val_raw_ds)
+
+    ds_stats = compute_scale_shift_parameters(
+        train_raw_ds.atoms_list,
+        config.data.shift_method,
+        config.data.scale_method,
+        config.data.shift_options,
+        config.data.scale_options,
+    )
 
     log.info("Initializing Model")
     init_input = train_ds.init_input()
@@ -265,15 +236,11 @@ def run(user_config, log_file="train.log", log_level="error"):
     params = model.init(model_rng_key, R, Z, idx, init_box, offsets)
     params = freeze(params)
 
-    do_transfer_learning = config.checkpoints.base_model_checkpoint is not None
+    base_checkpoint = config.checkpoints.base_model_checkpoint
+    do_transfer_learning = base_checkpoint is not None
     if do_transfer_learning:
-        log.info(
-            "Transferring parameters from %s", config.checkpoints.base_model_checkpoint
-        )
-        raw_restored = checkpoints.restore_checkpoint(
-            config.checkpoints.base_model_checkpoint, target=None, step=None
-        )
-        source_params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
+        source_params = load_params(base_checkpoint)
+        log.info("Transferring parameters from %s", base_checkpoint)
         params = param_transfer(source_params, params, config.checkpoints.reset_layers)
 
     batched_model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
@@ -284,7 +251,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     tx = get_opt(
         params,
         transition_steps=transition_steps,
-        **config.optimizer.dict(),
+        **config.optimizer.model_dump(),
     )
 
     fit(
@@ -296,7 +263,7 @@ def run(user_config, log_file="train.log", log_level="error"):
         Metrics,
         callbacks,
         n_epochs,
-        ckpt_dir=os.path.join(config.data.model_path, config.data.model_name),
+        ckpt_dir=os.path.join(config.data.directory, config.data.experiment),
         ckpt_interval=config.checkpoints.ckpt_interval,
         val_ds=val_ds,
         sam_rho=config.optimizer.sam_rho,
