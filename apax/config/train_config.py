@@ -4,12 +4,13 @@ from typing import List, Literal, Optional, Union
 
 import yaml
 from pydantic import (
-    model_validator, ConfigDict,
     BaseModel,
+    ConfigDict,
     NonNegativeFloat,
     PositiveFloat,
     PositiveInt,
     create_model,
+    model_validator,
 )
 
 from apax.data.statistics import scale_method_list, shift_method_list
