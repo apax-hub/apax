@@ -2,8 +2,8 @@ n_epochs: <NUMBER OF EPOCHS>
 seed: 1
 
 data:
-  model_path: models/
-  model_name: apax
+  directory: models/
+  experiment: apax
 
   # Use either data_path for a single dataset file
   # or the lines below to specify separate files
