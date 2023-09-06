@@ -6,7 +6,6 @@ import yaml
 from pydantic import (
     model_validator, ConfigDict,
     BaseModel,
-    Extra,
     NonNegativeFloat,
     PositiveFloat,
     PositiveInt,
@@ -18,7 +17,7 @@ from apax.data.statistics import scale_method_list, shift_method_list
 log = logging.getLogger(__name__)
 
 
-class DataConfig(BaseModel, extra=Extra.forbid):
+class DataConfig(BaseModel, extra="forbid"):
     """
     Configuration for data loading, preprocessing and training.
 
@@ -104,7 +103,7 @@ class DataConfig(BaseModel, extra=Extra.forbid):
                 for name, dtype in zip(method.parameters, method.dtypes)
             }
             MethodConfig = create_model(
-                f"{method.name}Config", __config__=ConfigDict(extra=Extra.forbid), **fields
+                f"{method.name}Config", __config__=ConfigDict(extra="forbid"), **fields
             )
 
             _ = MethodConfig(**requested_params)
@@ -112,7 +111,7 @@ class DataConfig(BaseModel, extra=Extra.forbid):
         return self
 
 
-class ModelConfig(BaseModel, extra=Extra.forbid):
+class ModelConfig(BaseModel, extra="forbid"):
     """
     Configuration for the model.
 
@@ -159,7 +158,7 @@ class ModelConfig(BaseModel, extra=Extra.forbid):
         return model_dict
 
 
-class OptimizerConfig(BaseModel, frozen=True, extra=Extra.forbid):
+class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     """
     Configuration of the optimizer.
     Learning rates of 0 will freeze the respective parameters.
@@ -188,7 +187,7 @@ class OptimizerConfig(BaseModel, frozen=True, extra=Extra.forbid):
     sam_rho: NonNegativeFloat = 0.0
 
 
-class MetricsConfig(BaseModel, extra=Extra.forbid):
+class MetricsConfig(BaseModel, extra="forbid"):
     """
     Configuration for the metrics collected during training.
 
@@ -204,7 +203,7 @@ class MetricsConfig(BaseModel, extra=Extra.forbid):
     reductions: List[str]
 
 
-class LossConfig(BaseModel, extra=Extra.forbid):
+class LossConfig(BaseModel, extra="forbid"):
     """
     Configuration of the loss functions used during training.
 
@@ -221,7 +220,7 @@ class LossConfig(BaseModel, extra=Extra.forbid):
     weight: NonNegativeFloat = 1.0
 
 
-class CallbackConfig(BaseModel, frozen=True, extra=Extra.forbid):
+class CallbackConfig(BaseModel, frozen=True, extra="forbid"):
     """
     Configuration of the training callbacks.
 
@@ -233,7 +232,7 @@ class CallbackConfig(BaseModel, frozen=True, extra=Extra.forbid):
     name: str
 
 
-class TrainProgressbarConfig(BaseModel, extra=Extra.forbid):
+class TrainProgressbarConfig(BaseModel, extra="forbid"):
     """
     Configuration of progressbars.
 
@@ -247,7 +246,7 @@ class TrainProgressbarConfig(BaseModel, extra=Extra.forbid):
     disable_nl_pbar: bool = False
 
 
-class CheckpointConfig(BaseModel, extra=Extra.forbid):
+class CheckpointConfig(BaseModel, extra="forbid"):
     """
     Checkpoint configuration.
 
@@ -263,7 +262,7 @@ class CheckpointConfig(BaseModel, extra=Extra.forbid):
     reset_layers: List[str] = []
 
 
-class Config(BaseModel, frozen=True, extra=Extra.forbid):
+class Config(BaseModel, frozen=True, extra="forbid"):
     """
     Main configuration of a apax training run.
 

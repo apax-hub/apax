@@ -1,10 +1,10 @@
 import os
 
 import yaml
-from pydantic import BaseModel, Extra, PositiveFloat, PositiveInt
+from pydantic import BaseModel, PositiveFloat, PositiveInt
 
 
-class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
+class MDConfig(BaseModel, frozen=True, extra="forbid"):
     """
     Configuration for a NHC molecular dynamics simulation.
 
