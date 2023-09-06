@@ -72,10 +72,9 @@ class DataConfig(BaseModel, extra=Extra.forbid):
     energy_unit: Optional[str] = "eV"
 
     @model_validator(mode="after")
-    @classmethod
-    def set_data_or_train_val_path(cls, values):
-        not_data_path = values["data_path"] is None
-        not_train_path = values["train_data_path"] is None
+    def set_data_or_train_val_path(self):
+        not_data_path = self.data_path is None
+        not_train_path = self.train_data_path is None
 
         neither_set = not_data_path and not_train_path
         both_set = not not_data_path and not not_train_path
@@ -83,14 +82,13 @@ class DataConfig(BaseModel, extra=Extra.forbid):
         if neither_set or both_set:
             raise ValueError("Please specify either data_path or train_data_path")
 
-        return values
+        return self
 
     @model_validator(mode="after")
-    @classmethod
-    def validate_shift_scale_methods(cls, values):
+    def validate_shift_scale_methods(self):
         method_lists = [shift_method_list, scale_method_list]
-        requested_methods = [values["shift_method"], values["scale_method"]]
-        requested_options = [values["shift_options"], values["scale_options"]]
+        requested_methods = [self.shift_method, self.scale_method]
+        requested_options = [self.shift_options, self.scale_options]
 
         cases = zip(method_lists, requested_methods, requested_options)
         for method_list, requested_method, requested_params in cases:
@@ -115,7 +113,7 @@ class DataConfig(BaseModel, extra=Extra.forbid):
 
             _ = MethodConfig(**requested_params)
 
-        return values
+        return self
 
 
 class ModelConfig(BaseModel, extra=Extra.forbid):
