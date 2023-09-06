@@ -195,6 +195,7 @@ class ASECalculator(Calculator):
 
         if self.neighbors.did_buffer_overflow:
             print("neighbor list overflowed, reallocating.")
+            self.initialize(atoms)
             self.neighbors = self.neighbor_fn.allocate(positions)
             results, self.neighbors = self.step(positions, self.neighbors, box)
 
