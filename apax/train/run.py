@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import os
 from pathlib import Path
@@ -6,8 +7,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
-from flax.core.frozen_dict import freeze
 from ase import Atoms
+from flax.core.frozen_dict import freeze
 from keras.callbacks import CSVLogger, TensorBoard
 
 from apax.config import parse_train_config
@@ -29,12 +30,6 @@ log = logging.getLogger(__name__)
 def initialize_directories(model_version_path: Path) -> None:
     log.info("Initializing directories")
     os.makedirs(model_version_path, exist_ok=True)
-
-
-@dataclasses.dataclass
-class RawDataset:
-    atoms_list: list[Atoms]
-    additional_labels: dict
 
 
 @dataclasses.dataclass
