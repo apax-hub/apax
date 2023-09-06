@@ -4,7 +4,7 @@ from typing import List, Literal, Optional, Union
 
 import yaml
 from pydantic import (
-    model_validator, BaseConfig,
+    model_validator, ConfigDict,
     BaseModel,
     Extra,
     NonNegativeFloat,
@@ -16,10 +16,6 @@ from pydantic import (
 from apax.data.statistics import scale_method_list, shift_method_list
 
 log = logging.getLogger(__name__)
-
-
-class NoExtraConfig(BaseConfig):
-    extra = Extra.forbid
 
 
 class DataConfig(BaseModel, extra=Extra.forbid):
@@ -108,7 +104,7 @@ class DataConfig(BaseModel, extra=Extra.forbid):
                 for name, dtype in zip(method.parameters, method.dtypes)
             }
             MethodConfig = create_model(
-                f"{method.name}Config", __config__=NoExtraConfig, **fields
+                f"{method.name}Config", __config__=ConfigDict(extra=Extra.forbid), **fields
             )
 
             _ = MethodConfig(**requested_params)
