@@ -1,6 +1,5 @@
 from typing import Any
 
-import einops
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
@@ -9,7 +8,6 @@ from jax import vmap
 from jax_md import partition, space
 
 from apax.layers.descriptor.gaussian_moment_descriptor import disp_fn, get_disp_fn
-from apax.layers.initializers import uniform_range
 from apax.layers.masking import mask_by_neighbor
 from apax.model.utils import NeighborSpoof
 from apax.utils.math import fp64_sum

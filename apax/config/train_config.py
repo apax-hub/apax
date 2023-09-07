@@ -139,7 +139,6 @@ class ModelConfig(BaseModel, extra="forbid"):
 
     # corrections
     use_zbl: bool = False
-    use_reax: bool = False
 
     calc_stress: bool = False
 
@@ -182,7 +181,6 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     scale_lr: NonNegativeFloat = 0.001
     shift_lr: NonNegativeFloat = 0.05
     zbl_lr: NonNegativeFloat = 0.001
-    reax_lr: NonNegativeFloat = 0.001
     transition_begin: int = 0
     opt_kwargs: dict = {}
     sam_rho: NonNegativeFloat = 0.0
