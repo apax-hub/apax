@@ -1,3 +1,4 @@
+from dataclasses import field
 from typing import Any
 
 import einops
@@ -40,7 +41,7 @@ class GaussianMomentDescriptor(nn.Module):
     n_contr: int = 8
     dtype: Any = jnp.float32
     apply_mask: bool = True
-    init_box: np.array = np.array([0.0, 0.0, 0.0])
+    init_box: np.array = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
     inference_disp_fn: Any = None
 
     def setup(self):
