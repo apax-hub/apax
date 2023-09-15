@@ -1,3 +1,4 @@
+from dataclasses import field
 from typing import Any
 
 import flax.linen as nn
@@ -22,7 +23,7 @@ class EmpiricalEnergyTerm(nn.Module):
 
 
 class ZBLRepulsion(EmpiricalEnergyTerm):
-    init_box: np.array = np.array([0.0, 0.0, 0.0])
+    init_box: np.array = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
     r_max: float = 6.0
     apply_mask: bool = True
     inference_disp_fn: Any = None
