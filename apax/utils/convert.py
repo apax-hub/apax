@@ -80,7 +80,7 @@ def atoms_to_arrays(
         "Hartree": Hartree,
         "kJ/mol": kJ / mol,
     }
-    box = np.array(atoms_list[0].cell.array)
+    box = atoms_list[0].cell.array
     pbc = np.all(box > 1e-6)
 
     for atoms in atoms_list:
