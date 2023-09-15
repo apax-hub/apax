@@ -1,6 +1,7 @@
+import dataclasses
 from functools import partial
 from pathlib import Path
-from typing import Union
+from typing import Callable, Union
 
 import jax
 import jax.numpy as jnp
@@ -10,8 +11,7 @@ from flax.core.frozen_dict import freeze, unfreeze
 from flax.traverse_util import flatten_dict, unflatten_dict
 from jax_md import partition, quantity, space
 
-from apax.config.common import parse_config
-from apax.md.md_checkpoint import look_for_checkpoints
+from apax.config.train_config import parse_train_config
 from apax.model import ModelBuilder
 from apax.train.eval import load_params
 from apax.utils import jax_md_reduced
@@ -43,6 +43,8 @@ def maybe_vmap(apply, params, Z):
     if is_ensemble:
         apply = jax.vmap(apply, in_axes=(0, None, None, None, None, None))
 
+    # Maybe the partial mapping should happen at the very end of initialize
+    # That way other functions can mae use of the parameter shape information
     energy_fn = partial(apply, params)
     return energy_fn
 
@@ -76,6 +78,62 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold):
     return energy_fn, neighbor_fn
 
 
+def process_stress(results, box):
+    V = quantity.volume(3, box)
+    results = {
+        # We should properly check whether CP2K uses the ASE cell convention
+        # for tetragonal strain, it doesn't matter whether we transpose or not
+        k: (val.T / V if k.startswith("stress") else val)
+        for k, val in results.items()
+    }
+    return results
+
+
+def make_ensemble(model):
+    def ensemble(positions, Z, idx, box, offsets):
+        results = model(positions, Z, idx, box, offsets)
+        uncertainty = {k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()}
+        results = {k: jnp.mean(v, axis=0) for k, v in results.items()}
+        results.update(uncertainty)
+
+        return results
+
+    return ensemble
+
+
+@dataclasses.dataclass
+class UncertaintyDrivenDynamics:
+    a: float
+    b: float
+
+    def apply(self, model, n_models):
+        def udd_energy(positions, Z, idx, box, offsets):
+            n_atoms = positions.shape[0]
+            results = model(positions, Z, idx, box, offsets)
+
+            sigma2 = results["energy_uncertainty"] ** 2
+
+            gauss = jnp.exp(-sigma2 / (n_models * n_atoms * self.b**2))
+            E_udd = self.a * (gauss - 1)
+
+            return E_udd, results
+
+        def udd_energy_force(positions, Z, idx, box, offsets):
+            udd_fn = jax.value_and_grad(udd_energy, has_aux=True)
+
+            (E_bias, results), F_bias = udd_fn(positions, Z, idx, box, offsets)
+
+            results["energy_unbiased"] = results["energy"]
+            results["forces_unbiased"] = results["forces"]
+
+            results["energy"] = results["energy"] + E_bias
+            results["forces"] = results["forces"] + F_bias
+
+            return results
+
+        return udd_energy_force
+
+
 class ASECalculator(Calculator):
     """
     ASE Calculator for apax models.
@@ -85,22 +143,31 @@ class ASECalculator(Calculator):
     implemented_properties = [
         "energy",
         "forces",
-        "stress",
-        "energy_uncertainty",
-        "forces_uncertainty",
-        "stress_uncertainty",
     ]
 
     def __init__(
-        self, model_dir: Union[Path, list[Path]], dr_threshold: float = 0.5, **kwargs
+        self,
+        model_dir: Union[Path, list[Path]],
+        dr_threshold: float = 0.5,
+        transformations: Callable = [],
+        **kwargs
     ):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
         self.is_ensemble = False
+        self.transformations = transformations
+        self.n_models = 1
 
         if isinstance(model_dir, Path) or isinstance(model_dir, str):
             self.params = self.restore_parameters(model_dir)
+            if self.model_config.model.calc_stress:
+                self.implemented_properties.extend(
+                    [
+                        "stress",
+                    ]
+                )
         elif isinstance(model_dir, list):
+            self.n_models = len(model_dir)
             params = []
             for path in model_dir:
                 params.append(self.restore_parameters(path))
@@ -108,6 +175,20 @@ class ASECalculator(Calculator):
             stacked_params = stack_parameters(params)
             self.params = stacked_params
             self.is_ensemble = True
+            self.implemented_properties.extend(
+                [
+                    "energy_uncertainty",
+                    "forces_uncertainty",
+                ]
+            )
+
+            if self.model_config.model.calc_stress:
+                self.implemented_properties.extend(
+                    [
+                        "stress",
+                        "stress_uncertainty",
+                    ]
+                )
         else:
             raise NotImplementedError(
                 "Please provide either a path or list of paths to trained models"
@@ -118,14 +199,10 @@ class ASECalculator(Calculator):
         self.neighbors = None
 
     def restore_parameters(self, model_dir):
-        self.model_config = parse_config(Path(model_dir) / "config.yaml")
+        self.model_config = parse_train_config(Path(model_dir) / "config.yaml")
         ckpt_dir = (
-            Path(self.model_config.data.model_path) / self.model_config.data.model_name
+            Path(self.model_config.data.directory) / self.model_config.data.experiment
         )
-        ckpt_exists = look_for_checkpoints(ckpt_dir / "best")
-        if not ckpt_exists:
-            raise FileNotFoundError(f"No checkpoint found at {ckpt_dir}")
-
         return load_params(ckpt_dir)
 
     def initialize(self, atoms):
@@ -135,6 +212,13 @@ class ASECalculator(Calculator):
             self.params,
             self.dr_threshold,
         )
+
+        if self.is_ensemble:
+            model = make_ensemble(model)
+
+        for transformation in self.transformations:
+            model = transformation.apply(model, self.n_models)
+
         Z = jnp.asarray(atoms.numbers)
 
         @jax.jit
@@ -150,22 +234,8 @@ class ASECalculator(Calculator):
 
             results = model(positions, Z, neighbor.idx, box, offsets)
 
-            if self.is_ensemble:
-                uncertainty = {
-                    k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()
-                }
-                results = {k: jnp.mean(v, axis=0) for k, v in results.items()}
-                results.update(uncertainty)
-
             if "stress" in results.keys():
-                dim = positions.shape[1]
-                V = quantity.volume(dim, box)
-                results = {
-                    # We should properly check whether CP2K uses the ASE cell convention
-                    # for tetragonal strain, it doesn't matter whether we transpose or not
-                    k: (val.T / V if k.startswith("stress") else val)
-                    for k, val in results.items()
-                }
+                results = process_stress(results, box)
 
             return results, neighbor
 
@@ -184,6 +254,7 @@ class ASECalculator(Calculator):
 
         if self.neighbors.did_buffer_overflow:
             print("neighbor list overflowed, reallocating.")
+            self.initialize(atoms)
             self.neighbors = self.neighbor_fn.allocate(positions)
             results, self.neighbors = self.step(positions, self.neighbors, box)
 

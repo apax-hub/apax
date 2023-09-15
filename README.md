@@ -35,14 +35,16 @@ If you want to enable GPU support, please overwrite the jaxlib version:
 
 ```bash
 pip install --upgrade pip
+```
 
-# CUDA 12 installation
-# Note: wheels only available on linux.
-pip install --upgrade "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+CUDA 12 installation. Wheels only available on linux.
+```bash
+pip install --upgrade "jax[cuda12_pip]==0.4.13" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+```
 
-# CUDA 11 installation
-# Note: wheels only available on linux.
-pip install --upgrade "jax[cuda11_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+CUDA 11 installation. Wheels only available on linux.
+```bash
+pip install --upgrade "jax[cuda11_pip]==0.4.13" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
 
 See the [Jax installation instructions](https://github.com/google/jax#installation) for more details.

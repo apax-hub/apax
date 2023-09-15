@@ -4,7 +4,7 @@ import os
 from typing import Literal, Optional, Union
 
 import yaml
-from pydantic import BaseModel, Extra, Field, PositiveFloat, PositiveInt
+from pydantic import BaseModel, Field, PositiveFloat, PositiveInt
 
 
 class NHCOptions(BaseModel, extra=Extra.forbid):
@@ -34,7 +34,7 @@ class NPTOptions(NVTOptions, extra=Extra.forbid):
     barostat_chain: NHCOptions = NHCOptions(tau=1000)
 
 
-class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
+class MDConfig(BaseModel, frozen=True, extra="forbid"):
     """
     Configuration for a NHC molecular dynamics simulation.
 
@@ -84,4 +84,4 @@ class MDConfig(BaseModel, frozen=True, extra=Extra.forbid):
         Writes the current config file to the MD directory.
         """
         with open(os.path.join(self.sim_dir, "md_config.yaml"), "w") as conf:
-            yaml.dump(self.dict(), conf, default_flow_style=False)
+            yaml.dump(self.model_dump(), conf, default_flow_style=False)

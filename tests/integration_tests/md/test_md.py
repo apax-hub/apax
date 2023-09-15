@@ -29,12 +29,12 @@ def test_run_md(get_tmp_path):
     with open(md_confg_path.as_posix(), "r") as stream:
         md_config_dict = yaml.safe_load(stream)
 
-    model_config_dict["data"]["model_path"] = get_tmp_path.as_posix()
+    model_config_dict["data"]["directory"] = get_tmp_path.as_posix()
     md_config_dict["sim_dir"] = get_tmp_path.as_posix()
     md_config_dict["initial_structure"] = get_tmp_path.as_posix() + "/atoms.extxyz"
 
-    model_config = Config.parse_obj(model_config_dict)
-    md_config = MDConfig.parse_obj(md_config_dict)
+    model_config = Config.model_validate(model_config_dict)
+    md_config = MDConfig.model_validate(md_config_dict)
 
     positions = jnp.array(
         [
@@ -79,7 +79,7 @@ def test_run_md(get_tmp_path):
 
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = os.path.join(
-        model_config.data.model_path, model_config.data.model_name, "best"
+        model_config.data.directory, model_config.data.experiment, "best"
     )
     checkpoints.save_checkpoint(
         ckpt_dir=best_dir,
@@ -101,10 +101,10 @@ def test_ase_calc(get_tmp_path):
     with open(model_confg_path.as_posix(), "r") as stream:
         model_config_dict = yaml.safe_load(stream)
 
-    model_config_dict["data"]["model_path"] = get_tmp_path.as_posix()
+    model_config_dict["data"]["directory"] = get_tmp_path.as_posix()
 
-    model_config = Config.parse_obj(model_config_dict)
-    model_config.dump_config(model_config_dict["data"]["model_path"])
+    model_config = Config.model_validate(model_config_dict)
+    model_config.dump_config(model_config_dict["data"]["directory"])
 
     cell_size = 10.0
     positions = np.array(
@@ -146,7 +146,7 @@ def test_ase_calc(get_tmp_path):
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = os.path.join(
-        model_config.data.model_path, model_config.data.model_name, "best"
+        model_config.data.directory, model_config.data.experiment, "best"
     )
     checkpoints.save_checkpoint(
         ckpt_dir=best_dir,
@@ -157,7 +157,7 @@ def test_ase_calc(get_tmp_path):
 
     atoms = read(initial_structure_path.as_posix())
     calc = ASECalculator(
-        [model_config_dict["data"]["model_path"], model_config_dict["data"]["model_path"]]
+        [model_config_dict["data"]["directory"], model_config_dict["data"]["directory"]]
     )
 
     atoms.calc = calc

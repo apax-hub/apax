@@ -1,11 +1,19 @@
 import logging
 
+import numpy as np
 import tensorflow as tf
 
 from apax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
 from apax.utils.convert import atoms_to_arrays
 
 log = logging.getLogger(__name__)
+
+
+def find_largest_system(inputs):
+    max_atoms = np.max(inputs["fixed"]["n_atoms"])
+    nbr_shapes = [idx.shape[1] for idx in inputs["ragged"]["idx"]]
+    max_nbrs = np.max(nbr_shapes)
+    return max_atoms, max_nbrs
 
 
 class PadToSpecificSize:
@@ -117,8 +125,6 @@ class TFPipeline:
         labels,
         n_epoch: int,
         batch_size: int,
-        max_atoms=None,
-        max_nbrs=None,
         buffer_size: int = 1000,
     ) -> None:
         """Processes inputs/labels and makes them accessible for training.
@@ -140,17 +146,23 @@ class TFPipeline:
         """
         self.n_epoch = n_epoch
         self.batch_size = batch_size
+        self.buffer_size = buffer_size
+
+        max_atoms, max_nbrs = find_largest_system(inputs)
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
-        self.buffer_size = buffer_size
 
         self.n_data = len(inputs["fixed"]["n_atoms"])
 
         if batch_size > self.n_data:
-            raise ValueError(
-                f"batch size ({batch_size}) is larger than the number of data points"
-                f" ({self.n_data})!"
+            msg = (
+                f"requested batch size {batch_size} is larger than the number of data"
+                f" points {self.n_data}. Setting batch size = {self.n_data}"
             )
+            print("Warning: " + msg)
+            log.warning(msg)
+            batch_size = self.n_data
+        self.batch_size = batch_size
 
         # tf.RaggedTensors should be created from `tf.ragged.stack`
         # instead of `tf.ragged.constant` for performance reasons.

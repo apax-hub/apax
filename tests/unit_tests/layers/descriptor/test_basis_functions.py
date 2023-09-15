@@ -12,7 +12,7 @@ def test_gaussian_basis():
     dr = jnp.array([0.5, 1.0, 2.0, 3.0])  # n_neighbors
 
     params = basis.init(key, dr)
-    assert len(params.unfreeze().keys()) == 0
+    assert len(params.keys()) == 0
     result = basis.apply(params, dr)
     assert result.shape == (4, n_basis)  # n_neighbors x n_basis
 

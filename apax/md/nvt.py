@@ -18,7 +18,7 @@ from tqdm import trange
 from apax.config import Config, MDConfig
 from apax.config.common import parse_config
 from apax.md.io import H5TrajHandler
-from apax.md.md_checkpoint import load_md_state, look_for_checkpoints
+from apax.md.md_checkpoint import load_md_state
 from apax.model import ModelBuilder
 from apax.train.eval import load_params
 from apax.utils import jax_md_reduced
@@ -175,13 +175,8 @@ def run_nvt(
 
     restart = False  # TODO needs to be implemented
     if restart:
-        log.info("looking for checkpoints")
-        ckpts_exist = look_for_checkpoints(sim_dir)
-        if ckpts_exist:
-            log.info("loading previous md state")
-            state, step = load_md_state(sim_dir)
-        else:
-            raise FileNotFoundError(f"No checkpoint exists in {sim_dir}")
+        log.info("loading previous md state")
+        state, step = load_md_state(sim_dir)
     else:
         state = init_fn(rng_key, system.positions, box=system.box, mass=system.masses, neighbor=neighbor)
 

@@ -1,3 +1,4 @@
+from dataclasses import field
 from typing import Any
 
 import einops
@@ -19,9 +20,12 @@ def inverse_softplus(x):
     return jnp.log(jnp.exp(x) - 1.0)
 
 
-class ZBLRepulsion(nn.Module):
+class EmpiricalEnergyTerm(nn.Module):
     dtype: Any = jnp.float32
-    init_box: np.array = np.array([0.0, 0.0, 0.0])
+
+
+class ZBLRepulsion(EmpiricalEnergyTerm):
+    init_box: np.array = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
     r_max: float = 6.0
     apply_mask: bool = True
     inference_disp_fn: Any = None
@@ -125,10 +129,9 @@ class ZBLRepulsion(nn.Module):
         return fp64_sum(E)
 
 
-class ReaxBonded(nn.Module):
-    dtype: Any = jnp.float64
+class ReaxBonded(EmpiricalEnergyTerm):
     n_species: int = 119
-    init_box: np.array = np.array([0.0, 0.0, 0.0])
+    init_box: np.array = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
     r_max: float = 6.0
     apply_mask: bool = True
     inference_disp_fn: Any = None

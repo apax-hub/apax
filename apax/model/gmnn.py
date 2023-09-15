@@ -1,5 +1,6 @@
 import logging
-from typing import Callable, Optional, Tuple, Union
+from dataclasses import field
+from typing import Callable, Tuple, Union
 
 import flax.linen as nn
 import jax
@@ -7,7 +8,7 @@ from jax_md import partition
 from jax_md.util import Array
 
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
-from apax.layers.empirical import ReaxBonded, ZBLRepulsion
+from apax.layers.empirical import EmpiricalEnergyTerm
 from apax.layers.masking import mask_by_atom
 from apax.layers.properties import stress_times_vol
 from apax.layers.readout import AtomisticReadout
@@ -53,8 +54,7 @@ class AtomisticModel(nn.Module):
 
 class EnergyModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
-    repulsion: Optional[ZBLRepulsion] = None
-    bonded: Optional[ReaxBonded] = None
+    corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: [])
 
     def __call__(
         self,
@@ -69,27 +69,21 @@ class EnergyModel(nn.Module):
         total_energy = fp64_sum(atomic_energies)
 
         # Corrections
-        if self.repulsion is not None:
-            repulsion_energy = self.repulsion(R, Z, neighbor, box, offsets, perturbation)
-            total_energy = total_energy + repulsion_energy
-
-        if self.bonded is not None:
-            bonded_energy = self.bonded(R, Z, neighbor, box, offsets, perturbation)
-            total_energy = total_energy + bonded_energy
+        for correction in self.corrections:
+            energy_correction = correction(R, Z, neighbor, box, offsets, perturbation)
+            total_energy = total_energy + energy_correction
         return total_energy
 
 
 class EnergyDerivativeModel(nn.Module):
     atomistic_model: AtomisticModel = AtomisticModel()
-    repulsion: Optional[ZBLRepulsion] = None
-    bonded: Optional[ReaxBonded] = None
+    corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: [])
     calc_stress: bool = False
 
     def setup(self):
         self.energy_fn = EnergyModel(
             atomistic_model=self.atomistic_model,
-            repulsion=self.repulsion,
-            bonded=self.bonded,
+            corrections=self.corrections,
         )
 
     def __call__(
