@@ -7,28 +7,28 @@ import yaml
 from pydantic import BaseModel, Field, PositiveFloat, PositiveInt
 
 
-class NHCOptions(BaseModel, extra=Extra.forbid):
+class NHCOptions(BaseModel, extra="forbid"):
     chain_length: PositiveInt = 3
     chain_steps: PositiveInt = 2
     sy_steps: PositiveInt = 3
     tau: PositiveFloat = 100
 
 
-class Integrator(BaseModel, extra=Extra.forbid):
+class Integrator(BaseModel, extra="forbid"):
     dt: PositiveFloat = 0.5  # fs
 
 
-class NVEOptions(Integrator, extra=Extra.forbid):
+class NVEOptions(Integrator, extra="forbid"):
     name: Literal["nve"]
 
 
-class NVTOptions(Integrator, extra=Extra.forbid):
+class NVTOptions(Integrator, extra="forbid"):
     name: Literal["nvt"]
     temperature: PositiveFloat = 298.15  # K
     thermostat_chain: NHCOptions = NHCOptions()
 
 
-class NPTOptions(NVTOptions, extra=Extra.forbid):
+class NPTOptions(NVTOptions, extra="forbid"):
     name: Literal["npt"]
     pressure: PositiveFloat = 1.01325  # bar
     barostat_chain: NHCOptions = NHCOptions(tau=1000)
