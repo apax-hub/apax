@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 import yaml
 from pydantic import (
