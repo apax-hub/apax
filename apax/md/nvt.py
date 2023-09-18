@@ -16,7 +16,7 @@ from jax_md.space import transform
 from tqdm import trange
 
 from apax.config import Config, MDConfig
-from apax.config.common import parse_config
+from apax.config import parse_config
 from apax.md.io import H5TrajHandler
 from apax.md.md_checkpoint import load_md_state
 from apax.model import ModelBuilder

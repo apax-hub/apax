@@ -11,7 +11,7 @@ from ase import Atoms
 from flax.core.frozen_dict import freeze
 from keras.callbacks import CSVLogger, TensorBoard
 
-from apax.config.common import parse_config
+from apax.config import parse_config
 from apax.data.input_pipeline import TFPipeline, create_dict_dataset
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder

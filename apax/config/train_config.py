@@ -113,7 +113,7 @@ class DataConfig(BaseModel, extra="forbid"):
         return self
 
     def model_version_path(self):
-        version_path = Path(self.model_path) / self.model_name
+        version_path = Path(self.directory) / self.experiment
         return version_path
 
     def best_model_path(self):
@@ -313,19 +313,3 @@ class Config(BaseModel, frozen=True, extra="forbid"):
         """
         with open(os.path.join(save_path, "config.yaml"), "w") as conf:
             yaml.dump(self.model_dump(), conf, default_flow_style=False)
-
-
-def parse_train_config(config: Union[str, os.PathLike, dict]) -> Config:
-    """Load the training configuration from file or a dictionary.
-
-    Attributes
-    ----------
-        config: Path to the config file or a dictionary
-        containing the config.
-    """
-    log.info("Loading user config")
-    if isinstance(config, (str, os.PathLike)):
-        with open(config, "r") as stream:
-            config = yaml.safe_load(stream)
-
-    return Config.model_validate(config)

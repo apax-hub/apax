@@ -24,8 +24,8 @@ def parse_config(config: Union[str, os.PathLike, dict], mode: str = "train") -> 
             config = yaml.safe_load(stream)
 
     if mode == "train":
-        config = Config.parse_obj(config)
+        config = Config.model_validate(config)
     elif mode == "md":
-        config = MDConfig.parse_obj(config)
+        config = MDConfig.model_validate(config)
 
     return config
