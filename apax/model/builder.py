@@ -3,7 +3,7 @@ import numpy as np
 from apax.config import ModelConfig
 from apax.layers.descriptor.basis_functions import GaussianBasis, RadialFunction
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
-from apax.layers.empirical import ReaxBonded, ZBLRepulsion
+from apax.layers.empirical import ZBLRepulsion
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
@@ -109,14 +109,7 @@ class ModelBuilder:
                 inference_disp_fn=inference_disp_fn,
             )
             corrections.append(repulsion)
-        if self.config["use_reax"]:
-            reax = ReaxBonded(
-                apply_mask=apply_mask,
-                r_max=self.config["r_max"],
-                init_box=init_box,
-                inference_disp_fn=inference_disp_fn,
-            )
-            corrections.append(reax)
+
         model = EnergyModel(atomistic_model, corrections=corrections)
         return model
 
@@ -144,14 +137,6 @@ class ModelBuilder:
                 inference_disp_fn=inference_disp_fn,
             )
             corrections.append(repulsion)
-        if self.config["use_reax"]:
-            reax = ReaxBonded(
-                apply_mask=apply_mask,
-                r_max=self.config["r_max"],
-                init_box=init_box,
-                inference_disp_fn=inference_disp_fn,
-            )
-            corrections.append(reax)
 
         model = EnergyDerivativeModel(
             atomistic_model,
