@@ -1,7 +1,7 @@
 import os
 
 # from types import UnionType
-from typing import Literal, Optional, Union
+from typing import Literal, Union
 
 import yaml
 from pydantic import BaseModel, Field, PositiveFloat, PositiveInt

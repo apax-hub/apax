@@ -15,8 +15,7 @@ from jax_md import partition, quantity, simulate, space
 from jax_md.space import transform
 from tqdm import trange
 
-from apax.config import Config, MDConfig
-from apax.config import parse_config
+from apax.config import Config, MDConfig, parse_config
 from apax.md.io import H5TrajHandler
 from apax.md.md_checkpoint import load_md_state
 from apax.model import ModelBuilder
@@ -81,9 +80,11 @@ class SimulationFunctions:
 def nbr_update_options_default(state):
     return {}
 
+
 def nbr_update_options_npt(state):
     box = simulate.npt_box(state)
     return {"box": box}
+
 
 def get_ensemble(ensemble, sim_fns):
     energy, shift = sim_fns.energy_fn, sim_fns.shift_fn
@@ -109,7 +110,13 @@ def get_ensemble(ensemble, sim_fns):
         barostat_chain["tau"] *= dt
 
         init_fn, apply_fn = simulate.npt_nose_hoover(
-            energy, shift, dt, pressure, kT, thermostat_kwargs=thermostat_chain, barostat_kwargs=barostat_chain
+            energy,
+            shift,
+            dt,
+            pressure,
+            kT,
+            thermostat_kwargs=thermostat_chain,
+            barostat_kwargs=barostat_chain,
         )
         nbr_options = nbr_update_options_npt
     else:
@@ -178,7 +185,13 @@ def run_nvt(
         log.info("loading previous md state")
         state, step = load_md_state(sim_dir)
     else:
-        state = init_fn(rng_key, system.positions, box=system.box, mass=system.masses, neighbor=neighbor)
+        state = init_fn(
+            rng_key,
+            system.positions,
+            box=system.box,
+            mass=system.masses,
+            neighbor=neighbor,
+        )
 
         if load_momenta:
             log.info("loading momenta from starting configuration")
@@ -191,7 +204,6 @@ def run_nvt(
     pbar_update_freq = int(np.ceil(500 / n_inner))
     pbar_increment = n_inner * pbar_update_freq
 
-    from jax import debug
     # TODO capability to restart md.
     # May require serializing the state instead of ASE Atoms trajectory + conversion
     # Maybe we can use flax checkpoints for that?
@@ -212,7 +224,6 @@ def run_nvt(
 
         id_tap(traj_handler.write, None)
 
-        
         state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
         current_temperature = (
             quantity.temperature(velocity=state.velocity, mass=state.mass) / units.kB
@@ -220,7 +231,7 @@ def run_nvt(
         return state, neighbor, current_temperature
 
     start = time.time()
-    sim_time = n_outer * ensemble.dt # * units.fs
+    sim_time = n_outer * ensemble.dt  # * units.fs
     log.info("running nvt for %.1f fs", sim_time)
     with trange(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
@@ -248,7 +259,7 @@ def run_nvt(
                     log.info("checkpoints not yet implemented")
 
                 if step % pbar_update_freq == 0:
-                    sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K") # set string
+                    sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
                     sim_pbar.update(pbar_increment)
 
     barrier_wait()

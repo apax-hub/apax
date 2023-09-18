@@ -4,6 +4,7 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from jax_md.space import transform
 
+
 class TrajHandler:
     def step(self, state_and_energy, transform):
         pass
@@ -18,8 +19,6 @@ class TrajHandler:
         pass
 
     def atoms_from_state(self, state, energy, nbr_kwargs):
-
-
         if "box" in nbr_kwargs.keys():
             box = nbr_kwargs["box"]
         else:

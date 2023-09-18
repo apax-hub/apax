@@ -200,9 +200,7 @@ class ASECalculator(Calculator):
 
     def restore_parameters(self, model_dir):
         self.model_config = parse_config(Path(model_dir) / "config.yaml")
-        ckpt_dir = (
-            Path(self.model_config.data.directory) / self.model_config.data.experiment
-        )
+        ckpt_dir = self.model_config.data.best_model_path()
         return load_params(ckpt_dir)
 
     def initialize(self, atoms):
