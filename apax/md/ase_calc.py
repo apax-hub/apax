@@ -215,7 +215,7 @@ class ASECalculator(Calculator):
     def initialize(self, atoms):
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
         self.r_max = self.model_config.model.r_max
-        self.neigbor_from_jax = neighbor_calculable_with_jax(box)
+        self.neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
         model, neighbor_fn = build_energy_neighbor_fns(
             atoms,
             self.model_config,
