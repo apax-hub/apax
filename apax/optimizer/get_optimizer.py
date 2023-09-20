@@ -17,7 +17,7 @@ def map_nested_fn(fn: Callable[[str, Any], dict]) -> Callable[[dict], dict]:
 
     def map_fn(nested_dict):
         return {
-            k: (map_fn(v) if isinstance(v, dict) else fn(k, v))
+            k: map_fn(v) if isinstance(v, dict) else fn(k, v)
             for k, v in nested_dict.items()
         }
 
