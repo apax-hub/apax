@@ -145,7 +145,6 @@ class UncertaintyDrivenDynamics:
 class ASECalculator(Calculator):
     """
     ASE Calculator for apax models.
-    DOES NOT SUPPORT CUTOFFS LARGER THAN MIN(BOX SIZE / 2)!
     """
 
     implemented_properties = [
