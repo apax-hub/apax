@@ -1,4 +1,3 @@
-import dataclasses
 from functools import partial
 from pathlib import Path
 from typing import Callable, Union
@@ -99,39 +98,6 @@ def make_ensemble(model):
         return results
 
     return ensemble
-
-
-@dataclasses.dataclass
-class UncertaintyDrivenDynamics:
-    a: float
-    b: float
-
-    def apply(self, model, n_models):
-        def udd_energy(positions, Z, idx, box, offsets):
-            n_atoms = positions.shape[0]
-            results = model(positions, Z, idx, box, offsets)
-
-            sigma2 = results["energy_uncertainty"] ** 2
-
-            gauss = jnp.exp(-sigma2 / (n_models * n_atoms * self.b**2))
-            E_udd = self.a * (gauss - 1)
-
-            return E_udd, results
-
-        def udd_energy_force(positions, Z, idx, box, offsets):
-            udd_fn = jax.value_and_grad(udd_energy, has_aux=True)
-
-            (E_bias, results), F_bias = udd_fn(positions, Z, idx, box, offsets)
-
-            results["energy_unbiased"] = results["energy"]
-            results["forces_unbiased"] = results["forces"]
-
-            results["energy"] = results["energy"] + E_bias
-            results["forces"] = results["forces"] + F_bias
-
-            return results
-
-        return udd_energy_force
 
 
 class ASECalculator(Calculator):
