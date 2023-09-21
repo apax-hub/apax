@@ -212,7 +212,7 @@ class ASECalculator(Calculator):
                 idxs_i = neighbour_list("i", atoms, self.r_max)
                 self.padded_length = int(len(idxs_i) * padding_factor)
 
-        if "cell" in system_changes:
+        elif "cell" in system_changes:
             neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
             if self.neigbor_from_jax != neigbor_from_jax:
                 self.initialize(atoms)
@@ -241,9 +241,8 @@ class ASECalculator(Calculator):
                 self.neighbors, ((0, 0), (0, zeros_to_add)), "constant"
             )
             offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
-            inv_box = np.linalg.inv(box)
             positions = np.array(
-                space.transform(inv_box, (atoms.positions).astype(np.float64))
+                space.transform(np.linalg.inv(box), atoms.positions)
             )
             results = self.step(positions, self.neighbors, box, offsets)
 
