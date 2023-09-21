@@ -241,9 +241,7 @@ class ASECalculator(Calculator):
                 self.neighbors, ((0, 0), (0, zeros_to_add)), "constant"
             )
             offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
-            positions = np.array(
-                space.transform(np.linalg.inv(box), atoms.positions)
-            )
+            positions = np.array(space.transform(np.linalg.inv(box), atoms.positions))
             results = self.step(positions, self.neighbors, box, offsets)
 
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
