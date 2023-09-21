@@ -234,6 +234,7 @@ class ASECalculator(Calculator):
         self.neighbor_fn = neighbor_fn
 
     def calculate(self, atoms, properties=["energy"], system_changes=all_changes):
+        padding_factor = 1.5
         Calculator.calculate(self, atoms, properties, system_changes)
         positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
@@ -245,7 +246,7 @@ class ASECalculator(Calculator):
                 self.neighbors = self.neighbor_fn.allocate(positions)
             else:
                 idxs_i = neighbour_list("i", atoms, self.r_max)
-                self.padded_length = int(len(idxs_i) * 1.5)
+                self.padded_length = int(len(idxs_i) * padding_factor)
 
         if "cell" in system_changes:
             neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
@@ -262,27 +263,24 @@ class ASECalculator(Calculator):
                 results, self.neighbors = self.step(positions, self.neighbors, box)
         else:
             idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms, self.r_max)
+            offsets = np.matmul(offsets, box)
 
-            if len(idxs_i) < self.padded_length:
-                zeros_to_add = self.padded_length - len(idxs_i)
-
-                self.neighbors = np.array([idxs_i, idxs_j], dtype=np.int32)
-                self.neighbors = np.pad(
-                    self.neighbors, ((0, 0), (0, zeros_to_add)), "constant"
-                )
-                offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
-            else:
+            if len(idxs_i) > self.padded_length:
                 print("neighbor list overflowed, reallocating.")
-                padded_length = int(len(idxs_i) * 1.5)
-                zeros_to_add = padded_length - len(idxs_i)
+                self.padded_length = int(len(idxs_i) * padding_factor)
                 self.initialize(atoms)
 
-                self.neighbors = np.array([idxs_i, idxs_j], dtype=np.int32)
-                self.neighbors = np.pad(
-                    self.neighbors, ((0, 0), (0, zeros_to_add)), "constant"
-                )
-                offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
+            zeros_to_add = self.padded_length - len(idxs_i)
 
+            self.neighbors = np.array([idxs_i, idxs_j], dtype=np.int32)
+            self.neighbors = np.pad(
+                self.neighbors, ((0, 0), (0, zeros_to_add)), "constant"
+            )
+            offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
+            inv_box = np.linalg.inv(box)
+            positions = np.array(
+                space.transform(inv_box, (atoms.positions).astype(np.float64))
+            )
             results = self.step(positions, self.neighbors, box, offsets)
 
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
@@ -293,7 +291,7 @@ def neighbor_calculable_with_jax(box, r_max):
     if np.all(box < 1e-6):
         return True
     else:
-        # all lettice vectir combinations to calculate all three plane distances
+        # all lettice vector combinations to calculate all three plane distances
         a_vec_list = [box[0], box[0], box[1]]
         b_vec_list = [box[1], box[2], box[2]]
         c_vec_list = [box[2], box[1], box[0]]
