@@ -1,7 +1,37 @@
 import os
 
+# from types import UnionType
+from typing import Literal, Union
+
 import yaml
-from pydantic import BaseModel, PositiveFloat, PositiveInt
+from pydantic import BaseModel, Field, PositiveFloat, PositiveInt
+
+
+class NHCOptions(BaseModel, extra="forbid"):
+    chain_length: PositiveInt = 3
+    chain_steps: PositiveInt = 2
+    sy_steps: PositiveInt = 3
+    tau: PositiveFloat = 100
+
+
+class Integrator(BaseModel, extra="forbid"):
+    dt: PositiveFloat = 0.5  # fs
+
+
+class NVEOptions(Integrator, extra="forbid"):
+    name: Literal["nve"]
+
+
+class NVTOptions(Integrator, extra="forbid"):
+    name: Literal["nvt"]
+    temperature: PositiveFloat = 298.15  # K
+    thermostat_chain: NHCOptions = NHCOptions()
+
+
+class NPTOptions(NVTOptions, extra="forbid"):
+    name: Literal["npt"]
+    pressure: PositiveFloat = 1.01325  # bar
+    barostat_chain: NHCOptions = NHCOptions(tau=1000)
 
 
 class MDConfig(BaseModel, frozen=True, extra="forbid"):
@@ -31,8 +61,11 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
 
     seed: int = 1
 
-    temperature: PositiveFloat
-    dt: PositiveFloat = 0.5
+    # https://docs.pydantic.dev/latest/usage/types/unions/#discriminated-unions-aka-tagged-unions
+    ensemble: Union[NVEOptions, NVTOptions, NPTOptions] = Field(
+        NVTOptions(name="nvt"), discriminator="name"
+    )
+
     duration: PositiveFloat
     n_inner: PositiveInt = 100
     sampling_rate: PositiveInt = 10
@@ -40,6 +73,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     extra_capacity: PositiveInt = 0
 
     initial_structure: str
+    load_momenta: bool = False
     sim_dir: str = "."
     traj_name: str = "md.h5"
     restart: bool = True

@@ -1,5 +1,8 @@
-temperature: 5
+ensemble:
+  name: nvt
+  dt: 0.05 # fs time step
+  temperature: 5 # K
+
 duration: 0.1
 n_inner: 1
 sampling_rate: 1
-dt: 0.05
