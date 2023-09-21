@@ -57,7 +57,6 @@ def get_opt(
     scale_lr: float = 0.001,
     shift_lr: float = 0.05,
     zbl_lr: float = 0.001,
-    reax_lr: float = 0.001,
     opt_name: str = "adam",
     opt_kwargs: dict = {},
     **kwargs,
@@ -79,10 +78,6 @@ def get_opt(
     )
     zbl_opt = make_optimizer(opt, zbl_lr, transition_begin, transition_steps, opt_kwargs)
 
-    reax_opt = make_optimizer(
-        opt, reax_lr, transition_begin, transition_steps, opt_kwargs
-    )
-
     partition_optimizers = {
         "w": nn_opt,
         "b": nn_opt,
@@ -94,12 +89,6 @@ def get_opt(
         "coefficients": zbl_opt,
         "exponents": zbl_opt,
         "rep_scale": zbl_opt,
-        "r0": reax_opt,
-        "po_coeff": reax_opt,
-        "po_exp": reax_opt,
-        "De": reax_opt,
-        "pbe1": reax_opt,
-        "pbe2": reax_opt,
     }
 
     param_partitions = freeze(

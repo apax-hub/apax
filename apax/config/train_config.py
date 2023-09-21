@@ -1,6 +1,7 @@
 import logging
 import os
-from typing import List, Literal, Optional, Union
+from pathlib import Path
+from typing import List, Literal, Optional
 
 import yaml
 from pydantic import (
@@ -111,6 +112,13 @@ class DataConfig(BaseModel, extra="forbid"):
 
         return self
 
+    def model_version_path(self):
+        version_path = Path(self.directory) / self.experiment
+        return version_path
+
+    def best_model_path(self):
+        return self.model_version_path() / "best"
+
 
 class ModelConfig(BaseModel, extra="forbid"):
     """
@@ -139,7 +147,6 @@ class ModelConfig(BaseModel, extra="forbid"):
 
     # corrections
     use_zbl: bool = False
-    use_reax: bool = False
 
     calc_stress: bool = False
 
@@ -182,7 +189,6 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     scale_lr: NonNegativeFloat = 0.001
     shift_lr: NonNegativeFloat = 0.05
     zbl_lr: NonNegativeFloat = 0.001
-    reax_lr: NonNegativeFloat = 0.001
     transition_begin: int = 0
     opt_kwargs: dict = {}
     sam_rho: NonNegativeFloat = 0.0
@@ -307,19 +313,3 @@ class Config(BaseModel, frozen=True, extra="forbid"):
         """
         with open(os.path.join(save_path, "config.yaml"), "w") as conf:
             yaml.dump(self.model_dump(), conf, default_flow_style=False)
-
-
-def parse_train_config(config: Union[str, os.PathLike, dict]) -> Config:
-    """Load the training configuration from file or a dictionary.
-
-    Attributes
-    ----------
-        config: Path to the config file or a dictionary
-        containing the config.
-    """
-    log.info("Loading user config")
-    if isinstance(config, (str, os.PathLike)):
-        with open(config, "r") as stream:
-            config = yaml.safe_load(stream)
-
-    return Config.model_validate(config)

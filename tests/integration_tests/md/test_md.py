@@ -104,7 +104,8 @@ def test_ase_calc(get_tmp_path):
     model_config_dict["data"]["directory"] = get_tmp_path.as_posix()
 
     model_config = Config.model_validate(model_config_dict)
-    model_config.dump_config(model_config_dict["data"]["directory"])
+    os.makedirs(model_config.data.model_version_path(), exist_ok=True)
+    model_config.dump_config(model_config.data.model_version_path())
 
     cell_size = 10.0
     positions = np.array(
@@ -145,9 +146,8 @@ def test_ase_calc(get_tmp_path):
         offsets=offsets,
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
-    best_dir = os.path.join(
-        model_config.data.directory, model_config.data.experiment, "best"
-    )
+
+    best_dir = model_config.data.best_model_path()
     checkpoints.save_checkpoint(
         ckpt_dir=best_dir,
         target=ckpt,
@@ -157,7 +157,7 @@ def test_ase_calc(get_tmp_path):
 
     atoms = read(initial_structure_path.as_posix())
     calc = ASECalculator(
-        [model_config_dict["data"]["directory"], model_config_dict["data"]["directory"]]
+        [model_config.data.model_version_path(), model_config.data.model_version_path()]
     )
 
     atoms.calc = calc

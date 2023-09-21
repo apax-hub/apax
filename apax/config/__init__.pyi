@@ -1,3 +1,4 @@
+from .common import parse_config
 from .md_config import MDConfig
 from .train_config import (
     CallbackConfig,
@@ -7,7 +8,6 @@ from .train_config import (
     MetricsConfig,
     ModelConfig,
     OptimizerConfig,
-    parse_train_config,
 )
 
 __all__ = [
@@ -19,5 +19,5 @@ __all__ = [
     "OptimizerConfig",
     "MetricsConfig",
     "MDConfig",
-    "parse_train_config",
+    "parse_config",
 ]

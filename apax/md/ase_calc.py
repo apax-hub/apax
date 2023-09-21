@@ -1,4 +1,3 @@
-import dataclasses
 from functools import partial
 from pathlib import Path
 from typing import Callable, Union
@@ -12,7 +11,7 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 from jax_md import partition, quantity, space
 from matscipy.neighbours import neighbour_list
 
-from apax.config.train_config import parse_train_config
+from apax.config import parse_config
 from apax.model import ModelBuilder
 from apax.train.eval import load_params
 from apax.utils import jax_md_reduced
@@ -109,39 +108,6 @@ def make_ensemble(model):
     return ensemble
 
 
-@dataclasses.dataclass
-class UncertaintyDrivenDynamics:
-    a: float
-    b: float
-
-    def apply(self, model, n_models):
-        def udd_energy(positions, Z, idx, box, offsets):
-            n_atoms = positions.shape[0]
-            results = model(positions, Z, idx, box, offsets)
-
-            sigma2 = results["energy_uncertainty"] ** 2
-
-            gauss = jnp.exp(-sigma2 / (n_models * n_atoms * self.b**2))
-            E_udd = self.a * (gauss - 1)
-
-            return E_udd, results
-
-        def udd_energy_force(positions, Z, idx, box, offsets):
-            udd_fn = jax.value_and_grad(udd_energy, has_aux=True)
-
-            (E_bias, results), F_bias = udd_fn(positions, Z, idx, box, offsets)
-
-            results["energy_unbiased"] = results["energy"]
-            results["forces_unbiased"] = results["forces"]
-
-            results["energy"] = results["energy"] + E_bias
-            results["forces"] = results["forces"] + F_bias
-
-            return results
-
-        return udd_energy_force
-
-
 class ASECalculator(Calculator):
     """
     ASE Calculator for apax models.
@@ -206,10 +172,8 @@ class ASECalculator(Calculator):
         self.neighbors = None
 
     def restore_parameters(self, model_dir):
-        self.model_config = parse_train_config(Path(model_dir) / "config.yaml")
-        ckpt_dir = (
-            Path(self.model_config.data.directory) / self.model_config.data.experiment
-        )
+        self.model_config = parse_config(Path(model_dir) / "config.yaml")
+        ckpt_dir = self.model_config.data.model_version_path()
         return load_params(ckpt_dir)
 
     def initialize(self, atoms):

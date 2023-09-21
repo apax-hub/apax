@@ -11,7 +11,7 @@ from ase import Atoms
 from flax.core.frozen_dict import freeze
 from keras.callbacks import CSVLogger, TensorBoard
 
-from apax.config import parse_train_config
+from apax.config import parse_config
 from apax.data.input_pipeline import TFPipeline, create_dict_dataset
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
@@ -182,7 +182,7 @@ def setup_logging(log_file, log_level):
 def run(user_config, log_file="train.log", log_level="error"):
     setup_logging(log_file, log_level)
     log.info("Loading user config")
-    config = parse_train_config(user_config)
+    config = parse_config(user_config)
 
     seed_py_np_tf(config.seed)
     rng_key = jax.random.PRNGKey(config.seed)
