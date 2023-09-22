@@ -67,7 +67,7 @@ class GaussianAcceleratedMolecularDynamics(FunctionTransformation):
     https://pubs.acs.org/doi/10.1021/acs.jctc.5b00436
 
     Parameters:
-    energy_target: Target potential energy below wich to apply the boost potential.
+    energy_target: Target potential energy below which to apply the boost potential.
     spring_constant: Spring constant of the boost potential.
     """
 

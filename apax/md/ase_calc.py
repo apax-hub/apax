@@ -73,7 +73,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
             disable_cell_list=True,
             format=partition.Sparse,
         )
-        
+
     Z = jnp.asarray(atomic_numbers)
     n_species = 119  # int(np.max(Z) + 1)
     builder = ModelBuilder(config.model.get_dict(), n_species=n_species)
@@ -132,7 +132,7 @@ class ASECalculator(Calculator):
         self.is_ensemble = False
         self.transformations = transformations
         self.n_models = 1
-        self.padding_factor = 1.5 # TODO should be changable at somepoint
+        self.padding_factor = 1.5  # TODO should be changeable at somepoint
 
         if isinstance(model_dir, Path) or isinstance(model_dir, str):
             self.params = self.restore_parameters(model_dir)
@@ -201,7 +201,6 @@ class ASECalculator(Calculator):
         self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
         self.neighbor_fn = neighbor_fn
 
-
     def set_neighbours_and_offsets(self, atoms, box):
         idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms, self.r_max)
 
@@ -213,20 +212,17 @@ class ASECalculator(Calculator):
         zeros_to_add = self.padded_length - len(idxs_i)
 
         self.neighbors = np.array([idxs_i, idxs_j], dtype=np.int32)
-        self.neighbors = np.pad(
-            self.neighbors, ((0, 0), (0, zeros_to_add)), "constant"
-        )
+        self.neighbors = np.pad(self.neighbors, ((0, 0), (0, zeros_to_add)), "constant")
 
         offsets = np.matmul(offsets, box)
         self.offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
-
 
     def calculate(self, atoms, properties=["energy"], system_changes=all_changes):
         Calculator.calculate(self, atoms, properties, system_changes)
         positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
 
-        #setup model and neigbours
+        # setup model and neighbours
         if self.step is None:
             self.initialize(atoms)
 
@@ -247,8 +243,7 @@ class ASECalculator(Calculator):
             if self.neigbor_from_jax != neigbor_from_jax:
                 self.initialize(atoms)
 
-
-        # predict 
+        # predict
         if self.neigbor_from_jax:
             results, self.neighbors = self.step(positions, self.neighbors, box)
 
@@ -258,7 +253,7 @@ class ASECalculator(Calculator):
                 self.neighbors = self.neighbor_fn.allocate(positions)
 
                 results, self.neighbors = self.step(positions, self.neighbors, box)
-                
+
         else:
             self.set_neighbours_and_offsets(atoms, box)
             positions = np.array(space.transform(np.linalg.inv(box), atoms.positions))
