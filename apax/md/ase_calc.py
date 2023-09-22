@@ -50,38 +50,40 @@ def maybe_vmap(apply, params, Z):
 
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_jax):
+    r_max = config.model.r_max
     atomic_numbers = jnp.asarray(atoms.numbers)
-    box = jnp.asarray(atoms.get_cell().array, dtype=jnp.float32)
+    box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
+    neigbor_from_jax = neighbor_calculable_with_jax(box, r_max)
     box = box.T
+    displacement_fn = None
+    neighbor_fn = None
 
-    if np.all(box < 1e-6):
-        displacement_fn, _ = space.free()
-    else:
-        displacement_fn, _ = space.periodic_general(box, fractional_coordinates=True)
+    if neigbor_from_jax:
+        if np.all(box < 1e-6):
+            displacement_fn, _ = space.free()
+        else:
+            displacement_fn, _ = space.periodic_general(box, fractional_coordinates=True)
 
+        neighbor_fn = jax_md_reduced.partition.neighbor_list(
+            displacement_fn,
+            box,
+            config.model.r_max,
+            dr_threshold,
+            fractional_coordinates=True,
+            disable_cell_list=True,
+            format=partition.Sparse,
+        )
+        
     Z = jnp.asarray(atomic_numbers)
     n_species = 119  # int(np.max(Z) + 1)
     builder = ModelBuilder(config.model.get_dict(), n_species=n_species)
 
-    if neigbor_from_jax:
-        model = builder.build_energy_derivative_model(
-            apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
-        )
-    else:
-        model = builder.build_energy_derivative_model(
-            apply_mask=True, init_box=np.array(box), inference_disp_fn=None
-        )
+    model = builder.build_energy_derivative_model(
+        apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
+    )
 
     energy_fn = maybe_vmap(model.apply, params, Z)
-    neighbor_fn = jax_md_reduced.partition.neighbor_list(
-        displacement_fn,
-        box,
-        config.model.r_max,
-        dr_threshold,
-        fractional_coordinates=True,
-        disable_cell_list=True,
-        format=partition.Sparse,
-    )
+
     return energy_fn, neighbor_fn
 
 
@@ -130,6 +132,7 @@ class ASECalculator(Calculator):
         self.is_ensemble = False
         self.transformations = transformations
         self.n_models = 1
+        self.padding_factor = 1.5 # TODO should be changable at somepoint
 
         if isinstance(model_dir, Path) or isinstance(model_dir, str):
             self.params = self.restore_parameters(model_dir)
@@ -170,6 +173,7 @@ class ASECalculator(Calculator):
         self.step = None
         self.neighbor_fn = None
         self.neighbors = None
+        self.offsets = None
 
     def restore_parameters(self, model_dir):
         self.model_config = parse_config(Path(model_dir) / "config.yaml")
@@ -197,26 +201,54 @@ class ASECalculator(Calculator):
         self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
         self.neighbor_fn = neighbor_fn
 
+
+    def set_neighbours_and_offsets(self, atoms, box):
+        idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms, self.r_max)
+
+        if len(idxs_i) > self.padded_length:
+            print("neighbor list overflowed, reallocating.")
+            self.padded_length = int(len(idxs_i) * self.padding_factor)
+            self.initialize(atoms)
+
+        zeros_to_add = self.padded_length - len(idxs_i)
+
+        self.neighbors = np.array([idxs_i, idxs_j], dtype=np.int32)
+        self.neighbors = np.pad(
+            self.neighbors, ((0, 0), (0, zeros_to_add)), "constant"
+        )
+
+        offsets = np.matmul(offsets, box)
+        self.offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
+
+
     def calculate(self, atoms, properties=["energy"], system_changes=all_changes):
-        padding_factor = 1.5
         Calculator.calculate(self, atoms, properties, system_changes)
         positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
 
-        if self.step is None or "numbers" in system_changes:
+        #setup model and neigbours
+        if self.step is None:
             self.initialize(atoms)
 
             if self.neigbor_from_jax:
                 self.neighbors = self.neighbor_fn.allocate(positions)
             else:
                 idxs_i = neighbour_list("i", atoms, self.r_max)
-                self.padded_length = int(len(idxs_i) * padding_factor)
+                self.padded_length = int(len(idxs_i) * self.padding_factor)
+
+        elif "numbers" in system_changes:
+            self.initialize(atoms)
+
+            if self.neigbor_from_jax:
+                self.neighbors = self.neighbor_fn.allocate(positions)
 
         elif "cell" in system_changes:
             neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
             if self.neigbor_from_jax != neigbor_from_jax:
                 self.initialize(atoms)
 
+
+        # predict 
         if self.neigbor_from_jax:
             results, self.neighbors = self.step(positions, self.neighbors, box)
 
@@ -224,25 +256,14 @@ class ASECalculator(Calculator):
                 print("neighbor list overflowed, reallocating.")
                 self.initialize(atoms)
                 self.neighbors = self.neighbor_fn.allocate(positions)
+
                 results, self.neighbors = self.step(positions, self.neighbors, box)
+                
         else:
-            idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms, self.r_max)
-            offsets = np.matmul(offsets, box)
-
-            if len(idxs_i) > self.padded_length:
-                print("neighbor list overflowed, reallocating.")
-                self.padded_length = int(len(idxs_i) * padding_factor)
-                self.initialize(atoms)
-
-            zeros_to_add = self.padded_length - len(idxs_i)
-
-            self.neighbors = np.array([idxs_i, idxs_j], dtype=np.int32)
-            self.neighbors = np.pad(
-                self.neighbors, ((0, 0), (0, zeros_to_add)), "constant"
-            )
-            offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
+            self.set_neighbours_and_offsets(atoms, box)
             positions = np.array(space.transform(np.linalg.inv(box), atoms.positions))
-            results = self.step(positions, self.neighbors, box, offsets)
+
+            results = self.step(positions, self.neighbors, box, self.offsets)
 
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
