@@ -6,32 +6,12 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
-from flax.core.frozen_dict import freeze, unfreeze
-from flax.traverse_util import flatten_dict, unflatten_dict
+from flax.traverse_util import flatten_dict
 from jax_md import partition, quantity, space
 
-from apax.config import parse_config
 from apax.model import ModelBuilder
-from apax.train.eval import load_params
+from apax.train.checkpoints import restore_parameters
 from apax.utils import jax_md_reduced
-
-
-def stack_parameters(param_list):
-    flat_param_list = []
-    for params in param_list:
-        params = unfreeze(params)
-        flat_params = flatten_dict(params)
-        flat_param_list.append(flat_params)
-
-    stacked_flat_params = flat_params
-    for p in flat_param_list[0].keys():
-        stacked_flat_params[p] = jnp.stack(
-            [flat_param[p] for flat_param in flat_param_list]
-        )
-
-    stacked_params = unflatten_dict(stacked_flat_params)
-    stack_params = freeze(stacked_params)
-    return stack_params
 
 
 def maybe_vmap(apply, params, Z):
@@ -122,52 +102,23 @@ class ASECalculator(Calculator):
         self.dr_threshold = dr_threshold
         self.is_ensemble = False
         self.transformations = transformations
-        self.n_models = 1
+        self.n_models = 1 if isinstance(model_dir, (Path, str)) else len(model_dir)
 
-        if isinstance(model_dir, Path) or isinstance(model_dir, str):
-            self.params = self.restore_parameters(model_dir)
-            if self.model_config.model.calc_stress:
-                self.implemented_properties.extend(
-                    [
-                        "stress",
-                    ]
-                )
-        elif isinstance(model_dir, list):
-            self.n_models = len(model_dir)
-            params = []
-            for path in model_dir:
-                params.append(self.restore_parameters(path))
+        self.model_config, self.params = restore_parameters(model_dir)
 
-            stacked_params = stack_parameters(params)
-            self.params = stacked_params
+        if self.model_config.model.calc_stress:
+            self.implemented_properties.append("stress")
+
+        if self.n_models > 1:
+            uncertainty_kws = [
+                prop + "_uncertainty" for prop in self.implemented_properties
+            ]
+            self.implemented_properties += uncertainty_kws
             self.is_ensemble = True
-            self.implemented_properties.extend(
-                [
-                    "energy_uncertainty",
-                    "forces_uncertainty",
-                ]
-            )
-
-            if self.model_config.model.calc_stress:
-                self.implemented_properties.extend(
-                    [
-                        "stress",
-                        "stress_uncertainty",
-                    ]
-                )
-        else:
-            raise NotImplementedError(
-                "Please provide either a path or list of paths to trained models"
-            )
 
         self.step = None
         self.neighbor_fn = None
         self.neighbors = None
-
-    def restore_parameters(self, model_dir):
-        self.model_config = parse_config(Path(model_dir) / "config.yaml")
-        ckpt_dir = self.model_config.data.model_version_path()
-        return load_params(ckpt_dir)
 
     def initialize(self, atoms):
         model, neighbor_fn = build_energy_neighbor_fns(
