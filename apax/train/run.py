@@ -2,6 +2,7 @@ import dataclasses
 import logging
 import os
 from pathlib import Path
+from typing import Optional
 
 import jax
 import jax.numpy as jnp
@@ -35,7 +36,7 @@ def initialize_directories(model_version_path: Path) -> None:
 @dataclasses.dataclass
 class RawDataset:
     atoms_list: list[Atoms]
-    additional_labels: dict
+    additional_labels: Optional[dict] = None
 
 
 def load_data_files(data_config, model_version_path):
