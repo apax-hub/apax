@@ -5,6 +5,7 @@ from apax.bal.kernel import KernelMatrix
 
 def max_dist_selection(matrix: KernelMatrix, batch_size: int):
     """
+    TODO add citations
     \\argmax_{S \\in \\mathbb{X}_{rem}} \\min_{S' \\in \\mathbb{X}_{sel} } d(S, S')
     """
     n_train = matrix.n_train

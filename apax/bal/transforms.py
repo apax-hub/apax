@@ -11,7 +11,7 @@ def ensemble_features(feature_fn):
         if len(g.shape) != 2:
             # models, features
             raise ValueError(
-                "Dimension mismatch for input features. Expected shape (models, data,"
+                "Dimension mismatch for input features. Expected shape (models,"
                 f" features), got {g.shape}"
             )
 
