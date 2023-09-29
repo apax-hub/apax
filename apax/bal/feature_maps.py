@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field
 
 
 def extract_feature_params(params: dict, layer_name: str) -> Tuple[dict, dict]:
-    """Seprate a params dict onto those belonging to a selected layer and the remaining ones.
+    """Seprate params into those belonging to a selected layer
+    and the remaining ones.
     """
     p_flat = flatten_dict(params)
 
@@ -27,6 +28,7 @@ class LastLayerGradientFeatures(BaseModel, extra="forbid"):
     wrt. the specified layer.
     https://arxiv.org/pdf/2203.09410
     """
+
     name: Literal["ll_grad"]
     layer_name: str = "dense_2"
 
