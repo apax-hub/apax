@@ -6,13 +6,25 @@ from click import Path
 
 from apax.bal import feature_maps, kernel, selection, transforms
 from apax.model.builder import ModelBuilder
+from apax.model.gmnn import EnergyModel
 from apax.train.checkpoints import restore_parameters
 from apax.train.run import RawDataset, initialize_dataset
 
 
 def create_feature_fn(
-    model, params, base_feature_map, feature_transforms=[], is_ensemble=False
+    model: EnergyModel,
+    params,
+    base_feature_map,
+    feature_transforms=[],
+    is_ensemble: bool = False,
 ):
+    """
+    Converts a model into a feature map and transforms it as needed and
+    sets it up for use in copmuting the features of a dataset.
+
+    All transformations are applied on the feature function, not on computed features.
+    Only the final function is jit compiled.
+    """
     feature_fn = base_feature_map.apply(model)
 
     if is_ensemble:
@@ -28,13 +40,13 @@ def create_feature_fn(
 
 
 def compute_features(feature_fn, ds):
+    """Compute the features of a dataset."""
     features = []
     for inputs, _ in ds:
         g = feature_fn(inputs)
         features.append(np.asarray(g))
 
     features = np.concatenate(features, axis=0)
-    print(features.shape)
 
     return features
 

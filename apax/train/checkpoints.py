@@ -1,13 +1,15 @@
 import logging
 from pathlib import Path
+from typing import List, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-from flax.core.frozen_dict import freeze, unfreeze
+from flax.core.frozen_dict import FrozenDict, freeze, unfreeze
 from flax.training import checkpoints, train_state
 from flax.traverse_util import flatten_dict, unflatten_dict
 
 from apax.config.common import parse_config
+from apax.config.train_config import Config
 
 log = logging.getLogger(__name__)
 
@@ -46,7 +48,10 @@ class CheckpointManager:
         )
 
 
-def stack_parameters(param_list):
+def stack_parameters(param_list: List[FrozenDict]) -> FrozenDict:
+    """Combine a list of parameter sets into a stacked version.
+    Used for model ensembles.
+    """
     flat_param_list = []
     for params in param_list:
         params = unfreeze(params)
@@ -64,7 +69,7 @@ def stack_parameters(param_list):
     return stack_params
 
 
-def load_params(model_version_path, best=True):
+def load_params(model_version_path: Path, best=True) -> FrozenDict:
     if best:
         model_version_path = model_version_path / "best"
     log.info(f"loading checkpoint from {model_version_path}")
@@ -81,13 +86,18 @@ def load_params(model_version_path, best=True):
     return params
 
 
-def restore_single_parameters(model_dir):
+def restore_single_parameters(model_dir: Path) -> Tuple[Config, FrozenDict]:
+    """Load the config and parameters of a single model
+    """
     model_config = parse_config(Path(model_dir) / "config.yaml")
     ckpt_dir = model_config.data.model_version_path()
     return model_config, load_params(ckpt_dir)
 
 
-def restore_parameters(model_dir):
+def restore_parameters(model_dir: Union[Path, List[Path]]) -> Tuple[Config, FrozenDict]:
+    """Restores one or more model configs and parameters.
+    Parameters are stacked for ensembling.
+    """
     if isinstance(model_dir, Path) or isinstance(model_dir, str):
         config, params = restore_single_parameters(model_dir)
 

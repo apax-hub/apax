@@ -1,4 +1,4 @@
-from typing import Literal, Union
+from typing import Literal, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -6,7 +6,9 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 from pydantic import BaseModel, Field
 
 
-def extract_feature_params(params, layer_name):
+def extract_feature_params(params: dict, layer_name: str) -> Tuple[dict, dict]:
+    """Seprate a params dict onto those belonging to a selected layer and the remaining ones.
+    """
     p_flat = flatten_dict(params)
 
     feature_layer_params = {k: v for k, v in p_flat.items() if layer_name in k}
@@ -20,6 +22,11 @@ def extract_feature_params(params, layer_name):
 
 
 class LastLayerGradientFeatures(BaseModel, extra="forbid"):
+    """
+    Model transfomration which computes the gradient of the output
+    wrt. the specified layer.
+    https://arxiv.org/pdf/2203.09410
+    """
     name: Literal["ll_grad"]
     layer_name: str = "dense_2"
 
@@ -59,7 +66,7 @@ class LastLayerGradientFeatures(BaseModel, extra="forbid"):
 
 
 class IdentityFeatures(BaseModel, extra="forbid"):
-    """For debugging purposes"""
+    """Identity feature map. For debugging purposes"""
 
     name: Literal["identity"]
 

@@ -14,11 +14,11 @@ class KernelMatrix:
         self.diagonal = einops.einsum(g, g, "s feature, s feature -> s")
         self.n_train = n_train
 
-    def compute_column(self, idx: int):
+    def compute_column(self, idx: int) -> np.ndarray:
         return einops.einsum(self.g, self.g[idx, :], "s feature, feature -> s")
 
-    def score(self, idx: int):
-        """
+    def score(self, idx: int) -> np.ndarray:
+        """Computes the distance of sample i from all other samples j as
         K_{ii} + K_{jj} - 2 K_{ij}
         """
         return self.diagonal[idx] + self.diagonal - 2 * self.compute_column(idx)

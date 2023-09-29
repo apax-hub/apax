@@ -5,8 +5,12 @@ from apax.bal.kernel import KernelMatrix
 
 def max_dist_selection(matrix: KernelMatrix, batch_size: int):
     """
-    TODO add citations
+    Iteratively selects samples from the pool which are
+    most distant from all previously selected samples.
     \\argmax_{S \\in \\mathbb{X}_{rem}} \\min_{S' \\in \\mathbb{X}_{sel} } d(S, S')
+
+    https://arxiv.org/pdf/2203.09410.pdf
+    https://doi.org/10.1039/D2DD00034B
     """
     n_train = matrix.n_train
 
