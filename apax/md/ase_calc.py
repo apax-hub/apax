@@ -134,7 +134,7 @@ class ASECalculator(Calculator):
         self.transformations = transformations
         self.n_models = 1
         self.padding_factor = padding_factor
-        
+
         if isinstance(model_dir, Path) or isinstance(model_dir, str):
             self.params = self.restore_parameters(model_dir)
             if self.model_config.model.calc_stress:
