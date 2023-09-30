@@ -125,6 +125,7 @@ class ASECalculator(Calculator):
         model_dir: Union[Path, list[Path]],
         dr_threshold: float = 0.5,
         transformations: Callable = [],
+        padding_factor: float = 1.5,
         **kwargs
     ):
         Calculator.__init__(self, **kwargs)
@@ -132,8 +133,8 @@ class ASECalculator(Calculator):
         self.is_ensemble = False
         self.transformations = transformations
         self.n_models = 1
-        self.padding_factor = 1.5  # TODO should be changeable at somepoint
-
+        self.padding_factor = padding_factor
+        
         if isinstance(model_dir, Path) or isinstance(model_dir, str):
             self.params = self.restore_parameters(model_dir)
             if self.model_config.model.calc_stress:
