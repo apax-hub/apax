@@ -56,7 +56,7 @@ def md(
 ):
     """
     Starts performing a molecular dynamics simulation (currently only NHC thermostat)
-    with paramters provided by a configuration file.
+    with parameters provided by a configuration file.
     """
     from apax.md import run_md
 
@@ -113,7 +113,7 @@ def validate_train_config(
         user_config = yaml.safe_load(stream)
 
     try:
-        _ = Config.parse_obj(user_config)
+        _ = Config.model_validate(user_config)
     except ValidationError as e:
         print(e)
         console.print("Configuration Invalid!", style="red3")
@@ -142,7 +142,7 @@ def validate_md_config(
         user_config = yaml.safe_load(stream)
 
     try:
-        _ = MDConfig.parse_obj(user_config)
+        _ = MDConfig.model_validate(user_config)
     except ValidationError as e:
         print(e)
         console.print("Configuration Invalid!", style="red3")
@@ -172,7 +172,6 @@ def visualize_model(
     config_path: Path to the training configuration file.
     """
     import jax
-    from jax_md import space
 
     from apax.config import Config
     from apax.model.builder import ModelBuilder
@@ -182,18 +181,16 @@ def visualize_model(
         user_config = yaml.safe_load(stream)
 
     try:
-        config = Config.parse_obj(user_config)
+        config = Config.model_validate(user_config)
     except ValidationError as e:
         print(e)
         console.print("Configuration Invalid!", style="red3")
         raise typer.Exit(code=1)
 
-    R, Z, idx, box = make_minimal_input()
+    R, Z, idx, box, offsets = make_minimal_input()
     builder = ModelBuilder(config.model.get_dict(), n_species=10)
-    model = builder.build_energy_model(
-        displacement_fn=space.free()[0],
-    )
-    print(model.tabulate(jax.random.PRNGKey(0), R, Z, idx, box))
+    model = builder.build_energy_model()
+    print(model.tabulate(jax.random.PRNGKey(0), R, Z, idx, box, offsets))
 
 
 @template_app.command("train")

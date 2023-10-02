@@ -35,9 +35,14 @@ If you want to enable GPU support, please overwrite the jaxlib version:
 .. code-block:: bash
 
     pip install --upgrade pip
-    # Installs the wheel compatible with CUDA 11 and cuDNN 8.6 or newer.
+
+    # CUDA 12 installation
     # Note: wheels only available on linux.
-    pip install --upgrade "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+    pip install --upgrade "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+
+    # CUDA 11 installation
+    # Note: wheels only available on linux.
+    pip install --upgrade "jax[cuda11_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
 
 See the `Jax installation instructions <https://github.com/google/jax#installation>`_ for more details.

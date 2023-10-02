@@ -1,4 +1,5 @@
-from typing import Any, Callable
+from dataclasses import field
+from typing import Any
 
 import einops
 import flax.linen as nn
@@ -6,6 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 from jax import vmap
 from jax_md import space
+from jax_md.space import pairwise_displacement, raw_transform, transform
 
 from apax.layers.descriptor.basis_functions import RadialFunction
 from apax.layers.descriptor.moments import geometric_moments
@@ -13,39 +15,58 @@ from apax.layers.descriptor.triangular_indices import tril_2d_indices, tril_3d_i
 from apax.layers.masking import mask_by_neighbor
 
 
+def disp_fn(ri, rj, perturbation, box):
+    dR = pairwise_displacement(ri, rj)
+    dR = transform(box, dR)
+
+    if perturbation is not None:
+        dR = dR + raw_transform(perturbation, dR)
+        # https://github.com/mir-group/nequip/blob/c56f48fcc9b4018a84e1ed28f762fadd5bc763f1/nequip/nn/_grad_output.py#L267
+        # https://github.com/sirmarcel/glp/blob/main/glp/calculators/utils.py
+        # other codes do R = R + strain, not dR
+        # can be implemented for efficiency
+
+    return dR
+
+
 def get_disp_fn(displacement):
-    def disp_fn(ri, rj, box):
-        return displacement(ri, rj, box=box)
+    def disp_fn(ri, rj, perturbation, box):
+        return displacement(ri, rj, perturbation, box=box)
 
     return disp_fn
 
 
 class GaussianMomentDescriptor(nn.Module):
-    displacement_fn: Callable = space.free()[0]
     radial_fn: nn.Module = RadialFunction()
     n_contr: int = 8
     dtype: Any = jnp.float32
     apply_mask: bool = True
-    init_box: np.array = np.array([0.0, 0.0, 0.0])
+    init_box: np.array = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
+    inference_disp_fn: Any = None
 
     def setup(self):
         self.r_max = self.radial_fn.r_max
         self.n_radial = self.radial_fn._n_radial
 
-        if not np.all(self.init_box < 1e-6):
-            # displacement function used for training on periodic systems
-            mappable_displacement_fn = get_disp_fn(self.displacement_fn)
-            self.displacement = vmap(mappable_displacement_fn, (0, 0, None), 0)
-        else:
+        if np.all(self.init_box < 1e-6):
             # displacement function for gas phase training and predicting
-            self.displacement = space.map_bond(self.displacement_fn)
+            displacement_fn = space.free()[0]
+            self.displacement = space.map_bond(displacement_fn)
+        elif self.inference_disp_fn is None:
+            # displacement function used for training on periodic systems
+            self.displacement = vmap(disp_fn, (0, 0, None, None), 0)
+        else:
+            mappable_displacement_fn = get_disp_fn(self.inference_disp_fn)
+            self.displacement = vmap(mappable_displacement_fn, (0, 0, None, None), 0)
 
         self.distance = vmap(space.distance, 0, 0)
 
         self.triang_idxs_2d = tril_2d_indices(self.n_radial)
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
 
-    def __call__(self, R, Z, neighbor_idxs, box):
+    def __call__(
+        self, R, Z, neighbor_idxs, box, offsets=np.full([3, 3], 0), perturbation=None
+    ):
         R = R.astype(jnp.float64)
         # R shape n_atoms x 3
         # Z shape n_atoms
@@ -56,15 +77,18 @@ class GaussianMomentDescriptor(nn.Module):
         # shape: neighbors
         Z_i, Z_j = Z[idx_i, ...], Z[idx_j, ...]
 
+        Ri = R[idx_i]
+        Rj = R[idx_j]
+
         # dr_vec shape: neighbors x 3
-        if not np.all(self.init_box < 1e-6):
-            # distance vector for training on periodic systems
-            # reverse conventnion to match TF
-            dr_vec = self.displacement(R[idx_j], R[idx_i], box).astype(self.dtype)
-        else:
+        if np.all(self.init_box < 1e-6):
             # reverse conventnion to match TF
             # distance vector for gas phase training and predicting
-            dr_vec = self.displacement(R[idx_j], R[idx_i]).astype(self.dtype)
+            dr_vec = self.displacement(Rj, Ri).astype(self.dtype)
+        else:
+            # distance vector for training on periodic systems
+            dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
+            dr_vec += offsets.astype(self.dtype)
 
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(self.dtype)

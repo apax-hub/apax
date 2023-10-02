@@ -3,6 +3,7 @@ import time
 from functools import partial
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 from tqdm import trange
 
@@ -22,17 +23,19 @@ def fit(
     n_epochs,
     ckpt_dir,
     ckpt_interval: int = 1,
-    disable_pbar: bool = False,
     val_ds=None,
+    sam_rho=0.0,
+    patience=None,
+    disable_pbar: bool = False,
 ):
-    log.info("Begining Training")
+    log.info("Beginning Training")
     callbacks.on_train_begin()
 
     latest_dir = ckpt_dir + "/latest"
     best_dir = ckpt_dir + "/best"
     ckpt_manager = CheckpointManager()
 
-    train_step, val_step = make_step_fns(loss_fn, Metrics, model=model)
+    train_step, val_step = make_step_fns(loss_fn, Metrics, model=model, sam_rho=sam_rho)
 
     state, start_epoch = load_state(model, params, tx, latest_dir)
     if start_epoch >= n_epochs:
@@ -48,6 +51,7 @@ def fit(
         batch_val_ds = val_ds.shuffle_and_batch()
 
     best_loss = np.inf
+    early_stopping_counter = 0
     epoch_loss = {}
     with trange(
         start_epoch, n_epochs, desc="Epochs", ncols=100, disable=disable_pbar, leave=True
@@ -111,27 +115,62 @@ def fit(
             if epoch_metrics["val_loss"] < best_loss:
                 best_loss = epoch_metrics["val_loss"]
                 ckpt_manager.save_checkpoint(ckpt, epoch, best_dir)
+                early_stopping_counter = 0
+            else:
+                early_stopping_counter += 1
 
             callbacks.on_epoch_end(epoch=epoch, logs=epoch_metrics)
 
             epoch_pbar.set_postfix(val_loss=epoch_metrics["val_loss"])
             epoch_pbar.update()
 
+            if patience is not None and early_stopping_counter >= patience:
+                log.info(
+                    "Early stopping patience exceeded. Stopping training after"
+                    f" {epoch} epochs."
+                )
+                break
+    callbacks.on_train_end()
+
+
+def global_norm(updates) -> jnp.ndarray:
+    """Returns the l2 norm of the input.
+    Args:
+      updates: A pytree of ndarrays representing the gradient.
+    """
+    norm = jax.tree_map(lambda u: jnp.sqrt(jnp.sum(jnp.square(u))), updates)
+    return norm
+
 
 def calc_loss(params, inputs, labels, loss_fn, model):
-    R, Z, idx, box = inputs["positions"], inputs["numbers"], inputs["idx"], inputs["box"]
-    predictions = model(params, R, Z, idx, box)
+    R, Z, idx, box, offsets = (
+        inputs["positions"],
+        inputs["numbers"],
+        inputs["idx"],
+        inputs["box"],
+        inputs["offsets"],
+    )
+    predictions = model(params, R, Z, idx, box, offsets)
     loss = loss_fn(inputs, labels, predictions)
     return loss, predictions
 
 
-def make_step_fns(loss_fn, Metrics, model):
+def make_step_fns(loss_fn, Metrics, model, sam_rho):
     loss_calculator = partial(calc_loss, loss_fn=loss_fn, model=model)
+    rho = sam_rho
 
     @jax.jit
     def train_step(state, inputs, labels, batch_metrics):
         grad_fn = jax.value_and_grad(loss_calculator, 0, has_aux=True)
         (loss, predictions), grads = grad_fn(state.params, inputs, labels)
+
+        if rho > 1e-6:
+            # SAM step
+            grad_norm = global_norm(grads)
+            eps = jax.tree_map(lambda g, n: g * rho / n, grads, grad_norm)
+            params_eps = jax.tree_map(lambda p, e: p + e, state.params, eps)
+            (loss, _), grads = grad_fn(params_eps, inputs, labels)
+
         state = state.apply_gradients(grads=grads)
 
         new_batch_metrics = Metrics.single_from_model_output(

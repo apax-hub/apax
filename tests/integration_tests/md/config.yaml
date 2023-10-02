@@ -1,7 +1,7 @@
 n_epochs: 2
 
 data:
-  model_name: apax_dummy
+  experiment: apax_dummy
   data_path: dummy_ds  # ds.extxyz #ethanol.traj # ds.extxyz #
 
   n_train: 4
@@ -17,6 +17,7 @@ model:
   descriptor_dtype: fp64
   readout_dtype: fp32
   scale_shift_dtype: fp64
+  calc_stress: true
 
 metrics:
   - name: energy
