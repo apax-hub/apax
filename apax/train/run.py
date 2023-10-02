@@ -72,9 +72,7 @@ def load_data_files(data_config, model_version_path):
     return train_raw_ds, val_raw_ds
 
 
-def initialize_dataset(
-    config, raw_ds, calc_stats: bool = True
-):  # have to be compatible with eval and only on ds
+def initialize_dataset(config, raw_ds, calc_stats: bool = True):
     # Note(Moritz): external labels are actually not read in anywhere
     # Answer(Nico): external labels are read in the filde utils/data.py in
     #               the load_data() function.
