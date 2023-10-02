@@ -218,9 +218,9 @@ def run(user_config, log_file="train.log", log_level="error"):
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
 
-    raw_ds = load_data_files(config.data, model_version_path)
-    train_ds, ds_stats = initialize_dataset(config, raw_ds)
-    val_ds = initialize_dataset(config, raw_ds, calc_stats=False)
+    train_raw_ds, val_raw_ds = load_data_files(config.data, model_version_path)
+    train_ds, ds_stats = initialize_dataset(config, train_raw_ds)
+    val_ds = initialize_dataset(config, val_raw_ds, calc_stats=False)
 
     log.info("Initializing Model")
     init_input = train_ds.init_input()
