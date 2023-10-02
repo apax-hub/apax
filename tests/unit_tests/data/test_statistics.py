@@ -15,13 +15,30 @@ def test_energy_per_element():
 
     atoms_list = [atoms1, atoms2, atoms3]
     energies = []
+    n_atoms = []
     for atoms in atoms_list:
+        n_atoms.append(len(atoms))
+        print(len(atoms))
         energy = np.sum(dummy_energies[atoms.numbers])
         energies.append(energy)
         atoms.calc = SinglePointCalculator(atoms, energy=energy)
 
+    labels = {
+        "ragged": {
+            "energy": [atoms.get_potential_energy() for atoms in atoms_list],
+        }
+    }
+    inputs = {
+        "ragged": {
+            "numbers": [atoms.numbers for atoms in atoms_list],
+        },
+        "fixed": {
+            "n_atoms": n_atoms,
+        },
+    }
+
     elemental_shift = PerElementRegressionShift.compute(
-        atoms_list, {"energy_regularisation": 0.0}
+        inputs, labels, {"energy_regularisation": 0.0}
     )
     regression_energies = []
     for atoms in atoms_list:

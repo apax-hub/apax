@@ -8,7 +8,6 @@ import numpy as np
 from tqdm import trange
 
 from apax.config import parse_config
-from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
 from apax.train.checkpoints import load_params
 from apax.train.metrics import initialize_metrics
@@ -124,16 +123,9 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
 
-    test_raw_ds = load_test_data(config, model_version_path, eval_path, n_test)
+    raw_ds = load_test_data(config, model_version_path, eval_path, n_test)
 
-    test_ds = initialize_dataset(config, test_raw_ds)
-    ds_stats = compute_scale_shift_parameters(
-        test_raw_ds.atoms_list,
-        config.data.shift_method,
-        config.data.scale_method,
-        config.data.shift_options,
-        config.data.scale_options,
-    )
+    test_ds, ds_stats = initialize_dataset(config, raw_ds)
 
     init_input = test_ds.init_input()
     init_box = np.array(init_input["box"][0])
