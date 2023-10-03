@@ -25,7 +25,7 @@ class PerElementRegressionShift:
         log.info("Computing per element energy regression.")
 
         lambd = shift_options["energy_regularisation"]
-        energies = labels["ragged"]["energy"]
+        energies = labels["fixed"]["energy"]
         numbers = inputs["ragged"]["numbers"]
         system_sizes = inputs["fixed"]["n_atoms"]
 
@@ -81,7 +81,7 @@ class MeanEnergyRMSScale:
     @staticmethod
     def compute(inputs, labels, scale_options):
         # log.info("Computing per element energy regression.")
-        energies = labels["ragged"]["energy"]
+        energies = labels["fixed"]["energy"]
         numbers = inputs["ragged"]["numbers"]
         system_sizes = inputs["fixed"]["n_atoms"]
 
