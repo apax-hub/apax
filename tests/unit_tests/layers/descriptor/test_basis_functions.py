@@ -12,14 +12,14 @@ def test_gaussian_basis():
     dr = jnp.array([0.5, 1.0, 2.0, 3.0])  # n_neighbors
 
     params = basis.init(key, dr)
-    assert len(params.unfreeze().keys()) == 0
+    assert len(params.keys()) == 0
     result = basis.apply(params, dr)
     assert result.shape == (4, n_basis)  # n_neighbors x n_basis
 
 
 def test_radial_function():
     key = jax.random.PRNGKey(0)
-    n_species = 3
+    n_species = 119  # 3
     n_basis = 5
     n_radial = 2
 

@@ -17,7 +17,7 @@ def map_nested_fn(fn: Callable[[str, Any], dict]) -> Callable[[dict], dict]:
 
     def map_fn(nested_dict):
         return {
-            k: (map_fn(v) if isinstance(v, dict) else fn(k, v))
+            k: map_fn(v) if isinstance(v, dict) else fn(k, v)
             for k, v in nested_dict.items()
         }
 
@@ -56,8 +56,10 @@ def get_opt(
     nn_lr: float = 0.03,
     scale_lr: float = 0.001,
     shift_lr: float = 0.05,
+    zbl_lr: float = 0.001,
     opt_name: str = "adam",
     opt_kwargs: dict = {},
+    **kwargs,
 ) -> optax._src.base.GradientTransformation:
     """
     Builds an optimizer with different learning rates for each parameter group.
@@ -74,6 +76,7 @@ def get_opt(
     shift_opt = make_optimizer(
         opt, shift_lr, transition_begin, transition_steps, opt_kwargs
     )
+    zbl_opt = make_optimizer(opt, zbl_lr, transition_begin, transition_steps, opt_kwargs)
 
     partition_optimizers = {
         "w": nn_opt,
@@ -81,7 +84,13 @@ def get_opt(
         "atomic_type_embedding": emb_opt,
         "scale_per_element": scale_opt,
         "shift_per_element": shift_opt,
+        "a_exp": zbl_opt,
+        "a_num": zbl_opt,
+        "coefficients": zbl_opt,
+        "exponents": zbl_opt,
+        "rep_scale": zbl_opt,
     }
+
     param_partitions = freeze(
         traverse_util.path_aware_map(lambda path, v: path[-1], params)
     )

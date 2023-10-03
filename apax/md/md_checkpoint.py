@@ -1,19 +1,17 @@
-import glob
+import logging
 
 from flax.training import checkpoints
 
-
-def look_for_checkpoints(directory):
-    checkpoints_exist = glob.glob(f"{directory}/checkpoint*")
-    if checkpoints_exist:
-        return True
-    else:
-        return False
+log = logging.getLogger(__name__)
 
 
 def load_md_state(sim_dir):
     # TODO: not functional yet
-    raw_restored = checkpoints.restore_checkpoint(sim_dir, target=None, step=None)
+    try:
+        log.info("loading previous md state")
+        raw_restored = checkpoints.restore_checkpoint(sim_dir, target=None, step=None)
+    except FileNotFoundError:
+        print(f"No checkpoint found at {sim_dir}")
     state = raw_restored["state"]
     step = raw_restored["step"]
     return state, step

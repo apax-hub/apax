@@ -10,13 +10,14 @@ def test_gaussian_moment_descriptor():
     Z = jnp.array([8, 1, 1])
     neighbor = jnp.array([[1, 2, 0, 2, 0, 1], [0, 0, 1, 1, 2, 2]])
     box = np.array([0.0, 0.0, 0.0])
+    offsets = jnp.full([6, 3], 0)
 
     descriptor = GaussianMomentDescriptor()
 
     key = jax.random.PRNGKey(0)
-    params = descriptor.init(key, R, Z, neighbor, box)
-    result = descriptor.apply(params, R, Z, neighbor, box)
-    result_jit = jax.jit(descriptor.apply)(params, R, Z, neighbor, box)
+    params = descriptor.init(key, R, Z, neighbor, box, offsets)
+    result = descriptor.apply(params, R, Z, neighbor, box, offsets)
+    result_jit = jax.jit(descriptor.apply)(params, R, Z, neighbor, box, offsets)
 
     assert result.shape == (3, 360)
     assert result_jit.shape == (3, 360)

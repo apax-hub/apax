@@ -9,7 +9,7 @@ def test_per_element_scale_shift():
 
     x = jnp.array([1.0, 1.0, 1.0])[:, None]
     Z = jnp.array([1, 2, 2])
-    n_species = 3
+    n_species = 119  # 3
 
     global_shift = 2.0
     global_scale = 1.0
@@ -35,7 +35,7 @@ def test_per_element_scale_shift():
     params = scale_shift.init(key, x, Z)
     result = scale_shift.apply(params, x, Z)
 
-    assert params["params"]["scale_per_element"].shape == (n_species, 1)
-    assert params["params"]["shift_per_element"].shape == (n_species, 1)
+    assert params["params"]["scale_per_element"].shape == (3, 1)
+    assert params["params"]["shift_per_element"].shape == (3, 1)
 
     assert jnp.allclose(result, jnp.array([0.0, 5.0, 5.0])[:, None])
