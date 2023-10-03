@@ -21,13 +21,13 @@ class PerElementRegressionShift:
     dtypes = [float]
 
     @staticmethod
-    def compute(atoms_list, shift_options) -> np.ndarray:
+    def compute(inputs, labels, shift_options) -> np.ndarray:
         log.info("Computing per element energy regression.")
 
         lambd = shift_options["energy_regularisation"]
-        energies = [atoms.get_potential_energy() for atoms in atoms_list]
-        numbers = [atoms.numbers for atoms in atoms_list]
-        system_sizes = [num.shape[0] for num in numbers]
+        energies = labels["ragged"]["energy"]
+        numbers = inputs["ragged"]["numbers"]
+        system_sizes = inputs["fixed"]["n_atoms"]
 
         energies = np.array(energies)
         system_sizes = np.array(system_sizes)
@@ -64,7 +64,7 @@ class IsolatedAtomEnergyShift:
     dtypes = [dict[int:float]]
 
     @staticmethod
-    def compute(atoms_list, shift_options):
+    def compute(inputs, labels, shift_options):
         n_species = 119
         elemental_energies_shift = np.zeros(n_species)
         for k, v in shift_options.items():
@@ -79,11 +79,11 @@ class MeanEnergyRMSScale:
     dtypes = []
 
     @staticmethod
-    def compute(atoms_list, scale_options):
+    def compute(inputs, labels, scale_options):
         # log.info("Computing per element energy regression.")
-        energies = [atoms.get_potential_energy() for atoms in atoms_list]
-        numbers = [atoms.numbers for atoms in atoms_list]
-        system_sizes = [num.shape[0] for num in numbers]
+        energies = labels["ragged"]["energy"]
+        numbers = inputs["ragged"]["numbers"]
+        system_sizes = inputs["fixed"]["n_atoms"]
 
         energies = np.array(energies)
         system_sizes = np.array(system_sizes)
@@ -109,11 +109,11 @@ class PerElementForceRMSScale:
     dtypes = []
 
     @staticmethod
-    def compute(atoms_list, scale_options):
+    def compute(inputs, labels, scale_options):
         n_species = 119
 
-        forces = np.concatenate([atoms.get_forces() for atoms in atoms_list], axis=0)
-        numbers = np.concatenate([atoms.numbers for atoms in atoms_list], axis=0)
+        forces = np.concatenate(labels["ragged"]["forces"], axis=0)
+        numbers = np.concatenate(inputs["ragged"]["numbers"], axis=0)
 
         elements = np.unique(numbers)
 
@@ -133,7 +133,7 @@ class GlobalCustomScale:
     dtypes = [float]
 
     @staticmethod
-    def compute(atoms_list, scale_options):
+    def compute(inputs, labels, scale_options):
         element_scale = scale_options["factor"]
         return element_scale
 
@@ -144,7 +144,7 @@ class PerElementCustomScale:
     dtypes = [dict[int, float]]
 
     @staticmethod
-    def compute(atoms_list, scale_options):
+    def compute(inputs, labels, scale_options):
         n_species = 119
         element_scale = np.ones(n_species)
         for k, v in scale_options["factors"].items():
@@ -163,7 +163,7 @@ scale_method_list = [
 
 
 def compute_scale_shift_parameters(
-    train_atoms_list, shift_method, scale_method, shift_options, scale_options
+    inputs, labels, shift_method, scale_method, shift_options, scale_options
 ):
     shift_methods = {method.name: method for method in shift_method_list}
     scale_methods = {method.name: method for method in scale_method_list}
@@ -182,8 +182,8 @@ def compute_scale_shift_parameters(
     shift_method = shift_methods[shift_method]
     scale_method = scale_methods[scale_method]
 
-    shift_parameters = shift_method.compute(train_atoms_list, shift_options)
-    scale_parameters = scale_method.compute(train_atoms_list, scale_options)
+    shift_parameters = shift_method.compute(inputs, labels, shift_options)
+    scale_parameters = scale_method.compute(inputs, labels, scale_options)
 
     ds_stats = DatasetStats(shift_parameters, scale_parameters)
     return ds_stats

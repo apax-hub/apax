@@ -72,8 +72,10 @@ def load_data_files(data_config, model_version_path):
     return train_raw_ds, val_raw_ds
 
 
-def initialize_dataset(config, raw_ds):
+def initialize_dataset(config, raw_ds, calc_stats: bool = True):
     # Note(Moritz): external labels are actually not read in anywhere
+    # Answer(Nico): external labels are read in the filde utils/data.py in
+    #               the load_data() function.
     inputs, labels = create_dict_dataset(
         raw_ds.atoms_list,
         r_max=config.model.r_max,
@@ -82,6 +84,7 @@ def initialize_dataset(config, raw_ds):
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
     )
+
     dataset = TFPipeline(
         inputs,
         labels,
@@ -89,7 +92,20 @@ def initialize_dataset(config, raw_ds):
         config.data.batch_size,
         buffer_size=config.data.shuffle_buffer_size,
     )
-    return dataset
+
+    if calc_stats:
+        ds_stats = compute_scale_shift_parameters(
+            inputs,
+            labels,
+            config.data.shift_method,
+            config.data.scale_method,
+            config.data.shift_options,
+            config.data.scale_options,
+        )
+
+        return dataset, ds_stats
+    else:
+        return dataset
 
 
 def maximize_l2_cache():
@@ -201,16 +217,8 @@ def run(user_config, log_file="train.log", log_level="error"):
     Metrics = initialize_metrics(config.metrics)
 
     train_raw_ds, val_raw_ds = load_data_files(config.data, model_version_path)
-    train_ds = initialize_dataset(config, train_raw_ds)
-    val_ds = initialize_dataset(config, val_raw_ds)
-
-    ds_stats = compute_scale_shift_parameters(
-        train_raw_ds.atoms_list,
-        config.data.shift_method,
-        config.data.scale_method,
-        config.data.shift_options,
-        config.data.scale_options,
-    )
+    train_ds, ds_stats = initialize_dataset(config, train_raw_ds)
+    val_ds = initialize_dataset(config, val_raw_ds, calc_stats=False)
 
     log.info("Initializing Model")
     init_input = train_ds.init_input()
