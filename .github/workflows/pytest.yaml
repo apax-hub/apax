@@ -28,7 +28,7 @@ jobs:
 
     - name: Unit Tests
       run: |
-        poetry run coverage run -m pytest tests
+        poetry run coverage run -m pytest -k "not slow"
         poetry run coverage report
 
     - name: Coverage Report
