@@ -3,7 +3,7 @@ seed: 0
 
 data:
   directory: models/
-  experiment: apax
+  experiment: test
 
   data_path: <PATH>
 
