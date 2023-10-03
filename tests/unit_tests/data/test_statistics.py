@@ -24,7 +24,7 @@ def test_energy_per_element():
         atoms.calc = SinglePointCalculator(atoms, energy=energy)
 
     labels = {
-        "ragged": {
+        "fixed": {
             "energy": [atoms.get_potential_energy() for atoms in atoms_list],
         }
     }

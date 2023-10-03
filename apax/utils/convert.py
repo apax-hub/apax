@@ -109,7 +109,6 @@ def atoms_to_arrays(
 
         inputs["ragged"]["numbers"].append(atoms.numbers)
         inputs["fixed"]["n_atoms"].append(len(atoms))
-
         for key, val in atoms.calc.results.items():
             if key == "forces":
                 labels["ragged"][key].append(

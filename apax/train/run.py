@@ -85,14 +85,6 @@ def initialize_dataset(config, raw_ds, calc_stats: bool = True):
         energy_unit=config.data.energy_unit,
     )
 
-    dataset = TFPipeline(
-        inputs,
-        labels,
-        config.n_epochs,
-        config.data.batch_size,
-        buffer_size=config.data.shuffle_buffer_size,
-    )
-
     if calc_stats:
         ds_stats = compute_scale_shift_parameters(
             inputs,
@@ -103,6 +95,15 @@ def initialize_dataset(config, raw_ds, calc_stats: bool = True):
             config.data.scale_options,
         )
 
+    dataset = TFPipeline(
+        inputs,
+        labels,
+        config.n_epochs,
+        config.data.batch_size,
+        buffer_size=config.data.shuffle_buffer_size,
+    )
+
+    if calc_stats:
         return dataset, ds_stats
     else:
         return dataset
