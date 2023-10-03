@@ -1,0 +1,89 @@
+n_epochs: 1000
+seed: 0
+
+data:
+  directory: models/
+  experiment: apax
+
+  data_path: <PATH>
+
+  n_train: 1000
+  n_valid: 100
+
+  batch_size: 8
+  valid_batch_size: 100
+
+  shift_method: "per_element_regression_shift"
+  shift_options: {"energy_regularisation": 1.0}
+  shuffle_buffer_size: 1000
+
+  pos_unit: Ang
+  energy_unit: eV
+
+model:
+  n_basis: 7
+  n_radial: 5
+  nn: [512, 512]
+
+  r_max: 6.5
+  r_min: 0.5
+
+  calc_stress: false
+  use_zbl: true
+
+  b_init: normal
+  descriptor_dtype: fp32
+  readout_dtype: fp32
+  scale_shift_dtype: fp32
+
+metrics:
+  - name: energy
+    reductions:
+    - mae
+  - name: forces
+    reductions:
+    - mae
+    - mse
+  # - name: stress
+  #   reductions:
+  #   - mae
+  #   - mse
+
+loss:
+  - loss_type: structures
+    name: energy
+    weight: 1.0
+  - loss_type: structures
+    name: forces
+    weight: 8.0
+  - loss_type: cosine_sim
+    name: forces
+    weight: 0.1
+  # - loss_type: structures
+  #   name: stress
+  #   weight: 1.0
+
+optimizer:
+  opt_name: adam
+  opt_kwargs: {}
+  emb_lr: 0.003
+  nn_lr: 0.002
+  scale_lr: 0.0005
+  shift_lr: 0.025
+  zbl_lr: 0.001
+  transition_begin: 0
+
+callbacks:
+- name: csv
+
+checkpoints:
+  ckpt_interval: 1
+  # The options below are used for transfer learning
+  # base_model_checkpoint: null
+  # reset_layers: []
+
+progress_bar:
+  disable_epoch_pbar: false
+  disable_nl_pbar: false
+
+maximize_l2_cache: false
