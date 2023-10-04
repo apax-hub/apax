@@ -78,38 +78,32 @@ def dataset_neighborlist(
         r_max,
     )
 
-    with trange(
-        len(positions),
-        desc="Precomputing NL",
-        ncols=100,
-        mininterval=0.25,
-        disable=disable_pbar,
-        leave=True,
-    ) as nl_pbar:
-        for i, position in enumerate(positions):
-            if np.all(box[i] < 1e-6):
-                position = jnp.asarray(position)
-                if n_atoms[i] != last_n_atoms:
-                    neighbors = neighbor_fn.allocate(position)
-                    last_n_atoms = n_atoms[i]
+    nl_pbar =  trange(len(positions), desc="Precomputing NL", ncols=100, mininterval=0.25, disable=disable_pbar, leave=True)
+    for i, position in enumerate(positions):
+        if np.all(box[i] < 1e-6):
+            position = jnp.asarray(position)
+            if n_atoms[i] != last_n_atoms:
+                neighbors = neighbor_fn.allocate(position)
+                last_n_atoms = n_atoms[i]
 
-                neighbors = extract_nl(neighbors, position)
+            neighbors = extract_nl(neighbors, position)
 
-                if neighbors.did_buffer_overflow:
-                    log.info("Neighbor list overflowed, reallocating.")
-                    neighbors = neighbor_fn.allocate(position)
+            if neighbors.did_buffer_overflow:
+                log.info("Neighbor list overflowed, reallocating.")
+                neighbors = neighbor_fn.allocate(position)
 
-                neighbor_idxs = np.asarray(neighbors.idx)
-                n_neighbors = neighbor_idxs.shape[1]
-                offsets = np.full([n_neighbors, 3], 0)
-            else:
-                idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms_list[i], r_max)
-                offsets = np.matmul(offsets, box[i])
-                neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
+            neighbor_idxs = np.asarray(neighbors.idx)
+            n_neighbors = neighbor_idxs.shape[1]
+            offsets = np.full([n_neighbors, 3], 0)
+        else:
+            idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms_list[i], r_max)
+            offsets = np.matmul(offsets, box[i])
+            neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
 
-            offset_list.append(offsets)
-            idx_list.append(neighbor_idxs)
-            nl_pbar.update()
+        offset_list.append(offsets)
+        idx_list.append(neighbor_idxs)
+        nl_pbar.update()
+    nl_pbar.close()
 
     return idx_list, offset_list
 
