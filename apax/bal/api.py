@@ -1,9 +1,9 @@
 from functools import partial
 from typing import List, Union
-from ase import Atoms
 
 import jax
 import numpy as np
+from ase import Atoms
 from click import Path
 from tqdm import trange
 
@@ -55,7 +55,7 @@ def compute_features(feature_fn, dataset: TFPipeline, processing_batch_size: int
         features.append(np.asarray(g))
         pbar.update(g.shape[0])
     pbar.close()
-            
+
     features = np.concatenate(features, axis=0)
     return features
 
@@ -67,8 +67,8 @@ def kernel_selection(
     base_fm_options: dict,
     selection_method: str,
     feature_transforms: list = [],
-    selection_batch_size: int =10,
-    processing_batch_size: int =64,
+    selection_batch_size: int = 10,
+    processing_batch_size: int = 64,
 ):
     n_models = 1 if isinstance(model_dir, (Path, str)) else len(model_dir)
     is_ensemble = n_models > 1

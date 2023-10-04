@@ -78,7 +78,14 @@ def dataset_neighborlist(
         r_max,
     )
 
-    nl_pbar =  trange(len(positions), desc="Precomputing NL", ncols=100, mininterval=0.25, disable=disable_pbar, leave=True)
+    nl_pbar = trange(
+        len(positions),
+        desc="Precomputing NL",
+        ncols=100,
+        mininterval=0.25,
+        disable=disable_pbar,
+        leave=True,
+    )
     for i, position in enumerate(positions):
         if np.all(box[i] < 1e-6):
             position = jnp.asarray(position)

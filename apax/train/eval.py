@@ -85,17 +85,19 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks):
 
     epoch_loss.update({"test_loss": 0.0})
     test_metrics = Metrics.empty()
-    with trange(
+
+    batch_pbar = trange(
         0, test_steps_per_epoch, desc="Batches", ncols=100, disable=False, leave=True
-    ) as batch_pbar:
-        for batch_idx in range(test_steps_per_epoch):
-            inputs, labels = next(batch_test_ds)
+    )
+    for batch_idx in range(test_steps_per_epoch):
+        inputs, labels = next(batch_test_ds)
 
-            test_metrics, batch_loss = test_step_fn(params, inputs, labels, test_metrics)
+        test_metrics, batch_loss = test_step_fn(params, inputs, labels, test_metrics)
 
-            epoch_loss["test_loss"] += batch_loss
-            batch_pbar.set_postfix(test_loss=epoch_loss["test_loss"] / batch_idx)
-            batch_pbar.update()
+        epoch_loss["test_loss"] += batch_loss
+        batch_pbar.set_postfix(test_loss=epoch_loss["test_loss"] / batch_idx)
+        batch_pbar.update()
+    batch_pbar.close()
 
     epoch_loss["test_loss"] /= test_steps_per_epoch
     epoch_loss["test_loss"] = float(epoch_loss["test_loss"])
