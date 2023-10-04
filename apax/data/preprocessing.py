@@ -78,11 +78,11 @@ def dataset_neighborlist(
         r_max,
     )
 
-    pbar_update_freq = max(int(len(atoms_list) / 100), 50)
     with trange(
         len(positions),
         desc="Precomputing NL",
         ncols=100,
+        mininterval=0.25,
         disable=disable_pbar,
         leave=True,
     ) as nl_pbar:
@@ -109,8 +109,8 @@ def dataset_neighborlist(
 
             offset_list.append(offsets)
             idx_list.append(neighbor_idxs)
-            if i % pbar_update_freq == 0:
-                nl_pbar.update(pbar_update_freq)
+            nl_pbar.update()
+
     return idx_list, offset_list
 
 
