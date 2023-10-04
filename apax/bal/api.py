@@ -77,8 +77,7 @@ def kernel_selection(
         "max_dist": selection.max_dist_selection,
     }[selection_method]
 
-    base_feature_config = feature_maps.FeatureMapOptions.model_validate(base_fm_options)
-    base_feature_map = base_feature_config.base_feature_map
+    base_feature_map = feature_maps.FeatureMapOptions(base_fm_options)
 
     config, params = restore_parameters(model_dir)
 

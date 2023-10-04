@@ -3,7 +3,7 @@ from typing import Literal, Tuple, Union
 import jax
 import jax.numpy as jnp
 from flax.traverse_util import flatten_dict, unflatten_dict
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, TypeAdapter
 
 
 def extract_feature_params(params: dict, layer_name: str) -> Tuple[dict, dict]:
@@ -76,7 +76,6 @@ class IdentityFeatures(BaseModel, extra="forbid"):
         return model.apply
 
 
-class FeatureMapOptions(BaseModel, extra="forbid"):
-    base_feature_map: Union[LastLayerGradientFeatures, IdentityFeatures] = Field(
-        LastLayerGradientFeatures(name="ll_grad"), discriminator="name"
-    )
+FeatureMapOptions = TypeAdapter(
+    Union[LastLayerGradientFeatures, IdentityFeatures]
+).validate_python
