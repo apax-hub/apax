@@ -1,10 +1,14 @@
 from functools import partial
+from typing import List, Union
+from ase import Atoms
 
 import jax
 import numpy as np
 from click import Path
+from tqdm import trange
 
 from apax.bal import feature_maps, kernel, selection, transforms
+from apax.data.input_pipeline import TFPipeline
 from apax.model.builder import ModelBuilder
 from apax.model.gmnn import EnergyModel
 from apax.train.checkpoints import restore_parameters
@@ -39,27 +43,32 @@ def create_feature_fn(
     return feature_fn
 
 
-def compute_features(feature_fn, ds):
+def compute_features(feature_fn, dataset: TFPipeline, processing_batch_size: int):
     """Compute the features of a dataset."""
     features = []
-    for inputs, _ in ds:
+    n_data = dataset.n_data
+    ds = dataset.batch(processing_batch_size)
+
+    pbar = trange(n_data, desc="Computing features", ncols=100, leave=True)
+    for i, (inputs, _) in enumerate(ds):
         g = feature_fn(inputs)
         features.append(np.asarray(g))
-
+        pbar.update(g.shape[0])
+    pbar.close()
+            
     features = np.concatenate(features, axis=0)
-
     return features
 
 
 def kernel_selection(
-    model_dir,
-    train_atoms,
-    pool_atoms,
+    model_dir: Union[Path, List[Path]],
+    train_atoms: List[Atoms],
+    pool_atoms: List[Atoms],
     base_fm_options: dict,
     selection_method: str,
     feature_transforms: list = [],
-    selection_batch_size=10,
-    processing_batch_size=64,
+    selection_batch_size: int =10,
+    processing_batch_size: int =64,
 ):
     n_models = 1 if isinstance(model_dir, (Path, str)) else len(model_dir)
     is_ensemble = n_models > 1
@@ -75,7 +84,6 @@ def kernel_selection(
 
     n_train = len(train_atoms)
     dataset = initialize_dataset(config, RawDataset(atoms_list=train_atoms + pool_atoms))
-    ds = dataset.batch(processing_batch_size)
 
     init_box = dataset.init_input()["box"][0]
 
@@ -85,7 +93,7 @@ def kernel_selection(
     feature_fn = create_feature_fn(
         model, params, base_feature_map, feature_transforms, is_ensemble
     )
-    g = compute_features(feature_fn, ds)
+    g = compute_features(feature_fn, dataset, processing_batch_size)
     hm = kernel.KernelMatrix(g, n_train)
     new_indices = selection_fn(hm, selection_batch_size)
 
