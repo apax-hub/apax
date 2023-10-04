@@ -39,12 +39,12 @@ pip install --upgrade pip
 
 CUDA 12 installation. Wheels only available on linux.
 ```bash
-pip install --upgrade "jax[cuda12_pip]==0.4.13" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+pip install --upgrade "jax[cuda12_pip]==0.4.14" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
 
 CUDA 11 installation. Wheels only available on linux.
 ```bash
-pip install --upgrade "jax[cuda11_pip]==0.4.13" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+pip install --upgrade "jax[cuda11_pip]==0.4.14" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
 
 See the [Jax installation instructions](https://github.com/google/jax#installation) for more details.
