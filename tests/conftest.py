@@ -1,7 +1,8 @@
-from typing import List
 import os
 import urllib
 import zipfile
+from typing import List
+
 import numpy as np
 import pytest
 from ase import Atoms
@@ -89,14 +90,14 @@ def get_md22_stachyose(get_tmp_path):
 
     with zipfile.ZipFile(file_path, "r") as zip_ref:
         zip_ref.extractall(data_path)
-    
+
     file_path = modify_xyz_file(
-            file_path.with_suffix(".xyz"), target_string="Energy", replacement_string="energy"
-        )
-    
+        file_path.with_suffix(".xyz"), target_string="Energy", replacement_string="energy"
+    )
+
     return file_path
-    
-    
+
+
 def modify_xyz_file(file_path, target_string, replacement_string):
     new_file_path = file_path.with_name(file_path.stem + "_mod" + file_path.suffix)
 

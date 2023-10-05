@@ -2,8 +2,8 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from apax.data.statistics import PerElementRegressionShift
 from apax.data.input_pipeline import create_dict_dataset
+from apax.data.statistics import PerElementRegressionShift
 
 
 def test_energy_per_element():
