@@ -93,7 +93,7 @@ def kernel_selection(
         model, params, base_feature_map, feature_transforms, is_ensemble
     )
     g = compute_features(feature_fn, dataset, processing_batch_size)
-    hm = kernel.KernelMatrix(g, n_train)
-    new_indices = selection_fn(hm, selection_batch_size)
+    km = kernel.KernelMatrix(g, n_train)
+    new_indices = selection_fn(km, selection_batch_size)
 
     return new_indices
