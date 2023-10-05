@@ -3,6 +3,7 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from apax.data.statistics import PerElementRegressionShift
+from apax.data.input_pipeline import create_dict_dataset
 
 
 def test_energy_per_element():
@@ -23,19 +24,10 @@ def test_energy_per_element():
         energies.append(energy)
         atoms.calc = SinglePointCalculator(atoms, energy=energy)
 
-    labels = {
-        "fixed": {
-            "energy": [atoms.get_potential_energy() for atoms in atoms_list],
-        }
-    }
-    inputs = {
-        "ragged": {
-            "numbers": [atoms.numbers for atoms in atoms_list],
-        },
-        "fixed": {
-            "n_atoms": n_atoms,
-        },
-    }
+    inputs, labels = create_dict_dataset(
+        atoms_list,
+        r_max=6.5,
+    )
 
     elemental_shift = PerElementRegressionShift.compute(
         inputs, labels, {"energy_regularisation": 0.0}
