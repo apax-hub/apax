@@ -1,4 +1,4 @@
-n_epochs: 1000
+n_epochs: 200
 seed: 0
 
 data:
@@ -10,7 +10,7 @@ data:
   n_train: 1000
   n_valid: 100
 
-  batch_size: 8
+  batch_size: 32
   valid_batch_size: 100
 
   shift_method: "per_element_regression_shift"
@@ -66,10 +66,10 @@ loss:
 optimizer:
   opt_name: adam
   opt_kwargs: {}
-  emb_lr: 0.003
-  nn_lr: 0.002
-  scale_lr: 0.0005
-  shift_lr: 0.025
+  emb_lr: 0.02
+  nn_lr: 0.03
+  scale_lr: 0.001
+  shift_lr: 0.05
   zbl_lr: 0.001
   transition_begin: 0
 
@@ -83,7 +83,7 @@ checkpoints:
   # reset_layers: []
 
 progress_bar:
-  disable_epoch_pbar: false
-  disable_nl_pbar: false
+  disable_epoch_pbar: true
+  disable_nl_pbar: true
 
 maximize_l2_cache: false
