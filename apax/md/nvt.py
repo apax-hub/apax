@@ -233,34 +233,35 @@ def run_nvt(
     start = time.time()
     sim_time = n_outer * ensemble.dt  # * units.fs
     log.info("running nvt for %.1f fs", sim_time)
-    with trange(
+    sim_pbar = trange(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
-    ) as sim_pbar:
-        while step < n_outer:
-            new_state, neighbor, current_temperature = sim(state, neighbor)
+    )
+    while step < n_outer:
+        new_state, neighbor, current_temperature = sim(state, neighbor)
 
-            if neighbor.did_buffer_overflow:
-                log.info("step %d: neighbor list overflowed, reallocating.", step)
-                traj_handler.reset_buffer()
-                neighbor = neighbor_fn.allocate(
-                    state.position
-                )  # TODO check that this actually works
-            else:
-                state = new_state
-                step += 1
+        if neighbor.did_buffer_overflow:
+            log.info("step %d: neighbor list overflowed, reallocating.", step)
+            traj_handler.reset_buffer()
+            neighbor = neighbor_fn.allocate(
+                state.position
+            )  # TODO check that this actually works
+        else:
+            state = new_state
+            step += 1
 
-                if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
-                    raise ValueError(
-                        f"NaN encountered, simulation aborted after {step} steps."
-                    )
+            if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
+                raise ValueError(
+                    f"NaN encountered, simulation aborted after {step} steps."
+                )
 
-                if step % checkpoint_interval == 0:
-                    log.info("saving checkpoint at step: %d", step)
-                    log.info("checkpoints not yet implemented")
+            if step % checkpoint_interval == 0:
+                log.info("saving checkpoint at step: %d", step)
+                log.info("checkpoints not yet implemented")
 
-                if step % pbar_update_freq == 0:
-                    sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
-                    sim_pbar.update(pbar_increment)
+            if step % pbar_update_freq == 0:
+                sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
+                sim_pbar.update(pbar_increment)
+    sim_pbar.close()
 
     barrier_wait()
     traj_handler.write()

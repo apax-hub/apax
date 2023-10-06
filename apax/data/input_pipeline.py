@@ -222,3 +222,13 @@ class TFPipeline:
 
         shuffled_ds = prefetch_to_single_device(shuffled_ds.as_numpy_iterator(), 2)
         return shuffled_ds
+
+    def batch(self, batch_size):
+        # TODO: the batch size here overrides self.batch_size
+        # we should find a better abstraction
+        ds = self.ds.batch(batch_size=batch_size).map(
+            PadToSpecificSize(self.max_atoms, self.max_nbrs)
+        )
+
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        return ds
