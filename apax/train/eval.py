@@ -11,10 +11,9 @@ from apax.config import parse_config
 from apax.model import ModelBuilder
 from apax.train.checkpoints import load_params
 from apax.train.metrics import initialize_metrics
+from apax.data.initialization import RawDataset, initialize_dataset
+from apax.train.callbacks import initialize_callbacks
 from apax.train.run import (
-    RawDataset,
-    initialize_callbacks,
-    initialize_dataset,
     initialize_loss_fn,
     setup_logging,
 )

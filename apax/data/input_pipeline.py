@@ -1,9 +1,9 @@
 import logging
-from typing import Dict, Iterator, Tuple
+from typing import Dict, Iterator
 
 import numpy as np
 import tensorflow as tf
-import jax.numpy as jnp
+import jax
 
 from apax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
 from apax.utils.convert import atoms_to_arrays
@@ -97,7 +97,7 @@ def create_dict_dataset(
     disable_pbar=False,
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
-) -> Tuple(dict, dict):
+) -> tuple[dict]:
     inputs, labels = atoms_to_arrays(atoms_list, pos_unit, energy_unit)
 
     if external_labels:
@@ -117,7 +117,7 @@ def create_dict_dataset(
     return inputs, labels
 
 
-def dataset_from_dicts(inputs: Dict[np.ndarray], labels: Dict[np.ndarray]) -> tf.data.Dataset:
+def dataset_from_dicts(inputs: Dict[str, np.ndarray], labels: Dict[str, np.ndarray]) -> tf.data.Dataset:
     # tf.RaggedTensors should be created from `tf.ragged.stack`
     # instead of `tf.ragged.constant` for performance reasons.
     # See https://github.com/tensorflow/tensorflow/issues/47853
@@ -207,7 +207,7 @@ class AtomisticDataset:
         """
         return self.n_data // self.batch_size
 
-    def init_input(self) -> Dict[np.ndarray]:
+    def init_input(self) -> Dict[str, np.ndarray]:
         """Returns first batch of inputs and labels to init the model."""
         inputs, _ = next(
             self.ds.batch(1)
@@ -217,7 +217,7 @@ class AtomisticDataset:
         )
         return inputs
 
-    def shuffle_and_batch(self) -> Iterator[jnp.Array]:
+    def shuffle_and_batch(self) -> Iterator[jax.Array]:
         """Shuffles, batches, and pads the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
 
@@ -237,7 +237,7 @@ class AtomisticDataset:
         shuffled_ds = prefetch_to_single_device(shuffled_ds.as_numpy_iterator(), 2)
         return shuffled_ds
 
-    def batch(self) -> Iterator[jnp.Array]:
+    def batch(self) -> Iterator[jax.Array]:
         self._check_batch_size()
         ds = self.ds.batch(batch_size=self.batch_size).map(
             PadToSpecificSize(self.max_atoms, self.max_nbrs)

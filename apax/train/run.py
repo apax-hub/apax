@@ -39,7 +39,6 @@ def setup_logging(log_file, log_level):
     logging.basicConfig(filename=log_file, level=log_levels[log_level])
 
 
-
 def initialize_directories(model_version_path: Path) -> None:
     log.info("Initializing directories")
     os.makedirs(model_version_path, exist_ok=True)
@@ -110,6 +109,7 @@ def run(user_config, log_file="train.log", log_level="error"):
 
     batched_model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
 
+    # TODO rework optimizer initialization and lr keywords
     steps_per_epoch = train_ds.steps_per_epoch()
     n_epochs = config.n_epochs
     transition_steps = steps_per_epoch * n_epochs - config.optimizer.transition_begin

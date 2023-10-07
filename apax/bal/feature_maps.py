@@ -1,4 +1,4 @@
-from typing import Literal, Tuple, Union
+from typing import Literal, Union
 
 import jax
 import jax.numpy as jnp
@@ -6,7 +6,7 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 from pydantic import BaseModel, TypeAdapter
 
 
-def extract_feature_params(params: dict, layer_name: str) -> Tuple[dict, dict]:
+def extract_feature_params(params: dict, layer_name: str) -> tuple[dict, dict]:
     """Seprate params into those belonging to a selected layer
     and the remaining ones.
     """

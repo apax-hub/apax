@@ -45,9 +45,9 @@ def test_input_pipeline(example_atoms, calc_results, num_data, external_labels):
         inputs,
         labels,
         1,
-        batch_size,
         buffer_size=1000,
     )
+    ds.set_batch_size(batch_size)
     assert ds.steps_per_epoch() == num_data // batch_size
 
     ds = ds.shuffle_and_batch()
