@@ -104,7 +104,6 @@ def create_dict_dataset(
 
     idx, offsets = dataset_neighborlist(
         inputs["ragged"]["positions"],
-        inputs["fixed"]["n_atoms"],
         box=inputs["fixed"]["box"],
         r_max=r_max,
         atoms_list=atoms_list,
@@ -145,7 +144,7 @@ class TFPipeline:
             value.
         """
         self.n_epoch = n_epoch
-        self.batch_size = batch_size
+        self.batch_size = self.validate_batch_size(batch_size)
         self.buffer_size = buffer_size
 
         max_atoms, max_nbrs = find_largest_system(inputs)
@@ -154,15 +153,6 @@ class TFPipeline:
 
         self.n_data = len(inputs["fixed"]["n_atoms"])
 
-        if batch_size > self.n_data:
-            msg = (
-                f"requested batch size {batch_size} is larger than the number of data"
-                f" points {self.n_data}. Setting batch size = {self.n_data}"
-            )
-            print("Warning: " + msg)
-            log.warning(msg)
-            batch_size = self.n_data
-        self.batch_size = batch_size
 
         # tf.RaggedTensors should be created from `tf.ragged.stack`
         # instead of `tf.ragged.constant` for performance reasons.
@@ -185,6 +175,17 @@ class TFPipeline:
                 labels["fixed"],
             )
         )
+    
+    def validate_batch_size(self, batch_size):
+        if batch_size > self.n_data:
+            msg = (
+                f"requested batch size {batch_size} is larger than the number of data"
+                f" points {self.n_data}. Setting batch size = {self.n_data}"
+            )
+            print("Warning: " + msg)
+            log.warning(msg)
+            batch_size = self.n_data
+        return batch_size
 
     def steps_per_epoch(self) -> int:
         """Returns the number of steps per epoch dependent on the number of data and the
@@ -212,7 +213,7 @@ class TFPipeline:
         -------
         shuffled_ds :
             Iterator that returns inputs and labels of one batch in each step.
-        """
+        """        
         shuffled_ds = (
             self.ds.shuffle(buffer_size=self.buffer_size)
             .repeat(self.n_epoch)
@@ -224,8 +225,8 @@ class TFPipeline:
         return shuffled_ds
 
     def batch(self, batch_size):
-        # TODO: the batch size here overrides self.batch_size
-        # we should find a better abstraction
+        batch_size = self.validate_batch_size(batch_size)
+
         ds = self.ds.batch(batch_size=batch_size).map(
             PadToSpecificSize(self.max_atoms, self.max_nbrs)
         )

@@ -36,14 +36,12 @@ def initialize_nbr_fn(atoms, cutoff):
 
 @jax.jit
 def extract_nl(neighbors, position):
-    # vmapped neighborlist probably only useful for larger structures
     neighbors = neighbors.update(position)
     return neighbors
 
 
 def dataset_neighborlist(
     positions: list[np.array],
-    n_atoms: list[int],
     box: list[np.array],
     r_max: float,
     atoms_list,
@@ -88,10 +86,11 @@ def dataset_neighborlist(
     )
     for i, position in enumerate(positions):
         if np.all(box[i] < 1e-6):
+            n_atoms = position.shape[0]
             position = jnp.asarray(position)
-            if n_atoms[i] != last_n_atoms:
+            if n_atoms != last_n_atoms:
                 neighbors = neighbor_fn.allocate(position)
-                last_n_atoms = n_atoms[i]
+                last_n_atoms = n_atoms
 
             neighbors = extract_nl(neighbors, position)
 
@@ -103,7 +102,7 @@ def dataset_neighborlist(
             n_neighbors = neighbor_idxs.shape[1]
             offsets = np.full([n_neighbors, 3], 0)
         else:
-            idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms_list[i], r_max)
+            idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms_list[i], r_max) # TODO replace atoms list with positions and box
             offsets = np.matmul(offsets, box[i])
             neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
 
