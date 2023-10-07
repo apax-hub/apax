@@ -10,7 +10,7 @@ from apax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
 
 
 class ModelBuilder:
-    def __init__(self, model_config: ModelConfig, n_species):
+    def __init__(self, model_config: ModelConfig, n_species: int =119):
         self.config = model_config
         self.n_species = n_species
 
