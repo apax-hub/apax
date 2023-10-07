@@ -1,6 +1,8 @@
 import collections
 import itertools
 import logging
+from typing import Callable
+from ase import Atoms
 
 import jax
 import jax.numpy as jnp
@@ -14,7 +16,7 @@ from apax.utils import jax_md_reduced
 log = logging.getLogger(__name__)
 
 
-def initialize_nbr_fn(atoms, cutoff):
+def initialize_nbr_fn(atoms: Atoms, cutoff: float) -> Callable:
     neighbor_fn = None
     default_box = 100
     box = jnp.asarray(atoms.cell.array)
@@ -114,7 +116,7 @@ def dataset_neighborlist(
     return idx_list, offset_list
 
 
-def prefetch_to_single_device(iterator, size):
+def prefetch_to_single_device(iterator, size: int):
     """
     inspired by
     https://flax.readthedocs.io/en/latest/_modules/flax/jax_utils.html#prefetch_to_device
