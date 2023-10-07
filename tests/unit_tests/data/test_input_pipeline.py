@@ -5,7 +5,7 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from jax import vmap
 
-from apax.data.input_pipeline import PadToSpecificSize, TFPipeline, create_dict_dataset
+from apax.data.input_pipeline import PadToSpecificSize, AtomisticDataset, create_dict_dataset
 from apax.layers.descriptor.gaussian_moment_descriptor import disp_fn
 from apax.utils.convert import atoms_to_arrays
 from apax.utils.data import split_atoms, split_idxs
@@ -41,7 +41,7 @@ def test_input_pipeline(example_atoms, calc_results, num_data, external_labels):
         disable_pbar=True,
     )
 
-    ds = TFPipeline(
+    ds = AtomisticDataset(
         inputs,
         labels,
         1,
