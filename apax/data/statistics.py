@@ -10,9 +10,7 @@ log = logging.getLogger(__name__)
 class DatasetStats:
     elemental_shift: np.array = None
     elemental_scale: float = None
-    n_atoms: int = 0
     n_species: int = 119
-    displacement_fn = None
 
 
 class PerElementRegressionShift:
@@ -36,7 +34,7 @@ class PerElementRegressionShift:
         n_atoms_total = np.sum(system_sizes)
 
         mean_energy = ds_energy / n_atoms_total
-        n_species = 119  # max([max(n) for n in numbers]) + 1
+        n_species = 119
         X = np.zeros(shape=(energies.shape[0], n_species))
         y = np.zeros(energies.shape[0])
 
