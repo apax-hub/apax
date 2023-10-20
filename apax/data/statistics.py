@@ -61,7 +61,7 @@ class PerElementRegressionShift:
 class IsolatedAtomEnergyShift:
     name = "isolated_atom_energy_shift"
     parameters = ["E0s"]
-    dtypes = [dict[int,float]]
+    dtypes = [dict[int, float]]
 
     @staticmethod
     def compute(inputs, labels, shift_options):
