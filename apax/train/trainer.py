@@ -14,9 +14,7 @@ log = logging.getLogger(__name__)
 
 
 def fit(
-    model,
-    params,
-    tx,
+    state,
     train_ds,
     loss_fn,
     Metrics,
@@ -28,7 +26,7 @@ def fit(
     sam_rho=0.0,
     patience=None,
     disable_pbar: bool = False,
-    is_ensemble= False
+    is_ensemble=False,
 ):
     log.info("Beginning Training")
     callbacks.on_train_begin()
@@ -37,10 +35,12 @@ def fit(
     best_dir = ckpt_dir + "/best"
     ckpt_manager = CheckpointManager()
 
-    train_step, val_step = make_step_fns(loss_fn, Metrics, model=model, sam_rho=sam_rho, is_ensemble=is_ensemble)
+    train_step, val_step = make_step_fns(
+        loss_fn, Metrics, model=state.apply_fn, sam_rho=sam_rho, is_ensemble=is_ensemble
+    )
 
     # TODO vmap state and optimizer
-    state, start_epoch = load_state(model, params, tx, latest_dir)
+    state, start_epoch = load_state(state, latest_dir)
     if start_epoch >= n_epochs:
         raise ValueError(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
@@ -159,13 +159,12 @@ def calc_loss(params, inputs, labels, loss_fn, model):
     return loss, predictions
 
 
-
 def make_ensemble_update(update_fn: Callable) -> Callable:
-
-    v_update_fn = jax.vmap(update_fn, (0,0,0), (0,0,0))
+    v_update_fn = jax.vmap(
+        update_fn, (0, None, None), (0, 0, 0)
+    )
 
     def ensemble_update_fn(state, inputs, labels):
-
         predictions, loss, state = v_update_fn(state, inputs, labels)
 
         mean_predictions = jax.tree_map(lambda x: jnp.mean(x, axis=0), predictions)
@@ -174,6 +173,23 @@ def make_ensemble_update(update_fn: Callable) -> Callable:
         return mean_predictions, mean_loss, state
 
     return ensemble_update_fn
+
+
+def make_ensemble_eval(update_fn: Callable) -> Callable:
+    # TODO unify make ensemble functions
+    v_update_fn = jax.vmap(
+        update_fn, (0, None, None), (0, 0)
+    )  # Does this work with TrainState?  (0, None, None), (0,0,0), axis_name="ensemble"
+
+    def ensemble_eval_fn(state, inputs, labels):
+        loss, predictions = v_update_fn(state, inputs, labels)
+
+        mean_predictions = jax.tree_map(lambda x: jnp.mean(x, axis=0), predictions)
+        mean_loss = jnp.mean(loss)
+        # TODO Add std to predictions
+        return mean_predictions, mean_loss
+
+    return ensemble_eval_fn
 
 
 def make_step_fns(loss_fn, Metrics, model, sam_rho, is_ensemble):
@@ -189,19 +205,20 @@ def make_step_fns(loss_fn, Metrics, model, sam_rho, is_ensemble):
             grad_norm = global_norm(grads)
             eps = jax.tree_map(lambda g, n: g * rho / n, grads, grad_norm)
             params_eps = jax.tree_map(lambda p, e: p + e, state.params, eps)
-            (loss, _), grads = grad_fn(params_eps, inputs, labels) # maybe get rid of SAM
+            (loss, _), grads = grad_fn(params_eps, inputs, labels)  # maybe get rid of SAM
 
         state = state.apply_gradients(grads=grads)
         return predictions, loss, state
-    
+
     if is_ensemble:
         update_fn = make_ensemble_update(update_step)
+        eval_fn = make_ensemble_eval(loss_calculator)
     else:
         update_fn = update_step
+        eval_fn = loss_calculator
 
     @jax.jit
     def train_step(state, inputs, labels, batch_metrics):
-        
         predictions, loss, state = update_fn(state, inputs, labels)
 
         new_batch_metrics = Metrics.single_from_model_output(
@@ -212,7 +229,7 @@ def make_step_fns(loss_fn, Metrics, model, sam_rho, is_ensemble):
 
     @jax.jit
     def val_step(params, inputs, labels, batch_metrics):
-        loss, predictions = loss_calculator(params, inputs, labels)
+        predictions, loss = eval_fn(params, inputs, labels)
 
         new_batch_metrics = Metrics.single_from_model_output(
             label=labels, prediction=predictions

@@ -5,11 +5,9 @@ from pathlib import Path
 from typing import Optional
 
 import jax
-import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
 from ase import Atoms
-from flax.core.frozen_dict import freeze
 from keras.callbacks import CSVLogger, TensorBoard
 
 from apax.config import parse_config
@@ -17,7 +15,7 @@ from apax.data.input_pipeline import TFPipeline, create_dict_dataset
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
 from apax.optimizer import get_opt
-from apax.train.checkpoints import load_params
+from apax.train.checkpoints import create_params, create_train_state, load_params
 from apax.train.loss import Loss, LossCollection
 from apax.train.metrics import initialize_metrics
 from apax.train.trainer import fit
@@ -220,14 +218,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     val_ds = initialize_dataset(config, val_raw_ds, calc_stats=False)
 
     log.info("Initializing Model")
-    init_input = train_ds.init_input()
-    R, Z, idx, init_box, offsets = (
-        jnp.asarray(init_input["positions"][0]),
-        jnp.asarray(init_input["numbers"][0]),
-        jnp.asarray(init_input["idx"][0]),
-        np.array(init_input["box"][0]),
-        jnp.array(init_input["offsets"][0]),
-    )
+    sample_input, init_box = train_ds.init_input()
 
     # TODO n_species should be optional since it's already
     # TODO determined by the shape of shift and scale
@@ -238,19 +229,9 @@ def run(user_config, log_file="train.log", log_level="error"):
         apply_mask=True,
         init_box=init_box,
     )
-
-    rng_key, model_rng_key = jax.random.split(rng_key, num=2)
-    params = model.init(model_rng_key, R, Z, idx, init_box, offsets)
-    params = freeze(params)
-
-    base_checkpoint = config.checkpoints.base_model_checkpoint
-    do_transfer_learning = base_checkpoint is not None
-    if do_transfer_learning:
-        source_params = load_params(base_checkpoint)
-        log.info("Transferring parameters from %s", base_checkpoint)
-        params = param_transfer(source_params, params, config.checkpoints.reset_layers)
-
     batched_model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
+
+    params, rng_key = create_params(model, rng_key, sample_input, config.n_models)
 
     steps_per_epoch = train_ds.steps_per_epoch()
     n_epochs = config.n_epochs
@@ -260,17 +241,24 @@ def run(user_config, log_file="train.log", log_level="error"):
         transition_steps=transition_steps,
         **config.optimizer.model_dump(),
     )
+
+    state = create_train_state(batched_model, params, tx)
+
+    base_checkpoint = config.checkpoints.base_model_checkpoint
+    do_transfer_learning = base_checkpoint is not None
+    if do_transfer_learning:
+        source_params = load_params(base_checkpoint)
+        log.info("Transferring parameters from %s", base_checkpoint)
+        params = param_transfer(
+            source_params, state.params, config.checkpoints.reset_layers
+        )
+        state.replace(params=params)
+
     # TODO
-    # vmap params and apply fn
-    # multiply batches
-    # split step fns into loss/param update computetion and metric accumulation.
-    # We need to update the former but not the latter
-    # make sure that checkpoint loading and model senemble in calculator work
+    # enable param loading in ASE calc and usage in jaxmd
 
     fit(
-        batched_model,
-        params,
-        tx,
+        state,
         train_ds,
         loss_fn,
         Metrics,
@@ -282,4 +270,5 @@ def run(user_config, log_file="train.log", log_level="error"):
         sam_rho=config.optimizer.sam_rho,
         patience=config.patience,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
+        is_ensemble=config.n_models > 1,
     )

@@ -14,13 +14,50 @@ from apax.config.train_config import Config
 log = logging.getLogger(__name__)
 
 
-def load_state(model, params, tx, ckpt_dir):
+def check_for_ensemble(params):
+    flat_params = flatten_dict(params)
+    shapes = [v.shape[0] for v in flat_params.values()]
+    is_ensemble = shapes == shapes[::-1]
+    return is_ensemble
+
+
+def create_train_state(model, params, tx):
+    is_ensemble = check_for_ensemble(params)
+
+    def inner(params):
+        state = train_state.TrainState.create(
+            apply_fn=model,
+            params=params,
+            tx=tx,
+        )
+        return state
+
+    if is_ensemble:
+        inner = jax.vmap(inner, axis_name="ensemble")
+
+    return inner(params)
+
+
+def create_params(model, rng_key, sample_input: tuple, n_models: int):
+    keys = jax.random.split(rng_key, num=n_models + 1)
+    rng_key, model_rng = keys[0], keys[1:]
+
+    if n_models == 1:
+        params = model.init(model_rng, *sample_input)
+    elif n_models > 1:
+        num_args = len(sample_input)
+        in_axes = (0, *[None] * num_args)
+        params = jax.vmap(model.init, in_axes=in_axes)(model_rng, *sample_input)
+    else:
+        raise ValueError(f"n_models should be a positive integer, found {n_models}")
+
+    params = freeze(params)
+
+    return params, rng_key
+
+
+def load_state(state, ckpt_dir):
     start_epoch = 0
-    state = train_state.TrainState.create(
-        apply_fn=model,
-        params=params,
-        tx=tx,
-    )
     target = {"model": state, "epoch": 0}
     checkpoints_exist = Path(ckpt_dir).is_dir()
     if checkpoints_exist:
