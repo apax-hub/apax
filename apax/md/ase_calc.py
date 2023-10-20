@@ -6,19 +6,16 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
-from flax.traverse_util import flatten_dict
 from jax_md import partition, quantity, space
 from matscipy.neighbours import neighbour_list
 
 from apax.model import ModelBuilder
-from apax.train.checkpoints import restore_parameters
+from apax.train.checkpoints import check_for_ensemble, restore_parameters
 from apax.utils import jax_md_reduced
 
 
 def maybe_vmap(apply, params, Z):
-    flat_params = flatten_dict(params)
-    shapes = [v.shape[0] for v in flat_params.values()]
-    is_ensemble = shapes == shapes[::-1]
+    is_ensemble = check_for_ensemble(params)
 
     if is_ensemble:
         apply = jax.vmap(apply, in_axes=(0, None, None, None, None, None))
