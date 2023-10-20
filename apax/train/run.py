@@ -260,6 +260,12 @@ def run(user_config, log_file="train.log", log_level="error"):
         transition_steps=transition_steps,
         **config.optimizer.model_dump(),
     )
+    # TODO
+    # vmap params and apply fn
+    # multiply batches
+    # split step fns into loss/param update computetion and metric accumulation.
+    # We need to update the former but not the latter
+    # make sure that checkpoint loading and model senemble in calculator work
 
     fit(
         batched_model,
