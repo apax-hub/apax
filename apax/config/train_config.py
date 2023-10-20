@@ -292,6 +292,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     n_epochs: PositiveInt
     patience: Optional[PositiveInt] = None
     seed: int = 1
+    n_models: int = 1
 
     data: DataConfig
     model: ModelConfig = ModelConfig()
