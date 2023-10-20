@@ -1,5 +1,7 @@
 import logging
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
 
@@ -202,7 +204,17 @@ class TFPipeline:
             .take(1)
             .as_numpy_iterator()
         )
-        return inputs
+
+        inputs = jax.tree_map(lambda x: jnp.array(x[0]), inputs)
+        init_box = np.array(inputs["box"])
+        inputs = (
+            inputs["positions"],
+            inputs["numbers"],
+            inputs["idx"],
+            init_box,
+            inputs["offsets"],
+        )
+        return inputs, init_box
 
     def shuffle_and_batch(self):
         """Shuffles, batches, and pads the inputs/labels. This function prepares the
