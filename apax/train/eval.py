@@ -9,7 +9,7 @@ from tqdm import trange
 
 from apax.config import parse_config
 from apax.model import ModelBuilder
-from apax.train.checkpoints import load_params
+from apax.train.checkpoints import restore_single_parameters
 from apax.train.metrics import initialize_metrics
 from apax.train.run import (
     RawDataset,
@@ -72,9 +72,9 @@ def load_test_data(
     return test_raw_ds
 
 
-def predict(model, params, Metrics, loss_fn, test_ds, callbacks):
+def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=False):
     callbacks.on_train_begin()
-    _, test_step_fn = make_step_fns(loss_fn, Metrics, model=model, sam_rho=0.0)
+    _, test_step_fn = make_step_fns(loss_fn, Metrics, model=model, sam_rho=0.0, is_ensemble=is_ensemble)
 
     test_steps_per_epoch = test_ds.steps_per_epoch()
     batch_test_ds = test_ds.shuffle_and_batch()
@@ -129,8 +129,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
 
     test_ds, ds_stats = initialize_dataset(config, raw_ds)
 
-    init_input = test_ds.init_input()
-    init_box = np.array(init_input["box"][0])
+    _, init_box = test_ds.init_input()
 
     builder = ModelBuilder(config.model.get_dict(), n_species=ds_stats.n_species)
     model = builder.build_energy_derivative_model(
@@ -142,6 +141,6 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
 
     model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
 
-    params = load_params(model_version_path)
+    config, params = restore_single_parameters(model_version_path)
 
-    predict(model, params, Metrics, loss_fn, test_ds, callbacks)
+    predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble= config.n_models > 1)
