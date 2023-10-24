@@ -37,4 +37,3 @@ def test_energy_per_element():
         regression_energies.append(energy)
 
     assert np.allclose(energies, regression_energies, atol=1e-4)
-    assert False
