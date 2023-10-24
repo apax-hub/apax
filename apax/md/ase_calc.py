@@ -15,9 +15,9 @@ from apax.utils import jax_md_reduced
 
 
 def maybe_vmap(apply, params, Z):
-    is_ensemble = check_for_ensemble(params)
+    n_models = check_for_ensemble(params)
 
-    if is_ensemble:
+    if n_models > 1:
         apply = jax.vmap(apply, in_axes=(0, None, None, None, None, None))
 
     # Maybe the partial mapping should happen at the very end of initialize
@@ -107,11 +107,10 @@ class ASECalculator(Calculator):
     ):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
-        self.is_ensemble = False
         self.transformations = transformations
-        self.n_models = 1 if isinstance(model_dir, (Path, str)) else len(model_dir)
 
         self.model_config, self.params = restore_parameters(model_dir)
+        self.n_models = check_for_ensemble(self.params)
         self.padding_factor = padding_factor
 
         if self.model_config.model.calc_stress:
@@ -122,7 +121,6 @@ class ASECalculator(Calculator):
                 prop + "_uncertainty" for prop in self.implemented_properties
             ]
             self.implemented_properties += uncertainty_kws
-            self.is_ensemble = True
 
         self.step = None
         self.neighbor_fn = None
@@ -141,7 +139,7 @@ class ASECalculator(Calculator):
             self.neigbor_from_jax,
         )
 
-        if self.is_ensemble:
+        if self.n_models > 1:
             model = make_ensemble(model)
 
         for transformation in self.transformations:

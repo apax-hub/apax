@@ -18,11 +18,15 @@ def check_for_ensemble(params):
     flat_params = flatten_dict(params)
     shapes = [v.shape[0] for v in flat_params.values()]
     is_ensemble = shapes == shapes[::-1]
-    return is_ensemble
+
+    if is_ensemble:
+        return shapes[0]
+    else:
+        return 1
 
 
 def create_train_state(model, params, tx):
-    is_ensemble = check_for_ensemble(params)
+    n_models = check_for_ensemble(params)
 
     def inner(params):
         state = train_state.TrainState.create(
@@ -32,7 +36,7 @@ def create_train_state(model, params, tx):
         )
         return state
 
-    if is_ensemble:
+    if n_models > 1:
         inner = jax.vmap(inner, axis_name="ensemble")
 
     return inner(params)
