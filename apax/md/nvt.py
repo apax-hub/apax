@@ -25,6 +25,16 @@ from apax.utils import jax_md_reduced
 log = logging.getLogger(__name__)
 
 
+def make_energy_ensemble(model):
+    def ensemble(positions, Z, idx, box, offsets):
+        energies = model(positions, Z, idx, box, offsets)
+        energy = jnp.mean(energies)
+
+        return energy
+
+    return ensemble
+
+
 def heights_of_box_sides(box):
     heights = []
 
@@ -350,7 +360,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         model.apply,
         params,
         Z=system.atomic_numbers,
-        box=system.box,
+        box=system.box, # TODO IS THIS CORRECT FOR NPT???
         offsets=jnp.array([0.0, 0.0, 0.0]),
     )
     sim_fns = SimulationFunctions(energy_fn, shift_fn, neighbor_fn)
