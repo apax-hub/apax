@@ -2,9 +2,8 @@ n_epochs: <NUMBER OF EPOCHS>
 seed: 1
 
 data:
-  model_path: models/
-  model_name: apax
-
+  directory: models/
+  experiment: apax
 
   # Use either data_path for a single dataset file
   # or the lines below to specify separate files
@@ -19,14 +18,12 @@ data:
   batch_size: 32
   valid_batch_size: 100
 
-  energy_regularisation: 1.0
+  shift_method: "per_element_regression_shift"
+  shift_options: {"energy_regularisation": 1.0}
   shuffle_buffer_size: 1000
 
-callbacks:
-- name: csv
-
-checkpoints:
-  ckpt_interval: 1
+  pos_unit: Ang
+  energy_unit: eV
 
 model:
   n_basis: 7
@@ -36,16 +33,18 @@ model:
   r_max: 6.0
   r_min: 0.5
 
+  use_zbl: false
+
   b_init: normal
   descriptor_dtype: fp32
   readout_dtype: fp32
   scale_shift_dtype: fp32
 
 loss:
-- loss_type: molecules
+- loss_type: structures
   name: energy
   weight: 1.0
-- loss_type: molecules
+- loss_type: structures
   name: forces
   weight: 4.0
 
@@ -60,12 +59,22 @@ metrics:
 
 optimizer:
   opt_name: adam
+  opt_kwargs: {}
   emb_lr: 0.03
   nn_lr: 0.03
-  opt_kwargs: {}
   scale_lr: 0.001
   shift_lr: 0.05
+  zbl_lr: 0.001
   transition_begin: 0
+
+callbacks:
+- name: csv
+
+checkpoints:
+  ckpt_interval: 1
+  # The options below are used for transfer learning
+  base_model_checkpoint: null
+  reset_layers: []
 
 progress_bar:
   disable_epoch_pbar: false

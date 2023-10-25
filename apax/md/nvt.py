@@ -1,72 +1,145 @@
+import dataclasses
 import logging
 import os
 import time
 from functools import partial
+from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-import yaml
-from ase import Atoms, units
-from ase.calculators.singlepoint import SinglePointCalculator
+from ase import units
 from ase.io import read
-from ase.io.trajectory import TrajectoryWriter
-from flax.training import checkpoints
+from jax.experimental.host_callback import barrier_wait, id_tap
 from jax_md import partition, quantity, simulate, space
-from jax_md.util import Array
+from jax_md.space import transform
 from tqdm import trange
 
-from apax.config import Config, MDConfig
-from apax.md.md_checkpoint import load_md_state, look_for_checkpoints
+from apax.config import Config, MDConfig, parse_config
+from apax.md.io import H5TrajHandler
+from apax.md.md_checkpoint import load_md_state
 from apax.model import ModelBuilder
+from apax.train.eval import load_params
+from apax.utils import jax_md_reduced
 
 log = logging.getLogger(__name__)
 
 
-class TrajHandler:
-    def __init__(self, R, atomic_numbers, box, traj_path, async_manager) -> None:
-        self.atomic_numbers = atomic_numbers
-        self.box = box
-        self.traj = TrajectoryWriter(traj_path, mode="w")
-        new_atoms = Atoms(atomic_numbers, R, cell=box)
-        self.traj.write(new_atoms)
-        self.async_manager = async_manager
+def heights_of_box_sides(box):
+    heights = []
 
-    def write(self, state, energy, step):
-        if np.any(np.isnan(state.position)):
-            raise ValueError(
-                f"Simulation failed after {step} outer steps. Unable to"
-                " compute positions."
-            )
-        new_atoms = Atoms(
-            self.atomic_numbers, state.position, momenta=state.momentum, cell=self.box
-        )
-        new_atoms.calc = SinglePointCalculator(
-            new_atoms, energy=energy, forces=state.force
-        )
-        self.traj.write(new_atoms)
+    for i in range(len(box)):
+        for j in range(i + 1, len(box)):
+            area = np.linalg.norm(np.cross(box[i], box[j]))
+            height = area / np.linalg.norm(box[i])
+            heights.append(height)
+            height = area / np.linalg.norm(box[j])
+            heights.append(height)
 
-    def close(self):
-        self.traj.close()
+    return np.array(heights)
+
+
+@dataclasses.dataclass
+class System:
+    atomic_numbers: jnp.array
+    masses: jnp.array
+    positions: jnp.array
+    box: jnp.array
+    momenta: Optional[jnp.array]
+
+    @classmethod
+    def from_atoms(cls, atoms):
+        atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
+        masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float64)
+        momenta = atoms.get_momenta()
+
+        box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
+        box = box.T
+        positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
+        if np.any(box > 1e-6):
+            positions = transform(jnp.linalg.inv(box), positions)
+
+        system = cls(
+            atomic_numbers=atomic_numbers,
+            masses=masses,
+            positions=positions,
+            box=box,
+            momenta=momenta,
+        )
+
+        return system
+
+
+@dataclasses.dataclass
+class SimulationFunctions:
+    energy_fn: Callable
+    shift_fn: Callable
+    neighbor_fn: Callable
+
+
+def nbr_update_options_default(state):
+    return {}
+
+
+def nbr_update_options_npt(state):
+    box = simulate.npt_box(state)
+    return {"box": box}
+
+
+def get_ensemble(ensemble, sim_fns):
+    energy, shift = sim_fns.energy_fn, sim_fns.shift_fn
+
+    dt = ensemble.dt * units.fs
+    nbr_options = nbr_update_options_default
+
+    if ensemble.name == "nve":
+        init_fn, apply_fn = simulate.nve(energy, shift, dt)
+    elif ensemble.name == "nvt":
+        kT = units.kB * ensemble.temperature
+        thermostat_chain = dict(ensemble.thermostat_chain)
+        thermostat_chain["tau"] *= dt
+
+        init_fn, apply_fn = simulate.nvt_nose_hoover(energy, shift, dt, kT)
+
+    elif ensemble.name == "npt":
+        kT = units.kB * ensemble.temperature
+        pressure = ensemble.pressure * units.bar
+        thermostat_chain = dict(ensemble.thermostat_chain)
+        barostat_chain = dict(ensemble.barostat_chain)
+        thermostat_chain["tau"] *= dt
+        barostat_chain["tau"] *= dt
+
+        init_fn, apply_fn = simulate.npt_nose_hoover(
+            energy,
+            shift,
+            dt,
+            pressure,
+            kT,
+            thermostat_kwargs=thermostat_chain,
+            barostat_kwargs=barostat_chain,
+        )
+        nbr_options = nbr_update_options_npt
+    else:
+        raise NotImplementedError(
+            "Only the NVE and Nose Hoover NVT/NPT thermostats are currently interfaced."
+        )
+
+    return init_fn, apply_fn, nbr_options
 
 
 def run_nvt(
-    R: Array,
-    atomic_numbers: Array,
-    masses: Array,
-    box: np.array,
-    energy_fn,
-    neighbor_fn,
-    shift_fn,
-    dt: float,
-    temperature: float,
+    system: System,
+    sim_fns,
+    ensemble,
     n_steps: int,
     n_inner: int,
+    sampling_rate: int,
     extra_capacity: int,
     rng_key: int,
+    load_momenta: bool = False,
     restart: bool = True,
     sim_dir: str = ".",
-    traj_name: str = "nvt.traj",
+    traj_name: str = "nvt.h5",
     disable_pbar: bool = False,
 ):
     """
@@ -74,28 +147,16 @@ def run_nvt(
 
     Parameters
     ----------
-    R:
-        Initial positions in Angstrom.
-    atomic_numbers:
-        Atomic numbers of the system.
-    masses:
-        Atomic masses in ASE units.
-    box:
-        Side length of the cubic box.
-    energy_fn:
-        Interatomic potential.
-    neighbor_fn:
-        Neighborlist function.
-    shift_fn:
-        Shift function for the integrator.
-    dt:
-        Time step in fs.
+    ensemble:
+        Thermodynamic ensemble.
     temperature:
         Temperature of the system in K.
     n_steps:
         Total time steps.
     n_inner:
-        JIT compiled inner loop. Also determines the dump interval.
+        JIT compiled inner loop. Also determines atoms buffer size.
+    sampling_rate:
+        Trajectory dumping interval.
     extra_capacity:
         Extra capacity for the neighborlist.
     rng_key:
@@ -107,78 +168,104 @@ def run_nvt(
     traj_name:
         File name of the ASE trajectory.
     """
-    dt = dt * units.fs
-    kT = units.kB * temperature
     step = 0
-    checkpoint_interval = 10  # TODO will be supplied in the future
+    checkpoint_interval = 5_000_000  # TODO will be supplied in the future
+    energy_fn = sim_fns.energy_fn
+    neighbor_fn = sim_fns.neighbor_fn
 
     log.info("initializing simulation")
-    neighbor = neighbor_fn.allocate(R, extra_capacity=extra_capacity)
-    init_fn, apply_fn = simulate.nvt_nose_hoover(energy_fn, shift_fn, dt, kT)
-    async_manager = checkpoints.AsyncManager()
+    init_fn, apply_fn, nbr_options = get_ensemble(ensemble, sim_fns)
+
+    neighbor = sim_fns.neighbor_fn.allocate(
+        system.positions, extra_capacity=extra_capacity
+    )
+
     restart = False  # TODO needs to be implemented
     if restart:
-        log.info("looking for checkpoints")
-        ckpts_exist = look_for_checkpoints(sim_dir)
-        if ckpts_exist:
-            log.info("loading previous md state")
-            state, step = load_md_state(sim_dir)
-        else:
-            state = init_fn(rng_key, R, masses, neighbor=neighbor)
+        log.info("loading previous md state")
+        state, step = load_md_state(sim_dir)
     else:
-        state = init_fn(rng_key, R, masses, neighbor=neighbor)
+        state = init_fn(
+            rng_key,
+            system.positions,
+            box=system.box,
+            mass=system.masses,
+            neighbor=neighbor,
+        )
+
+        if load_momenta:
+            log.info("loading momenta from starting configuration")
+            state = state.set(momentum=system.momenta)
+
+    traj_path = os.path.join(sim_dir, traj_name)
+    traj_handler = H5TrajHandler(system, sampling_rate, traj_path)
+
+    n_outer = int(np.ceil(n_steps / n_inner))
+    pbar_update_freq = int(np.ceil(500 / n_inner))
+    pbar_increment = n_inner * pbar_update_freq
+
     # TODO capability to restart md.
     # May require serializing the state instead of ASE Atoms trajectory + conversion
     # Maybe we can use flax checkpoints for that?
     # -> can't serialize NHState and chain for some reason?
-
     @jax.jit
-    def sim(state, neighbor):
+    def sim(state, neighbor):  # TODO make more modular
         def body_fn(i, state):
             state, neighbor = state
-            neighbor = neighbor.update(state.position)
+            # TODO neighbor update kword factory f(state) -> {}
             state = apply_fn(state, neighbor=neighbor)
+            nbr_kwargs = nbr_options(state)
+            neighbor = neighbor.update(state.position, **nbr_kwargs)
+
+            current_energy = energy_fn(R=state.position, neighbor=neighbor)
+
+            id_tap(traj_handler.step, (state, current_energy, nbr_kwargs))
             return state, neighbor
 
-        state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
-        current_temperature = quantity.temperature(
-            velocity=state.velocity, mass=state.mass
-        )
-        current_energy = energy_fn(R=state.position, neighbor=neighbor)
-        return state, neighbor, current_temperature, current_energy
+        id_tap(traj_handler.write, None)
 
-    traj_path = os.path.join(sim_dir, traj_name)
-    traj_handler = TrajHandler(R, atomic_numbers, box, traj_path, async_manager)
-    n_outer = int(np.ceil(n_steps / n_inner))
+        state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
+        current_temperature = (
+            quantity.temperature(velocity=state.velocity, mass=state.mass) / units.kB
+        )
+        return state, neighbor, current_temperature
 
     start = time.time()
-    sim_time = n_outer * dt
+    sim_time = n_outer * ensemble.dt  # * units.fs
     log.info("running nvt for %.1f fs", sim_time)
-    with trange(
+    sim_pbar = trange(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
-    ) as sim_pbar:
-        while step < n_outer:
-            new_state, neighbor, current_temperature, current_energy = sim(
-                state, neighbor
-            )
+    )
+    while step < n_outer:
+        new_state, neighbor, current_temperature = sim(state, neighbor)
 
-            if neighbor.did_buffer_overflow:
-                log.info("step %d: neighbor list overflowed, reallocating.", step)
-                neighbor = neighbor_fn.allocate(state.position)
-            else:
-                state = new_state
-                step += 1
+        if neighbor.did_buffer_overflow:
+            log.info("step %d: neighbor list overflowed, reallocating.", step)
+            traj_handler.reset_buffer()
+            neighbor = neighbor_fn.allocate(
+                state.position
+            )  # TODO check that this actually works
+        else:
+            state = new_state
+            step += 1
 
-                traj_handler.write(state, current_energy, step)
+            if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
+                raise ValueError(
+                    f"NaN encountered, simulation aborted after {step} steps."
+                )
 
-                if step % checkpoint_interval == 0:
-                    log.info("saving checkpoint at step: %d", step)
-                    log.info("checkpoints not yet implemented")
+            if step % checkpoint_interval == 0:
+                log.info("saving checkpoint at step: %d", step)
+                log.info("checkpoints not yet implemented")
 
-                sim_pbar.set_postfix(T=f"{(current_temperature / units.kB):.1f} K")
-                sim_pbar.update(n_inner)
+            if step % pbar_update_freq == 0:
+                sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
+                sim_pbar.update(pbar_increment)
+    sim_pbar.close()
+
+    barrier_wait()
+    traj_handler.write()
     traj_handler.close()
-
     end = time.time()
     elapsed_time = end - start
     log.info("simulation finished after elapsed time: %.2f s", elapsed_time)
@@ -213,50 +300,61 @@ def md_setup(model_config: Config, md_config: MDConfig):
     shift_fn:
         Shift function for the integrator.
     """
+    os.makedirs(md_config.sim_dir, exist_ok=True)
+
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
+    system = System.from_atoms(atoms)
 
-    R = jnp.asarray(atoms.positions, dtype=jnp.float64)
-    atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
-    masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float64)
-    box = jnp.asarray(atoms.get_cell().lengths(), dtype=jnp.float64)
-
+    r_max = model_config.model.r_max
     log.info("initializing model")
-    if np.all(box < 1e-6):
+    if np.all(system.box < 1e-6):
         displacement_fn, shift_fn = space.free()
     else:
+        heights = heights_of_box_sides(system.box)
+
+        if np.any(atoms.cell.lengths() / 2 < r_max):
+            log.error(
+                "cutoff is larger than box/2 in at least",
+                f"one cell vector direction {atoms.cell.lengths()/2} < {r_max}",
+                "can not calculate the correct neighbors",
+            )
+        if np.any(heights / 2 < r_max):
+            log.error(
+                "cutoff is larger than box/2 in at least",
+                f"one cell vector direction {heights/2} < {r_max}",
+                "can not calculate the correct neighbors",
+            )
         displacement_fn, shift_fn = space.periodic_general(
-            box, fractional_coordinates=False
+            system.box, fractional_coordinates=True
         )
 
-    Z = jnp.asarray(atomic_numbers)
-    n_species = int(np.max(Z) + 1)
+    n_species = 119  # int(np.max(Z) + 1)
+    # TODO large forces at init, maybe displacement fn is incorrect?
     builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_model(
-        displacement_fn=displacement_fn, apply_mask=False, init_box=np.array(box)
+        apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
     )
-    neighbor_fn = partition.neighbor_list(
+    neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_fn,
-        box,
-        model_config.model.r_max,
+        system.box,
+        r_max,
         md_config.dr_threshold,
-        fractional_coordinates=False,
+        fractional_coordinates=True,
         format=partition.Sparse,
         disable_cell_list=True,
     )
 
-    os.makedirs(md_config.sim_dir, exist_ok=True)
-
-    log.info("loading model parameters")
-    best_dir = os.path.join(
-        model_config.data.model_path, model_config.data.model_name, "best"
+    params = load_params(model_config.data.model_version_path())
+    energy_fn = partial(
+        model.apply,
+        params,
+        Z=system.atomic_numbers,
+        box=system.box,
+        offsets=jnp.array([0.0, 0.0, 0.0]),
     )
-    raw_restored = checkpoints.restore_checkpoint(best_dir, target=None, step=None)
-    params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
-
-    energy_fn = partial(model.apply, params, Z=Z, box=box)
-
-    return R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn
+    sim_fns = SimulationFunctions(energy_fn, shift_fn, neighbor_fn)
+    return system, sim_fns
 
 
 def run_md(
@@ -264,7 +362,7 @@ def run_md(
 ):
     """
     Utiliy function to start NVT molecualr dynamics simulations from
-    a previousy trained model.
+    a previously trained model.
 
     Parameters
     ----------
@@ -283,39 +381,22 @@ def run_md(
     logging.basicConfig(filename=log_file, level=log_levels[log_level])
 
     log.info("loading configs for md")
-    if isinstance(model_config, (str, os.PathLike)):
-        with open(model_config, "r") as stream:
-            model_config = yaml.safe_load(stream)
+    model_config = parse_config(model_config)
+    md_config = parse_config(md_config, mode="md")
 
-    if isinstance(md_config, (str, os.PathLike)):
-        with open(md_config, "r") as stream:
-            md_config = yaml.safe_load(stream)
-
-    model_config = Config.parse_obj(model_config)
-    md_config = MDConfig.parse_obj(md_config)
-
-    rng_key = jax.random.PRNGKey(md_config.seed)
-    md_init_rng_key, rng_key = jax.random.split(rng_key, 2)
-
-    R, atomic_numbers, masses, box, energy_fn, neighbor_fn, shift_fn = md_setup(
-        model_config, md_config
-    )
-    n_steps = int(np.ceil(md_config.duration / md_config.dt))
+    system, sim_fns = md_setup(model_config, md_config)
+    n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
 
     run_nvt(
-        R=R,
-        atomic_numbers=atomic_numbers,
-        masses=masses,
-        box=box,
-        energy_fn=energy_fn,
-        neighbor_fn=neighbor_fn,
-        shift_fn=shift_fn,
-        dt=md_config.dt,
-        temperature=md_config.temperature,
+        system,
+        sim_fns,
+        md_config.ensemble,
         n_steps=n_steps,
         n_inner=md_config.n_inner,
+        sampling_rate=md_config.sampling_rate,
         extra_capacity=md_config.extra_capacity,
-        rng_key=md_init_rng_key,
+        load_momenta=md_config.load_momenta,
+        rng_key=jax.random.PRNGKey(md_config.seed),
         restart=md_config.restart,
         sim_dir=md_config.sim_dir,
         traj_name=md_config.traj_name,

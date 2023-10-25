@@ -1,41 +1,19 @@
 import logging
 
-import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
-from jax_md import partition, space
 
 from apax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
-from apax.utils.data import convert_atoms_to_arrays
+from apax.utils.convert import atoms_to_arrays
 
 log = logging.getLogger(__name__)
 
 
-def initialize_nbr_displacement_fns(atoms, cutoff):
-    # frac coord have to be managed in the config oder
-    # dependent of the dataset dependent of the performence
-    default_box = 100
-
-    box = jnp.asarray(atoms.cell.lengths())
-    if np.all(box < 1e-6):
-        displacement_fn, _ = space.free()
-        box = default_box
-        frac_coords = False
-    else:
-        frac_coords = True
-        displacement_fn, _ = space.periodic_general(
-            box, fractional_coordinates=frac_coords
-        )
-
-    neighbor_fn = partition.neighbor_list(
-        displacement_or_metric=displacement_fn,
-        box=box,
-        r_cutoff=cutoff,
-        format=partition.Sparse,
-        fractional_coordinates=frac_coords,
-    )
-
-    return displacement_fn, neighbor_fn
+def find_largest_system(inputs):
+    max_atoms = np.max(inputs["fixed"]["n_atoms"])
+    nbr_shapes = [idx.shape[1] for idx in inputs["ragged"]["idx"]]
+    max_nbrs = np.max(nbr_shapes)
+    return max_atoms, max_nbrs
 
 
 class PadToSpecificSize:
@@ -83,6 +61,9 @@ class PadToSpecificSize:
             elif key == "idx":
                 shape = r_inputs[key].shape
                 padded_shape = [shape[0], shape[1], self.max_nbrs]  # batch, ij, nbrs
+            elif key == "offsets":
+                shape = r_inputs[key].shape
+                padded_shape = [shape[0], self.max_nbrs, 3]  # batch, ij, nbrs
             elif key == "numbers":
                 shape = r_inputs[key].shape
                 padded_shape = [shape[0], self.max_atoms]  # batch, atoms
@@ -109,27 +90,28 @@ class PadToSpecificSize:
 
 def create_dict_dataset(
     atoms_list: list,
-    neighbor_fn,
+    r_max: float,
     external_labels: dict = {},
     disable_pbar=False,
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
 ) -> None:
-    inputs, labels = convert_atoms_to_arrays(atoms_list, pos_unit, energy_unit)
+    inputs, labels = atoms_to_arrays(atoms_list, pos_unit, energy_unit)
 
     if external_labels:
         for shape, label in external_labels.items():
             labels[shape].update(label)
 
-    idx = dataset_neighborlist(
-        neighbor_fn,
+    idx, offsets = dataset_neighborlist(
         inputs["ragged"]["positions"],
-        inputs["fixed"]["n_atoms"],
         box=inputs["fixed"]["box"],
+        r_max=r_max,
+        atoms_list=atoms_list,
         disable_pbar=disable_pbar,
     )
 
-    inputs["ragged"]["idx"] = [np.array(i) for i in idx]
+    inputs["ragged"]["idx"] = idx
+    inputs["ragged"]["offsets"] = offsets
     return inputs, labels
 
 
@@ -142,8 +124,6 @@ class TFPipeline:
         labels,
         n_epoch: int,
         batch_size: int,
-        max_atoms=None,
-        max_nbrs=None,
         buffer_size: int = 1000,
     ) -> None:
         """Processes inputs/labels and makes them accessible for training.
@@ -165,22 +145,34 @@ class TFPipeline:
         """
         self.n_epoch = n_epoch
         self.batch_size = batch_size
+        self.buffer_size = buffer_size
+
+        max_atoms, max_nbrs = find_largest_system(inputs)
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
-        self.buffer_size = buffer_size
 
         self.n_data = len(inputs["fixed"]["n_atoms"])
 
         if batch_size > self.n_data:
-            raise ValueError("batch size is larger than the number of data points!")
+            msg = (
+                f"requested batch size {batch_size} is larger than the number of data"
+                f" points {self.n_data}. Setting batch size = {self.n_data}"
+            )
+            print("Warning: " + msg)
+            log.warning(msg)
+            batch_size = self.n_data
+        self.batch_size = batch_size
 
+        # tf.RaggedTensors should be created from `tf.ragged.stack`
+        # instead of `tf.ragged.constant` for performance reasons.
+        # See https://github.com/tensorflow/tensorflow/issues/47853
         for key, val in inputs["ragged"].items():
-            inputs["ragged"][key] = tf.ragged.constant(val)
+            inputs["ragged"][key] = tf.ragged.stack(val)
         for key, val in inputs["fixed"].items():
             inputs["fixed"][key] = tf.constant(val)
 
         for key, val in labels["ragged"].items():
-            labels["ragged"][key] = tf.ragged.constant(val)
+            labels["ragged"][key] = tf.ragged.stack(val)
         for key, val in labels["fixed"].items():
             labels["fixed"][key] = tf.constant(val)
 
@@ -196,7 +188,7 @@ class TFPipeline:
     def steps_per_epoch(self) -> int:
         """Returns the number of steps per epoch dependent on the number of data and the
         batch size. Steps per epoch are calculated in a way that all epochs have the same
-        number of steps, and all batches have the same length. To do so some training
+        number of steps, and all batches have the same length. To do so, some training
         data are dropped in each epoch.
         """
         return self.n_data // self.batch_size
@@ -229,3 +221,13 @@ class TFPipeline:
 
         shuffled_ds = prefetch_to_single_device(shuffled_ds.as_numpy_iterator(), 2)
         return shuffled_ds
+
+    def batch(self, batch_size):
+        # TODO: the batch size here overrides self.batch_size
+        # we should find a better abstraction
+        ds = self.ds.batch(batch_size=batch_size).map(
+            PadToSpecificSize(self.max_atoms, self.max_nbrs)
+        )
+
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        return ds

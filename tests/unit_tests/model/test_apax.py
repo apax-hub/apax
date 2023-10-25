@@ -4,7 +4,12 @@ import numpy as np
 
 from apax.layers.descriptor import GaussianMomentDescriptor
 from apax.layers.scaling import PerElementScaleShift
-from apax.model.gmnn import AtomisticModel, EnergyForceModel, EnergyModel, NeighborSpoof
+from apax.model.gmnn import (
+    AtomisticModel,
+    EnergyDerivativeModel,
+    EnergyModel,
+    NeighborSpoof,
+)
 
 
 def test_apax_variable_size():
@@ -24,7 +29,7 @@ def test_apax_variable_size():
             [0, 0, 1, 1, 2, 2],
         ]
     )
-
+    offsets = jnp.full([6, 3], 0)
     box = np.array([0, 0, 0])
 
     R_padded = np.concatenate([R, np.zeros((1, 3))], axis=0)
@@ -34,14 +39,14 @@ def test_apax_variable_size():
     shift = jnp.array([0.0, 100.0, 200.0])
     scale = jnp.array([1.0, 1.2, 1.6])[..., None]
 
-    model = EnergyForceModel(
+    model = EnergyDerivativeModel(
         AtomisticModel(
             descriptor=GaussianMomentDescriptor(apply_mask=False),
             scale_shift=PerElementScaleShift(scale=scale, shift=shift),
             mask_atoms=False,
         )
     )
-    model_padded = EnergyForceModel(
+    model_padded = EnergyDerivativeModel(
         AtomisticModel(
             descriptor=GaussianMomentDescriptor(apply_mask=True),
             scale_shift=PerElementScaleShift(scale=scale, shift=shift),
@@ -51,13 +56,12 @@ def test_apax_variable_size():
 
     rng_key = jax.random.PRNGKey(1)
 
-    params = model.init(rng_key, R, Z, idx, box)
+    params = model.init(rng_key, R, Z, idx, box, offsets)
 
-    results = model.apply(params, R, Z, idx, box)
-    results_padded = model_padded.apply(params, R_padded, Z_padded, idx_padded, box)
-
-    print(results["forces"])
-    print(results_padded["forces"])
+    results = model.apply(params, R, Z, idx, box, offsets)
+    results_padded = model_padded.apply(
+        params, R_padded, Z_padded, idx_padded, box, offsets
+    )
 
     assert (results["energy"] - results_padded["energy"]) < 1e-6
     assert np.all(results["forces"] - results_padded["forces"][:-1, :] < 1e-6)  # 1e-6
@@ -82,14 +86,16 @@ def test_atomistic_model():
             [0, 0, 1, 1, 2, 2],
         ]
     )
+    offsets = jnp.full([6, 3], 0)
+
     neighbor = NeighborSpoof(idx=idx)
 
     box = np.array([0.0, 0.0, 0.0])
 
     model = AtomisticModel(mask_atoms=False)
 
-    params = model.init(key, R, Z, neighbor, box)
-    result = model.apply(params, R, Z, neighbor, box)
+    params = model.init(key, R, Z, neighbor, box, offsets)
+    result = model.apply(params, R, Z, neighbor, box, offsets)
 
     assert result.shape == (3, 1)
 
@@ -113,14 +119,15 @@ def test_energy_model():
             [0, 0, 1, 1, 2, 2],
         ]
     )
+    offsets = jnp.full([6, 3], 0)
     neighbor = NeighborSpoof(idx=idx)
 
     box = np.array([0.0, 0.0, 0.0])
 
     model = EnergyModel()
 
-    params = model.init(key, R, Z, neighbor, box)
-    result = model.apply(params, R, Z, neighbor, box)
+    params = model.init(key, R, Z, neighbor, box, offsets)
+    result = model.apply(params, R, Z, neighbor, box, offsets)
 
     assert result.shape == ()
 
@@ -144,13 +151,14 @@ def test_energy_force_model():
             [0, 0, 1, 1, 2, 2],
         ]
     )
+    offsets = jnp.full([6, 3], 0)
 
     box = np.array([0.0, 0.0, 0.0])
 
-    model = EnergyForceModel()
+    model = EnergyDerivativeModel()
 
-    params = model.init(key, R, Z, idx, box)
-    result = model.apply(params, R, Z, idx, box)
+    params = model.init(key, R, Z, idx, box, offsets)
+    result = model.apply(params, R, Z, idx, box, offsets)
 
     assert result["energy"].shape == ()
     assert result["forces"].shape == (3, 3)

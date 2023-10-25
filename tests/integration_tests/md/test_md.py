@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import yaml
+import znh5md
 from ase import Atoms
 from ase.io import read, write
 from flax.training import checkpoints
@@ -14,6 +15,7 @@ from apax.config import Config, MDConfig
 from apax.md import run_md
 from apax.md.ase_calc import ASECalculator
 from apax.model.builder import ModelBuilder
+from apax.utils import jax_md_reduced
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
@@ -27,12 +29,12 @@ def test_run_md(get_tmp_path):
     with open(md_confg_path.as_posix(), "r") as stream:
         md_config_dict = yaml.safe_load(stream)
 
-    model_config_dict["data"]["model_path"] = get_tmp_path.as_posix()
+    model_config_dict["data"]["directory"] = get_tmp_path.as_posix()
     md_config_dict["sim_dir"] = get_tmp_path.as_posix()
     md_config_dict["initial_structure"] = get_tmp_path.as_posix() + "/atoms.extxyz"
 
-    model_config = Config.parse_obj(model_config_dict)
-    md_config = MDConfig.parse_obj(md_config_dict)
+    model_config = Config.model_validate(model_config_dict)
+    md_config = MDConfig.model_validate(md_config_dict)
 
     positions = jnp.array(
         [
@@ -44,15 +46,15 @@ def test_run_md(get_tmp_path):
     )
     atomic_numbers = np.array([1, 2, 2])
     box = np.array([0.0, 0.0, 0.0], dtype=np.float64)
-
+    offsets = jnp.full([3, 3], 0)
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(md_config.initial_structure, atoms)
 
-    n_species = int(np.max(atomic_numbers) + 1)
+    n_species = 119  # int(np.max(atomic_numbers) + 1)
 
     displacement_fn, _ = space.free()
 
-    neighbor_fn = partition.neighbor_list(
+    neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=model_config.model.r_max,
@@ -63,8 +65,7 @@ def test_run_md(get_tmp_path):
 
     builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_model(
-        displacement_fn=displacement_fn,
-        apply_mask=False,
+        apply_mask=False, inference_disp_fn=displacement_fn
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
     params = model.init(
@@ -73,11 +74,12 @@ def test_run_md(get_tmp_path):
         atomic_numbers,
         neighbors.idx,
         box,
+        offsets,
     )
 
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = os.path.join(
-        model_config.data.model_path, model_config.data.model_name, "best"
+        model_config.data.directory, model_config.data.experiment, "best"
     )
     checkpoints.save_checkpoint(
         ckpt_dir=best_dir,
@@ -88,8 +90,8 @@ def test_run_md(get_tmp_path):
 
     run_md(model_config_dict, md_config_dict)
 
-    traj = read(md_config.sim_dir + "/" + md_config.traj_name, index=":")
-    assert len(traj) == 3  # inital + 4 steps/ 2 inner steps
+    traj = znh5md.ASEH5MD(md_config.sim_dir + "/" + md_config.traj_name).get_atoms_list()
+    assert len(traj) == 2  # 2 steps
 
 
 def test_ase_calc(get_tmp_path):
@@ -99,10 +101,11 @@ def test_ase_calc(get_tmp_path):
     with open(model_confg_path.as_posix(), "r") as stream:
         model_config_dict = yaml.safe_load(stream)
 
-    model_config_dict["data"]["model_path"] = get_tmp_path.as_posix()
+    model_config_dict["data"]["directory"] = get_tmp_path.as_posix()
 
-    model_config = Config.parse_obj(model_config_dict)
-    model_config.dump_config(model_config_dict["data"]["model_path"])
+    model_config = Config.model_validate(model_config_dict)
+    os.makedirs(model_config.data.model_version_path(), exist_ok=True)
+    model_config.dump_config(model_config.data.model_version_path())
 
     cell_size = 10.0
     positions = np.array(
@@ -114,14 +117,15 @@ def test_ase_calc(get_tmp_path):
     )
     atomic_numbers = np.array([1, 1, 8])
     box = np.diag([cell_size] * 3)
+    offsets = jnp.full([3, 3], 0)
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(initial_structure_path.as_posix(), atoms)
 
-    n_species = int(np.max(atomic_numbers) + 1)
+    n_species = 119  # int(np.max(atomic_numbers) + 1)
 
     displacement_fn, _ = space.periodic_general(cell_size, fractional_coordinates=False)
 
-    neighbor_fn = partition.neighbor_list(
+    neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=model_config.model.r_max,
@@ -131,9 +135,7 @@ def test_ase_calc(get_tmp_path):
     neighbors = neighbor_fn.allocate(positions)
 
     builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
-    model = builder.build_energy_force_model(
-        displacement_fn=displacement_fn,
-    )
+    model = builder.build_energy_derivative_model(inference_disp_fn=displacement_fn)
     rng_key = jax.random.PRNGKey(model_config.seed)
     params = model.init(
         rng_key,
@@ -141,11 +143,11 @@ def test_ase_calc(get_tmp_path):
         jnp.asarray(atomic_numbers),
         neighbors.idx,
         box,
+        offsets=offsets,
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
-    best_dir = os.path.join(
-        model_config.data.model_path, model_config.data.model_name, "best"
-    )
+
+    best_dir = model_config.data.best_model_path()
     checkpoints.save_checkpoint(
         ckpt_dir=best_dir,
         target=ckpt,
@@ -154,11 +156,19 @@ def test_ase_calc(get_tmp_path):
     )
 
     atoms = read(initial_structure_path.as_posix())
-    calc = ASECalculator(model_config_dict["data"]["model_path"])
+    calc = ASECalculator(
+        [model_config.data.model_version_path(), model_config.data.model_version_path()]
+    )
 
     atoms.calc = calc
     E = atoms.get_potential_energy()
     F = atoms.get_forces()
+    S = atoms.get_stress()
 
     assert E != 0
     assert F.shape == (3, 3)
+    assert S.shape == (6,)
+
+    assert "energy_uncertainty" in atoms.calc.results.keys()
+    assert "forces_uncertainty" in atoms.calc.results.keys()
+    assert "stress_uncertainty" in atoms.calc.results.keys()

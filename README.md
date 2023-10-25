@@ -35,9 +35,16 @@ If you want to enable GPU support, please overwrite the jaxlib version:
 
 ```bash
 pip install --upgrade pip
-# Installs the wheel compatible with CUDA 11 and cuDNN 8.6 or newer.
-# Note: wheels only available on linux.
-pip install --upgrade "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+```
+
+CUDA 12 installation. Wheels only available on linux.
+```bash
+pip install --upgrade "jax[cuda12_pip]==0.4.14" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+```
+
+CUDA 11 installation. Wheels only available on linux.
+```bash
+pip install --upgrade "jax[cuda11_pip]==0.4.14" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
 
 See the [Jax installation instructions](https://github.com/google/jax#installation) for more details.
@@ -62,7 +69,7 @@ apax template train # use --full for a template with all input options
 ```
 
 Please refer to the documentation LINK for a detailed explanation of all parameters.
-The documentation can convenienty be accessed by runnning `apax docs`.
+The documentation can convenienty be accessed by running `apax docs`.
 
 ## Molecular Dynamics
 
