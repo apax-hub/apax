@@ -19,7 +19,6 @@ def test_energy_per_element():
     n_atoms = []
     for atoms in atoms_list:
         n_atoms.append(len(atoms))
-        print(len(atoms))
         energy = np.sum(dummy_energies[atoms.numbers])
         energies.append(energy)
         atoms.calc = SinglePointCalculator(atoms, energy=energy)
