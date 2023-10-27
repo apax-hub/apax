@@ -39,7 +39,6 @@ def fit(
         loss_fn, Metrics, model=state.apply_fn, sam_rho=sam_rho, is_ensemble=is_ensemble
     )
 
-    # TODO vmap state and optimizer
     state, start_epoch = load_state(state, latest_dir)
     if start_epoch >= n_epochs:
         raise ValueError(
@@ -70,7 +69,7 @@ def fit(
             callbacks.on_train_batch_begin(batch=batch_idx)
 
             inputs, labels = next(batch_train_ds)
-            train_batch_metrics, batch_loss, state = train_step(
+            batch_loss, train_batch_metrics, state = train_step(
                 state, inputs, labels, train_batch_metrics
             )
 
@@ -91,7 +90,7 @@ def fit(
             for batch_idx in range(val_steps_per_epoch):
                 inputs, labels = next(batch_val_ds)
 
-                val_batch_metrics, batch_loss = val_step(
+                batch_loss, val_batch_metrics = val_step(
                     state.params, inputs, labels, val_batch_metrics
                 )
                 epoch_loss["val_loss"] += batch_loss
@@ -163,39 +162,35 @@ def make_ensemble_update(update_fn: Callable) -> Callable:
     v_update_fn = jax.vmap(update_fn, (0, None, None), (0, 0, 0))
 
     def ensemble_update_fn(state, inputs, labels):
-        predictions, loss, state = v_update_fn(state, inputs, labels)
+        loss, predictions, state = v_update_fn(state, inputs, labels)
 
         mean_predictions = jax.tree_map(lambda x: jnp.mean(x, axis=0), predictions)
         mean_loss = jnp.mean(loss)
         # TODO Add std to predictions
-        return mean_predictions, mean_loss, state
+        return mean_loss, mean_predictions, state
 
     return ensemble_update_fn
 
 
 def make_ensemble_eval(update_fn: Callable) -> Callable:
-    # TODO unify make ensemble functions
-    v_update_fn = jax.vmap(
-        update_fn, (0, None, None), (0, 0)
-    )  # Does this work with TrainState?  (0, None, None), (0,0,0), axis_name="ensemble"
+    v_update_fn = jax.vmap(update_fn, (0, None, None), (0, 0))
 
     def ensemble_eval_fn(state, inputs, labels):
         loss, predictions = v_update_fn(state, inputs, labels)
 
         mean_predictions = jax.tree_map(lambda x: jnp.mean(x, axis=0), predictions)
         mean_loss = jnp.mean(loss)
-        # TODO Add std to predictions
-        return mean_predictions, mean_loss
+        return mean_loss, mean_predictions
 
     return ensemble_eval_fn
 
 
 def make_step_fns(loss_fn, Metrics, model, sam_rho, is_ensemble):
     loss_calculator = partial(calc_loss, loss_fn=loss_fn, model=model)
+    grad_fn = jax.value_and_grad(loss_calculator, 0, has_aux=True)
     rho = sam_rho
 
     def update_step(state, inputs, labels):
-        grad_fn = jax.value_and_grad(loss_calculator, 0, has_aux=True)
         (loss, predictions), grads = grad_fn(state.params, inputs, labels)
 
         if rho > 1e-6:
@@ -206,7 +201,7 @@ def make_step_fns(loss_fn, Metrics, model, sam_rho, is_ensemble):
             (loss, _), grads = grad_fn(params_eps, inputs, labels)  # maybe get rid of SAM
 
         state = state.apply_gradients(grads=grads)
-        return predictions, loss, state
+        return loss, predictions, state
 
     if is_ensemble:
         update_fn = make_ensemble_update(update_step)
@@ -217,13 +212,13 @@ def make_step_fns(loss_fn, Metrics, model, sam_rho, is_ensemble):
 
     @jax.jit
     def train_step(state, inputs, labels, batch_metrics):
-        predictions, loss, state = update_fn(state, inputs, labels)
+        loss, predictions, state = update_fn(state, inputs, labels)
 
         new_batch_metrics = Metrics.single_from_model_output(
             label=labels, prediction=predictions
         )
         batch_metrics = batch_metrics.merge(new_batch_metrics)
-        return batch_metrics, loss, state
+        return loss, batch_metrics, state
 
     @jax.jit
     def val_step(params, inputs, labels, batch_metrics):
@@ -233,6 +228,6 @@ def make_step_fns(loss_fn, Metrics, model, sam_rho, is_ensemble):
             label=labels, prediction=predictions
         )
         batch_metrics = batch_metrics.merge(new_batch_metrics)
-        return batch_metrics, loss
+        return loss, batch_metrics
 
     return train_step, val_step
