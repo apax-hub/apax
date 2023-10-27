@@ -25,12 +25,26 @@ from apax.utils import jax_md_reduced
 log = logging.getLogger(__name__)
 
 
-def make_energy_ensemble(model):
+def create_energy_fn(model, params, numbers, box, n_models):
+
+    
     def ensemble(positions, Z, idx, box, offsets):
         energies = model(positions, Z, idx, box, offsets)
         energy = jnp.mean(energies)
 
         return energy
+    
+
+    if n_models > 1:
+        model = ensemble
+
+    partial(
+        model,
+        params,
+        Z=numbers,
+        box=box, # TODO IS THIS CORRECT FOR NPT???
+        offsets=jnp.array([0.0, 0.0, 0.0]),
+    )
 
     return ensemble
 
@@ -356,13 +370,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     )
 
     params = load_params(model_config.data.model_version_path())
-    energy_fn = partial(
-        model.apply,
-        params,
-        Z=system.atomic_numbers,
-        box=system.box, # TODO IS THIS CORRECT FOR NPT???
-        offsets=jnp.array([0.0, 0.0, 0.0]),
-    )
+    energy_fn = create_energy_fn(model.apply, params, system.atomic_numbers, system.box, model_config.n_models)
     sim_fns = SimulationFunctions(energy_fn, shift_fn, neighbor_fn)
     return system, sim_fns
 
