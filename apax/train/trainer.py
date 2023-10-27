@@ -227,7 +227,7 @@ def make_step_fns(loss_fn, Metrics, model, sam_rho, is_ensemble):
 
     @jax.jit
     def val_step(params, inputs, labels, batch_metrics):
-        predictions, loss = eval_fn(params, inputs, labels)
+        loss, predictions = eval_fn(params, inputs, labels)
 
         new_batch_metrics = Metrics.single_from_model_output(
             label=labels, prediction=predictions
