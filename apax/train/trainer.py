@@ -160,9 +160,7 @@ def calc_loss(params, inputs, labels, loss_fn, model):
 
 
 def make_ensemble_update(update_fn: Callable) -> Callable:
-    v_update_fn = jax.vmap(
-        update_fn, (0, None, None), (0, 0, 0)
-    )
+    v_update_fn = jax.vmap(update_fn, (0, None, None), (0, 0, 0))
 
     def ensemble_update_fn(state, inputs, labels):
         predictions, loss, state = v_update_fn(state, inputs, labels)

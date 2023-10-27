@@ -74,7 +74,9 @@ def load_test_data(
 
 def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=False):
     callbacks.on_train_begin()
-    _, test_step_fn = make_step_fns(loss_fn, Metrics, model=model, sam_rho=0.0, is_ensemble=is_ensemble)
+    _, test_step_fn = make_step_fns(
+        loss_fn, Metrics, model=model, sam_rho=0.0, is_ensemble=is_ensemble
+    )
 
     test_steps_per_epoch = test_ds.steps_per_epoch()
     batch_test_ds = test_ds.shuffle_and_batch()
@@ -143,4 +145,12 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
 
     config, params = restore_single_parameters(model_version_path)
 
-    predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble= config.n_models > 1)
+    predict(
+        model,
+        params,
+        Metrics,
+        loss_fn,
+        test_ds,
+        callbacks,
+        is_ensemble=config.n_models > 1,
+    )
