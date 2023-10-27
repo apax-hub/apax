@@ -254,9 +254,6 @@ def run(user_config, log_file="train.log", log_level="error"):
         )
         state.replace(params=params)
 
-    # TODO
-    # enable param loading in ASE calc and usage in jaxmd
-
     fit(
         state,
         train_ds,
