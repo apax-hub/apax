@@ -46,6 +46,8 @@ def create_params(model, rng_key, sample_input: tuple, n_models: int):
     keys = jax.random.split(rng_key, num=n_models + 1)
     rng_key, model_rng = keys[0], keys[1:]
 
+    log.info(f"initializing {n_models} models")
+
     if n_models == 1:
         params = model.init(model_rng[0], *sample_input)
     elif n_models > 1:
