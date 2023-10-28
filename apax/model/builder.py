@@ -10,7 +10,7 @@ from apax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
 
 
 class ModelBuilder:
-    def __init__(self, model_config: ModelConfig, n_species: int =119):
+    def __init__(self, model_config: ModelConfig, n_species: int = 119):
         self.config = model_config
         self.n_species = n_species
 
@@ -37,8 +37,6 @@ class ModelBuilder:
     def build_descriptor(
         self,
         apply_mask,
-        init_box: np.array = np.array([0.0, 0.0, 0.0]),
-        inference_disp_fn=None,
     ):
         radial_fn = self.build_radial_function()
         descriptor = GaussianMomentDescriptor(
@@ -46,8 +44,6 @@ class ModelBuilder:
             n_contr=self.config["n_contr"],
             dtype=self.config["descriptor_dtype"],
             apply_mask=apply_mask,
-            init_box=init_box,
-            inference_disp_fn=inference_disp_fn,
         )
         return descriptor
 
@@ -73,12 +69,8 @@ class ModelBuilder:
         scale,
         shift,
         apply_mask,
-        init_box: np.array = np.array([0.0, 0.0, 0.0]),
-        inference_disp_fn=None,
     ):
-        descriptor = self.build_descriptor(
-            apply_mask, init_box=init_box, inference_disp_fn=inference_disp_fn
-        )
+        descriptor = self.build_descriptor(apply_mask)
         readout = self.build_readout()
         scale_shift = self.build_scale_shift(scale, shift)
 
@@ -97,20 +89,21 @@ class ModelBuilder:
             scale,
             shift,
             apply_mask,
-            init_box=init_box,
-            inference_disp_fn=inference_disp_fn,
         )
         corrections = []
         if self.config["use_zbl"]:
             repulsion = ZBLRepulsion(
                 apply_mask=apply_mask,
                 r_max=self.config["r_max"],
-                init_box=init_box,
-                inference_disp_fn=inference_disp_fn,
             )
             corrections.append(repulsion)
 
-        model = EnergyModel(atomistic_model, corrections=corrections)
+        model = EnergyModel(
+            atomistic_model,
+            corrections=corrections,
+            init_box=init_box,
+            inference_disp_fn=inference_disp_fn,
+        )
         return model
 
     def build_energy_derivative_model(
@@ -121,7 +114,7 @@ class ModelBuilder:
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn=None,
     ):
-        atomistic_model = self.build_atomistic_model(
+        energy_model = self.build_energy_model(
             scale,
             shift,
             apply_mask,
@@ -133,13 +126,11 @@ class ModelBuilder:
             repulsion = ZBLRepulsion(
                 apply_mask=apply_mask,
                 r_max=self.config["r_max"],
-                init_box=init_box,
-                inference_disp_fn=inference_disp_fn,
             )
             corrections.append(repulsion)
 
         model = EnergyDerivativeModel(
-            atomistic_model,
+            energy_model,
             corrections=corrections,
             calc_stress=self.config["calc_stress"],
         )
