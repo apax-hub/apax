@@ -34,6 +34,8 @@ def test_run_md(get_tmp_path):
     md_config_dict["initial_structure"] = get_tmp_path.as_posix() + "/atoms.extxyz"
 
     model_config = Config.model_validate(model_config_dict)
+    os.makedirs(model_config.data.model_version_path())
+    model_config.dump_config(model_config.data.model_version_path())
     md_config = MDConfig.model_validate(md_config_dict)
 
     positions = jnp.array(
