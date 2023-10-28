@@ -6,7 +6,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from jax import vmap
 
 from apax.data.input_pipeline import PadToSpecificSize, AtomisticDataset, create_dict_dataset
-from apax.layers.descriptor.gaussian_moment_descriptor import disp_fn
+from apax.model.gmnn import disp_fn
 from apax.utils.convert import atoms_to_arrays
 from apax.utils.data import split_atoms, split_idxs
 from apax.utils.random import seed_py_np_tf

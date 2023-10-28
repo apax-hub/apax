@@ -40,17 +40,21 @@ def test_apax_variable_size():
     scale = jnp.array([1.0, 1.2, 1.6])[..., None]
 
     model = EnergyDerivativeModel(
-        AtomisticModel(
-            descriptor=GaussianMomentDescriptor(apply_mask=False),
-            scale_shift=PerElementScaleShift(scale=scale, shift=shift),
-            mask_atoms=False,
+        EnergyModel(
+            AtomisticModel(
+                descriptor=GaussianMomentDescriptor(apply_mask=False),
+                scale_shift=PerElementScaleShift(scale=scale, shift=shift),
+                mask_atoms=False,
+        ),
         )
     )
     model_padded = EnergyDerivativeModel(
-        AtomisticModel(
-            descriptor=GaussianMomentDescriptor(apply_mask=True),
-            scale_shift=PerElementScaleShift(scale=scale, shift=shift),
-            mask_atoms=True,
+        EnergyModel(
+            AtomisticModel(
+                descriptor=GaussianMomentDescriptor(apply_mask=True),
+                scale_shift=PerElementScaleShift(scale=scale, shift=shift),
+                mask_atoms=True,
+        ),
         )
     )
 
@@ -73,14 +77,16 @@ def test_apax_variable_size():
 def test_atomistic_model():
     key = jax.random.PRNGKey(0)
 
-    R = np.array(
+    dR = np.array(
         [
-            [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            [-1.0, 1.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [1.0, -1.0, 0.0],
         ]
     )
-
     Z = np.array([1, 2, 2])
 
     idx = np.array(
@@ -89,16 +95,11 @@ def test_atomistic_model():
             [0, 0, 1, 1, 2, 2],
         ]
     )
-    offsets = jnp.full([6, 3], 0)
-
-    neighbor = NeighborSpoof(idx=idx)
-
-    box = np.array([0.0, 0.0, 0.0])
 
     model = AtomisticModel(mask_atoms=False)
 
-    params = model.init(key, R, Z, neighbor, box, offsets)
-    result = model.apply(params, R, Z, neighbor, box, offsets)
+    params = model.init(key, dR, Z, idx)
+    result = model.apply(params, dR, Z, idx)
 
     assert result.shape == (3, 1)
 
@@ -123,14 +124,14 @@ def test_energy_model():
         ]
     )
     offsets = jnp.full([6, 3], 0)
-    neighbor = NeighborSpoof(idx=idx)
+    # neighbor = NeighborSpoof(idx=idx)
 
     box = np.array([0.0, 0.0, 0.0])
 
     model = EnergyModel()
 
-    params = model.init(key, R, Z, neighbor, box, offsets)
-    result = model.apply(params, R, Z, neighbor, box, offsets)
+    params = model.init(key, R, Z, idx, box, offsets)
+    result = model.apply(params, R, Z, idx, box, offsets)
 
     assert result.shape == ()
 
