@@ -1,14 +1,14 @@
 import logging
 from dataclasses import field
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, Tuple, Union
 
 import flax.linen as nn
 import jax
+import jax.numpy as jnp
+import numpy as np
+from jax import vmap
 from jax_md import partition, space
 from jax_md.util import Array
-import numpy as np
-import jax.numpy as jnp
-from jax import vmap
 
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.empirical import EmpiricalEnergyTerm
@@ -23,6 +23,7 @@ DisplacementFn = Callable[[Array, Array], Array]
 MDModel = Tuple[partition.NeighborFn, Callable, Callable]
 
 log = logging.getLogger(__name__)
+
 
 def canonicalize_neighbors(neighbor):
     if type(neighbor) in [partition.NeighborList, NeighborSpoof]:
@@ -48,6 +49,7 @@ def disp_fn(ri, rj, perturbation, box):
 def get_disp_fn(displacement):
     def disp_fn(ri, rj, perturbation, box):
         return displacement(ri, rj, perturbation, box=box)
+
     return disp_fn
 
 
@@ -62,11 +64,8 @@ class AtomisticModel(nn.Module):
         dr_vec: Array,
         Z: Array,
         idx: Array,
-        box: Array,
-        offsets: Array,
-        perturbation: Optional[Array]=None,
     ) -> Array:
-        gm = self.descriptor(dr_vec, Z, idx, box, offsets, perturbation)
+        gm = self.descriptor(dr_vec, Z, idx)
         h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
 
@@ -82,7 +81,6 @@ class EnergyModel(nn.Module):
     inference_disp_fn: Any = None
 
     def setup(self):
-
         if np.all(self.init_box < 1e-6):
             # gas phase training and predicting
             displacement_fn = space.free()[0]
@@ -103,7 +101,6 @@ class EnergyModel(nn.Module):
         offsets,
         perturbation=None,
     ):
-        
         # Distances
         idx = canonicalize_neighbors(neighbor)
         idx_i, idx_j = idx[0], idx[1]
@@ -117,19 +114,19 @@ class EnergyModel(nn.Module):
         if np.all(self.init_box < 1e-6):
             # reverse conventnion to match TF
             # distance vector for gas phase training and predicting
-            dr_vec = self.displacement(Rj, Ri).astype(self.dtype)
+            dr_vec = self.displacement(Rj, Ri)
         else:
             # distance vector for training on periodic systems
-            dr_vec = self.displacement(Rj, Ri, perturbation, box).astype(self.dtype)
-            dr_vec += offsets.astype(self.dtype)
+            dr_vec = self.displacement(Rj, Ri, perturbation, box)
+            dr_vec += offsets
 
         # Model Core
-        atomic_energies = self.atomistic_model(dr_vec, Z, neighbor)
+        atomic_energies = self.atomistic_model(dr_vec, Z, idx)
         total_energy = fp64_sum(atomic_energies)
 
         # Corrections
         for correction in self.corrections:
-            energy_correction = correction(dr_vec, Z, neighbor)
+            energy_correction = correction(dr_vec, Z, idx)
             total_energy = total_energy + energy_correction
 
         # TODO think of nice abstraction for predicting additional properties
