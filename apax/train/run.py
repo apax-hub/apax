@@ -8,9 +8,8 @@ import jax.numpy as jnp
 import numpy as np
 from flax.core.frozen_dict import freeze
 
-from apax.config import parse_config, LossConfig
+from apax.config import LossConfig, parse_config
 from apax.data.initialization import initialize_dataset, load_data_files
-
 from apax.model import ModelBuilder
 from apax.optimizer import get_opt
 from apax.train.callbacks import initialize_callbacks

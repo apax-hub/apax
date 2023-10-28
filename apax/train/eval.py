@@ -8,15 +8,12 @@ import numpy as np
 from tqdm import trange
 
 from apax.config import parse_config
+from apax.data.initialization import RawDataset, initialize_dataset
 from apax.model import ModelBuilder
+from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import load_params
 from apax.train.metrics import initialize_metrics
-from apax.data.initialization import RawDataset, initialize_dataset
-from apax.train.callbacks import initialize_callbacks
-from apax.train.run import (
-    initialize_loss_fn,
-    setup_logging,
-)
+from apax.train.run import initialize_loss_fn, setup_logging
 from apax.train.trainer import make_step_fns
 from apax.utils.data import load_data, split_atoms, split_label
 from apax.utils.random import seed_py_np_tf

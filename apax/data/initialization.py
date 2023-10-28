@@ -1,7 +1,7 @@
-import logging
 import dataclasses
-from typing import Optional
+import logging
 import os
+from typing import Optional
 
 import numpy as np
 from ase import Atoms

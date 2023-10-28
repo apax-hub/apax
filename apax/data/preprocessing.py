@@ -2,11 +2,11 @@ import collections
 import itertools
 import logging
 from typing import Callable
-from ase import Atoms
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+from ase import Atoms
 from jax_md import partition, space
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
@@ -104,7 +104,9 @@ def dataset_neighborlist(
             n_neighbors = neighbor_idxs.shape[1]
             offsets = np.full([n_neighbors, 3], 0)
         else:
-            idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms_list[i], r_max) # TODO replace atoms list with positions and box
+            idxs_i, idxs_j, offsets = neighbour_list(
+                "ijS", atoms_list[i], r_max
+            )  # TODO replace atoms list with positions and box
             offsets = np.matmul(offsets, box[i])
             neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
 

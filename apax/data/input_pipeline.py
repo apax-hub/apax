@@ -1,9 +1,9 @@
 import logging
 from typing import Dict, Iterator
 
+import jax
 import numpy as np
 import tensorflow as tf
-import jax
 
 from apax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
 from apax.utils.convert import atoms_to_arrays
@@ -117,7 +117,9 @@ def create_dict_dataset(
     return inputs, labels
 
 
-def dataset_from_dicts(inputs: Dict[str, np.ndarray], labels: Dict[str, np.ndarray]) -> tf.data.Dataset:
+def dataset_from_dicts(
+    inputs: Dict[str, np.ndarray], labels: Dict[str, np.ndarray]
+) -> tf.data.Dataset:
     # tf.RaggedTensors should be created from `tf.ragged.stack`
     # instead of `tf.ragged.constant` for performance reasons.
     # See https://github.com/tensorflow/tensorflow/issues/47853
@@ -183,11 +185,11 @@ class AtomisticDataset:
 
     def set_batch_size(self, batch_size: int):
         self.batch_size = self.validate_batch_size(batch_size)
-    
+
     def _check_batch_size(self):
         if self.batch_size is None:
             raise ValueError("Dataset Batch Size has not been set yet")
-    
+
     def validate_batch_size(self, batch_size: int) -> int:
         if batch_size > self.n_data:
             msg = (
@@ -226,7 +228,7 @@ class AtomisticDataset:
         shuffled_ds :
             Iterator that returns inputs and labels of one batch in each step.
         """
-        self._check_batch_size()  
+        self._check_batch_size()
         shuffled_ds = (
             self.ds.shuffle(buffer_size=self.buffer_size)
             .repeat(self.n_epoch)
