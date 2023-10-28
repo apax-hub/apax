@@ -1,13 +1,10 @@
-from dataclasses import field
 from typing import Any
 
 import einops
 import flax.linen as nn
 import jax.numpy as jnp
-import numpy as np
 from jax import vmap
 from jax_md import space
-from jax_md.space import pairwise_displacement, raw_transform, transform
 
 from apax.layers.descriptor.basis_functions import RadialFunction
 from apax.layers.descriptor.moments import geometric_moments
@@ -31,6 +28,7 @@ class GaussianMomentDescriptor(nn.Module):
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
 
     def __call__(self, dr_vec, Z, neighbor_idxs):
+        dr_vec = dr_vec.astype(self.dtype)
         # Z shape n_atoms
         n_atoms = Z.shape[0]
 
@@ -40,7 +38,7 @@ class GaussianMomentDescriptor(nn.Module):
         Z_i, Z_j = Z[idx_i, ...], Z[idx_j, ...]
 
         # dr shape: neighbors
-        dr = self.distance(dr_vec).astype(self.dtype)
+        dr = self.distance(dr_vec)
 
         # TODO: maybe try jnp where
         dr_repeated = einops.repeat(dr + 1e-5, "neighbors -> neighbors 1")
@@ -54,13 +52,21 @@ class GaussianMomentDescriptor(nn.Module):
         moments = geometric_moments(radial_function, dn, idx_j, n_atoms)
 
         contr_0 = moments[0]
-        contr_1 = jnp.einsum("ari, asi -> rsa", moments[1], moments[1])                         # noqa: E501
-        contr_2 = jnp.einsum("arij, asij -> rsa", moments[2], moments[2])                       # noqa: E501
-        contr_3 = jnp.einsum("arijk, asijk -> rsa", moments[3], moments[3])                     # noqa: E501
-        contr_4 = jnp.einsum("arij, asik, atjk -> rsta", moments[2], moments[2], moments[2])    # noqa: E501
-        contr_5 = jnp.einsum("ari, asj, atij -> rsta", moments[1], moments[1], moments[2])      # noqa: E501
-        contr_6 = jnp.einsum("arijk, asijl, atkl -> rsta", moments[3], moments[3], moments[2])  # noqa: E501
-        contr_7 = jnp.einsum("arijk, asij, atk -> rsta", moments[3], moments[2], moments[1])    # noqa: E501
+        contr_1 = jnp.einsum("ari, asi -> rsa", moments[1], moments[1])  # noqa: E501
+        contr_2 = jnp.einsum("arij, asij -> rsa", moments[2], moments[2])  # noqa: E501
+        contr_3 = jnp.einsum("arijk, asijk -> rsa", moments[3], moments[3])  # noqa: E501
+        contr_4 = jnp.einsum(
+            "arij, asik, atjk -> rsta", moments[2], moments[2], moments[2]
+        )  # noqa: E501
+        contr_5 = jnp.einsum(
+            "ari, asj, atij -> rsta", moments[1], moments[1], moments[2]
+        )  # noqa: E501
+        contr_6 = jnp.einsum(
+            "arijk, asijl, atkl -> rsta", moments[3], moments[3], moments[2]
+        )  # noqa: E501
+        contr_7 = jnp.einsum(
+            "arijk, asij, atk -> rsta", moments[3], moments[2], moments[1]
+        )  # noqa: E501
 
         n_symm01_features = self.triang_idxs_2d.shape[0] * self.n_radial
 
@@ -78,9 +84,9 @@ class GaussianMomentDescriptor(nn.Module):
         contr_5 = contr_5[tril_2_i, tril_2_j]
         contr_6 = contr_6[tril_2_i, tril_2_j]
 
-        contr_5 = np.reshape(contr_5, [n_symm01_features, -1])
-        contr_6 = np.reshape(contr_6, [n_symm01_features, -1])
-        contr_7 = np.reshape(contr_7, [self.n_radial**3, -1])
+        contr_5 = jnp.reshape(contr_5, [n_symm01_features, -1])
+        contr_6 = jnp.reshape(contr_6, [n_symm01_features, -1])
+        contr_7 = jnp.reshape(contr_7, [self.n_radial**3, -1])
 
         contr_1 = jnp.transpose(contr_1)
         contr_2 = jnp.transpose(contr_2)
