@@ -63,9 +63,6 @@ def test_apax_variable_size():
         params, R_padded, Z_padded, idx_padded, box, offsets
     )
 
-    print(results["forces"])
-    print(results_padded["forces"])
-
     assert (results["energy"] - results_padded["energy"]) < 1e-6
     assert np.all(results["forces"] - results_padded["forces"][:-1, :] < 1e-6)  # 1e-6
 

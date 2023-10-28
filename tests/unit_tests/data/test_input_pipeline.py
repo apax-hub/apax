@@ -251,8 +251,5 @@ def test_neighbors_and_displacements(pbc, calc_results, external_labels, cell):
     matscipy_dist = np.linalg.norm(matscipy_dr_vec, axis=1)
     apax_dist = np.linalg.norm(apax_dr_vec, axis=1)
 
-    print(matscipy_dist)
-    print(apax_dist)
-
     assert np.all(matscipy_dr_vec - apax_dr_vec < 10e-7)
     assert np.all(matscipy_dist - apax_dist < 10e-7)

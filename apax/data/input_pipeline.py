@@ -106,7 +106,6 @@ def create_dict_dataset(
 
     idx, offsets = dataset_neighborlist(
         inputs["ragged"]["positions"],
-        inputs["fixed"]["n_atoms"],
         box=inputs["fixed"]["box"],
         r_max=r_max,
         atoms_list=atoms_list,
