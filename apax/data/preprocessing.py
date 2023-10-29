@@ -116,18 +116,6 @@ def get_shrink_wrapped_cell(positions):
     return cell, cell_origin
 
 
-def get_shrink_wrapped_cell(positions):
-    rmin = np.min(positions, axis=0)
-    rmax = np.max(positions, axis=0)
-    cell_origin = rmin
-    cell = np.diag(rmax - rmin)
-    for idx in range(3):
-        if np.all(cell[:, idx] < 10e-3):
-            cell[idx, idx] = 1.0
-
-    return cell, cell_origin
-
-
 def prefetch_to_single_device(iterator, size: int):
     """
     inspired by
