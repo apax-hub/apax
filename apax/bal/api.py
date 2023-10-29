@@ -82,7 +82,7 @@ def kernel_selection(
     config, params = restore_parameters(model_dir)
 
     n_train = len(train_atoms)
-    dataset = initialize_dataset(config, RawDataset(atoms_list=train_atoms + pool_atoms))
+    dataset = initialize_dataset(config, RawDataset(atoms_list=train_atoms + pool_atoms), False)
 
     init_box = dataset.init_input()["box"][0]
 
