@@ -59,10 +59,11 @@ class PerElementRegressionShift:
 class IsolatedAtomEnergyShift:
     name = "isolated_atom_energy_shift"
     parameters = ["E0s"]
-    dtypes = [dict[int:float]]
+    dtypes = [dict[int, float]]
 
     @staticmethod
     def compute(inputs, labels, shift_options):
+        shift_options = shift_options["E0s"]
         n_species = 119
         elemental_energies_shift = np.zeros(n_species)
         for k, v in shift_options.items():

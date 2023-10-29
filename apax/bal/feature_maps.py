@@ -6,8 +6,8 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 from pydantic import BaseModel, TypeAdapter
 
 
-def extract_feature_params(params: dict, layer_name: str) -> tuple[dict, dict]:
-    """Seprate params into those belonging to a selected layer
+def extract_feature_params(params: dict, layer_name: str) -> Tuple[dict, dict]:
+    """Separate params into those belonging to a selected layer
     and the remaining ones.
     """
     p_flat = flatten_dict(params)

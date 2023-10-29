@@ -50,6 +50,9 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::FutureWarning:jax.*scatter",]
+markers = [
+    "slow: mark a test as slow and should only run explicitly"
+]
 
 [tool.black]
 line-length = 90
@@ -68,3 +71,4 @@ directory = "coverage_html_report"
 
 [tool.coverage.report]
 show_missing = true
+
