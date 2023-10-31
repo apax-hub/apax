@@ -1,5 +1,7 @@
 import logging
+from typing import Dict, Iterator
 
+import jax
 import numpy as np
 import tensorflow as tf
 
@@ -9,7 +11,7 @@ from apax.utils.convert import atoms_to_arrays
 log = logging.getLogger(__name__)
 
 
-def find_largest_system(inputs):
+def find_largest_system(inputs: dict[str, np.ndarray]) -> tuple[int]:
     max_atoms = np.max(inputs["fixed"]["n_atoms"])
     nbr_shapes = [idx.shape[1] for idx in inputs["ragged"]["idx"]]
     max_nbrs = np.max(nbr_shapes)
@@ -17,7 +19,7 @@ def find_largest_system(inputs):
 
 
 class PadToSpecificSize:
-    def __init__(self, max_atoms=None, max_nbrs=None) -> None:
+    def __init__(self, max_atoms: int, max_nbrs: int) -> None:
         """Function is padding all input and label dicts that values are of type ragged
         to largest element in the batch. Afterward, the distinction between ragged
         and fixed inputs/labels is not needed and all inputs/labels are updated to
@@ -95,7 +97,7 @@ def create_dict_dataset(
     disable_pbar=False,
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
-) -> None:
+) -> tuple[dict]:
     inputs, labels = atoms_to_arrays(atoms_list, pos_unit, energy_unit)
 
     if external_labels:
@@ -115,7 +117,34 @@ def create_dict_dataset(
     return inputs, labels
 
 
-class TFPipeline:
+def dataset_from_dicts(
+    inputs: Dict[str, np.ndarray], labels: Dict[str, np.ndarray]
+) -> tf.data.Dataset:
+    # tf.RaggedTensors should be created from `tf.ragged.stack`
+    # instead of `tf.ragged.constant` for performance reasons.
+    # See https://github.com/tensorflow/tensorflow/issues/47853
+    for key, val in inputs["ragged"].items():
+        inputs["ragged"][key] = tf.ragged.stack(val)
+    for key, val in inputs["fixed"].items():
+        inputs["fixed"][key] = tf.constant(val)
+
+    for key, val in labels["ragged"].items():
+        labels["ragged"][key] = tf.ragged.stack(val)
+    for key, val in labels["fixed"].items():
+        labels["fixed"][key] = tf.constant(val)
+
+    ds = tf.data.Dataset.from_tensor_slices(
+        (
+            inputs["ragged"],
+            inputs["fixed"],
+            labels["ragged"],
+            labels["fixed"],
+        )
+    )
+    return ds
+
+
+class AtomisticDataset:
     """Class processes inputs/labels and makes them accessible for training."""
 
     def __init__(
@@ -123,7 +152,6 @@ class TFPipeline:
         inputs,
         labels,
         n_epoch: int,
-        batch_size: int,
         buffer_size: int = 1000,
     ) -> None:
         """Processes inputs/labels and makes them accessible for training.
@@ -144,7 +172,7 @@ class TFPipeline:
             value.
         """
         self.n_epoch = n_epoch
-        self.batch_size = batch_size
+        self.batch_size = None
         self.buffer_size = buffer_size
 
         max_atoms, max_nbrs = find_largest_system(inputs)
@@ -153,6 +181,16 @@ class TFPipeline:
 
         self.n_data = len(inputs["fixed"]["n_atoms"])
 
+        self.ds = dataset_from_dicts(inputs, labels)
+
+    def set_batch_size(self, batch_size: int):
+        self.batch_size = self.validate_batch_size(batch_size)
+
+    def _check_batch_size(self):
+        if self.batch_size is None:
+            raise ValueError("Dataset Batch Size has not been set yet")
+
+    def validate_batch_size(self, batch_size: int) -> int:
         if batch_size > self.n_data:
             msg = (
                 f"requested batch size {batch_size} is larger than the number of data"
@@ -161,29 +199,7 @@ class TFPipeline:
             print("Warning: " + msg)
             log.warning(msg)
             batch_size = self.n_data
-        self.batch_size = batch_size
-
-        # tf.RaggedTensors should be created from `tf.ragged.stack`
-        # instead of `tf.ragged.constant` for performance reasons.
-        # See https://github.com/tensorflow/tensorflow/issues/47853
-        for key, val in inputs["ragged"].items():
-            inputs["ragged"][key] = tf.ragged.stack(val)
-        for key, val in inputs["fixed"].items():
-            inputs["fixed"][key] = tf.constant(val)
-
-        for key, val in labels["ragged"].items():
-            labels["ragged"][key] = tf.ragged.stack(val)
-        for key, val in labels["fixed"].items():
-            labels["fixed"][key] = tf.constant(val)
-
-        self.ds = tf.data.Dataset.from_tensor_slices(
-            (
-                inputs["ragged"],
-                inputs["fixed"],
-                labels["ragged"],
-                labels["fixed"],
-            )
-        )
+        return batch_size
 
     def steps_per_epoch(self) -> int:
         """Returns the number of steps per epoch dependent on the number of data and the
@@ -193,7 +209,7 @@ class TFPipeline:
         """
         return self.n_data // self.batch_size
 
-    def init_input(self):
+    def init_input(self) -> Dict[str, np.ndarray]:
         """Returns first batch of inputs and labels to init the model."""
         inputs, _ = next(
             self.ds.batch(1)
@@ -203,7 +219,7 @@ class TFPipeline:
         )
         return inputs
 
-    def shuffle_and_batch(self):
+    def shuffle_and_batch(self) -> Iterator[jax.Array]:
         """Shuffles, batches, and pads the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
 
@@ -212,6 +228,7 @@ class TFPipeline:
         shuffled_ds :
             Iterator that returns inputs and labels of one batch in each step.
         """
+        self._check_batch_size()
         shuffled_ds = (
             self.ds.shuffle(buffer_size=self.buffer_size)
             .repeat(self.n_epoch)
@@ -222,10 +239,9 @@ class TFPipeline:
         shuffled_ds = prefetch_to_single_device(shuffled_ds.as_numpy_iterator(), 2)
         return shuffled_ds
 
-    def batch(self, batch_size):
-        # TODO: the batch size here overrides self.batch_size
-        # we should find a better abstraction
-        ds = self.ds.batch(batch_size=batch_size).map(
+    def batch(self) -> Iterator[jax.Array]:
+        self._check_batch_size()
+        ds = self.ds.batch(batch_size=self.batch_size).map(
             PadToSpecificSize(self.max_atoms, self.max_nbrs)
         )
 

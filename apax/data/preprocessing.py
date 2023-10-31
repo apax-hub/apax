@@ -1,10 +1,12 @@
 import collections
 import itertools
 import logging
+from typing import Callable
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+from ase import Atoms
 from jax_md import partition, space
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
@@ -14,7 +16,7 @@ from apax.utils import jax_md_reduced
 log = logging.getLogger(__name__)
 
 
-def initialize_nbr_fn(atoms, cutoff):
+def initialize_nbr_fn(atoms: Atoms, cutoff: float) -> Callable:
     neighbor_fn = None
     default_box = 100
     box = jnp.asarray(atoms.cell.array)
@@ -36,7 +38,6 @@ def initialize_nbr_fn(atoms, cutoff):
 
 @jax.jit
 def extract_nl(neighbors, position):
-    # vmapped neighborlist probably only useful for larger structures
     neighbors = neighbors.update(position)
     return neighbors
 
@@ -115,7 +116,7 @@ def get_shrink_wrapped_cell(positions):
     return cell, cell_origin
 
 
-def prefetch_to_single_device(iterator, size):
+def prefetch_to_single_device(iterator, size: int):
     """
     inspired by
     https://flax.readthedocs.io/en/latest/_modules/flax/jax_utils.html#prefetch_to_device
