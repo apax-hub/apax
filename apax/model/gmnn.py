@@ -26,11 +26,11 @@ log = logging.getLogger(__name__)
 
 
 def canonicalize_neighbors(neighbor):
-    if type(neighbor) in [partition.NeighborList, NeighborSpoof]:
-        idx = neighbor.idx
-    else:
-        idx = neighbor
-    return idx
+    return (
+        neighbor.idx
+        if isinstance(neighbor, (partition.NeighborList, NeighborSpoof))
+        else neighbor
+    )
 
 
 def disp_fn(ri, rj, perturbation, box):
