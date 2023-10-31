@@ -38,11 +38,6 @@ def setup_logging(log_file, log_level):
     logging.basicConfig(filename=log_file, level=log_levels[log_level])
 
 
-def initialize_directories(model_version_path: Path) -> None:
-    log.info("Initializing directories")
-    os.makedirs(model_version_path, exist_ok=True)
-
-
 def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
     log.info("Initializing Loss Function")
     loss_funcs = []
@@ -62,8 +57,8 @@ def run(user_config, log_file="train.log", log_level="error"):
     experiment = Path(config.data.experiment)
     directory = Path(config.data.directory)
     model_version_path = directory / experiment
-
-    initialize_directories(model_version_path)
+    log.info("Initializing directories")
+    model_version_path.mkdir(exist_ok=True)
     config.dump_config(model_version_path)
 
     callbacks = initialize_callbacks(config.callbacks, model_version_path)
