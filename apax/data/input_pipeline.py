@@ -11,7 +11,7 @@ from apax.utils.convert import atoms_to_arrays
 log = logging.getLogger(__name__)
 
 
-def find_largest_system(inputs: dict[np.ndarray]) -> tuple[int]:
+def find_largest_system(inputs: dict[str, np.ndarray]) -> tuple[int]:
     max_atoms = np.max(inputs["fixed"]["n_atoms"])
     nbr_shapes = [idx.shape[1] for idx in inputs["ragged"]["idx"]]
     max_nbrs = np.max(nbr_shapes)
