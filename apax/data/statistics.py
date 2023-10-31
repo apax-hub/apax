@@ -34,7 +34,7 @@ class PerElementRegressionShift:
         n_atoms_total = np.sum(system_sizes)
 
         mean_energy = ds_energy / n_atoms_total
-        n_species = 119
+        n_species = 119  # for simplicity, we assume any element could be in the dataset
         X = np.zeros(shape=(energies.shape[0], n_species))
         y = np.zeros(energies.shape[0])
 
