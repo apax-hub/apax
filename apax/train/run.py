@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import List
 
 import jax
-import numpy as np
 
 from apax.config import LossConfig, parse_config
 from apax.data.initialization import initialize_dataset, load_data_files
