@@ -8,7 +8,7 @@ from click import Path
 from tqdm import trange
 
 from apax.bal import feature_maps, kernel, selection, transforms
-from apax.data.input_pipeline import TFPipeline
+from apax.data.input_pipeline import AtomisticDataset
 from apax.model.builder import ModelBuilder
 from apax.model.gmnn import EnergyModel
 from apax.train.checkpoints import restore_parameters
@@ -43,11 +43,11 @@ def create_feature_fn(
     return feature_fn
 
 
-def compute_features(feature_fn, dataset: TFPipeline, processing_batch_size: int):
+def compute_features(feature_fn, dataset: AtomisticDataset):
     """Compute the features of a dataset."""
     features = []
     n_data = dataset.n_data
-    ds = dataset.batch(processing_batch_size)
+    ds = dataset.batch()
 
     pbar = trange(n_data, desc="Computing features", ncols=100, leave=True)
     for i, (inputs, _) in enumerate(ds):
@@ -85,6 +85,7 @@ def kernel_selection(
     dataset = initialize_dataset(
         config, RawDataset(atoms_list=train_atoms + pool_atoms), False
     )
+    dataset.set_batch_size(processing_batch_size)
 
     init_box = dataset.init_input()["box"][0]
 
@@ -94,7 +95,7 @@ def kernel_selection(
     feature_fn = create_feature_fn(
         model, params, base_feature_map, feature_transforms, is_ensemble
     )
-    g = compute_features(feature_fn, dataset, processing_batch_size)
+    g = compute_features(feature_fn, dataset)
     km = kernel.KernelMatrix(g, n_train)
     new_indices = selection_fn(km, selection_batch_size)
 

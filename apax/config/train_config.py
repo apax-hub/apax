@@ -286,7 +286,6 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     callbacks: List of :class: `callback` <config.CallbackConfig> configurations.
     progress_bar: Progressbar configuration.
     checkpoints: Checkpoint configuration.
-    maximize_l2_cache: Whether or not to maximize GPU L2 cache.
     """
 
     n_epochs: PositiveInt
@@ -302,7 +301,6 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     callbacks: List[CallbackConfig] = [CallbackConfig(name="csv")]
     progress_bar: TrainProgressbarConfig = TrainProgressbarConfig()
     checkpoints: CheckpointConfig = CheckpointConfig()
-    maximize_l2_cache: bool = False
 
     def dump_config(self, save_path):
         """
