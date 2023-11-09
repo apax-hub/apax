@@ -8,11 +8,12 @@ from click import Path
 from tqdm import trange
 
 from apax.bal import feature_maps, kernel, selection, transforms
+from apax.data.initialization import RawDataset
 from apax.data.input_pipeline import AtomisticDataset
 from apax.model.builder import ModelBuilder
 from apax.model.gmnn import EnergyModel
-from apax.train.checkpoints import restore_parameters
-from apax.train.run import RawDataset, initialize_dataset
+from apax.train.checkpoints import check_for_ensemble, restore_parameters
+from apax.train.run import initialize_dataset
 
 
 def create_feature_fn(
@@ -70,9 +71,6 @@ def kernel_selection(
     selection_batch_size: int = 10,
     processing_batch_size: int = 64,
 ):
-    n_models = 1 if isinstance(model_dir, (Path, str)) else len(model_dir)
-    is_ensemble = n_models > 1
-
     selection_fn = {
         "max_dist": selection.max_dist_selection,
     }[selection_method]
@@ -80,6 +78,8 @@ def kernel_selection(
     base_feature_map = feature_maps.FeatureMapOptions(base_fm_options)
 
     config, params = restore_parameters(model_dir)
+    n_models = check_for_ensemble(params)
+    is_ensemble = n_models > 1
 
     n_train = len(train_atoms)
     dataset = initialize_dataset(
@@ -87,7 +87,7 @@ def kernel_selection(
     )
     dataset.set_batch_size(processing_batch_size)
 
-    init_box = dataset.init_input()["box"][0]
+    _, init_box = dataset.init_input()
 
     builder = ModelBuilder(config.model.get_dict(), n_species=119)
     model = builder.build_energy_model(apply_mask=True, init_box=init_box)
