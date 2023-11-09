@@ -66,7 +66,7 @@ def test_run_md(get_tmp_path):
     neighbors = neighbor_fn.allocate(positions)
 
     builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
-    model = builder.build_energy_model(
+    model = builder.build_energy_derivative_model(
         apply_mask=False, inference_disp_fn=displacement_fn
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
