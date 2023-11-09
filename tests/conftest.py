@@ -77,7 +77,7 @@ def example_atoms(num_data: int, pbc: bool, calc_results: List[str]) -> Atoms:
     return atoms_list
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def get_tmp_path(tmp_path_factory):
     test_path = tmp_path_factory.mktemp("apax_tests")
     return test_path
