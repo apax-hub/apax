@@ -14,13 +14,65 @@ from apax.config.train_config import Config
 log = logging.getLogger(__name__)
 
 
-def load_state(model, params, tx, ckpt_dir):
+def check_for_ensemble(params: FrozenDict) -> int:
+    """Checks if a set of parameters belongs to an ensemble model.
+    This is the case if all parameters share the same first dimension (parameter batch)
+    """
+    flat_params = flatten_dict(params)
+    shapes = [v.shape[0] for v in flat_params.values()]
+    is_ensemble = len(set(shapes)) == 1
+
+    if is_ensemble:
+        return shapes[0]
+    else:
+        return 1
+
+
+def create_train_state(model, params: FrozenDict, tx):
+    n_models = check_for_ensemble(params)
+
+    def create_single_train_state(params):
+        state = train_state.TrainState.create(
+            apply_fn=model,
+            params=params,
+            tx=tx,
+        )
+        return state
+
+    if n_models > 1:
+        train_state_fn = jax.vmap(
+            create_single_train_state,
+            axis_name="ensemble"
+        )
+    else:
+        train_state_fn = create_single_train_state
+
+    return train_state_fn(params)
+
+
+def create_params(model, rng_key, sample_input: tuple, n_models: int):
+    keys = jax.random.split(rng_key, num=n_models + 1)
+    rng_key, model_rng = keys[0], keys[1:]
+
+    log.info(f"initializing {n_models} models")
+
+    if n_models == 1:
+        params = model.init(model_rng[0], *sample_input)
+    elif n_models > 1:
+        num_args = len(sample_input)
+        # vmap only over parameters, not over any data from the input
+        in_axes = (0, *[None] * num_args)
+        params = jax.vmap(model.init, in_axes=in_axes)(model_rng, *sample_input)
+    else:
+        raise ValueError(f"n_models should be a positive integer, found {n_models}")
+
+    params = freeze(params)
+
+    return params, rng_key
+
+
+def load_state(state, ckpt_dir):
     start_epoch = 0
-    state = train_state.TrainState.create(
-        apply_fn=model,
-        params=params,
-        tx=tx,
-    )
     target = {"model": state, "epoch": 0}
     checkpoints_exist = Path(ckpt_dir).is_dir()
     if checkpoints_exist:

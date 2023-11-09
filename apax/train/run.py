@@ -4,16 +4,13 @@ from pathlib import Path
 from typing import List
 
 import jax
-import jax.numpy as jnp
-import numpy as np
-from flax.core.frozen_dict import freeze
 
 from apax.config import LossConfig, parse_config
 from apax.data.initialization import initialize_dataset, load_data_files
 from apax.model import ModelBuilder
 from apax.optimizer import get_opt
 from apax.train.callbacks import initialize_callbacks
-from apax.train.checkpoints import load_params
+from apax.train.checkpoints import create_params, create_train_state, load_params
 from apax.train.loss import Loss, LossCollection
 from apax.train.metrics import initialize_metrics
 from apax.train.trainer import fit
@@ -58,7 +55,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     directory = Path(config.data.directory)
     model_version_path = directory / experiment
     log.info("Initializing directories")
-    model_version_path.mkdir(exist_ok=True)
+    model_version_path.mkdir(parents=True, exist_ok=True)
     config.dump_config(model_version_path)
 
     callbacks = initialize_callbacks(config.callbacks, model_version_path)
@@ -70,17 +67,10 @@ def run(user_config, log_file="train.log", log_level="error"):
     val_ds = initialize_dataset(config, val_raw_ds, calc_stats=False)
 
     train_ds.set_batch_size(config.data.batch_size)
-    val_ds.set_batch_size(config.data.val_batch_size)
+    val_ds.set_batch_size(config.data.valid_batch_size)
 
     log.info("Initializing Model")
-    init_input = train_ds.init_input()
-    R, Z, idx, init_box, offsets = (
-        jnp.asarray(init_input["positions"][0]),
-        jnp.asarray(init_input["numbers"][0]),
-        jnp.asarray(init_input["idx"][0]),
-        np.array(init_input["box"][0]),
-        jnp.array(init_input["offsets"][0]),
-    )
+    sample_input, init_box = train_ds.init_input()
 
     builder = ModelBuilder(config.model.get_dict())
     model = builder.build_energy_derivative_model(
@@ -89,19 +79,11 @@ def run(user_config, log_file="train.log", log_level="error"):
         apply_mask=True,
         init_box=init_box,
     )
-
-    rng_key, model_rng_key = jax.random.split(rng_key, num=2)
-    params = model.init(model_rng_key, R, Z, idx, init_box, offsets)
-    params = freeze(params)
-
-    base_checkpoint = config.checkpoints.base_model_checkpoint
-    do_transfer_learning = base_checkpoint is not None
-    if do_transfer_learning:
-        source_params = load_params(base_checkpoint)
-        log.info("Transferring parameters from %s", base_checkpoint)
-        params = param_transfer(source_params, params, config.checkpoints.reset_layers)
-
     batched_model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
+
+    params, rng_key = create_params(model, rng_key, sample_input, config.n_models)
+
+    params, rng_key = create_params(model, rng_key, sample_input, config.n_models)
 
     # TODO rework optimizer initialization and lr keywords
     steps_per_epoch = train_ds.steps_per_epoch()
@@ -113,10 +95,20 @@ def run(user_config, log_file="train.log", log_level="error"):
         **config.optimizer.model_dump(),
     )
 
+    state = create_train_state(batched_model, params, tx)
+
+    base_checkpoint = config.checkpoints.base_model_checkpoint
+    do_transfer_learning = base_checkpoint is not None
+    if do_transfer_learning:
+        source_params = load_params(base_checkpoint)
+        log.info("Transferring parameters from %s", base_checkpoint)
+        params = param_transfer(
+            source_params, state.params, config.checkpoints.reset_layers
+        )
+        state.replace(params=params)
+
     fit(
-        batched_model,
-        params,
-        tx,
+        state,
         train_ds,
         loss_fn,
         Metrics,
@@ -128,4 +120,5 @@ def run(user_config, log_file="train.log", log_level="error"):
         sam_rho=config.optimizer.sam_rho,
         patience=config.patience,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
+        is_ensemble=config.n_models > 1,
     )
