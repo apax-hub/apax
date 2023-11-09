@@ -12,7 +12,11 @@ from apax.data.initialization import RawDataset
 from apax.data.input_pipeline import AtomisticDataset
 from apax.model.builder import ModelBuilder
 from apax.model.gmnn import EnergyModel
-from apax.train.checkpoints import check_for_ensemble, restore_parameters
+from apax.train.checkpoints import (
+    canonicalize_energy_model_parameters,
+    check_for_ensemble,
+    restore_parameters,
+)
 from apax.train.run import initialize_dataset
 
 
@@ -78,6 +82,7 @@ def kernel_selection(
     base_feature_map = feature_maps.FeatureMapOptions(base_fm_options)
 
     config, params = restore_parameters(model_dir)
+    params = canonicalize_energy_model_parameters(params)
     n_models = check_for_ensemble(params)
     is_ensemble = n_models > 1
 
