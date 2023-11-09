@@ -5,7 +5,11 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from jax import vmap
 
-from apax.data.input_pipeline import PadToSpecificSize, AtomisticDataset, create_dict_dataset
+from apax.data.input_pipeline import (
+    AtomisticDataset,
+    PadToSpecificSize,
+    create_dict_dataset,
+)
 from apax.model.gmnn import disp_fn
 from apax.utils.convert import atoms_to_arrays
 from apax.utils.data import split_atoms, split_idxs
