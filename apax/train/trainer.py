@@ -159,6 +159,7 @@ def calc_loss(params, inputs, labels, loss_fn, model):
 
 
 def make_ensemble_update(update_fn: Callable) -> Callable:
+    # vmap over train state
     v_update_fn = jax.vmap(update_fn, (0, None, None), (0, 0, 0))
 
     def ensemble_update_fn(state, inputs, labels):
@@ -166,13 +167,14 @@ def make_ensemble_update(update_fn: Callable) -> Callable:
 
         mean_predictions = jax.tree_map(lambda x: jnp.mean(x, axis=0), predictions)
         mean_loss = jnp.mean(loss)
-        # TODO Add std to predictions
+        # Should we add std to predictions?
         return mean_loss, mean_predictions, state
 
     return ensemble_update_fn
 
 
 def make_ensemble_eval(update_fn: Callable) -> Callable:
+    # vmap over train state
     v_update_fn = jax.vmap(update_fn, (0, None, None), (0, 0))
 
     def ensemble_eval_fn(state, inputs, labels):

@@ -55,6 +55,7 @@ def create_params(model, rng_key, sample_input: tuple, n_models: int):
         params = model.init(model_rng[0], *sample_input)
     elif n_models > 1:
         num_args = len(sample_input)
+        # vmap only over parameters, not over any data from the input
         in_axes = (0, *[None] * num_args)
         params = jax.vmap(model.init, in_axes=in_axes)(model_rng, *sample_input)
     else:
