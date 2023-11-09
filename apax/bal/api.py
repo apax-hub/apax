@@ -83,7 +83,7 @@ def kernel_selection(
 
     n_train = len(train_atoms)
     dataset = initialize_dataset(
-        config, RawDataset(atoms_list=train_atoms + pool_atoms), False
+        config, RawDataset(atoms_list=train_atoms + pool_atoms), calc_stats=False
     )
     dataset.set_batch_size(processing_batch_size)
 
