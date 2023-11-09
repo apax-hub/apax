@@ -55,7 +55,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     directory = Path(config.data.directory)
     model_version_path = directory / experiment
     log.info("Initializing directories")
-    model_version_path.mkdir(exist_ok=True)
+    model_version_path.mkdir(parents=True, exist_ok=True)
     config.dump_config(model_version_path)
 
     callbacks = initialize_callbacks(config.callbacks, model_version_path)
@@ -67,7 +67,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     val_ds = initialize_dataset(config, val_raw_ds, calc_stats=False)
 
     train_ds.set_batch_size(config.data.batch_size)
-    val_ds.set_batch_size(config.data.val_batch_size)
+    val_ds.set_batch_size(config.data.valid_batch_size)
 
     log.info("Initializing Model")
     sample_input, init_box = train_ds.init_input()
