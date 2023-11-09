@@ -31,7 +31,7 @@ def check_for_ensemble(params: FrozenDict) -> int:
 def create_train_state(model, params: FrozenDict, tx):
     n_models = check_for_ensemble(params)
 
-    def inner(params):
+    def create_single_train_state(params):
         state = train_state.TrainState.create(
             apply_fn=model,
             params=params,
@@ -40,9 +40,9 @@ def create_train_state(model, params: FrozenDict, tx):
         return state
 
     if n_models > 1:
-        inner = jax.vmap(inner, axis_name="ensemble")
+        create_single_train_state = jax.vmap(create_single_train_state, axis_name="ensemble")
 
-    return inner(params)
+    return create_single_train_state(params)
 
 
 def create_params(model, rng_key, sample_input: tuple, n_models: int):
