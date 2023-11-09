@@ -14,10 +14,13 @@ from apax.config.train_config import Config
 log = logging.getLogger(__name__)
 
 
-def check_for_ensemble(params):
+def check_for_ensemble(params: FrozenDict) -> int:
+    """Checks if a set of parameters belongs to an ensemble model.
+    This is the case if all parameters share the same first dimension (parameter batch)
+    """
     flat_params = flatten_dict(params)
     shapes = [v.shape[0] for v in flat_params.values()]
-    is_ensemble = shapes == shapes[::-1]
+    is_ensemble = len(set(shapes)) == 1
 
     if is_ensemble:
         return shapes[0]
@@ -25,7 +28,7 @@ def check_for_ensemble(params):
         return 1
 
 
-def create_train_state(model, params, tx):
+def create_train_state(model, params: FrozenDict, tx):
     n_models = check_for_ensemble(params)
 
     def inner(params):
