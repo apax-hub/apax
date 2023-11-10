@@ -19,7 +19,7 @@ class RawDataset:
     additional_labels: Optional[dict] = None
 
 
-def load_data_files(data_config, model_version_path):
+def load_data_files(data_config):
     log.info("Running Input Pipeline")
     if data_config.data_path is not None:
         log.info(f"Read data file {data_config.data_path}")
@@ -32,7 +32,7 @@ def load_data_files(data_config, model_version_path):
         train_label_dict, val_label_dict = split_label(label_dict, train_idxs, val_idxs)
 
         np.savez(
-            os.path.join(model_version_path, "train_val_idxs"),
+            data_config.model_version_path / "train_val_idxs",
             train_idxs=train_idxs,
             val_idxs=val_idxs,
         )

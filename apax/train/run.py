@@ -1,6 +1,4 @@
 import logging
-import os
-from pathlib import Path
 import sys
 from typing import List
 
@@ -34,16 +32,13 @@ def setup_logging(log_file, log_level):
         logging.root.removeHandler(logging.root.handlers[-1])
 
     # Remove uninformative checkpointing absl logs
-    logging.getLogger('absl').setLevel(logging.WARNING)
+    logging.getLogger("absl").setLevel(logging.WARNING)
 
     logging.basicConfig(
         level=log_levels[log_level],
         format="%(levelname)s | %(asctime)s | %(message)s",
-        datefmt='%H:%M:%S',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler(sys.stderr)
-        ]    
+        datefmt="%H:%M:%S",
+        handlers=[logging.FileHandler(log_file), logging.StreamHandler(sys.stderr)],
     )
 
 
@@ -70,7 +65,7 @@ def run(user_config, log_level="error"):
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
 
-    train_raw_ds, val_raw_ds = load_data_files(config.data, config.data.model_version_path) # remove path argument
+    train_raw_ds, val_raw_ds = load_data_files(config.data)
     train_ds, ds_stats = initialize_dataset(config, train_raw_ds)
     val_ds = initialize_dataset(config, val_raw_ds, calc_stats=False)
 
