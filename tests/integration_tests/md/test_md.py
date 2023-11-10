@@ -34,8 +34,8 @@ def test_run_md(get_tmp_path):
     md_config_dict["initial_structure"] = get_tmp_path.as_posix() + "/atoms.extxyz"
 
     model_config = Config.model_validate(model_config_dict)
-    os.makedirs(model_config.data.model_version_path())
-    model_config.dump_config(model_config.data.model_version_path())
+    os.makedirs(model_config.data.model_version_path)
+    model_config.dump_config(model_config.data.model_version_path)
     md_config = MDConfig.model_validate(md_config_dict)
 
     positions = jnp.array(
@@ -106,8 +106,8 @@ def test_ase_calc(get_tmp_path):
     model_config_dict["data"]["directory"] = get_tmp_path.as_posix()
 
     model_config = Config.model_validate(model_config_dict)
-    os.makedirs(model_config.data.model_version_path(), exist_ok=True)
-    model_config.dump_config(model_config.data.model_version_path())
+    os.makedirs(model_config.data.model_version_path, exist_ok=True)
+    model_config.dump_config(model_config.data.model_version_path)
 
     cell_size = 10.0
     positions = np.array(
@@ -157,7 +157,7 @@ def test_ase_calc(get_tmp_path):
 
     atoms = read(initial_structure_path.as_posix())
     calc = ASECalculator(
-        [model_config.data.model_version_path(), model_config.data.model_version_path()]
+        [model_config.data.model_version_path, model_config.data.model_version_path]
     )
 
     atoms.calc = calc
