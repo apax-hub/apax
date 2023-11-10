@@ -55,7 +55,7 @@ def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
     return LossCollection(loss_funcs)
 
 
-def run(user_config, log_file="train.log", log_level="error"):
+def run(user_config, log_level="error"):
     config = parse_config(user_config)
 
     seed_py_np_tf(config.seed)
