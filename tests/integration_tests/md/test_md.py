@@ -147,7 +147,7 @@ def test_ase_calc(get_tmp_path):
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
 
-    best_dir = model_config.data.best_model_path()
+    best_dir = model_config.data.best_model_path
     checkpoints.save_checkpoint(
         ckpt_dir=best_dir,
         target=ckpt,
