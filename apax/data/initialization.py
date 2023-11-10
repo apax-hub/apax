@@ -1,6 +1,5 @@
 import dataclasses
 import logging
-import os
 from typing import Optional
 
 import numpy as np
