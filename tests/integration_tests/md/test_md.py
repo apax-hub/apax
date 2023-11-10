@@ -66,7 +66,7 @@ def test_run_md(get_tmp_path):
     neighbors = neighbor_fn.allocate(positions)
 
     builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
-    model = builder.build_energy_model(
+    model = builder.build_energy_derivative_model(
         apply_mask=False, inference_disp_fn=displacement_fn
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
@@ -123,8 +123,6 @@ def test_ase_calc(get_tmp_path):
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(initial_structure_path.as_posix(), atoms)
 
-    n_species = 119  # int(np.max(atomic_numbers) + 1)
-
     displacement_fn, _ = space.periodic_general(cell_size, fractional_coordinates=False)
 
     neighbor_fn = jax_md_reduced.partition.neighbor_list(
@@ -136,7 +134,7 @@ def test_ase_calc(get_tmp_path):
     )
     neighbors = neighbor_fn.allocate(positions)
 
-    builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
+    builder = ModelBuilder(model_config.model.get_dict())
     model = builder.build_energy_derivative_model(inference_disp_fn=displacement_fn)
     rng_key = jax.random.PRNGKey(model_config.seed)
     params = model.init(

@@ -83,8 +83,6 @@ def run(user_config, log_file="train.log", log_level="error"):
 
     params, rng_key = create_params(model, rng_key, sample_input, config.n_models)
 
-    params, rng_key = create_params(model, rng_key, sample_input, config.n_models)
-
     # TODO rework optimizer initialization and lr keywords
     steps_per_epoch = train_ds.steps_per_epoch()
     n_epochs = config.n_epochs

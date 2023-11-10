@@ -15,7 +15,7 @@ def test_gaussian_moment_descriptor():
             [0.0, -1.0, 0.0],
             [1.0, -1.0, 0.0],
         ],
-        dtype=jnp.float32
+        dtype=jnp.float32,
     )
     Z = jnp.array([8, 1, 1])
     neighbor = jnp.array([[1, 2, 0, 2, 0, 1], [0, 0, 1, 1, 2, 2]])

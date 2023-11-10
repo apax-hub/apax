@@ -4,12 +4,7 @@ import numpy as np
 
 from apax.layers.descriptor import GaussianMomentDescriptor
 from apax.layers.scaling import PerElementScaleShift
-from apax.model.gmnn import (
-    AtomisticModel,
-    EnergyDerivativeModel,
-    EnergyModel,
-    NeighborSpoof,
-)
+from apax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
 
 
 def test_apax_variable_size():
@@ -45,7 +40,7 @@ def test_apax_variable_size():
                 descriptor=GaussianMomentDescriptor(apply_mask=False),
                 scale_shift=PerElementScaleShift(scale=scale, shift=shift),
                 mask_atoms=False,
-        ),
+            ),
         )
     )
     model_padded = EnergyDerivativeModel(
@@ -54,7 +49,7 @@ def test_apax_variable_size():
                 descriptor=GaussianMomentDescriptor(apply_mask=True),
                 scale_shift=PerElementScaleShift(scale=scale, shift=shift),
                 mask_atoms=True,
-        ),
+            ),
         )
     )
 

@@ -19,7 +19,10 @@ from apax.config import Config, MDConfig, parse_config
 from apax.md.io import H5TrajHandler
 from apax.md.md_checkpoint import load_md_state
 from apax.model import ModelBuilder
-from apax.train.checkpoints import restore_parameters
+from apax.train.checkpoints import (
+    canonicalize_energy_model_parameters,
+    restore_parameters,
+)
 from apax.utils import jax_md_reduced
 
 log = logging.getLogger(__name__)
@@ -370,6 +373,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     )
 
     _, params = restore_parameters(model_config.data.model_version_path())
+    params = canonicalize_energy_model_parameters(params)
     energy_fn = create_energy_fn(
         model.apply, params, system.atomic_numbers, system.box, model_config.n_models
     )

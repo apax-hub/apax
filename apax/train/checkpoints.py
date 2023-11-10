@@ -166,3 +166,29 @@ def restore_parameters(model_dir: Union[Path, List[Path]]) -> Tuple[Config, Froz
         )
 
     return config, params
+
+
+def canonicalize_energy_model_parameters(params):
+    """Ensures that parameters from EnergyDerivativeModels can be loaded
+    into EnergyModels by removing the "energy_model" parameter layer.
+    """
+    param_dict = unfreeze(params)
+
+    first_level = param_dict["params"]
+    if "energy_model" in first_level.keys():
+        params = {"params": first_level["energy_model"]}
+    params = freeze(params)
+    return params
+
+
+def canonicalize_energy_grad_model_parameters(params):
+    """Ensures that parameters from EnergyModels can be loaded
+    into EnergyDerivativeModels by adding the "energy_model" parameter layer.
+    """
+    param_dict = unfreeze(params)
+
+    first_level = param_dict["params"]
+    if "energy_model" not in first_level.keys():
+        params = {"params": {"energy_model" : first_level}}
+    params = freeze(params)
+    return params
