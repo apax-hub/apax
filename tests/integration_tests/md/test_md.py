@@ -80,11 +80,8 @@ def test_run_md(get_tmp_path):
     )
 
     ckpt = {"model": {"params": params}, "epoch": 0}
-    best_dir = os.path.join(
-        model_config.data.directory, model_config.data.experiment, "best"
-    )
     checkpoints.save_checkpoint(
-        ckpt_dir=best_dir,
+        ckpt_dir=model_config.data.best_model_path,
         target=ckpt,
         step=0,
         overwrite=True,
@@ -147,9 +144,8 @@ def test_ase_calc(get_tmp_path):
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
 
-    best_dir = model_config.data.best_model_path
     checkpoints.save_checkpoint(
-        ckpt_dir=best_dir,
+        ckpt_dir=model_config.data.best_model_path,
         target=ckpt,
         step=0,
         overwrite=True,
