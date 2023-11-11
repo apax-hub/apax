@@ -10,11 +10,11 @@ from apax.data.initialization import initialize_dataset, load_data_files
 from apax.model import ModelBuilder
 from apax.optimizer import get_opt
 from apax.train.callbacks import initialize_callbacks
-from apax.train.checkpoints import create_params, create_train_state, load_params
+from apax.train.checkpoints import create_params, create_train_state
 from apax.train.loss import Loss, LossCollection
 from apax.train.metrics import initialize_metrics
 from apax.train.trainer import fit
-from apax.transfer_learning import param_transfer
+from apax.transfer_learning import transfer_parameters
 from apax.utils.random import seed_py_np_tf
 
 log = logging.getLogger(__name__)
@@ -98,12 +98,7 @@ def run(user_config, log_file="train.log", log_level="error"):
     base_checkpoint = config.checkpoints.base_model_checkpoint
     do_transfer_learning = base_checkpoint is not None
     if do_transfer_learning:
-        source_params = load_params(base_checkpoint)
-        log.info("Transferring parameters from %s", base_checkpoint)
-        params = param_transfer(
-            source_params, state.params, config.checkpoints.reset_layers
-        )
-        state.replace(params=params)
+        state = transfer_parameters(state, config.checkpoints)
 
     fit(
         state,
