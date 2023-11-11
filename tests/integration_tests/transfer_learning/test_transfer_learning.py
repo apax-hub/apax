@@ -1,14 +1,12 @@
 import pathlib
 import uuid
-import jax
 
+import jax
 import numpy as np
 import pytest
-import yaml
-
 from ase.io import write
-from apax.train.checkpoints import restore_parameters
 
+from apax.train.checkpoints import restore_parameters
 from tests.conftest import load_config_and_run_training
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
@@ -19,7 +17,7 @@ def l2_param_diff(p1, p2):
     p2, _ = jax.tree_flatten(p2)
     diff = 0.0
     for i in range(len(p1)):
-        diff += np.sum((p1[i]-p2[i])**2)
+        diff += np.sum((p1[i] - p2[i]) ** 2)
     return diff
 
 
@@ -47,7 +45,7 @@ def test_transfer_learning(get_tmp_path, example_dataset):
             "experiment": "fine_tune",
             "data_path": data_path.as_posix(),
         },
-        "checkpoints": {"base_model_checkpoint": (working_dir / "base").as_posix()}
+        "checkpoints": {"base_model_checkpoint": (working_dir / "base").as_posix()},
     }
     load_config_and_run_training(config_ft_path, data_config_mods)
 

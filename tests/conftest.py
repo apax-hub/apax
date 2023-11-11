@@ -8,8 +8,8 @@ import numpy as np
 import pytest
 import yaml
 from ase import Atoms
-from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.emt import EMT
+from ase.calculators.singlepoint import SinglePointCalculator
 
 from apax.config.train_config import Config
 from apax.model.builder import ModelBuilder
@@ -85,7 +85,7 @@ def example_dataset(num_data: int) -> Atoms:
 
     p2 = np.random.uniform(low=1.0, high=1.5, size=(num_data,))
     for i in range(num_data):
-        positions = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, p2[i]]])        
+        positions = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, p2[i]]])
 
         additional_data = {}
         additional_data["cell"] = [0.0, 0.0, 0.0]
