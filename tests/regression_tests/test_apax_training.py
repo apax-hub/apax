@@ -3,22 +3,10 @@ import uuid
 
 import numpy as np
 import pytest
-import yaml
 
-from apax.train.run import run
+from tests.conftest import load_config_and_run_training
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
-
-
-def load_config_and_run_training(config_path, **config_kwargs):
-    with open(config_path.as_posix(), "r") as stream:
-        config_dict = yaml.safe_load(stream)
-
-    for pydentic_model_key, config_mods in config_kwargs.items():
-        for h_param_key, value in config_mods.items():
-            config_dict[pydentic_model_key][h_param_key] = value
-
-    run(config_dict)
 
 
 def load_csv(filename):
@@ -39,12 +27,14 @@ def test_regression_model_training(get_md22_stachyose, get_tmp_path):
     file_path = get_md22_stachyose
 
     data_config_mods = {
-        "directory": working_dir.as_posix(),
-        "data_path": file_path.as_posix(),
-        "energy_unit": "kcal/mol",
+        "data": {
+            "directory": working_dir.as_posix(),
+            "data_path": file_path.as_posix(),
+            "energy_unit": "kcal/mol",
+        }
     }
 
-    load_config_and_run_training(config_path, data=data_config_mods)
+    load_config_and_run_training(config_path, data_config_mods)
 
     current_metrics = load_csv(working_dir / "test/log.csv")
 
