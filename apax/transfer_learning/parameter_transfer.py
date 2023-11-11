@@ -17,7 +17,7 @@ def black_list_param_transfer(source_params, target_params, param_black_list):
     for p, v in flat_source.items():
         if p[-2] not in param_black_list:
             flat_target[p] = v
-            log.info("Transferring parameter: %s", p)
+            log.info("Transferring parameter: %s", p[-2])
 
     transfered_target = unflatten_dict(flat_target)
     transfered_target = freeze(transfered_target)
@@ -25,10 +25,10 @@ def black_list_param_transfer(source_params, target_params, param_black_list):
 
 
 def transfer_parameters(state, ckpt_config):
-    source_params = load_params(ckpt_config.base_checkpoint)
-    log.info("Transferring parameters from %s", ckpt_config.base_checkpoint)
+    source_params = load_params(ckpt_config.base_model_checkpoint)
+    log.info("Transferring parameters from %s", ckpt_config.base_model_checkpoint)
     params = black_list_param_transfer(
         source_params, state.params, ckpt_config.reset_layers
     )
-    state.replace(params=params)
+    state = state.replace(params=params)
     return state
