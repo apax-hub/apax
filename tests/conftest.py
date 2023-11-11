@@ -107,16 +107,21 @@ def get_tmp_path(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def get_md22_stachyose(get_tmp_path):
-    url = "http://www.quantum-machine.org/gdml/repo/static/md22_stachyose.zip"
-    data_path = get_tmp_path / "data"
-    file_path = data_path / "md22_stachyose.zip"
+def tmp_data_path(tmp_path_factory):
+    test_path = tmp_path_factory.mktemp("data")
+    return test_path
 
-    os.makedirs(data_path, exist_ok=True)
+
+@pytest.fixture(scope="session")
+def get_md22_stachyose(tmp_data_path):
+    url = "http://www.quantum-machine.org/gdml/repo/static/md22_stachyose.zip"
+    file_path = tmp_data_path / "md22_stachyose.zip"
+
+    os.makedirs(tmp_data_path, exist_ok=True)
     urllib.request.urlretrieve(url, file_path)
 
     with zipfile.ZipFile(file_path, "r") as zip_ref:
-        zip_ref.extractall(data_path)
+        zip_ref.extractall(tmp_data_path)
 
     file_path = modify_xyz_file(
         file_path.with_suffix(".xyz"), target_string="Energy", replacement_string="energy"
