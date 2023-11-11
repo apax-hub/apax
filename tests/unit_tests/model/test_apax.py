@@ -116,8 +116,6 @@ def test_energy_model():
         ]
     )
     offsets = jnp.full([6, 3], 0)
-    # neighbor = NeighborSpoof(idx=idx)
-
     box = np.array([0.0, 0.0, 0.0])
 
     model = EnergyModel()
