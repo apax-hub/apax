@@ -1,4 +1,5 @@
-# Training
+Training
+========
 
 ## Acquiring a dataset
 
@@ -65,7 +66,8 @@ callbacks:
 
 If training is interrupted for any reason, re-running the above `train` command will resume training from the latest checkpoint.
 
-## Evaluation
+Evaluation
+==========
 
 After the training is completed and we are satisfied with our choice of hyperparameters and vadliation loss, we can evaluate the model on the test set.
 We provide a separate command for test set evaluation:

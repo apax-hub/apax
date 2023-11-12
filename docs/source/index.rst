@@ -11,37 +11,12 @@ apax: Gaussian Moment Neural Networks - in Jax!
 It facilitates the training and evaluation of atomistic neural networks, notably GM-NN, for molecular simulations.
 Building on top of Jax allows for easy integration with the high-performance molecular dynamics engine `JaxMD <https://github.com/jax-md/jax-md>`_
 
+
 Contents
 ========
 .. toctree::
-   :maxdepth: 1
-   :caption: Getting Started
+   :hidden:
 
-   getting_started/install
-
-.. .. toctree:: TODO
-..    :maxdepth: 1
-..    :caption: Tutorials
-
-..    tutorials/...
-
-Package
-=======
-.. toctree::
-   :maxdepth: 2
-   :caption: Package
-
-Config
-=====================
-.. automodule:: apax.config
-   :members:
-
-   .. modules/index
-
-
-Indices and Tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   getting_started/index
+   _tutorials/index
+   modules/index
