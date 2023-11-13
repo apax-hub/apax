@@ -37,6 +37,4 @@ exclude_patterns = []
 
 html_theme = "furo"
 
-html_theme_options = {
-    'display_version': True,
-}
+html_theme_options = {}
