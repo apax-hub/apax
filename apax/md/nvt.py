@@ -45,7 +45,6 @@ def create_energy_fn(model, params, numbers, box, n_models):
         energy_fn,
         params,
         Z=numbers,
-        box=box,  # TODO IS THIS CORRECT FOR NPT???
         offsets=jnp.array([0.0, 0.0, 0.0]),
     )
 
@@ -240,11 +239,17 @@ def run_nvt(
         def body_fn(i, state):
             state, neighbor = state
             # TODO neighbor update kword factory f(state) -> {}
+            if isinstance(state, simulate.NPTNoseHooverState):
+                box = state.box
+            else:
+                system.box
+            nbr_kwargs = nbr_options(state)
+            current_energy = energy_fn(R=state.position, neighbor=neighbor, box=box)
             state = apply_fn(state, neighbor=neighbor)
+
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
-            current_energy = energy_fn(R=state.position, neighbor=neighbor)
 
             id_tap(traj_handler.step, (state, current_energy, nbr_kwargs))
             return state, neighbor
