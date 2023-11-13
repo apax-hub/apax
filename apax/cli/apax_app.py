@@ -1,3 +1,4 @@
+import sys
 import importlib.metadata
 import importlib.resources as pkg_resources
 from pathlib import Path
@@ -211,6 +212,7 @@ def template_train_config(
 
     if Path(config_path).is_file():
         console.print("There is already a config file in the working directory.")
+        sys.exit(1)
     else:
         with open(config_path, "w") as config:
             config.write(template_content)
@@ -229,6 +231,7 @@ def template_md_config():
 
     if Path(config_path).is_file():
         console.print("There is already a config file in the working directory.")
+        sys.exit(1)
     else:
         with open(config_path, "w") as config:
             config.write(template_content)
@@ -251,5 +254,5 @@ def main(
     _ = version
 
 
-if __name__ == "__main__":
-    app()
+# if __name__ == "__main__":
+#     app()
