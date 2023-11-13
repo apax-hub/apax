@@ -7,6 +7,7 @@ keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
 license = "MIT"
 readme = "README.md"
 packages = [{include = "apax"}]
+documentation = "https://apax.readthedocs.io/en/latest/"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
@@ -39,8 +40,6 @@ matplotlib = "^3.6.2"
 pre-commit = "^2.20.0"
 isort = "^5.10.1"
 flake8 = "^5.0.4"
-
-
 
 [tool.poetry.group.docs.dependencies]
 sphinx = "^7.2.6"
