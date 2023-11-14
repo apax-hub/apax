@@ -56,6 +56,9 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     traj_name: Name of the trajectory file.
     restart: Whether the simulation should restart from the latest configuration
         in `traj_name`.
+    checkpoint_interval: Number of time steps between saving
+        full simulation state checkpoints. These will be loaded
+        with the `restart` option.
     disable_pbar: Disables the MD progressbar.
     """
 
@@ -77,6 +80,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     sim_dir: str = "."
     traj_name: str = "md.h5"
     restart: bool = True
+    checkpoint_interval: int = 50_000
     disable_pbar: bool = False
 
     def dump_config(self):

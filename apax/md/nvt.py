@@ -165,6 +165,7 @@ def run_nvt(
     rng_key: int,
     load_momenta: bool = False,
     restart: bool = True,
+    checkpoint_interval: int = 50_000,
     sim_dir: str = ".",
     traj_handler: TrajHandler = TrajHandler(),
     disable_pbar: bool = False,
@@ -190,13 +191,14 @@ def run_nvt(
         RNG key used to initialize the simulation.
     restart:
         Whether a checkpoint should be loaded. No implemented yet.
+    checkpoint_interval: Number of time steps between saving
+        full simulation state checkpoints.
     sim_dir:
         Directory where the trajectory and (soon) simulation checkpoints will be saved.
     traj_name:
         File name of the ASE trajectory.
     """
     step = 0
-    checkpoint_interval = 5_000_000  # TODO will be supplied in the future
     energy_fn = sim_fns.energy_fn
     neighbor_fn = sim_fns.neighbor_fn
 
@@ -207,8 +209,7 @@ def run_nvt(
         system.positions, extra_capacity=extra_capacity
     )
 
-    restart = False  # TODO needs to be implemented
-    if restart:
+    if restart: # TODO fail save when loading MD state is not possible
         log.info("loading previous md state")
         state, step = load_md_state(sim_dir)
     else:
@@ -422,6 +423,7 @@ def run_md(
         load_momenta=md_config.load_momenta,
         rng_key=jax.random.PRNGKey(md_config.seed),
         restart=md_config.restart,
+        checkpoint_interval=md_config.checkpoint_interval,
         sim_dir=md_config.sim_dir,
         traj_handler=traj_handler,
     )
