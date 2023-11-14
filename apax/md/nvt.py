@@ -239,11 +239,14 @@ def run_nvt(
             # TODO neighbor update kword factory f(state) -> {}
             if isinstance(state, simulate.NPTNoseHooverState):
                 box = state.box
+                apply_fn_kwargs = {}
             else:
-                system.box
-            nbr_kwargs = nbr_options(state)
+                box = system.box
+                apply_fn_kwargs = {"box": box}
+
             current_energy = energy_fn(R=state.position, neighbor=neighbor, box=box)
-            state = apply_fn(state, neighbor=neighbor)
+            nbr_kwargs = nbr_options(state)
+            state = apply_fn(state, neighbor=neighbor, **apply_fn_kwargs)
 
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
@@ -394,15 +397,15 @@ def run_md(
     md_config:
         configuration of the MD simulation.
     """
+    
+    model_config = parse_config(model_config)
+    md_config = parse_config(md_config, mode="md")
+
     sim_dir = Path(md_config.sim_dir)
     sim_dir.mkdir(parents=True, exist_ok=True)
     log_file = sim_dir / "md.log"
-    setup_logging(filename=log_file, level=log_level)
+    setup_logging(log_file, log_level)
     traj_path = sim_dir / md_config.traj_name
-
-    log.info("loading configs for md")
-    model_config = parse_config(model_config)
-    md_config = parse_config(md_config, mode="md")
 
     system, sim_fns = md_setup(model_config, md_config)
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
