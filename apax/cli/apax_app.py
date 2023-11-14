@@ -1,6 +1,6 @@
-import sys
 import importlib.metadata
 import importlib.resources as pkg_resources
+import sys
 from pathlib import Path
 
 import typer
@@ -252,7 +252,3 @@ def main(
 ):
     # Taken from https://github.com/zincware/dask4dvc/blob/main/dask4dvc/cli/main.py
     _ = version
-
-
-# if __name__ == "__main__":
-#     app()
