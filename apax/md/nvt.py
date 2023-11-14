@@ -30,7 +30,7 @@ from apax.utils import jax_md_reduced
 log = logging.getLogger(__name__)
 
 
-def create_energy_fn(model, params, numbers, box, n_models):
+def create_energy_fn(model, params, numbers, n_models):
     def ensemble(params, R, Z, neighbor, box, offsets):
         vmodel = jax.vmap(model, (0, None, None, None, None, None), 0)
         energies = vmodel(params, R, Z, neighbor, box, offsets)
@@ -377,7 +377,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     _, params = restore_parameters(model_config.data.model_version_path())
     params = canonicalize_energy_model_parameters(params)
     energy_fn = create_energy_fn(
-        model.apply, params, system.atomic_numbers, system.box, model_config.n_models
+        model.apply, params, system.atomic_numbers, model_config.n_models
     )
     sim_fns = SimulationFunctions(energy_fn, shift_fn, neighbor_fn)
     return system, sim_fns
