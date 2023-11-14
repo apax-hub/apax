@@ -1,17 +1,18 @@
 import pathlib
+
 import pytest
-from typer.testing import CliRunner
 import yaml
+from typer.testing import CliRunner
 
-from apax.cli.apax_app import app, validate_app, template_app
-
+from apax.cli.apax_app import app, template_app, validate_app
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
 runner = CliRunner()
 
 
-def test_cli_basic(get_tmp_path):
+def test_cli_validate(get_tmp_path):
+    # This test also checks whether the templates we provide are valid
     pytest.MonkeyPatch().chdir(get_tmp_path)
     result = runner.invoke(app, ["-h"])
     assert result.exit_code == 0
@@ -46,7 +47,6 @@ def test_cli_basic(get_tmp_path):
     assert result.exit_code == 1
 
     # Load and fix the train config, then try again
-    # TODO to the same for md
     with open("config_full.yaml", "r") as stream:
         model_config_dict = yaml.safe_load(stream)
 
@@ -63,3 +63,18 @@ def test_cli_basic(get_tmp_path):
     result = runner.invoke(app, ["visualize", "config_full_fixed.yaml"])
     assert result.exit_code == 0
     assert "Total Parameters" in result.stdout
+
+    # same for md
+    with open("md_config.yaml", "r") as stream:
+        md_config_dict = yaml.safe_load(stream)
+
+    md_config_dict["initial_structure"] = "initial_structure.extxyz"
+    md_config_dict["duration"] = 10
+    md_config_dict["ensemble"]["temperature"] = 10
+
+    with open("md_config_fixed.yaml", "w") as conf:
+        yaml.dump(md_config_dict, conf, default_flow_style=False)
+
+    result = runner.invoke(validate_app, ["md", "md_config_fixed.yaml"])
+    assert result.exit_code == 0
+    assert "Success!" in result.stdout
