@@ -1,4 +1,5 @@
-# The ASE calculator
+The ASE calculator
+==================
 
 If you require some ASE features during your simulation, we provide an alternative to the JaxMD interface.
 

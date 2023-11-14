@@ -19,10 +19,37 @@ from apax.config import Config, MDConfig, parse_config
 from apax.md.io import H5TrajHandler
 from apax.md.md_checkpoint import load_md_state
 from apax.model import ModelBuilder
-from apax.train.eval import load_params
+from apax.train.checkpoints import (
+    canonicalize_energy_model_parameters,
+    restore_parameters,
+)
 from apax.utils import jax_md_reduced
 
 log = logging.getLogger(__name__)
+
+
+def create_energy_fn(model, params, numbers, box, n_models):
+    def ensemble(params, R, Z, neighbor, box, offsets):
+        vmodel = jax.vmap(model, (0, None, None, None, None, None), 0)
+        energies = vmodel(params, R, Z, neighbor, box, offsets)
+        energy = jnp.mean(energies)
+
+        return energy
+
+    if n_models > 1:
+        energy_fn = ensemble
+    else:
+        energy_fn = model
+
+    energy_fn = partial(
+        energy_fn,
+        params,
+        Z=numbers,
+        box=box,  # TODO IS THIS CORRECT FOR NPT???
+        offsets=jnp.array([0.0, 0.0, 0.0]),
+    )
+
+    return energy_fn
 
 
 def heights_of_box_sides(box):
@@ -345,13 +372,10 @@ def md_setup(model_config: Config, md_config: MDConfig):
         disable_cell_list=True,
     )
 
-    params = load_params(model_config.data.model_version_path())
-    energy_fn = partial(
-        model.apply,
-        params,
-        Z=system.atomic_numbers,
-        box=system.box,
-        offsets=jnp.array([0.0, 0.0, 0.0]),
+    _, params = restore_parameters(model_config.data.model_version_path)
+    params = canonicalize_energy_model_parameters(params)
+    energy_fn = create_energy_fn(
+        model.apply, params, system.atomic_numbers, system.box, model_config.n_models
     )
     sim_fns = SimulationFunctions(energy_fn, shift_fn, neighbor_fn)
     return system, sim_fns

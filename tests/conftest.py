@@ -3,11 +3,15 @@ import urllib
 import zipfile
 from typing import List
 
+import jax
 import numpy as np
 import pytest
+import yaml
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
+from apax.config.train_config import Config
+from apax.model.builder import ModelBuilder
 from apax.utils.random import seed_py_np_tf
 
 
@@ -73,7 +77,7 @@ def example_atoms(num_data: int, pbc: bool, calc_results: List[str]) -> Atoms:
     return atoms_list
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def get_tmp_path(tmp_path_factory):
     test_path = tmp_path_factory.mktemp("apax_tests")
     return test_path
@@ -107,3 +111,42 @@ def modify_xyz_file(file_path, target_string, replacement_string):
             modified_line = line.replace(target_string, replacement_string)
             output_file.write(modified_line)
     return new_file_path
+
+
+@pytest.fixture()
+def get_sample_input():
+    positions = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+    atomic_numbers = np.array([1, 1, 8])
+    box = np.diag(np.zeros(3))
+    offsets = np.full([3, 3], 0)
+    idx = np.array([[1, 2, 0, 2, 0, 1], [0, 0, 1, 1, 2, 2]])
+
+    inputs = (positions, atomic_numbers, idx, box, offsets)
+    return inputs, box
+
+
+def initialize_model(model_config, sample_input):
+    builder = ModelBuilder(model_config.model.get_dict())
+    model = builder.build_energy_derivative_model()
+    rng_key = jax.random.PRNGKey(model_config.seed)
+    params = model.init(rng_key, *sample_input)
+
+    return model, params
+
+
+def load_and_dump_config(config_path, dump_path):
+    with open(config_path.as_posix(), "r") as stream:
+        model_config_dict = yaml.safe_load(stream)
+
+    model_config_dict["data"]["directory"] = dump_path.as_posix()
+
+    model_config = Config.model_validate(model_config_dict)
+    os.makedirs(model_config.data.model_version_path, exist_ok=True)
+    model_config.dump_config(model_config.data.model_version_path)
+    return model_config

@@ -1,5 +1,6 @@
 import importlib.metadata
 import importlib.resources as pkg_resources
+import sys
 from pathlib import Path
 
 import typer
@@ -34,15 +35,14 @@ def train(
     train_config_path: Path = typer.Argument(
         ..., help="Training configuration YAML file."
     ),
-    log_level: str = typer.Option("error", help="Sets the training logging level."),
-    log_file: str = typer.Option("train.log", help="Specifies the name of the log file"),
+    log_level: str = typer.Option("info", help="Sets the training logging level."),
 ):
     """
     Starts the training of a model with parameters provided by a configuration file.
     """
     from apax.train.run import run
 
-    run(train_config_path, log_file, log_level)
+    run(train_config_path, log_level)
 
 
 @app.command()
@@ -90,8 +90,8 @@ def docs():
     """
     Opens the documentation website in your browser.
     """
-    console.print("Opening apax's docs at https://github.com/apax-hub/apax")
-    typer.launch("https://github.com/apax-hub/apax")
+    console.print("Opening apax's docs at https://apax.readthedocs.io/en/latest/")
+    typer.launch("https://apax.readthedocs.io/en/latest/")
 
 
 @validate_app.command("train")
@@ -211,6 +211,7 @@ def template_train_config(
 
     if Path(config_path).is_file():
         console.print("There is already a config file in the working directory.")
+        sys.exit(1)
     else:
         with open(config_path, "w") as config:
             config.write(template_content)
@@ -229,6 +230,7 @@ def template_md_config():
 
     if Path(config_path).is_file():
         console.print("There is already a config file in the working directory.")
+        sys.exit(1)
     else:
         with open(config_path, "w") as config:
             config.write(template_content)
@@ -249,7 +251,3 @@ def main(
 ):
     # Taken from https://github.com/zincware/dask4dvc/blob/main/dask4dvc/cli/main.py
     _ = version
-
-
-if __name__ == "__main__":
-    app()

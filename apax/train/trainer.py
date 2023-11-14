@@ -1,6 +1,7 @@
 import logging
 import time
 from functools import partial
+from typing import Callable
 
 import jax
 import jax.numpy as jnp
@@ -13,9 +14,7 @@ log = logging.getLogger(__name__)
 
 
 def fit(
-    model,
-    params,
-    tx,
+    state,
     train_ds,
     loss_fn,
     Metrics,
@@ -27,17 +26,20 @@ def fit(
     sam_rho=0.0,
     patience=None,
     disable_pbar: bool = False,
+    is_ensemble=False,
 ):
     log.info("Beginning Training")
     callbacks.on_train_begin()
 
-    latest_dir = ckpt_dir + "/latest"
-    best_dir = ckpt_dir + "/best"
+    latest_dir = ckpt_dir / "latest"
+    best_dir = ckpt_dir / "best"
     ckpt_manager = CheckpointManager()
 
-    train_step, val_step = make_step_fns(loss_fn, Metrics, model=model, sam_rho=sam_rho)
+    train_step, val_step = make_step_fns(
+        loss_fn, Metrics, model=state.apply_fn, sam_rho=sam_rho, is_ensemble=is_ensemble
+    )
 
-    state, start_epoch = load_state(model, params, tx, latest_dir)
+    state, start_epoch = load_state(state, latest_dir)
     if start_epoch >= n_epochs:
         raise ValueError(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
@@ -67,7 +69,7 @@ def fit(
             callbacks.on_train_batch_begin(batch=batch_idx)
 
             inputs, labels = next(batch_train_ds)
-            train_batch_metrics, batch_loss, state = train_step(
+            batch_loss, train_batch_metrics, state = train_step(
                 state, inputs, labels, train_batch_metrics
             )
 
@@ -88,7 +90,7 @@ def fit(
             for batch_idx in range(val_steps_per_epoch):
                 inputs, labels = next(batch_val_ds)
 
-                val_batch_metrics, batch_loss = val_step(
+                batch_loss, val_batch_metrics = val_step(
                     state.params, inputs, labels, val_batch_metrics
                 )
                 epoch_loss["val_loss"] += batch_loss
@@ -156,13 +158,41 @@ def calc_loss(params, inputs, labels, loss_fn, model):
     return loss, predictions
 
 
-def make_step_fns(loss_fn, Metrics, model, sam_rho):
+def make_ensemble_update(update_fn: Callable) -> Callable:
+    # vmap over train state
+    v_update_fn = jax.vmap(update_fn, (0, None, None), (0, 0, 0))
+
+    def ensemble_update_fn(state, inputs, labels):
+        loss, predictions, state = v_update_fn(state, inputs, labels)
+
+        mean_predictions = jax.tree_map(lambda x: jnp.mean(x, axis=0), predictions)
+        mean_loss = jnp.mean(loss)
+        # Should we add std to predictions?
+        return mean_loss, mean_predictions, state
+
+    return ensemble_update_fn
+
+
+def make_ensemble_eval(update_fn: Callable) -> Callable:
+    # vmap over train state
+    v_update_fn = jax.vmap(update_fn, (0, None, None), (0, 0))
+
+    def ensemble_eval_fn(state, inputs, labels):
+        loss, predictions = v_update_fn(state, inputs, labels)
+
+        mean_predictions = jax.tree_map(lambda x: jnp.mean(x, axis=0), predictions)
+        mean_loss = jnp.mean(loss)
+        return mean_loss, mean_predictions
+
+    return ensemble_eval_fn
+
+
+def make_step_fns(loss_fn, Metrics, model, sam_rho, is_ensemble):
     loss_calculator = partial(calc_loss, loss_fn=loss_fn, model=model)
+    grad_fn = jax.value_and_grad(loss_calculator, 0, has_aux=True)
     rho = sam_rho
 
-    @jax.jit
-    def train_step(state, inputs, labels, batch_metrics):
-        grad_fn = jax.value_and_grad(loss_calculator, 0, has_aux=True)
+    def update_step(state, inputs, labels):
         (loss, predictions), grads = grad_fn(state.params, inputs, labels)
 
         if rho > 1e-6:
@@ -170,24 +200,36 @@ def make_step_fns(loss_fn, Metrics, model, sam_rho):
             grad_norm = global_norm(grads)
             eps = jax.tree_map(lambda g, n: g * rho / n, grads, grad_norm)
             params_eps = jax.tree_map(lambda p, e: p + e, state.params, eps)
-            (loss, _), grads = grad_fn(params_eps, inputs, labels)
+            (loss, _), grads = grad_fn(params_eps, inputs, labels)  # maybe get rid of SAM
 
         state = state.apply_gradients(grads=grads)
+        return loss, predictions, state
+
+    if is_ensemble:
+        update_fn = make_ensemble_update(update_step)
+        eval_fn = make_ensemble_eval(loss_calculator)
+    else:
+        update_fn = update_step
+        eval_fn = loss_calculator
+
+    @jax.jit
+    def train_step(state, inputs, labels, batch_metrics):
+        loss, predictions, state = update_fn(state, inputs, labels)
 
         new_batch_metrics = Metrics.single_from_model_output(
             label=labels, prediction=predictions
         )
         batch_metrics = batch_metrics.merge(new_batch_metrics)
-        return batch_metrics, loss, state
+        return loss, batch_metrics, state
 
     @jax.jit
     def val_step(params, inputs, labels, batch_metrics):
-        loss, predictions = loss_calculator(params, inputs, labels)
+        loss, predictions = eval_fn(params, inputs, labels)
 
         new_batch_metrics = Metrics.single_from_model_output(
             label=labels, prediction=predictions
         )
         batch_metrics = batch_metrics.merge(new_batch_metrics)
-        return batch_metrics, loss
+        return loss, batch_metrics
 
     return train_step, val_step

@@ -8,11 +8,16 @@ from click import Path
 from tqdm import trange
 
 from apax.bal import feature_maps, kernel, selection, transforms
-from apax.data.input_pipeline import TFPipeline
+from apax.data.initialization import RawDataset
+from apax.data.input_pipeline import AtomisticDataset
 from apax.model.builder import ModelBuilder
 from apax.model.gmnn import EnergyModel
-from apax.train.checkpoints import restore_parameters
-from apax.train.run import RawDataset, initialize_dataset
+from apax.train.checkpoints import (
+    canonicalize_energy_model_parameters,
+    check_for_ensemble,
+    restore_parameters,
+)
+from apax.train.run import initialize_dataset
 
 
 def create_feature_fn(
@@ -43,11 +48,11 @@ def create_feature_fn(
     return feature_fn
 
 
-def compute_features(feature_fn, dataset: TFPipeline, processing_batch_size: int):
+def compute_features(feature_fn, dataset: AtomisticDataset):
     """Compute the features of a dataset."""
     features = []
     n_data = dataset.n_data
-    ds = dataset.batch(processing_batch_size)
+    ds = dataset.batch()
 
     pbar = trange(n_data, desc="Computing features", ncols=100, leave=True)
     for i, (inputs, _) in enumerate(ds):
@@ -70,9 +75,6 @@ def kernel_selection(
     selection_batch_size: int = 10,
     processing_batch_size: int = 64,
 ):
-    n_models = 1 if isinstance(model_dir, (Path, str)) else len(model_dir)
-    is_ensemble = n_models > 1
-
     selection_fn = {
         "max_dist": selection.max_dist_selection,
     }[selection_method]
@@ -80,11 +82,17 @@ def kernel_selection(
     base_feature_map = feature_maps.FeatureMapOptions(base_fm_options)
 
     config, params = restore_parameters(model_dir)
+    params = canonicalize_energy_model_parameters(params)
+    n_models = check_for_ensemble(params)
+    is_ensemble = n_models > 1
 
     n_train = len(train_atoms)
-    dataset = initialize_dataset(config, RawDataset(atoms_list=train_atoms + pool_atoms))
+    dataset = initialize_dataset(
+        config, RawDataset(atoms_list=train_atoms + pool_atoms), calc_stats=False
+    )
+    dataset.set_batch_size(processing_batch_size)
 
-    init_box = dataset.init_input()["box"][0]
+    _, init_box = dataset.init_input()
 
     builder = ModelBuilder(config.model.get_dict(), n_species=119)
     model = builder.build_energy_model(apply_mask=True, init_box=init_box)
@@ -92,7 +100,7 @@ def kernel_selection(
     feature_fn = create_feature_fn(
         model, params, base_feature_map, feature_transforms, is_ensemble
     )
-    g = compute_features(feature_fn, dataset, processing_batch_size)
+    g = compute_features(feature_fn, dataset)
     km = kernel.KernelMatrix(g, n_train)
     new_indices = selection_fn(km, selection_batch_size)
 

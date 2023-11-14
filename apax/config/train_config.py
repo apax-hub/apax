@@ -112,12 +112,14 @@ class DataConfig(BaseModel, extra="forbid"):
 
         return self
 
+    @property
     def model_version_path(self):
         version_path = Path(self.directory) / self.experiment
         return version_path
 
+    @property
     def best_model_path(self):
-        return self.model_version_path() / "best"
+        return self.model_version_path / "best"
 
 
 class ModelConfig(BaseModel, extra="forbid"):
@@ -286,12 +288,12 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     callbacks: List of :class: `callback` <config.CallbackConfig> configurations.
     progress_bar: Progressbar configuration.
     checkpoints: Checkpoint configuration.
-    maximize_l2_cache: Whether or not to maximize GPU L2 cache.
     """
 
     n_epochs: PositiveInt
     patience: Optional[PositiveInt] = None
     seed: int = 1
+    n_models: int = 1
 
     data: DataConfig
     model: ModelConfig = ModelConfig()
@@ -301,7 +303,6 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     callbacks: List[CallbackConfig] = [CallbackConfig(name="csv")]
     progress_bar: TrainProgressbarConfig = TrainProgressbarConfig()
     checkpoints: CheckpointConfig = CheckpointConfig()
-    maximize_l2_cache: bool = False
 
     def dump_config(self, save_path):
         """

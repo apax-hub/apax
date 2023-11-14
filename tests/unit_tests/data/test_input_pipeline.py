@@ -5,8 +5,12 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from jax import vmap
 
-from apax.data.input_pipeline import PadToSpecificSize, TFPipeline, create_dict_dataset
-from apax.layers.descriptor.gaussian_moment_descriptor import disp_fn
+from apax.data.input_pipeline import (
+    AtomisticDataset,
+    PadToSpecificSize,
+    create_dict_dataset,
+)
+from apax.model.gmnn import disp_fn
 from apax.utils.convert import atoms_to_arrays
 from apax.utils.data import split_atoms, split_idxs
 from apax.utils.random import seed_py_np_tf
@@ -41,13 +45,13 @@ def test_input_pipeline(example_atoms, calc_results, num_data, external_labels):
         disable_pbar=True,
     )
 
-    ds = TFPipeline(
+    ds = AtomisticDataset(
         inputs,
         labels,
         1,
-        batch_size,
         buffer_size=1000,
     )
+    ds.set_batch_size(batch_size)
     assert ds.steps_per_epoch() == num_data // batch_size
 
     ds = ds.shuffle_and_batch()

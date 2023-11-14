@@ -34,6 +34,8 @@ def test_run_md(get_tmp_path):
     md_config_dict["initial_structure"] = get_tmp_path.as_posix() + "/atoms.extxyz"
 
     model_config = Config.model_validate(model_config_dict)
+    os.makedirs(model_config.data.model_version_path)
+    model_config.dump_config(model_config.data.model_version_path)
     md_config = MDConfig.model_validate(md_config_dict)
 
     positions = jnp.array(
@@ -64,7 +66,7 @@ def test_run_md(get_tmp_path):
     neighbors = neighbor_fn.allocate(positions)
 
     builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
-    model = builder.build_energy_model(
+    model = builder.build_energy_derivative_model(
         apply_mask=False, inference_disp_fn=displacement_fn
     )
     rng_key = jax.random.PRNGKey(model_config.seed)
@@ -78,11 +80,8 @@ def test_run_md(get_tmp_path):
     )
 
     ckpt = {"model": {"params": params}, "epoch": 0}
-    best_dir = os.path.join(
-        model_config.data.directory, model_config.data.experiment, "best"
-    )
     checkpoints.save_checkpoint(
-        ckpt_dir=best_dir,
+        ckpt_dir=model_config.data.best_model_path,
         target=ckpt,
         step=0,
         overwrite=True,
@@ -104,8 +103,8 @@ def test_ase_calc(get_tmp_path):
     model_config_dict["data"]["directory"] = get_tmp_path.as_posix()
 
     model_config = Config.model_validate(model_config_dict)
-    os.makedirs(model_config.data.model_version_path(), exist_ok=True)
-    model_config.dump_config(model_config.data.model_version_path())
+    os.makedirs(model_config.data.model_version_path, exist_ok=True)
+    model_config.dump_config(model_config.data.model_version_path)
 
     cell_size = 10.0
     positions = np.array(
@@ -121,8 +120,6 @@ def test_ase_calc(get_tmp_path):
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(initial_structure_path.as_posix(), atoms)
 
-    n_species = 119  # int(np.max(atomic_numbers) + 1)
-
     displacement_fn, _ = space.periodic_general(cell_size, fractional_coordinates=False)
 
     neighbor_fn = jax_md_reduced.partition.neighbor_list(
@@ -134,7 +131,7 @@ def test_ase_calc(get_tmp_path):
     )
     neighbors = neighbor_fn.allocate(positions)
 
-    builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
+    builder = ModelBuilder(model_config.model.get_dict())
     model = builder.build_energy_derivative_model(inference_disp_fn=displacement_fn)
     rng_key = jax.random.PRNGKey(model_config.seed)
     params = model.init(
@@ -147,9 +144,8 @@ def test_ase_calc(get_tmp_path):
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
 
-    best_dir = model_config.data.best_model_path()
     checkpoints.save_checkpoint(
-        ckpt_dir=best_dir,
+        ckpt_dir=model_config.data.best_model_path,
         target=ckpt,
         step=0,
         overwrite=True,
@@ -157,7 +153,7 @@ def test_ase_calc(get_tmp_path):
 
     atoms = read(initial_structure_path.as_posix())
     calc = ASECalculator(
-        [model_config.data.model_version_path(), model_config.data.model_version_path()]
+        [model_config.data.model_version_path, model_config.data.model_version_path]
     )
 
     atoms.calc = calc
