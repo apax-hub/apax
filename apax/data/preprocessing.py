@@ -119,7 +119,7 @@ def get_shrink_wrapped_cell(positions):
         if cell[idx, idx] < 10e-1:
             cell[idx, idx] = 1.0
 
-    cell.flat[:: cell.shape[1] + 1] += 1
+    cell[np.diag_indices_from(cell)] += 1
 
     return cell, cell_origin
 
