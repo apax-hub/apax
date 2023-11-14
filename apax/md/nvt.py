@@ -384,7 +384,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
 
 
 def run_md(
-    model_config: Config, md_config: MDConfig, log_file="md.log", log_level="error"
+    model_config: Config, md_config: MDConfig, log_level="error"
 ):
     """
     Utiliy function to start NVT molecualr dynamics simulations from
