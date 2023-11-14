@@ -1,4 +1,5 @@
-# Transfer Learning
+Transfer Learning
+=================
 
 apax comes with discriminative transfer learning capabilities out of the box.
 In this tutorial we are going to fine tune a model trained on benzene data at the DFT level of theory to CCSDT.

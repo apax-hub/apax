@@ -23,7 +23,7 @@ def test_kernel_selection(example_atoms, get_tmp_path, get_sample_input):
     _, params = initialize_model(model_config, inputs)
 
     ckpt = {"model": {"params": params}, "epoch": 0}
-    best_dir = model_config.data.best_model_path()
+    best_dir = model_config.data.best_model_path
     checkpoints.save_checkpoint(
         ckpt_dir=best_dir,
         target=ckpt,
@@ -41,7 +41,7 @@ def test_kernel_selection(example_atoms, get_tmp_path, get_sample_input):
     bs = 5
 
     selected_indices = kernel_selection(
-        model_config.data.model_version_path(),
+        model_config.data.model_version_path,
         train_atoms,
         pool_atoms,
         base_fm_options,

@@ -122,6 +122,7 @@ def stack_parameters(param_list: List[FrozenDict]) -> FrozenDict:
 
 
 def load_params(model_version_path: Path, best=True) -> FrozenDict:
+    model_version_path = Path(model_version_path)
     if best:
         model_version_path = model_version_path / "best"
     log.info(f"loading checkpoint from {model_version_path}")
@@ -142,7 +143,7 @@ def restore_single_parameters(model_dir: Path) -> Tuple[Config, FrozenDict]:
     """Load the config and parameters of a single model
     """
     model_config = parse_config(Path(model_dir) / "config.yaml")
-    ckpt_dir = model_config.data.model_version_path()
+    ckpt_dir = model_config.data.model_version_path
     return model_config, load_params(ckpt_dir)
 
 

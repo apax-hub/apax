@@ -112,12 +112,14 @@ class DataConfig(BaseModel, extra="forbid"):
 
         return self
 
+    @property
     def model_version_path(self):
         version_path = Path(self.directory) / self.experiment
         return version_path
 
+    @property
     def best_model_path(self):
-        return self.model_version_path() / "best"
+        return self.model_version_path / "best"
 
 
 class ModelConfig(BaseModel, extra="forbid"):
