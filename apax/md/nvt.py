@@ -17,7 +17,7 @@ from jax_md.space import transform
 from tqdm import trange
 
 from apax.config import Config, MDConfig, parse_config
-from apax.md.io import H5TrajHandler
+from apax.md.io import H5TrajHandler, TrajHandler
 from apax.md.md_checkpoint import load_md_state
 from apax.model import ModelBuilder
 from apax.train.checkpoints import (
@@ -161,13 +161,12 @@ def run_nvt(
     ensemble,
     n_steps: int,
     n_inner: int,
-    sampling_rate: int,
     extra_capacity: int,
     rng_key: int,
     load_momenta: bool = False,
     restart: bool = True,
     sim_dir: str = ".",
-    traj_name: str = "nvt.h5",
+    traj_handler: TrajHandler = TrajHandler(),
     disable_pbar: bool = False,
 ):
     """
@@ -224,9 +223,6 @@ def run_nvt(
         if load_momenta:
             log.info("loading momenta from starting configuration")
             state = state.set(momentum=system.momenta)
-
-    traj_path = os.path.join(sim_dir, traj_name)
-    traj_handler = H5TrajHandler(system, sampling_rate, traj_path, ensemble.dt)
 
     n_outer = int(np.ceil(n_steps / n_inner))
     pbar_update_freq = int(np.ceil(500 / n_inner))
@@ -363,9 +359,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
             system.box, fractional_coordinates=True
         )
 
-    n_species = 119  # int(np.max(Z) + 1)
-    # TODO large forces at init, maybe displacement fn is incorrect?
-    builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
+    builder = ModelBuilder(model_config.model.get_dict())
     model = builder.build_energy_model(
         apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
     )
@@ -402,9 +396,10 @@ def run_md(
     md_config:
         configuration of the MD simulation.
     """
-
-    log_file = Path(md_config.sim_dir) / "md.log"
+    sim_dir = Path(md_config.sim_dir)
+    log_file = sim_dir / "md.log"
     setup_logging(filename=log_file, level=log_level)
+    traj_path = sim_dir / md_config.traj_name
 
     log.info("loading configs for md")
     model_config = parse_config(model_config)
@@ -413,17 +408,18 @@ def run_md(
     system, sim_fns = md_setup(model_config, md_config)
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
 
+    traj_handler = H5TrajHandler(system, md_config.sampling_rate, traj_path, md_config.ensemble.dt)
+
     run_nvt(
         system,
         sim_fns,
         md_config.ensemble,
         n_steps=n_steps,
         n_inner=md_config.n_inner,
-        sampling_rate=md_config.sampling_rate,
         extra_capacity=md_config.extra_capacity,
         load_momenta=md_config.load_momenta,
         rng_key=jax.random.PRNGKey(md_config.seed),
         restart=md_config.restart,
         sim_dir=md_config.sim_dir,
-        traj_name=md_config.traj_name,
+        traj_handler=traj_handler,
     )
