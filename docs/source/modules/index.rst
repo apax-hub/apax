@@ -2,8 +2,9 @@ Modules
 =======
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
+   cli
    config
    data
    optimizer
@@ -11,4 +12,6 @@ Modules
    model
    train
    md
+   transfer_learning
+   bal
    utils

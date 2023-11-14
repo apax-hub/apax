@@ -143,7 +143,7 @@ def restore_single_parameters(model_dir: Path) -> Tuple[Config, FrozenDict]:
     """Load the config and parameters of a single model
     """
     model_config = parse_config(Path(model_dir) / "config.yaml")
-    ckpt_dir = model_config.data.model_version_path()
+    ckpt_dir = model_config.data.model_version_path
     return model_config, load_params(ckpt_dir)
 
 

@@ -1,6 +1,5 @@
 import logging
-import os
-from pathlib import Path
+import sys
 from typing import List
 
 import jax
@@ -32,7 +31,15 @@ def setup_logging(log_file, log_level):
     while len(logging.root.handlers) > 0:
         logging.root.removeHandler(logging.root.handlers[-1])
 
-    logging.basicConfig(filename=log_file, level=log_levels[log_level])
+    # Remove uninformative checkpointing absl logs
+    logging.getLogger("absl").setLevel(logging.WARNING)
+
+    logging.basicConfig(
+        level=log_levels[log_level],
+        format="%(levelname)s | %(asctime)s | %(message)s",
+        datefmt="%H:%M:%S",
+        handlers=[logging.FileHandler(log_file), logging.StreamHandler(sys.stderr)],
+    )
 
 
 def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
@@ -43,26 +50,22 @@ def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
     return LossCollection(loss_funcs)
 
 
-def run(user_config, log_file="train.log", log_level="error"):
-    setup_logging(log_file, log_level)
-    log.info("Loading user config")
+def run(user_config, log_level="error"):
     config = parse_config(user_config)
 
     seed_py_np_tf(config.seed)
     rng_key = jax.random.PRNGKey(config.seed)
 
-    experiment = Path(config.data.experiment)
-    directory = Path(config.data.directory)
-    model_version_path = directory / experiment
     log.info("Initializing directories")
-    model_version_path.mkdir(parents=True, exist_ok=True)
-    config.dump_config(model_version_path)
+    config.data.model_version_path.mkdir(parents=True, exist_ok=True)
+    setup_logging(config.data.model_version_path / "train.log", log_level)
+    config.dump_config(config.data.model_version_path)
 
-    callbacks = initialize_callbacks(config.callbacks, model_version_path)
+    callbacks = initialize_callbacks(config.callbacks, config.data.model_version_path)
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
 
-    train_raw_ds, val_raw_ds = load_data_files(config.data, model_version_path)
+    train_raw_ds, val_raw_ds = load_data_files(config.data)
     train_ds, ds_stats = initialize_dataset(config, train_raw_ds)
     val_ds = initialize_dataset(config, val_raw_ds, calc_stats=False)
 
@@ -107,7 +110,7 @@ def run(user_config, log_file="train.log", log_level="error"):
         Metrics,
         callbacks,
         n_epochs,
-        ckpt_dir=os.path.join(config.data.directory, config.data.experiment),
+        ckpt_dir=config.data.model_version_path,
         ckpt_interval=config.checkpoints.ckpt_interval,
         val_ds=val_ds,
         sam_rho=config.optimizer.sam_rho,

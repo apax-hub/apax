@@ -1,8 +1,11 @@
-temperature: <T> # K
-duration: <DURATION> #fs
-n_inner: 100 # compiled innner steps
-sampling_rate: 10 # dump interval
-dt: 0.5 # fs time step
+ensemble:
+  name: nvt
+  dt: 0.5 # fs time step
+  temperature: <T> # K
+
+duration: <DURATION> # fs
+n_inner: 1 # compiled innner steps
+sampling_rate: 1  # dump interval
 dr_threshold: 0.5 # Neighborlist skin
 
 sim_dir: md

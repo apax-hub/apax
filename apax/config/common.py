@@ -18,7 +18,6 @@ def parse_config(config: Union[str, os.PathLike, dict], mode: str = "train") -> 
         config: Path to the config file or a dictionary
         containing the config.
     """
-    log.info("Loading user config")
     if isinstance(config, (str, os.PathLike)):
         with open(config, "r") as stream:
             config = yaml.safe_load(stream)

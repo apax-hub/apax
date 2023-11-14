@@ -175,8 +175,8 @@ def load_and_dump_config(config_path, dump_path):
     model_config_dict["data"]["directory"] = dump_path.as_posix()
 
     model_config = Config.model_validate(model_config_dict)
-    os.makedirs(model_config.data.model_version_path(), exist_ok=True)
-    model_config.dump_config(model_config.data.model_version_path())
+    os.makedirs(model_config.data.model_version_path, exist_ok=True)
+    model_config.dump_config(model_config.data.model_version_path)
     return model_config
 
 

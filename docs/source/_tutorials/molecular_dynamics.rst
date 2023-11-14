@@ -1,4 +1,5 @@
-# Molecular Dynamics with JaxMD
+Molecular Dynamics with JaxMD
+=============================
 
 
 JaxMD LINK is a high performance molecular dynamics engine built on top of Jax LINK.

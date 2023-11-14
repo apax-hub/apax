@@ -16,7 +16,6 @@ from apax.layers.masking import mask_by_atom
 from apax.layers.properties import stress_times_vol
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
-from apax.model.utils import NeighborSpoof
 from apax.utils.math import fp64_sum
 
 DisplacementFn = Callable[[Array, Array], Array]
@@ -26,11 +25,7 @@ log = logging.getLogger(__name__)
 
 
 def canonicalize_neighbors(neighbor):
-    return (
-        neighbor.idx
-        if isinstance(neighbor, (partition.NeighborList, NeighborSpoof))
-        else neighbor
-    )
+    return neighbor.idx if isinstance(neighbor, partition.NeighborList) else neighbor
 
 
 def disp_fn(ri, rj, perturbation, box):
@@ -96,7 +91,7 @@ class EnergyModel(nn.Module):
         self,
         R: Array,
         Z: Array,
-        neighbor: Union[partition.NeighborList, NeighborSpoof, Array],
+        neighbor: Union[partition.NeighborList, Array],
         box,
         offsets,
         perturbation=None,
@@ -143,7 +138,7 @@ class EnergyDerivativeModel(nn.Module):
         self,
         R: Array,
         Z: Array,
-        neighbor: Union[partition.NeighborList, NeighborSpoof, Array],
+        neighbor: Union[partition.NeighborList, Array],
         box,
         offsets,
     ):
