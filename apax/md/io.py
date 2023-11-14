@@ -60,13 +60,6 @@ class H5TrajHandler(TrajHandler):
     def step(self, state, transform):
         state, energy, nbr_kwargs = state
 
-        # if self.sampling_counter < self.sampling_rate: # use modulo
-        #     self.sampling_counter += 1
-        # else:
-        #     new_atoms = self.atoms_from_state(state, energy, nbr_kwargs)
-        #     self.buffer.append(new_atoms)
-        #     self.sampling_counter = 1
-
         if self.step_counter % self.sampling_rate == 0: # use modulo
             new_atoms = self.atoms_from_state(state, energy, nbr_kwargs)
             self.buffer.append(new_atoms)
