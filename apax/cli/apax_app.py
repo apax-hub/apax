@@ -34,15 +34,14 @@ def train(
     train_config_path: Path = typer.Argument(
         ..., help="Training configuration YAML file."
     ),
-    log_level: str = typer.Option("error", help="Sets the training logging level."),
-    log_file: str = typer.Option("train.log", help="Specifies the name of the log file"),
+    log_level: str = typer.Option("info", help="Sets the training logging level."),
 ):
     """
     Starts the training of a model with parameters provided by a configuration file.
     """
     from apax.train.run import run
 
-    run(train_config_path, log_file, log_level)
+    run(train_config_path, log_level)
 
 
 @app.command()
