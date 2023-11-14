@@ -31,8 +31,8 @@ def fit(
     log.info("Beginning Training")
     callbacks.on_train_begin()
 
-    latest_dir = ckpt_dir + "/latest"
-    best_dir = ckpt_dir + "/best"
+    latest_dir = ckpt_dir / "latest"
+    best_dir = ckpt_dir / "best"
     ckpt_manager = CheckpointManager()
 
     train_step, val_step = make_step_fns(
