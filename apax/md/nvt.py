@@ -330,8 +330,6 @@ def md_setup(model_config: Config, md_config: MDConfig):
     shift_fn:
         Shift function for the integrator.
     """
-    os.makedirs(md_config.sim_dir, exist_ok=True)
-
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
     system = System.from_atoms(atoms)
@@ -397,6 +395,7 @@ def run_md(
         configuration of the MD simulation.
     """
     sim_dir = Path(md_config.sim_dir)
+    sim_dir.mkdir(parents=True, exist_ok=True)
     log_file = sim_dir / "md.log"
     setup_logging(filename=log_file, level=log_level)
     traj_path = sim_dir / md_config.traj_name
