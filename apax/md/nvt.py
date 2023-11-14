@@ -1,6 +1,7 @@
 import dataclasses
 import logging
 import os
+from pathlib import Path
 import time
 from functools import partial
 from typing import Callable, Optional
@@ -23,6 +24,7 @@ from apax.train.checkpoints import (
     canonicalize_energy_model_parameters,
     restore_parameters,
 )
+from apax.train.run import setup_logging
 from apax.utils import jax_md_reduced
 
 log = logging.getLogger(__name__)
@@ -400,14 +402,9 @@ def run_md(
     md_config:
         configuration of the MD simulation.
     """
-    log_levels = {
-        "debug": logging.DEBUG,
-        "info": logging.INFO,
-        "warning": logging.WARNING,
-        "error": logging.ERROR,
-        "critical": logging.CRITICAL,
-    }
-    logging.basicConfig(filename=log_file, level=log_levels[log_level]) # TODO adopt train logging
+
+    log_file = Path(md_config.sim_dir) / "md.log"
+    setup_logging(filename=log_file, level=log_level)
 
     log.info("loading configs for md")
     model_config = parse_config(model_config)
