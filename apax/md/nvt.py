@@ -224,7 +224,7 @@ def run_nvt(
             state = state.set(momentum=system.momenta)
 
     traj_path = os.path.join(sim_dir, traj_name)
-    traj_handler = H5TrajHandler(system, sampling_rate, traj_path)
+    traj_handler = H5TrajHandler(system, sampling_rate, traj_path, ensemble.dt)
 
     n_outer = int(np.ceil(n_steps / n_inner))
     pbar_update_freq = int(np.ceil(500 / n_inner))
@@ -263,7 +263,7 @@ def run_nvt(
         return state, neighbor, current_temperature
 
     start = time.time()
-    sim_time = n_outer * ensemble.dt  # * units.fs
+    sim_time = n_outer * ensemble.dt
     log.info("running nvt for %.1f fs", sim_time)
     sim_pbar = trange(
         0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
@@ -407,7 +407,7 @@ def run_md(
         "error": logging.ERROR,
         "critical": logging.CRITICAL,
     }
-    logging.basicConfig(filename=log_file, level=log_levels[log_level])
+    logging.basicConfig(filename=log_file, level=log_levels[log_level]) # TODO adopt train logging
 
     log.info("loading configs for md")
     model_config = parse_config(model_config)
