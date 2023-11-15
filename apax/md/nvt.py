@@ -220,8 +220,6 @@ def run_nvt(
     # TODO howe to discard configs added to the trajectory after the last checkpoint?
 
     ckpts_exist = any([True for p in ckpt_dir.rglob('*') if "checkpoint" in p.stem])
-    print(ckpts_exist)
-    print([p for p in ckpt_dir.rglob('*')])
     should_load_ckpt = restart and ckpts_exist
 
     if load_momenta and not should_load_ckpt:
@@ -229,13 +227,9 @@ def run_nvt(
         state = state.set(momentum=system.momenta)
 
     elif should_load_ckpt:
-        print("Loading ckpt")
         state, step = load_md_state(state, ckpt_dir)
-        print(step)
-    # quit()
-    
+
     async_manager = checkpoints.AsyncManager()
-    ckpt = {"state": state, "step": step}
 
     n_outer = int(np.ceil(n_steps / n_inner))
     pbar_update_freq = int(np.ceil(500 / n_inner))
@@ -436,8 +430,7 @@ def run_md(
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
 
     traj_handler = H5TrajHandler(system, md_config.sampling_rate, traj_path, md_config.ensemble.dt)
-    # TODO make checkpoints work
-    # pull out state init, checkpoint loading etc out of run_nvt
+    # TODO pull out state init, checkpoint loading etc out of run_nvt
     # implement traj truncation
     # implement correct chunking
 
