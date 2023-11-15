@@ -13,6 +13,13 @@ log = logging.getLogger(__name__)
 
 
 class TrajHandler:
+
+    def __init__(self) -> None:
+        self.system: System
+        self.sampling_rate: int
+        self.traj_path: Path
+        self.time_step: float
+
     def step(self, state_and_energy, transform):
         pass
 
@@ -48,7 +55,7 @@ class TrajHandler:
 
 
 class H5TrajHandler(TrajHandler):
-    def __init__(self, system: System, sampling_rate: int, traj_path: Path, time_step= 0.5) -> None:
+    def __init__(self, system: System, sampling_rate: int, traj_path: Path, time_step: float = 0.5) -> None:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
         self.fractional = np.any(self.box < 1e-6)
@@ -98,9 +105,10 @@ class DSTruncator:
 
     def truncate(self, ds):
         for name in self.node_names:
+            shape = tuple([None] + list(ds[name].shape[1:]))
             truncated_data = ds[name][:self.length]
             del ds[name]
-            ds.create_dataset(name,data=truncated_data)
+            ds.create_dataset(name, maxshape=shape, data=truncated_data, chunks=True)
 
 
 def truncate_trajectory_to_checkpoint(traj_path, length):
