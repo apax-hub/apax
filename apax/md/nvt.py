@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 import time
 from functools import partial
-from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
@@ -13,9 +12,9 @@ from ase import units
 from ase.io import read
 from jax.experimental.host_callback import barrier_wait, id_tap
 from jax_md import partition, quantity, simulate, space
-from jax_md.space import transform
 from flax.training import checkpoints
 from tqdm import trange
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 from apax.config import Config, MDConfig, parse_config
 from apax.md.io import H5TrajHandler, TrajHandler
@@ -237,8 +236,8 @@ def run_nvt(
         return state, neighbor, current_temperature
 
     start = time.time()
-    sim_time = n_outer * ensemble.dt
-    log.info("running nvt for %.1f fs", sim_time)
+    sim_time = n_steps * ensemble.dt / 1000
+    log.info("running nvt for %.1f ps", sim_time)
     initial_time = step * n_inner
     sim_pbar = trange(
         initial_time, n_steps, initial=initial_time, total=n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
@@ -262,7 +261,8 @@ def run_nvt(
                 )
 
             if step % checkpoint_interval == 0:
-                log.info("saving checkpoint at step: %d", step)
+                with logging_redirect_tqdm():
+                    log.info("saving checkpoint at step: %d", step)
                 ckpt = {"state": state, "step": step}
                 checkpoints.save_checkpoint(
                     ckpt_dir=ckpt_dir,
