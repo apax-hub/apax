@@ -1,8 +1,12 @@
+from pathlib import Path
 import numpy as np
 import znh5md
 from ase import Atoms
+import h5py
 from ase.calculators.singlepoint import SinglePointCalculator
 from jax_md.space import transform
+
+from apax.md.sim_utils import System
 
 
 class TrajHandler:
@@ -41,7 +45,7 @@ class TrajHandler:
 
 
 class H5TrajHandler(TrajHandler):
-    def __init__(self, system, sampling_rate, traj_path, time_step= 0.5) -> None:
+    def __init__(self, system: System, sampling_rate: int, traj_path: Path, time_step= 0.5) -> None:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
         self.fractional = np.any(self.box < 1e-6)
@@ -71,6 +75,31 @@ class H5TrajHandler(TrajHandler):
                 self.buffer,
                 step=self.time_step,
                 time=self.time_step * self.step_counter,
+                # TODO frames per chunk?
             )
             self.db.add(reader)
             self.reset_buffer()
+
+
+class DSTruncator:
+    def __init__(self, length):
+        self.length = length
+        self.node_names = []
+    
+    def __call__(self, name, node):
+        if isinstance(node, h5py.Dataset):
+            if len(node.shape) > 1 or name.endswith("energy/value"):
+                self.node_names.append(name)
+
+    def truncate(self, ds):
+        for name in self.node_names:
+            truncated_data = ds[name][:self.length]
+            del ds[name]
+            ds.create_dataset(name,data=truncated_data)
+
+
+def truncate_trajectory_to_checkpoint(traj_path, length):
+    truncator = DSTruncator(length=length)
+    with h5py.File(traj_path, 'r+') as ds:
+        ds.visititems(truncator)
+        truncator.truncate(ds)

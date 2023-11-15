@@ -20,6 +20,7 @@ from tqdm import trange
 from apax.config import Config, MDConfig, parse_config
 from apax.md.io import H5TrajHandler, TrajHandler
 from apax.md.md_checkpoint import load_md_state
+from apax.md.sim_utils import SimulationFunctions, System
 from apax.model import ModelBuilder
 from apax.train.checkpoints import (
     canonicalize_energy_model_parameters,
@@ -68,42 +69,7 @@ def heights_of_box_sides(box):
     return np.array(heights)
 
 
-@dataclasses.dataclass
-class System:
-    atomic_numbers: jnp.array
-    masses: jnp.array
-    positions: jnp.array
-    box: jnp.array
-    momenta: Optional[jnp.array]
 
-    @classmethod
-    def from_atoms(cls, atoms):
-        atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
-        masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float64)
-        momenta = atoms.get_momenta()
-
-        box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
-        box = box.T
-        positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
-        if np.any(box > 1e-6):
-            positions = transform(jnp.linalg.inv(box), positions)
-
-        system = cls(
-            atomic_numbers=atomic_numbers,
-            masses=masses,
-            positions=positions,
-            box=box,
-            momenta=momenta,
-        )
-
-        return system
-
-
-@dataclasses.dataclass
-class SimulationFunctions:
-    energy_fn: Callable
-    shift_fn: Callable
-    neighbor_fn: Callable
 
 
 def nbr_update_options_default(state):
