@@ -156,6 +156,19 @@ def get_ensemble(ensemble, sim_fns):
     return init_fn, apply_fn, nbr_options
 
 
+def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, restart):
+    ckpts_exist = any([True for p in ckpt_dir.rglob('*') if "checkpoint" in p.stem])
+    should_load_ckpt = restart and ckpts_exist
+
+    if load_momenta and not should_load_ckpt:
+        log.info("loading momenta from starting configuration")
+        state = state.set(momentum=system.momenta)
+
+    elif should_load_ckpt:
+        state, step = load_md_state(state, ckpt_dir)
+    return state, step
+
+
 def run_nvt(
     system: System,
     sim_fns,
@@ -197,7 +210,6 @@ def run_nvt(
     sim_dir:
         Directory where the trajectory and simulation checkpoints will be saved.
     """
-    step = 0
     energy_fn = sim_fns.energy_fn
     neighbor_fn = sim_fns.neighbor_fn
     ckpt_dir = sim_dir / "ckpts"
@@ -217,17 +229,9 @@ def run_nvt(
         mass=system.masses,
         neighbor=neighbor,
     )
-    # TODO howe to discard configs added to the trajectory after the last checkpoint?
 
-    ckpts_exist = any([True for p in ckpt_dir.rglob('*') if "checkpoint" in p.stem])
-    should_load_ckpt = restart and ckpts_exist
-
-    if load_momenta and not should_load_ckpt:
-        log.info("loading momenta from starting configuration")
-        state = state.set(momentum=system.momenta)
-
-    elif should_load_ckpt:
-        state, step = load_md_state(state, ckpt_dir)
+    step = 0
+    state, step = handle_checkpoints(state, step, system, load_momenta, ckpt_dir, restart)
 
     async_manager = checkpoints.AsyncManager()
 
@@ -235,10 +239,6 @@ def run_nvt(
     pbar_update_freq = int(np.ceil(500 / n_inner))
     pbar_increment = n_inner * pbar_update_freq
 
-    # TODO capability to restart md.
-    # May require serializing the state instead of ASE Atoms trajectory + conversion
-    # Maybe we can use flax checkpoints for that?
-    # -> can't serialize NHState and chain for some reason?
     @jax.jit
     def sim(state, neighbor):  # TODO make more modular
         def body_fn(i, state):
@@ -430,8 +430,7 @@ def run_md(
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
 
     traj_handler = H5TrajHandler(system, md_config.sampling_rate, traj_path, md_config.ensemble.dt)
-    # TODO pull out state init, checkpoint loading etc out of run_nvt
-    # implement traj truncation
+    # TODO implement traj truncation
     # implement correct chunking
 
     run_nvt(
