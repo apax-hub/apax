@@ -90,7 +90,15 @@ def test_run_md(get_tmp_path):
     run_md(model_config_dict, md_config_dict)
 
     traj = znh5md.ASEH5MD(md_config.sim_dir + "/" + md_config.traj_name).get_atoms_list()
-    assert len(traj) == 2  # 2 steps
+    assert len(traj) == 5  # num steps
+
+    # checkpoint loading
+    md_config_dict["duration"] = 0.5
+
+    run_md(model_config_dict, md_config_dict)
+
+    traj = znh5md.ASEH5MD(md_config.sim_dir + "/" + md_config.traj_name).get_atoms_list()
+    assert len(traj) == 10  # num steps
 
 
 def test_ase_calc(get_tmp_path):
