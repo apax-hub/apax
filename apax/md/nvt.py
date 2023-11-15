@@ -400,7 +400,11 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
 
     traj_handler = H5TrajHandler(
-        system, md_config.sampling_rate, md_config.buffer_size, traj_path, md_config.ensemble.dt
+        system,
+        md_config.sampling_rate,
+        md_config.buffer_size,
+        traj_path,
+        md_config.ensemble.dt,
     )
     # TODO implement correct chunking
 

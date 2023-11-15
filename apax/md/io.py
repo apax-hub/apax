@@ -57,7 +57,12 @@ class TrajHandler:
 
 class H5TrajHandler(TrajHandler):
     def __init__(
-        self, system: System, sampling_rate: int, buffer_size: int, traj_path: Path, time_step: float = 0.5
+        self,
+        system: System,
+        sampling_rate: int,
+        buffer_size: int,
+        traj_path: Path,
+        time_step: float = 0.5,
     ) -> None:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
@@ -94,7 +99,7 @@ class H5TrajHandler(TrajHandler):
                 self.buffer,
                 step=self.time_step,
                 time=self.time_step * self.step_counter,
-                frames_per_chunk=self.buffer_size
+                frames_per_chunk=self.buffer_size,
             )
             self.db.add(reader)
             self.reset_buffer()
