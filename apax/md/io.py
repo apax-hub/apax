@@ -17,6 +17,7 @@ class TrajHandler:
     def __init__(self) -> None:
         self.system: System
         self.sampling_rate: int
+        self.buffer_size: int
         self.traj_path: Path
         self.time_step: float
 
@@ -56,7 +57,7 @@ class TrajHandler:
 
 class H5TrajHandler(TrajHandler):
     def __init__(
-        self, system: System, sampling_rate: int, traj_path: Path, time_step: float = 0.5
+        self, system: System, sampling_rate: int, buffer_size: int, traj_path: Path, time_step: float = 0.5
     ) -> None:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
@@ -71,6 +72,7 @@ class H5TrajHandler(TrajHandler):
 
         self.step_counter = 0
         self.buffer = []
+        self.buffer_size = buffer_size
 
     def reset_buffer(self):
         self.buffer = []
@@ -83,13 +85,16 @@ class H5TrajHandler(TrajHandler):
             self.buffer.append(new_atoms)
         self.step_counter += 1
 
+        if len(self.buffer) >= self.buffer_size:
+            self.write()
+
     def write(self, x=None, transform=None):
         if len(self.buffer) > 0:
             reader = znh5md.io.AtomsReader(
                 self.buffer,
                 step=self.time_step,
                 time=self.time_step * self.step_counter,
-                # TODO frames per chunk?
+                frames_per_chunk=self.buffer_size
             )
             self.db.add(reader)
             self.reset_buffer()

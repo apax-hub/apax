@@ -46,7 +46,9 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     n_inner: Number of compiled simulation steps (i.e. number of iterations of the
         `jax.lax.fori_loop` loop). Also determines atoms buffer size.
     sampling_rate:
-        Trajectory dumping interval.
+        Interval between saving frames.
+    buffer_size:
+        Number of collected frames to be dumped at once.
     dr_threshold: Skin of the neighborlist.
     extra_capacity: JaxMD allocates a maximal number of neighbors.
         This argument lets you add additional capacity to avoid recompilation.
@@ -72,6 +74,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     duration: PositiveFloat
     n_inner: PositiveInt = 100
     sampling_rate: PositiveInt = 10
+    buffer_size: PositiveInt = 100
     dr_threshold: PositiveFloat = 0.5
     extra_capacity: PositiveInt = 0
 

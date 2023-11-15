@@ -224,8 +224,6 @@ def run_nvt(
             id_tap(traj_handler.step, (state, current_energy, nbr_kwargs))
             return state, neighbor
 
-        id_tap(traj_handler.write, None)
-
         state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
         current_temperature = (
             quantity.temperature(velocity=state.velocity, mass=state.mass) / units.kB
@@ -402,7 +400,7 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
 
     traj_handler = H5TrajHandler(
-        system, md_config.sampling_rate, traj_path, md_config.ensemble.dt
+        system, md_config.sampling_rate, md_config.buffer_size, traj_path, md_config.ensemble.dt
     )
     # TODO implement correct chunking
 
