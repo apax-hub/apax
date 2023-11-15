@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 import numpy as np
 import znh5md
@@ -7,6 +8,8 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from jax_md.space import transform
 
 from apax.md.sim_utils import System
+
+log = logging.getLogger(__name__)
 
 
 class TrajHandler:
@@ -52,7 +55,9 @@ class H5TrajHandler(TrajHandler):
         self.sampling_rate = sampling_rate
         self.traj_path = traj_path
         self.db = znh5md.io.DataWriter(self.traj_path)
-        self.db.initialize_database_groups()
+        if not self.traj_path.is_file():
+            log.info(f"Initializing new trajectory file at {self.traj_path}")
+            self.db.initialize_database_groups()
         self.time_step = time_step
 
         self.step_counter = 0
