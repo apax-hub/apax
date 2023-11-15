@@ -17,7 +17,7 @@ from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from apax.config import Config, MDConfig, parse_config
-from apax.md.io import H5TrajHandler, TrajHandler
+from apax.md.io import H5TrajHandler, TrajHandler, truncate_trajectory_to_checkpoint
 from apax.md.md_checkpoint import load_md_state
 from apax.md.sim_utils import SimulationFunctions, System
 from apax.model import ModelBuilder
@@ -121,10 +121,7 @@ def get_ensemble(ensemble, sim_fns):
     return init_fn, apply_fn, nbr_options
 
 
-def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, restart):
-    ckpts_exist = any([True for p in ckpt_dir.rglob('*') if "checkpoint" in p.stem])
-    should_load_ckpt = restart and ckpts_exist
-
+def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_ckpt):
     if load_momenta and not should_load_ckpt:
         log.info("loading momenta from starting configuration")
         state = state.set(momentum=system.momenta)
@@ -196,7 +193,12 @@ def run_nvt(
     )
 
     step = 0
-    state, step = handle_checkpoints(state, step, system, load_momenta, ckpt_dir, restart)
+    ckpts_exist = any([True for p in ckpt_dir.rglob('*') if "checkpoint" in p.stem])
+    should_load_ckpt = restart and ckpts_exist
+    state, step = handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_ckpt)
+    if should_load_ckpt:
+        length = step * n_inner
+        truncate_trajectory_to_checkpoint(traj_handler.traj_path, length)
 
     async_manager = checkpoints.AsyncManager()
 
@@ -208,7 +210,6 @@ def run_nvt(
     def sim(state, neighbor):  # TODO make more modular
         def body_fn(i, state):
             state, neighbor = state
-            # TODO neighbor update kword factory f(state) -> {}
             if isinstance(state, simulate.NPTNoseHooverState):
                 box = state.box
                 apply_fn_kwargs = {}
@@ -236,8 +237,8 @@ def run_nvt(
         return state, neighbor, current_temperature
 
     start = time.time()
-    sim_time = n_steps * ensemble.dt / 1000
-    log.info("running nvt for %.1f ps", sim_time)
+    total_sim_time = n_steps * ensemble.dt / 1000
+    log.info("running simulation for %.1f ps", total_sim_time)
     initial_time = step * n_inner
     sim_pbar = trange(
         initial_time, n_steps, initial=initial_time, total=n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
@@ -246,7 +247,8 @@ def run_nvt(
         new_state, neighbor, current_temperature = sim(state, neighbor)
 
         if neighbor.did_buffer_overflow:
-            log.info("step %d: neighbor list overflowed, reallocating.", step)
+            with logging_redirect_tqdm():
+                log.warn("step %d: neighbor list overflowed, reallocating.", step)
             traj_handler.reset_buffer()
             neighbor = neighbor_fn.allocate(
                 state.position
@@ -262,7 +264,8 @@ def run_nvt(
 
             if step % checkpoint_interval == 0:
                 with logging_redirect_tqdm():
-                    log.info("saving checkpoint at step: %d", step)
+                    current_sim_time = step * n_inner * ensemble.dt / 1000
+                    log.info(f"saving checkpoint at {current_sim_time:.1f} ps - step: {step}")
                 ckpt = {"state": state, "step": step}
                 checkpoints.save_checkpoint(
                     ckpt_dir=ckpt_dir,
