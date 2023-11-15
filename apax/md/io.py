@@ -1,9 +1,10 @@
 import logging
 from pathlib import Path
+
+import h5py
 import numpy as np
 import znh5md
 from ase import Atoms
-import h5py
 from ase.calculators.singlepoint import SinglePointCalculator
 from jax_md.space import transform
 
@@ -13,7 +14,6 @@ log = logging.getLogger(__name__)
 
 
 class TrajHandler:
-
     def __init__(self) -> None:
         self.system: System
         self.sampling_rate: int
@@ -55,7 +55,9 @@ class TrajHandler:
 
 
 class H5TrajHandler(TrajHandler):
-    def __init__(self, system: System, sampling_rate: int, traj_path: Path, time_step: float = 0.5) -> None:
+    def __init__(
+        self, system: System, sampling_rate: int, traj_path: Path, time_step: float = 0.5
+    ) -> None:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
         self.fractional = np.any(self.box < 1e-6)
@@ -76,7 +78,7 @@ class H5TrajHandler(TrajHandler):
     def step(self, state, transform):
         state, energy, nbr_kwargs = state
 
-        if self.step_counter % self.sampling_rate == 0: # use modulo
+        if self.step_counter % self.sampling_rate == 0:
             new_atoms = self.atoms_from_state(state, energy, nbr_kwargs)
             self.buffer.append(new_atoms)
         self.step_counter += 1
@@ -97,7 +99,7 @@ class DSTruncator:
     def __init__(self, length):
         self.length = length
         self.node_names = []
-    
+
     def __call__(self, name, node):
         if isinstance(node, h5py.Dataset):
             if len(node.shape) > 1 or name.endswith("energy/value"):
@@ -106,13 +108,13 @@ class DSTruncator:
     def truncate(self, ds):
         for name in self.node_names:
             shape = tuple([None] + list(ds[name].shape[1:]))
-            truncated_data = ds[name][:self.length]
+            truncated_data = ds[name][: self.length]
             del ds[name]
             ds.create_dataset(name, maxshape=shape, data=truncated_data, chunks=True)
 
 
 def truncate_trajectory_to_checkpoint(traj_path, length):
     truncator = DSTruncator(length=length)
-    with h5py.File(traj_path, 'r+') as ds:
+    with h5py.File(traj_path, "r+") as ds:
         ds.visititems(truncator)
         truncator.truncate(ds)

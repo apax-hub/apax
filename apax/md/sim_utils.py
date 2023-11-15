@@ -1,8 +1,10 @@
 import dataclasses
-import jax.numpy as jnp
 from typing import Callable, Optional
+
+import jax.numpy as jnp
 import numpy as np
 from jax_md.space import transform
+
 
 @dataclasses.dataclass
 class System:
@@ -33,7 +35,8 @@ class System:
         )
 
         return system
-    
+
+
 @dataclasses.dataclass
 class SimulationFunctions:
     energy_fn: Callable

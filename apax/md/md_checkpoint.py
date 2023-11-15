@@ -7,7 +7,7 @@ from jaxtyping import PyTree
 log = logging.getLogger(__name__)
 
 
-def load_md_state(state: PyTree, ckpt_dir: Path) -> tuple[PyTree,int]:
+def load_md_state(state: PyTree, ckpt_dir: Path) -> tuple[PyTree, int]:
     try:
         log.info(f"loading MD state from {ckpt_dir}")
         target = {"state": state, "step": 0}

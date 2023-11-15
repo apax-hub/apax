@@ -1,18 +1,16 @@
-import dataclasses
 import logging
-import os
-from pathlib import Path
 import time
 from functools import partial
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 from ase import units
 from ase.io import read
+from flax.training import checkpoints
 from jax.experimental.host_callback import barrier_wait, id_tap
 from jax_md import partition, quantity, simulate, space
-from flax.training import checkpoints
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -66,9 +64,6 @@ def heights_of_box_sides(box):
             heights.append(height)
 
     return np.array(heights)
-
-
-
 
 
 def nbr_update_options_default(state):
@@ -193,9 +188,11 @@ def run_nvt(
     )
 
     step = 0
-    ckpts_exist = any([True for p in ckpt_dir.rglob('*') if "checkpoint" in p.stem])
+    ckpts_exist = any([True for p in ckpt_dir.rglob("*") if "checkpoint" in p.stem])
     should_load_ckpt = restart and ckpts_exist
-    state, step = handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_ckpt)
+    state, step = handle_checkpoints(
+        state, step, system, load_momenta, ckpt_dir, should_load_ckpt
+    )
     if should_load_ckpt:
         length = step * n_inner
         truncate_trajectory_to_checkpoint(traj_handler.traj_path, length)
@@ -224,7 +221,6 @@ def run_nvt(
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
-
             id_tap(traj_handler.step, (state, current_energy, nbr_kwargs))
             return state, neighbor
 
@@ -241,7 +237,14 @@ def run_nvt(
     log.info("running simulation for %.1f ps", total_sim_time)
     initial_time = step * n_inner
     sim_pbar = trange(
-        initial_time, n_steps, initial=initial_time, total=n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
+        initial_time,
+        n_steps,
+        initial=initial_time,
+        total=n_steps,
+        desc="Simulation",
+        ncols=100,
+        disable=disable_pbar,
+        leave=True,
     )
     while step < n_outer:
         new_state, neighbor, current_temperature = sim(state, neighbor)
@@ -265,7 +268,9 @@ def run_nvt(
             if step % checkpoint_interval == 0:
                 with logging_redirect_tqdm():
                     current_sim_time = step * n_inner * ensemble.dt / 1000
-                    log.info(f"saving checkpoint at {current_sim_time:.1f} ps - step: {step}")
+                    log.info(
+                        f"saving checkpoint at {current_sim_time:.1f} ps - step: {step}"
+                    )
                 ckpt = {"state": state, "step": step}
                 checkpoints.save_checkpoint(
                     ckpt_dir=ckpt_dir,
@@ -279,7 +284,7 @@ def run_nvt(
             if step % pbar_update_freq == 0:
                 sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
                 sim_pbar.update(pbar_increment)
-    
+
     # In case of mismatch update freq and n_steps, we can set it to 100% manually
     sim_pbar.update(n_steps - sim_pbar.n)
     sim_pbar.close()
@@ -371,9 +376,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     return system, sim_fns
 
 
-def run_md(
-    model_config: Config, md_config: MDConfig, log_level="error"
-):
+def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
     """
     Utiliy function to start NVT molecualr dynamics simulations from
     a previously trained model.
@@ -385,7 +388,7 @@ def run_md(
     md_config:
         configuration of the MD simulation.
     """
-    
+
     model_config = parse_config(model_config)
     md_config = parse_config(md_config, mode="md")
 
@@ -398,9 +401,10 @@ def run_md(
     system, sim_fns = md_setup(model_config, md_config)
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
 
-    traj_handler = H5TrajHandler(system, md_config.sampling_rate, traj_path, md_config.ensemble.dt)
-    # TODO implement traj truncation
-    # implement correct chunking
+    traj_handler = H5TrajHandler(
+        system, md_config.sampling_rate, traj_path, md_config.ensemble.dt
+    )
+    # TODO implement correct chunking
 
     run_nvt(
         system,
