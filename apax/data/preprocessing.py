@@ -81,8 +81,14 @@ def dataset_neighborlist(
         if np.all(box[i] < 1e-6):
             cell, cell_origin = get_shrink_wrapped_cell(position)
             idxs_i, idxs_j = neighbour_list(
-                "ij", positions=position, cutoff=r_max, cell=cell, cell_origin=cell_origin
+                "ij",
+                positions=position,
+                cutoff=r_max,
+                cell=cell,
+                cell_origin=cell_origin,
+                pbc=[False, False, False],
             )
+
             neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
 
             n_neighbors = neighbor_idxs.shape[1]
@@ -110,8 +116,10 @@ def get_shrink_wrapped_cell(positions):
     cell_origin = rmin
     cell = np.diag(rmax - rmin)
     for idx in range(3):
-        if np.all(cell[:, idx] < 10e-3):
+        if cell[idx, idx] < 10e-1:
             cell[idx, idx] = 1.0
+
+    cell[np.diag_indices_from(cell)] += 1
 
     return cell, cell_origin
 
