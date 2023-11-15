@@ -279,8 +279,9 @@ def run_nvt(
     start = time.time()
     sim_time = n_outer * ensemble.dt
     log.info("running nvt for %.1f fs", sim_time)
+    initial_time = step * n_inner
     sim_pbar = trange(
-        0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
+        initial_time, n_steps, initial=initial_time, total=n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
     )
     while step < n_outer:
         new_state, neighbor, current_temperature = sim(state, neighbor)
@@ -302,7 +303,6 @@ def run_nvt(
 
             if step % checkpoint_interval == 0:
                 log.info("saving checkpoint at step: %d", step)
-                print("SAVING")
                 ckpt = {"state": state, "step": step}
                 checkpoints.save_checkpoint(
                     ckpt_dir=ckpt_dir,
@@ -316,6 +316,9 @@ def run_nvt(
             if step % pbar_update_freq == 0:
                 sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
                 sim_pbar.update(pbar_increment)
+    
+    # In case of mismatch update freq and n_steps, we can set it to 100% manually
+    sim_pbar.update(n_steps - sim_pbar.n)
     sim_pbar.close()
 
     barrier_wait()
