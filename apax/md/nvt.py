@@ -14,6 +14,7 @@ from ase.io import read
 from jax.experimental.host_callback import barrier_wait, id_tap
 from jax_md import partition, quantity, simulate, space
 from jax_md.space import transform
+from flax.training import checkpoints
 from tqdm import trange
 
 from apax.config import Config, MDConfig, parse_config
@@ -159,6 +160,7 @@ def run_nvt(
     system: System,
     sim_fns,
     ensemble,
+    sim_dir: Path,
     n_steps: int,
     n_inner: int,
     extra_capacity: int,
@@ -166,7 +168,6 @@ def run_nvt(
     load_momenta: bool = False,
     restart: bool = True,
     checkpoint_interval: int = 50_000,
-    sim_dir: str = ".",
     traj_handler: TrajHandler = TrajHandler(),
     disable_pbar: bool = False,
 ):
@@ -194,13 +195,13 @@ def run_nvt(
     checkpoint_interval: Number of time steps between saving
         full simulation state checkpoints.
     sim_dir:
-        Directory where the trajectory and (soon) simulation checkpoints will be saved.
-    traj_name:
-        File name of the ASE trajectory.
+        Directory where the trajectory and simulation checkpoints will be saved.
     """
     step = 0
     energy_fn = sim_fns.energy_fn
     neighbor_fn = sim_fns.neighbor_fn
+    ckpt_dir = sim_dir / "ckpts"
+    ckpt_dir.mkdir(exist_ok=True)
 
     log.info("initializing simulation")
     init_fn, apply_fn, nbr_options = get_ensemble(ensemble, sim_fns)
@@ -209,21 +210,32 @@ def run_nvt(
         system.positions, extra_capacity=extra_capacity
     )
 
-    if restart: # TODO fail save when loading MD state is not possible
-        log.info("loading previous md state")
-        state, step = load_md_state(sim_dir)
-    else:
-        state = init_fn(
-            rng_key,
-            system.positions,
-            box=system.box,
-            mass=system.masses,
-            neighbor=neighbor,
-        )
+    state = init_fn(
+        rng_key,
+        system.positions,
+        box=system.box,
+        mass=system.masses,
+        neighbor=neighbor,
+    )
+    # TODO howe to discard configs added to the trajectory after the last checkpoint?
 
-        if load_momenta:
-            log.info("loading momenta from starting configuration")
-            state = state.set(momentum=system.momenta)
+    ckpts_exist = any([True for p in ckpt_dir.rglob('*') if "checkpoint" in p.stem])
+    print(ckpts_exist)
+    print([p for p in ckpt_dir.rglob('*')])
+    should_load_ckpt = restart and ckpts_exist
+
+    if load_momenta and not should_load_ckpt:
+        log.info("loading momenta from starting configuration")
+        state = state.set(momentum=system.momenta)
+
+    elif should_load_ckpt:
+        print("Loading ckpt")
+        state, step = load_md_state(state, ckpt_dir)
+        print(step)
+    # quit()
+    
+    async_manager = checkpoints.AsyncManager()
+    ckpt = {"state": state, "step": step}
 
     n_outer = int(np.ceil(n_steps / n_inner))
     pbar_update_freq = int(np.ceil(500 / n_inner))
@@ -290,7 +302,16 @@ def run_nvt(
 
             if step % checkpoint_interval == 0:
                 log.info("saving checkpoint at step: %d", step)
-                log.info("checkpoints not yet implemented")
+                print("SAVING")
+                ckpt = {"state": state, "step": step}
+                checkpoints.save_checkpoint(
+                    ckpt_dir=ckpt_dir,
+                    target=ckpt,
+                    step=step,
+                    overwrite=True,
+                    keep=2,
+                    async_manager=async_manager,
+                )
 
             if step % pbar_update_freq == 0:
                 sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
@@ -412,6 +433,10 @@ def run_md(
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
 
     traj_handler = H5TrajHandler(system, md_config.sampling_rate, traj_path, md_config.ensemble.dt)
+    # TODO make checkpoints work
+    # pull out state init, checkpoint loading etc out of run_nvt
+    # implement traj truncation
+    # implement correct chunking
 
     run_nvt(
         system,
@@ -424,6 +449,6 @@ def run_md(
         rng_key=jax.random.PRNGKey(md_config.seed),
         restart=md_config.restart,
         checkpoint_interval=md_config.checkpoint_interval,
-        sim_dir=md_config.sim_dir,
+        sim_dir=sim_dir,
         traj_handler=traj_handler,
     )
