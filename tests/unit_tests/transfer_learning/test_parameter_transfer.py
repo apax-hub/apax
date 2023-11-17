@@ -1,4 +1,4 @@
-from apax.transfer_learning import param_transfer
+from apax.transfer_learning import black_list_param_transfer
 
 
 def test_param_transfer():
@@ -15,7 +15,7 @@ def test_param_transfer():
         }
     }
     reinitialize_layers = ["basis"]
-    transfered_target = param_transfer(source, target, reinitialize_layers)
+    transfered_target = black_list_param_transfer(source, target, reinitialize_layers)
 
     assert transfered_target["params"]["dense"]["w"] == source["params"]["dense"]["w"]
     assert transfered_target["params"]["dense"]["b"] == source["params"]["dense"]["b"]

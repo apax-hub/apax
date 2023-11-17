@@ -8,10 +8,12 @@ import numpy as np
 import pytest
 import yaml
 from ase import Atoms
+from ase.calculators.emt import EMT
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from apax.config.train_config import Config
 from apax.model.builder import ModelBuilder
+from apax.train.run import run
 from apax.utils.random import seed_py_np_tf
 
 
@@ -78,22 +80,48 @@ def example_atoms(num_data: int, pbc: bool, calc_results: List[str]) -> Atoms:
 
 
 @pytest.fixture()
+def example_dataset(num_data: int) -> Atoms:
+    atoms_list = []
+
+    p2 = np.random.uniform(low=1.0, high=1.5, size=(num_data,))
+    for i in range(num_data):
+        positions = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, p2[i]]])
+
+        additional_data = {}
+        additional_data["cell"] = [0.0, 0.0, 0.0]
+
+        atoms = Atoms("H2", positions=positions, **additional_data)
+        atoms.calc = EMT()
+        atoms.get_potential_energy()
+        atoms.get_forces()
+
+        atoms_list.append(atoms)
+
+    return atoms_list
+
+
+@pytest.fixture()
 def get_tmp_path(tmp_path_factory):
     test_path = tmp_path_factory.mktemp("apax_tests")
     return test_path
 
 
 @pytest.fixture(scope="session")
-def get_md22_stachyose(get_tmp_path):
-    url = "http://www.quantum-machine.org/gdml/repo/static/md22_stachyose.zip"
-    data_path = get_tmp_path / "data"
-    file_path = data_path / "md22_stachyose.zip"
+def tmp_data_path(tmp_path_factory):
+    test_path = tmp_path_factory.mktemp("data")
+    return test_path
 
-    os.makedirs(data_path, exist_ok=True)
+
+@pytest.fixture(scope="session")
+def get_md22_stachyose(tmp_data_path):
+    url = "http://www.quantum-machine.org/gdml/repo/static/md22_stachyose.zip"
+    file_path = tmp_data_path / "md22_stachyose.zip"
+
+    os.makedirs(tmp_data_path, exist_ok=True)
     urllib.request.urlretrieve(url, file_path)
 
     with zipfile.ZipFile(file_path, "r") as zip_ref:
-        zip_ref.extractall(data_path)
+        zip_ref.extractall(tmp_data_path)
 
     file_path = modify_xyz_file(
         file_path.with_suffix(".xyz"), target_string="Energy", replacement_string="energy"
@@ -150,3 +178,12 @@ def load_and_dump_config(config_path, dump_path):
     os.makedirs(model_config.data.model_version_path, exist_ok=True)
     model_config.dump_config(model_config.data.model_version_path)
     return model_config
+
+
+def load_config_and_run_training(config_path, updated_config):
+    with open(config_path.as_posix(), "r") as stream:
+        config_dict = yaml.safe_load(stream)
+
+    for key, new_value in updated_config.items():
+        config_dict[key].update(new_value)
+    run(config_dict)
