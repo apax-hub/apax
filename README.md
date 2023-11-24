@@ -1,4 +1,4 @@
-# `apax`: Atomstic learned Potentials in JAX!
+# `apax`: Atomistic learned Potentials in JAX!
 [![Read the Docs](https://readthedocs.org/projects/apax/badge/)](https://apax.readthedocs.io/en/latest/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10040711.svg)](https://doi.org/10.5281/zenodo.10040711)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
