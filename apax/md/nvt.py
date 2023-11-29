@@ -1,34 +1,35 @@
-import dataclasses
 import logging
-import os
 import time
 from functools import partial
-from typing import Callable, Optional
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 from ase import units
 from ase.io import read
+from flax.training import checkpoints
 from jax.experimental.host_callback import barrier_wait, id_tap
 from jax_md import partition, quantity, simulate, space
-from jax_md.space import transform
 from tqdm import trange
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 from apax.config import Config, MDConfig, parse_config
-from apax.md.io import H5TrajHandler
+from apax.md.io import H5TrajHandler, TrajHandler, truncate_trajectory_to_checkpoint
 from apax.md.md_checkpoint import load_md_state
+from apax.md.sim_utils import SimulationFunctions, System
 from apax.model import ModelBuilder
 from apax.train.checkpoints import (
     canonicalize_energy_model_parameters,
     restore_parameters,
 )
+from apax.train.run import setup_logging
 from apax.utils import jax_md_reduced
 
 log = logging.getLogger(__name__)
 
 
-def create_energy_fn(model, params, numbers, box, n_models):
+def create_energy_fn(model, params, numbers, n_models):
     def ensemble(params, R, Z, neighbor, box, offsets):
         vmodel = jax.vmap(model, (0, None, None, None, None, None), 0)
         energies = vmodel(params, R, Z, neighbor, box, offsets)
@@ -45,7 +46,6 @@ def create_energy_fn(model, params, numbers, box, n_models):
         energy_fn,
         params,
         Z=numbers,
-        box=box,  # TODO IS THIS CORRECT FOR NPT???
         offsets=jnp.array([0.0, 0.0, 0.0]),
     )
 
@@ -64,44 +64,6 @@ def heights_of_box_sides(box):
             heights.append(height)
 
     return np.array(heights)
-
-
-@dataclasses.dataclass
-class System:
-    atomic_numbers: jnp.array
-    masses: jnp.array
-    positions: jnp.array
-    box: jnp.array
-    momenta: Optional[jnp.array]
-
-    @classmethod
-    def from_atoms(cls, atoms):
-        atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
-        masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float64)
-        momenta = atoms.get_momenta()
-
-        box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
-        box = box.T
-        positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
-        if np.any(box > 1e-6):
-            positions = transform(jnp.linalg.inv(box), positions)
-
-        system = cls(
-            atomic_numbers=atomic_numbers,
-            masses=masses,
-            positions=positions,
-            box=box,
-            momenta=momenta,
-        )
-
-        return system
-
-
-@dataclasses.dataclass
-class SimulationFunctions:
-    energy_fn: Callable
-    shift_fn: Callable
-    neighbor_fn: Callable
 
 
 def nbr_update_options_default(state):
@@ -154,19 +116,29 @@ def get_ensemble(ensemble, sim_fns):
     return init_fn, apply_fn, nbr_options
 
 
+def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_ckpt):
+    if load_momenta and not should_load_ckpt:
+        log.info("loading momenta from starting configuration")
+        state = state.set(momentum=system.momenta)
+
+    elif should_load_ckpt:
+        state, step = load_md_state(state, ckpt_dir)
+    return state, step
+
+
 def run_nvt(
     system: System,
     sim_fns,
     ensemble,
+    sim_dir: Path,
     n_steps: int,
     n_inner: int,
-    sampling_rate: int,
     extra_capacity: int,
     rng_key: int,
     load_momenta: bool = False,
     restart: bool = True,
-    sim_dir: str = ".",
-    traj_name: str = "nvt.h5",
+    checkpoint_interval: int = 50_000,
+    traj_handler: TrajHandler = TrajHandler(),
     disable_pbar: bool = False,
 ):
     """
@@ -190,15 +162,15 @@ def run_nvt(
         RNG key used to initialize the simulation.
     restart:
         Whether a checkpoint should be loaded. No implemented yet.
+    checkpoint_interval: Number of time steps between saving
+        full simulation state checkpoints.
     sim_dir:
-        Directory where the trajectory and (soon) simulation checkpoints will be saved.
-    traj_name:
-        File name of the ASE trajectory.
+        Directory where the trajectory and simulation checkpoints will be saved.
     """
-    step = 0
-    checkpoint_interval = 5_000_000  # TODO will be supplied in the future
     energy_fn = sim_fns.energy_fn
     neighbor_fn = sim_fns.neighbor_fn
+    ckpt_dir = sim_dir / "ckpts"
+    ckpt_dir.mkdir(exist_ok=True)
 
     log.info("initializing simulation")
     init_fn, apply_fn, nbr_options = get_ensemble(ensemble, sim_fns)
@@ -207,49 +179,50 @@ def run_nvt(
         system.positions, extra_capacity=extra_capacity
     )
 
-    restart = False  # TODO needs to be implemented
-    if restart:
-        log.info("loading previous md state")
-        state, step = load_md_state(sim_dir)
-    else:
-        state = init_fn(
-            rng_key,
-            system.positions,
-            box=system.box,
-            mass=system.masses,
-            neighbor=neighbor,
-        )
+    state = init_fn(
+        rng_key,
+        system.positions,
+        box=system.box,
+        mass=system.masses,
+        neighbor=neighbor,
+    )
 
-        if load_momenta:
-            log.info("loading momenta from starting configuration")
-            state = state.set(momentum=system.momenta)
+    step = 0
+    ckpts_exist = any([True for p in ckpt_dir.rglob("*") if "checkpoint" in p.stem])
+    should_load_ckpt = restart and ckpts_exist
+    state, step = handle_checkpoints(
+        state, step, system, load_momenta, ckpt_dir, should_load_ckpt
+    )
+    if should_load_ckpt:
+        length = step * n_inner
+        truncate_trajectory_to_checkpoint(traj_handler.traj_path, length)
 
-    traj_path = os.path.join(sim_dir, traj_name)
-    traj_handler = H5TrajHandler(system, sampling_rate, traj_path)
+    async_manager = checkpoints.AsyncManager()
 
     n_outer = int(np.ceil(n_steps / n_inner))
     pbar_update_freq = int(np.ceil(500 / n_inner))
     pbar_increment = n_inner * pbar_update_freq
 
-    # TODO capability to restart md.
-    # May require serializing the state instead of ASE Atoms trajectory + conversion
-    # Maybe we can use flax checkpoints for that?
-    # -> can't serialize NHState and chain for some reason?
     @jax.jit
     def sim(state, neighbor):  # TODO make more modular
         def body_fn(i, state):
             state, neighbor = state
-            # TODO neighbor update kword factory f(state) -> {}
-            state = apply_fn(state, neighbor=neighbor)
+            if isinstance(state, simulate.NPTNoseHooverState):
+                box = state.box
+                apply_fn_kwargs = {}
+            else:
+                box = system.box
+                apply_fn_kwargs = {"box": box}
+
+            current_energy = energy_fn(R=state.position, neighbor=neighbor, box=box)
+            nbr_kwargs = nbr_options(state)
+            state = apply_fn(state, neighbor=neighbor, **apply_fn_kwargs)
+
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
-            current_energy = energy_fn(R=state.position, neighbor=neighbor)
-
             id_tap(traj_handler.step, (state, current_energy, nbr_kwargs))
             return state, neighbor
-
-        id_tap(traj_handler.write, None)
 
         state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
         current_temperature = (
@@ -258,16 +231,25 @@ def run_nvt(
         return state, neighbor, current_temperature
 
     start = time.time()
-    sim_time = n_outer * ensemble.dt  # * units.fs
-    log.info("running nvt for %.1f fs", sim_time)
+    total_sim_time = n_steps * ensemble.dt / 1000
+    log.info("running simulation for %.1f ps", total_sim_time)
+    initial_time = step * n_inner
     sim_pbar = trange(
-        0, n_steps, desc="Simulation", ncols=100, disable=disable_pbar, leave=True
+        initial_time,
+        n_steps,
+        initial=initial_time,
+        total=n_steps,
+        desc="Simulation",
+        ncols=100,
+        disable=disable_pbar,
+        leave=True,
     )
     while step < n_outer:
         new_state, neighbor, current_temperature = sim(state, neighbor)
 
         if neighbor.did_buffer_overflow:
-            log.info("step %d: neighbor list overflowed, reallocating.", step)
+            with logging_redirect_tqdm():
+                log.warn("step %d: neighbor list overflowed, reallocating.", step)
             traj_handler.reset_buffer()
             neighbor = neighbor_fn.allocate(
                 state.position
@@ -282,12 +264,27 @@ def run_nvt(
                 )
 
             if step % checkpoint_interval == 0:
-                log.info("saving checkpoint at step: %d", step)
-                log.info("checkpoints not yet implemented")
+                with logging_redirect_tqdm():
+                    current_sim_time = step * n_inner * ensemble.dt / 1000
+                    log.info(
+                        f"saving checkpoint at {current_sim_time:.1f} ps - step: {step}"
+                    )
+                ckpt = {"state": state, "step": step}
+                checkpoints.save_checkpoint(
+                    ckpt_dir=ckpt_dir,
+                    target=ckpt,
+                    step=step,
+                    overwrite=True,
+                    keep=2,
+                    async_manager=async_manager,
+                )
 
             if step % pbar_update_freq == 0:
                 sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
                 sim_pbar.update(pbar_increment)
+
+    # In case of mismatch update freq and n_steps, we can set it to 100% manually
+    sim_pbar.update(n_steps - sim_pbar.n)
     sim_pbar.close()
 
     barrier_wait()
@@ -327,8 +324,6 @@ def md_setup(model_config: Config, md_config: MDConfig):
     shift_fn:
         Shift function for the integrator.
     """
-    os.makedirs(md_config.sim_dir, exist_ok=True)
-
     log.info("reading structure")
     atoms = read(md_config.initial_structure)
     system = System.from_atoms(atoms)
@@ -356,9 +351,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
             system.box, fractional_coordinates=True
         )
 
-    n_species = 119  # int(np.max(Z) + 1)
-    # TODO large forces at init, maybe displacement fn is incorrect?
-    builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
+    builder = ModelBuilder(model_config.model.get_dict())
     model = builder.build_energy_model(
         apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
     )
@@ -375,15 +368,13 @@ def md_setup(model_config: Config, md_config: MDConfig):
     _, params = restore_parameters(model_config.data.model_version_path)
     params = canonicalize_energy_model_parameters(params)
     energy_fn = create_energy_fn(
-        model.apply, params, system.atomic_numbers, system.box, model_config.n_models
+        model.apply, params, system.atomic_numbers, model_config.n_models
     )
     sim_fns = SimulationFunctions(energy_fn, shift_fn, neighbor_fn)
     return system, sim_fns
 
 
-def run_md(
-    model_config: Config, md_config: MDConfig, log_file="md.log", log_level="error"
-):
+def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
     """
     Utiliy function to start NVT molecualr dynamics simulations from
     a previously trained model.
@@ -395,21 +386,27 @@ def run_md(
     md_config:
         configuration of the MD simulation.
     """
-    log_levels = {
-        "debug": logging.DEBUG,
-        "info": logging.INFO,
-        "warning": logging.WARNING,
-        "error": logging.ERROR,
-        "critical": logging.CRITICAL,
-    }
-    logging.basicConfig(filename=log_file, level=log_levels[log_level])
 
-    log.info("loading configs for md")
     model_config = parse_config(model_config)
     md_config = parse_config(md_config, mode="md")
 
+    sim_dir = Path(md_config.sim_dir)
+    sim_dir.mkdir(parents=True, exist_ok=True)
+    log_file = sim_dir / "md.log"
+    setup_logging(log_file, log_level)
+    traj_path = sim_dir / md_config.traj_name
+
     system, sim_fns = md_setup(model_config, md_config)
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
+
+    traj_handler = H5TrajHandler(
+        system,
+        md_config.sampling_rate,
+        md_config.buffer_size,
+        traj_path,
+        md_config.ensemble.dt,
+    )
+    # TODO implement correct chunking
 
     run_nvt(
         system,
@@ -417,11 +414,11 @@ def run_md(
         md_config.ensemble,
         n_steps=n_steps,
         n_inner=md_config.n_inner,
-        sampling_rate=md_config.sampling_rate,
         extra_capacity=md_config.extra_capacity,
         load_momenta=md_config.load_momenta,
         rng_key=jax.random.PRNGKey(md_config.seed),
         restart=md_config.restart,
-        sim_dir=md_config.sim_dir,
-        traj_name=md_config.traj_name,
+        checkpoint_interval=md_config.checkpoint_interval,
+        sim_dir=sim_dir,
+        traj_handler=traj_handler,
     )

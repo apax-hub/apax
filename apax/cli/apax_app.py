@@ -51,8 +51,7 @@ def md(
         ..., help="Configuration YAML file that was used to train a model."
     ),
     md_config_path: Path = typer.Argument(..., help="MD configuration YAML file."),
-    log_level: str = typer.Option("error", help="Sets the training logging level."),
-    log_file: str = typer.Option("md.log", help="Specifies the name of the log file"),
+    log_level: str = typer.Option("info", help="Sets the training logging level."),
 ):
     """
     Starts performing a molecular dynamics simulation (currently only NHC thermostat)
@@ -60,7 +59,7 @@ def md(
     """
     from apax.md import run_md
 
-    run_md(train_config_path, md_config_path, log_file, log_level)
+    run_md(train_config_path, md_config_path, log_level)
 
 
 @app.command()

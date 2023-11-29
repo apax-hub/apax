@@ -1,17 +1,19 @@
 import logging
+from pathlib import Path
 
 from flax.training import checkpoints
+from jaxtyping import PyTree
 
 log = logging.getLogger(__name__)
 
 
-def load_md_state(sim_dir):
-    # TODO: not functional yet
+def load_md_state(state: PyTree, ckpt_dir: Path) -> tuple[PyTree, int]:
     try:
-        log.info("loading previous md state")
-        raw_restored = checkpoints.restore_checkpoint(sim_dir, target=None, step=None)
+        log.info(f"loading MD state from {ckpt_dir}")
+        target = {"state": state, "step": 0}
+        restored_ckpt = checkpoints.restore_checkpoint(ckpt_dir, target=target, step=None)
     except FileNotFoundError:
-        print(f"No checkpoint found at {sim_dir}")
-    state = raw_restored["state"]
-    step = raw_restored["step"]
+        print(f"No checkpoint found at {ckpt_dir}")
+    state = restored_ckpt["state"]
+    step = restored_ckpt["step"]
     return state, step
