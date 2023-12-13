@@ -127,6 +127,7 @@ def load_params(model_version_path: Path, best=True) -> FrozenDict:
         model_version_path = model_version_path / "best"
     log.info(f"loading checkpoint from {model_version_path}")
     try:
+        # keep try except block for zntrack load from rev
         raw_restored = checkpoints.restore_checkpoint(
             model_version_path,
             target=None,
@@ -134,6 +135,8 @@ def load_params(model_version_path: Path, best=True) -> FrozenDict:
         )
     except FileNotFoundError:
         print(f"No checkpoint found at {model_version_path}")
+    if raw_restored is None:
+        raise FileNotFoundError(f"No checkpoint found at {model_version_path}")
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
 
     return params
@@ -142,7 +145,10 @@ def load_params(model_version_path: Path, best=True) -> FrozenDict:
 def restore_single_parameters(model_dir: Path) -> Tuple[Config, FrozenDict]:
     """Load the config and parameters of a single model
     """
-    model_config = parse_config(Path(model_dir) / "config.yaml")
+    model_dir = Path(model_dir)
+    model_config = parse_config(model_dir / "config.yaml")
+    model_config.data.directory = model_dir.parent.resolve().as_posix()
+
     ckpt_dir = model_config.data.model_version_path
     return model_config, load_params(ckpt_dir)
 
