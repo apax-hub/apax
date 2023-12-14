@@ -1,0 +1,32 @@
+n_epochs: 2
+seed: 2
+
+data:
+  n_train: 16
+  n_valid: 10
+  batch_size: 4
+  valid_batch_size: 10
+
+model:
+  nn: [32,32]
+  n_basis: 5
+  n_radial: 3
+  calc_stress: false
+  b_init: zeros
+
+metrics:
+  - name: energy
+    reductions: [mae]
+
+loss:
+  - name: energy
+  - name: forces
+
+optimizer:
+  emb_lr: 0.0001
+  nn_lr: 0.0001
+  scale_lr: 0.00001
+  shift_lr: 0.001
+
+checkpoints:
+  base_model_checkpoint: null

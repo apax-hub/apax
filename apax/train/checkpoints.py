@@ -14,13 +14,65 @@ from apax.config.train_config import Config
 log = logging.getLogger(__name__)
 
 
-def load_state(model, params, tx, ckpt_dir):
+def check_for_ensemble(params: FrozenDict) -> int:
+    """Checks if a set of parameters belongs to an ensemble model.
+    This is the case if all parameters share the same first dimension (parameter batch)
+    """
+    flat_params = flatten_dict(params)
+    shapes = [v.shape[0] for v in flat_params.values()]
+    is_ensemble = len(set(shapes)) == 1
+
+    if is_ensemble:
+        return shapes[0]
+    else:
+        return 1
+
+
+def create_train_state(model, params: FrozenDict, tx):
+    n_models = check_for_ensemble(params)
+
+    def create_single_train_state(params):
+        state = train_state.TrainState.create(
+            apply_fn=model,
+            params=params,
+            tx=tx,
+        )
+        return state
+
+    if n_models > 1:
+        train_state_fn = jax.vmap(
+            create_single_train_state,
+            axis_name="ensemble"
+        )
+    else:
+        train_state_fn = create_single_train_state
+
+    return train_state_fn(params)
+
+
+def create_params(model, rng_key, sample_input: tuple, n_models: int):
+    keys = jax.random.split(rng_key, num=n_models + 1)
+    rng_key, model_rng = keys[0], keys[1:]
+
+    log.info(f"initializing {n_models} models")
+
+    if n_models == 1:
+        params = model.init(model_rng[0], *sample_input)
+    elif n_models > 1:
+        num_args = len(sample_input)
+        # vmap only over parameters, not over any data from the input
+        in_axes = (0, *[None] * num_args)
+        params = jax.vmap(model.init, in_axes=in_axes)(model_rng, *sample_input)
+    else:
+        raise ValueError(f"n_models should be a positive integer, found {n_models}")
+
+    params = freeze(params)
+
+    return params, rng_key
+
+
+def load_state(state, ckpt_dir):
     start_epoch = 0
-    state = train_state.TrainState.create(
-        apply_fn=model,
-        params=params,
-        tx=tx,
-    )
     target = {"model": state, "epoch": 0}
     checkpoints_exist = Path(ckpt_dir).is_dir()
     if checkpoints_exist:
@@ -70,10 +122,12 @@ def stack_parameters(param_list: List[FrozenDict]) -> FrozenDict:
 
 
 def load_params(model_version_path: Path, best=True) -> FrozenDict:
+    model_version_path = Path(model_version_path)
     if best:
         model_version_path = model_version_path / "best"
     log.info(f"loading checkpoint from {model_version_path}")
     try:
+        # keep try except block for zntrack load from rev
         raw_restored = checkpoints.restore_checkpoint(
             model_version_path,
             target=None,
@@ -81,6 +135,8 @@ def load_params(model_version_path: Path, best=True) -> FrozenDict:
         )
     except FileNotFoundError:
         print(f"No checkpoint found at {model_version_path}")
+    if raw_restored is None:
+        raise FileNotFoundError(f"No checkpoint found at {model_version_path}")
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
 
     return params
@@ -89,8 +145,11 @@ def load_params(model_version_path: Path, best=True) -> FrozenDict:
 def restore_single_parameters(model_dir: Path) -> Tuple[Config, FrozenDict]:
     """Load the config and parameters of a single model
     """
-    model_config = parse_config(Path(model_dir) / "config.yaml")
-    ckpt_dir = model_config.data.model_version_path()
+    model_dir = Path(model_dir)
+    model_config = parse_config(model_dir / "config.yaml")
+    model_config.data.directory = model_dir.parent.resolve().as_posix()
+
+    ckpt_dir = model_config.data.model_version_path
     return model_config, load_params(ckpt_dir)
 
 
@@ -114,3 +173,29 @@ def restore_parameters(model_dir: Union[Path, List[Path]]) -> Tuple[Config, Froz
         )
 
     return config, params
+
+
+def canonicalize_energy_model_parameters(params):
+    """Ensures that parameters from EnergyDerivativeModels can be loaded
+    into EnergyModels by removing the "energy_model" parameter layer.
+    """
+    param_dict = unfreeze(params)
+
+    first_level = param_dict["params"]
+    if "energy_model" in first_level.keys():
+        params = {"params": first_level["energy_model"]}
+    params = freeze(params)
+    return params
+
+
+def canonicalize_energy_grad_model_parameters(params):
+    """Ensures that parameters from EnergyModels can be loaded
+    into EnergyDerivativeModels by adding the "energy_model" parameter layer.
+    """
+    param_dict = unfreeze(params)
+
+    first_level = param_dict["params"]
+    if "energy_model" not in first_level.keys():
+        params = {"params": {"energy_model" : first_level}}
+    params = freeze(params)
+    return params

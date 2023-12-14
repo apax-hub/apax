@@ -21,22 +21,24 @@ def make_minimal_input():
 
 def load_data(data_path):
     """Non ASE compatible parameters have to be saved in an exta file that has the same
-        name as the datapath but with the extension '_labels.npz'.
-        example for the npz-file:
-                dipole = np.random.rand(3, 1)
-                charge = np.random.rand(3, 2)
-                mat = np.random.rand(3, 1)
-                shape = ['ragged', 'ragged', 'fixed']
+    name as the datapath but with the extension `_labels.npz`.
+    example for the npz-file:
 
-                np.savez(
-                    "data_path_labels.npz",
-                    dipole=dipole,
-                    charge=charge,
-                    mat=mat,
-                    shape=shape
-                )
+    dipole = np.random.rand(3, 1)
+    charge = np.random.rand(3, 2)
+    mat = np.random.rand(3, 1)
+    shape = ['ragged', 'ragged', 'fixed']
 
-        shape has to be in the same order than the parameters
+    np.savez(
+        "data_path_labels.npz",
+        dipole=dipole,
+        charge=charge,
+        mat=mat,
+        shape=shape,
+    )
+
+    shape has to be in the same order than the parameters
+
     Parameters
     ----------
     data_path :
@@ -46,6 +48,7 @@ def load_data(data_path):
     -------
     atoms_list
         List of all structures where entries are ASE atoms objects.
+
     """
     external_labels = {}
     # TODO external labels can be included via hdf5 files only? this would clean up a lot

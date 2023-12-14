@@ -1,3 +1,6 @@
-from apax.transfer_learning.parameter_transfer import param_transfer
+from apax.transfer_learning.parameter_transfer import (
+    black_list_param_transfer,
+    transfer_parameters,
+)
 
-__all__ = ["param_transfer"]
+__all__ = ["transfer_parameters", "black_list_param_transfer"]
