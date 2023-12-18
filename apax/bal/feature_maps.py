@@ -1,9 +1,20 @@
-from typing import Literal, Tuple, Union
+from typing import Callable, Literal, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 from flax.traverse_util import flatten_dict, unflatten_dict
 from pydantic import BaseModel, TypeAdapter
+
+from apax.model.gmnn import EnergyModel
+from flax.core.frozen_dict import FrozenDict
+
+
+FeatureMap = Callable[[FrozenDict, dict], jax.Array]
+
+class FeatureTransformation(BaseModel):
+
+    def apply(self, model: EnergyModel) -> FeatureMap: 
+        ...
 
 
 def extract_feature_params(params: dict, layer_name: str) -> Tuple[dict, dict]:
@@ -22,7 +33,7 @@ def extract_feature_params(params: dict, layer_name: str) -> Tuple[dict, dict]:
     return feature_layer_params, remaining_params
 
 
-class LastLayerGradientFeatures(BaseModel, extra="forbid"):
+class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
     """
     Model transfomration which computes the gradient of the output
     wrt. the specified layer.
@@ -32,7 +43,7 @@ class LastLayerGradientFeatures(BaseModel, extra="forbid"):
     name: Literal["ll_grad"]
     layer_name: str = "dense_2"
 
-    def apply(self, model):
+    def apply(self, model: EnergyModel) -> FeatureMap: 
         def ll_grad(params, inputs):
             ll_params, remaining_params = extract_feature_params(params, self.layer_name)
 
@@ -67,12 +78,12 @@ class LastLayerGradientFeatures(BaseModel, extra="forbid"):
         return ll_grad
 
 
-class IdentityFeatures(BaseModel, extra="forbid"):
+class IdentityFeatures(FeatureTransformation, extra="forbid"):
     """Identity feature map. For debugging purposes"""
 
     name: Literal["identity"]
 
-    def apply(self, model):
+    def apply(self, model: EnergyModel) -> FeatureMap: 
         return model.apply
 
 
