@@ -121,17 +121,8 @@ class ModelBuilder:
             init_box=init_box,
             inference_disp_fn=inference_disp_fn,
         )
-        corrections = []
-        if self.config["use_zbl"]:
-            repulsion = ZBLRepulsion(
-                apply_mask=apply_mask,
-                r_max=self.config["r_max"],
-            )
-            corrections.append(repulsion)
-
         model = EnergyDerivativeModel(
             energy_model,
-            corrections=corrections,
             calc_stress=self.config["calc_stress"],
         )
         return model

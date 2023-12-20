@@ -131,7 +131,6 @@ class EnergyModel(nn.Module):
 class EnergyDerivativeModel(nn.Module):
     # Alternatively, should this be a function transformation?
     energy_model: EnergyModel = EnergyModel()
-    corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: [])
     calc_stress: bool = False
 
     def __call__(
