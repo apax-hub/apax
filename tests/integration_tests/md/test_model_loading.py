@@ -22,10 +22,13 @@ def test_model_loading(get_tmp_path, get_sample_input):
     ckpt = {"model": {"params": params}, "epoch": 0}
     ckpt_dir1 = pathlib.Path("models/apax_dummy/best")
     ckpt_dir2 = pathlib.Path("../models/apax_dummy/best").resolve()
+    ckpt_dir3 = pathlib.Path("models/best")
 
-    ckpt_dirs = [ckpt_dir1, ckpt_dir2]
-    for ckpt_dir in ckpt_dirs:
+    ckpt_dirs = [ckpt_dir1, ckpt_dir2, ckpt_dir3]
+    experiments = ["apax_dummy", "apax_dummy", ""]
+    for ckpt_dir, exp in zip(ckpt_dirs, experiments):
         ckpt_dir.mkdir(exist_ok=True, parents=True)
+        model_config.data.experiment = exp
         model_config.dump_config(ckpt_dir.parent)
 
         checkpoints.save_checkpoint(
