@@ -4,7 +4,7 @@ Tutorials
 .. toctree::
    :maxdepth: 2
 
+   01_Model_Training
    md_with_ase
    molecular_dynamics
-   training_a_model
    transfer_learning
