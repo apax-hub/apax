@@ -90,6 +90,11 @@ def make_ensemble(model):
 class ASECalculator(Calculator):
     """
     ASE Calculator for apax models.
+    Always implements energy and force predictions.
+    Stress predictions and corresponding uncertainties are added to
+    `implemented_properties` based on whether the stress flag is set
+    in the model config and whether a model ensemble is loaded.
+
     """
 
     implemented_properties = [
@@ -105,6 +110,21 @@ class ASECalculator(Calculator):
         padding_factor: float = 1.5,
         **kwargs
     ):
+        """
+        Parameters
+        ----------
+        model_dir:
+            Path to a model directory of the form `.../directory/experiment` (see Config docs for details).
+            If a list of model paths is provided, they will be ensembled.
+        dr_threshold:
+            Neighborlist skin for the JaxMD neighborlist.
+        transformations:
+            Function transformations applied on top of the EnergyDerivativeModel.
+            Transfomrations are implemented under `apax.md.transformations`.
+        padding_factor:
+            Multiple of the fallback Matscipy NL's amount of neighbors.
+            This NL will be padded to `len(neighbors) * padding_factor` on NL initialization.
+        """
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
         self.transformations = transformations
