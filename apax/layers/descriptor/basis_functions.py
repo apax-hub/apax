@@ -6,6 +6,42 @@ import jax.numpy as jnp
 import numpy as np
 
 from apax.layers.initializers import uniform_range
+from apax import ops
+
+
+def gaussian_basis_impl(dr, shifts, betta, rad_norm):
+    dr = einops.repeat(dr, "neighbors -> neighbors 1")
+    # 1 x n_basis, neighbors x 1 -> neighbors x n_basis
+    distances = shifts - dr
+
+    # shape: neighbors x n_basis
+    basis = ops.exp(-betta * (distances**2))
+    basis = rad_norm * basis
+    return basis
+
+
+def cosine_cutoff(dr, r_max):
+    # shape: neighbors
+    dr_clipped = ops.clip(dr, a_max=r_max)
+    cos_cutoff = 0.5 * (ops.cos(np.pi * dr_clipped / r_max) + 1.0)
+    cutoff = einops.repeat(cos_cutoff, "neighbors -> neighbors 1")
+    return cutoff
+
+
+def radial_basis_impl(basis, Z_i, Z_j, embeddings, embed_norm):
+    if embeddings is None:
+        radial_function = basis
+    else:
+        # coeffs shape: n_neighbors x n_radialx n_basis
+        # reverse convention to match original
+        species_pair_coeffs = embeddings[Z_j, Z_i, ...]
+        species_pair_coeffs = embed_norm * species_pair_coeffs
+
+        # radial shape: neighbors x n_radial
+        radial_function = einops.einsum(
+            species_pair_coeffs, basis, "nbrs radial basis, nbrs basis -> nbrs radial"
+        )
+    return radial_function
 
 
 class GaussianBasis(nn.Module):
@@ -26,14 +62,7 @@ class GaussianBasis(nn.Module):
         self.shifts = jnp.asarray(shifts, dtype=self.dtype)
 
     def __call__(self, dr):
-        dr = einops.repeat(dr, "neighbors -> neighbors 1")
-        # 1 x n_basis, neighbors x 1 -> neighbors x n_basis
-        distances = self.shifts - dr
-
-        # shape: neighbors x n_basis
-        basis = jnp.exp(-self.betta * (distances**2))
-        basis = self.rad_norm * basis
-
+        basis = gaussian_basis_impl(dr, self.shifts, self.betta, self.rad_norm)
         return basis
 
 
@@ -49,6 +78,7 @@ class RadialFunction(nn.Module):
         self.embed_norm = jnp.array(
             1.0 / np.sqrt(self.basis_fn.n_basis), dtype=self.dtype
         )
+        self.embeddings = None
         if self.emb_init is not None:
             self._n_radial = self.n_radial
             if self.emb_init == "uniform":
@@ -77,27 +107,9 @@ class RadialFunction(nn.Module):
         # basis shape: neighbors x n_basis
         basis = self.basis_fn(dr)
 
-        if self.emb_init is None:
-            radial_function = basis
-        else:
-            # coeffs shape: n_neighbors x n_radialx n_basis
-            species_pair_coeffs = self.embeddings[
-                Z_j, Z_i, ...
-            ]  # reverse convention to match original
-            species_pair_coeffs = self.embed_norm * species_pair_coeffs
-
-            # radial shape: neighbors x n_radial
-            radial_function = einops.einsum(
-                species_pair_coeffs, basis, "nbrs radial basis, nbrs basis -> nbrs radial"
-            )
-
-        # shape: neighbors
-        dr_clipped = jnp.clip(dr, a_max=self.r_max)
-        cos_cutoff = 0.5 * (jnp.cos(np.pi * dr_clipped / self.r_max) + 1.0)
-        cutoff = einops.repeat(cos_cutoff, "neighbors -> neighbors 1")
-
+        radial_function = radial_basis_impl(basis, Z_i, Z_j, self.embeddings, self.embed_norm)
+        cutoff = cosine_cutoff(dr, self.r_max)
         radial_function = radial_function * cutoff
 
         assert radial_function.dtype == self.dtype
-
         return radial_function
