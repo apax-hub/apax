@@ -1,12 +1,15 @@
+import functools
 import logging
 import time
 from functools import partial
-from typing import Callable
+from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
+from clu import metrics
 import numpy as np
 from tqdm import trange
+from apax.data.input_pipeline import AtomisticDataset
 
 from apax.train.checkpoints import CheckpointManager, load_state
 
@@ -15,16 +18,16 @@ log = logging.getLogger(__name__)
 
 def fit(
     state,
-    train_ds,
+    train_ds: AtomisticDataset,
     loss_fn,
-    Metrics,
-    callbacks,
-    n_epochs,
+    Metrics: metrics.Collection,
+    callbacks: list,
+    n_epochs: int,
     ckpt_dir,
     ckpt_interval: int = 1,
-    val_ds=None,
+    val_ds: Optional[AtomisticDataset] =None,
     sam_rho=0.0,
-    patience=None,
+    patience: Optional[int]=None,
     disable_pbar: bool = False,
     is_ensemble=False,
 ):
@@ -35,9 +38,13 @@ def fit(
     best_dir = ckpt_dir / "best"
     ckpt_manager = CheckpointManager()
 
+    n_jitted_steps = 1
+
     train_step, val_step = make_step_fns(
         loss_fn, Metrics, model=state.apply_fn, sam_rho=sam_rho, is_ensemble=is_ensemble
     )
+    if n_jitted_steps > 1:
+        train_step = jax.jit(functools.partial(jax.lax.scan, train_step))
 
     state, start_epoch = load_state(state, latest_dir)
     if start_epoch >= n_epochs:
@@ -45,8 +52,12 @@ def fit(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
 
+    train_ds.batch_multiple_steps(n_jitted_steps)
     train_steps_per_epoch = train_ds.steps_per_epoch()
     batch_train_ds = train_ds.shuffle_and_batch()
+    # inputs, labels = next(batch_train_ds)
+    # print(jax.tree_map(lambda x: x.shape, inputs))
+    # quit()
 
     if val_ds is not None:
         val_steps_per_epoch = val_ds.steps_per_epoch()
@@ -68,12 +79,13 @@ def fit(
         for batch_idx in range(train_steps_per_epoch):
             callbacks.on_train_batch_begin(batch=batch_idx)
 
-            inputs, labels = next(batch_train_ds)
-            batch_loss, train_batch_metrics, state = train_step(
-                state, inputs, labels, train_batch_metrics
+            batch = next(batch_train_ds)
+            (state, train_batch_metrics), batch_loss,  = train_step(
+                (state, train_batch_metrics), batch, 
             )
+            print(batch_loss)
 
-            epoch_loss["train_loss"] += batch_loss
+            epoch_loss["train_loss"] += jnp.mean(batch_loss)
             callbacks.on_train_batch_end(batch=batch_idx)
 
         epoch_loss["train_loss"] /= train_steps_per_epoch
@@ -88,10 +100,10 @@ def fit(
             epoch_loss.update({"val_loss": 0.0})
             val_batch_metrics = Metrics.empty()
             for batch_idx in range(val_steps_per_epoch):
-                inputs, labels = next(batch_val_ds)
+                batch = next(batch_val_ds)
 
                 batch_loss, val_batch_metrics = val_step(
-                    state.params, inputs, labels, val_batch_metrics
+                    state.params, batch, val_batch_metrics
                 )
                 epoch_loss["val_loss"] += batch_loss
 
@@ -213,17 +225,22 @@ def make_step_fns(loss_fn, Metrics, model, sam_rho, is_ensemble):
         eval_fn = loss_calculator
 
     @jax.jit
-    def train_step(state, inputs, labels, batch_metrics):
+    def train_step(carry, batch):
+        state, batch_metrics = carry
+        inputs, labels = batch
         loss, predictions, state = update_fn(state, inputs, labels)
 
         new_batch_metrics = Metrics.single_from_model_output(
             label=labels, prediction=predictions
         )
         batch_metrics = batch_metrics.merge(new_batch_metrics)
-        return loss, batch_metrics, state
+
+        new_carry = (state, batch_metrics)
+        return new_carry, loss
 
     @jax.jit
-    def val_step(params, inputs, labels, batch_metrics):
+    def val_step(params, batch, batch_metrics):
+        inputs, labels = batch
         loss, predictions = eval_fn(params, inputs, labels)
 
         new_batch_metrics = Metrics.single_from_model_output(
