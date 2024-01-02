@@ -153,7 +153,6 @@ class ASECalculator(Calculator):
             positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
             self.neighbors = self.neighbor_fn.allocate(positions)
 
-
     def set_neighbours_and_offsets(self, atoms, box):
         idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms, self.r_max)
 
