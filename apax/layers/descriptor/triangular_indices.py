@@ -47,3 +47,4 @@ def tril_3d_indices(n_radial):
                 tril_idxs.append([i, j, k])
     tril_idxs = jnp.array(tril_idxs)
     return tril_idxs
+# TODO use np array
