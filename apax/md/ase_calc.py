@@ -112,6 +112,7 @@ class ASECalculator(Calculator):
         self.model_config, self.params = restore_parameters(model_dir)
         self.n_models = check_for_ensemble(self.params)
         self.padding_factor = padding_factor
+        self.padded_length = 0
 
         if self.model_config.model.calc_stress:
             self.implemented_properties.append("stress")
@@ -147,6 +148,11 @@ class ASECalculator(Calculator):
 
         self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
         self.neighbor_fn = neighbor_fn
+
+        if self.neigbor_from_jax:
+            positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
+            self.neighbors = self.neighbor_fn.allocate(positions)
+
 
     def set_neighbours_and_offsets(self, atoms, box):
         idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms, self.r_max)
