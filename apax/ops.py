@@ -77,6 +77,12 @@ def cast(x, dtype):
         return x.type(dtype)
 
 
+def einsum(pattern, *operands, **kwargs):
+    if isinstance(operands[0], jax.Array):
+        return jax.numpy.einsum(pattern, *operands, **kwargs)
+    elif isinstance(operands[0], torch.Tensor):
+        return torch.einsum(pattern, *operands, **kwargs)
+
 
 def segment_sum(x, segment_ids, num_segments=None):
     if isinstance(x, jax.Array):
