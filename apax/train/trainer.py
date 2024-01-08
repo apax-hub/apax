@@ -30,6 +30,7 @@ def fit(
     patience: Optional[int] = None,
     disable_pbar: bool = False,
     is_ensemble=False,
+    n_jitted_steps=1,
 ):
     log.info("Beginning Training")
     callbacks.on_train_begin()
@@ -37,8 +38,6 @@ def fit(
     latest_dir = ckpt_dir / "latest"
     best_dir = ckpt_dir / "best"
     ckpt_manager = CheckpointManager()
-
-    n_jitted_steps = 4 # Move to arg
 
     train_step, val_step = make_step_fns(
         loss_fn, Metrics, model=state.apply_fn, sam_rho=sam_rho, is_ensemble=is_ensemble

@@ -279,7 +279,11 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     ----------
 
     n_epochs: Number of training epochs.
+    patience: Number of epochs without improvement before trainings gets terminated.
     seed: Random seed.
+    n_models: Number of models to be trained at once.
+    n_jitted_steps: Number of train batches to be processed in a compiled loop.
+        Can yield singificant speedups for small structures or small batch sizes.
     data: :class: `Data` <config.DataConfig> configuration.
     model: :class: `Model` <config.ModelConfig> configuration.
     metrics: List of :class: `metric` <config.MetricsConfig> configurations.
@@ -294,6 +298,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     patience: Optional[PositiveInt] = None
     seed: int = 1
     n_models: int = 1
+    n_jitted_steps: int = 1
 
     data: DataConfig
     model: ModelConfig = ModelConfig()
