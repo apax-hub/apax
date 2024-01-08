@@ -271,7 +271,7 @@ def run_nvt(
                     )
                 ckpt = {"state": state, "step": step}
                 checkpoints.save_checkpoint(
-                    ckpt_dir=ckpt_dir,
+                    ckpt_dir=ckpt_dir.resolve(),
                     target=ckpt,
                     step=step,
                     overwrite=True,
