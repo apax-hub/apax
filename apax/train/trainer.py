@@ -6,11 +6,11 @@ from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
-from clu import metrics
 import numpy as np
+from clu import metrics
 from tqdm import trange
-from apax.data.input_pipeline import AtomisticDataset
 
+from apax.data.input_pipeline import AtomisticDataset
 from apax.train.checkpoints import CheckpointManager, load_state
 
 log = logging.getLogger(__name__)
@@ -25,9 +25,9 @@ def fit(
     n_epochs: int,
     ckpt_dir,
     ckpt_interval: int = 1,
-    val_ds: Optional[AtomisticDataset] =None,
+    val_ds: Optional[AtomisticDataset] = None,
     sam_rho=0.0,
-    patience: Optional[int]=None,
+    patience: Optional[int] = None,
     disable_pbar: bool = False,
     is_ensemble=False,
 ):
@@ -38,7 +38,7 @@ def fit(
     best_dir = ckpt_dir / "best"
     ckpt_manager = CheckpointManager()
 
-    n_jitted_steps = 1
+    n_jitted_steps = 4 # Move to arg
 
     train_step, val_step = make_step_fns(
         loss_fn, Metrics, model=state.apply_fn, sam_rho=sam_rho, is_ensemble=is_ensemble
@@ -55,9 +55,6 @@ def fit(
     train_ds.batch_multiple_steps(n_jitted_steps)
     train_steps_per_epoch = train_ds.steps_per_epoch()
     batch_train_ds = train_ds.shuffle_and_batch()
-    # inputs, labels = next(batch_train_ds)
-    # print(jax.tree_map(lambda x: x.shape, inputs))
-    # quit()
 
     if val_ds is not None:
         val_steps_per_epoch = val_ds.steps_per_epoch()
@@ -80,10 +77,13 @@ def fit(
             callbacks.on_train_batch_begin(batch=batch_idx)
 
             batch = next(batch_train_ds)
-            (state, train_batch_metrics), batch_loss,  = train_step(
-                (state, train_batch_metrics), batch, 
+            (
+                (state, train_batch_metrics),
+                batch_loss,
+            ) = train_step(
+                (state, train_batch_metrics),
+                batch,
             )
-            print(batch_loss)
 
             epoch_loss["train_loss"] += jnp.mean(batch_loss)
             callbacks.on_train_batch_end(batch=batch_idx)

@@ -187,7 +187,7 @@ class AtomisticDataset:
 
     def set_batch_size(self, batch_size: int):
         self.batch_size = self.validate_batch_size(batch_size)
-    
+
     def batch_multiple_steps(self, n_steps: int):
         self.n_jit_steps = n_steps
 
