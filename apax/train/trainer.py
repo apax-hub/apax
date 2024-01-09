@@ -76,10 +76,13 @@ def fit(
             callbacks.on_train_batch_begin(batch=batch_idx)
 
             batch = next(batch_train_ds)
-            ((state, train_batch_metrics), batch_loss,) = train_step(
-                 (state, train_batch_metrics),
-                 batch,
-             )
+            (
+                (state, train_batch_metrics),
+                batch_loss,
+            ) = train_step(
+                (state, train_batch_metrics),
+                batch,
+            )
 
             epoch_loss["train_loss"] += jnp.mean(batch_loss)
             callbacks.on_train_batch_end(batch=batch_idx)
