@@ -252,7 +252,6 @@ class AtomisticDataset:
         )
 
         if self.n_jit_steps > 1:
-            print("JIT BATCH")
             ds = ds.batch(batch_size=self.n_jit_steps)
 
         ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
