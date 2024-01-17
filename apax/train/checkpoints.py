@@ -89,9 +89,9 @@ class CheckpointManager:
     def __init__(self) -> None:
         self.async_manager = checkpoints.AsyncManager()
 
-    def save_checkpoint(self, ckpt, epoch: int, path: str) -> None:
+    def save_checkpoint(self, ckpt, epoch: int, path: Path) -> None:
         checkpoints.save_checkpoint(
-            ckpt_dir=path,
+            ckpt_dir=path.resolve(),
             target=ckpt,
             step=epoch,
             overwrite=True,
@@ -147,7 +147,11 @@ def restore_single_parameters(model_dir: Path) -> Tuple[Config, FrozenDict]:
     """
     model_dir = Path(model_dir)
     model_config = parse_config(model_dir / "config.yaml")
-    model_config.data.directory = model_dir.parent.resolve().as_posix()
+
+    if model_config.data.experiment == "":
+        model_config.data.directory = model_dir.resolve().as_posix()
+    else:
+        model_config.data.directory = model_dir.parent.resolve().as_posix()
 
     ckpt_dir = model_config.data.model_version_path
     return model_config, load_params(ckpt_dir)
