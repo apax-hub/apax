@@ -8,6 +8,8 @@ import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from jax_md import partition, quantity, space
 from matscipy.neighbours import neighbour_list
+from tqdm import trange
+from apax.data.initialization import RawDataset, initialize_dataset
 
 from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
@@ -127,6 +129,7 @@ class ASECalculator(Calculator):
         self.neighbor_fn = None
         self.neighbors = None
         self.offsets = None
+        self.model = None
 
     def initialize(self, atoms):
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
@@ -146,6 +149,7 @@ class ASECalculator(Calculator):
         for transformation in self.transformations:
             model = transformation.apply(model, self.n_models)
 
+        self.model = model
         self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
         self.neighbor_fn = neighbor_fn
 
@@ -214,6 +218,31 @@ class ASECalculator(Calculator):
 
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
+
+    def batch_eval(self, data, batch_size=64, silent=False):
+        if self.model is None:
+            self.initialize(data[0])
+        dataset = initialize_dataset(self.model_config, RawDataset(atoms_list=data), calc_stats=False)
+        dataset.set_batch_size(batch_size)
+
+        features = []
+        n_data = dataset.n_data
+        ds = dataset.batch()
+        batched_model = jax.jit(jax.vmap(self.model,))
+
+        pbar = trange(n_data, desc="Computing features", ncols=100, leave=True, disable=silent)
+        for i, (inputs, _) in enumerate(ds):
+            results = batched_model(inputs)
+            unpadded_results = unpad_results(results, inputs)
+            for j in range(batch_size):
+                data[i].calc = SinglepointCalculator(atoms=data[i], results={})
+            pbar.update(batch_size)
+        pbar.close()
+
+
+
+
+
 
 
 def neighbor_calculable_with_jax(box, r_max):
