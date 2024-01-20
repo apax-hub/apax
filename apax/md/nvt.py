@@ -288,6 +288,15 @@ def run_nvt(
     sim_pbar.close()
 
     barrier_wait()
+    ckpt = {"state": state, "step": step}
+    checkpoints.save_checkpoint(
+        ckpt_dir=ckpt_dir.resolve(),
+        target=ckpt,
+        step=step,
+        overwrite=True,
+        keep=2,
+        async_manager=async_manager,
+    )
     traj_handler.write()
     traj_handler.close()
     end = time.time()
