@@ -30,9 +30,9 @@ log = logging.getLogger(__name__)
 
 
 def create_energy_fn(model, params, numbers, n_models):
-    def ensemble(params, R, Z, neighbor, box, offsets):
-        vmodel = jax.vmap(model, (0, None, None, None, None, None), 0)
-        energies = vmodel(params, R, Z, neighbor, box, offsets)
+    def ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
+        vmodel = jax.vmap(model, (0, None, None, None, None, None, None), 0)
+        energies = vmodel(params, R, Z, neighbor, box, offsets, perturbation)
         energy = jnp.mean(energies)
 
         return energy
