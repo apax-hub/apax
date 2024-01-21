@@ -30,9 +30,9 @@ log = logging.getLogger(__name__)
 
 
 def create_energy_fn(model, params, numbers, n_models):
-    def ensemble(params, R, Z, neighbor, box, offsets):
-        vmodel = jax.vmap(model, (0, None, None, None, None, None), 0)
-        energies = vmodel(params, R, Z, neighbor, box, offsets)
+    def ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
+        vmodel = jax.vmap(model, (0, None, None, None, None, None, None), 0)
+        energies = vmodel(params, R, Z, neighbor, box, offsets, perturbation)
         energy = jnp.mean(energies)
 
         return energy
@@ -288,6 +288,15 @@ def run_nvt(
     sim_pbar.close()
 
     barrier_wait()
+    ckpt = {"state": state, "step": step}
+    checkpoints.save_checkpoint(
+        ckpt_dir=ckpt_dir.resolve(),
+        target=ckpt,
+        step=step,
+        overwrite=True,
+        keep=2,
+        async_manager=async_manager,
+    )
     traj_handler.write()
     traj_handler.close()
     end = time.time()
