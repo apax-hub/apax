@@ -76,10 +76,7 @@ def fit(
             callbacks.on_train_batch_begin(batch=batch_idx)
 
             batch = next(batch_train_ds)
-            (
-                (state, train_batch_metrics),
-                batch_loss,
-            ) = train_step(
+            ((state, train_batch_metrics), batch_loss,) = train_step(
                 (state, train_batch_metrics),
                 batch,
             )
@@ -109,10 +106,12 @@ def fit(
             epoch_loss["val_loss"] /= val_steps_per_epoch
             epoch_loss["val_loss"] = float(epoch_loss["val_loss"])
 
-            epoch_metrics.update({
-                f"val_{key}": float(val)
-                for key, val in val_batch_metrics.compute().items()
-            })
+            epoch_metrics.update(
+                {
+                    f"val_{key}": float(val)
+                    for key, val in val_batch_metrics.compute().items()
+                }
+            )
 
         epoch_metrics.update({**epoch_loss})
 
