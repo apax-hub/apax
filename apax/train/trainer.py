@@ -76,10 +76,7 @@ def fit(
             callbacks.on_train_batch_begin(batch=batch_idx)
 
             batch = next(batch_train_ds)
-            (
-                (state, train_batch_metrics),
-                batch_loss,
-            ) = train_step(
+            ((state, train_batch_metrics), batch_loss,) = train_step(
                 (state, train_batch_metrics),
                 batch,
             )
