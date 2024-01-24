@@ -76,4 +76,3 @@ directory = "coverage_html_report"
 
 [tool.coverage.report]
 show_missing = true
-
