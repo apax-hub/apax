@@ -40,10 +40,7 @@ def create_train_state(model, params: FrozenDict, tx):
         return state
 
     if n_models > 1:
-        train_state_fn = jax.vmap(
-            create_single_train_state,
-            axis_name="ensemble"
-        )
+        train_state_fn = jax.vmap(create_single_train_state, axis_name="ensemble")
     else:
         train_state_fn = create_single_train_state
 
@@ -129,9 +126,7 @@ def load_params(model_version_path: Path, best=True) -> FrozenDict:
     try:
         # keep try except block for zntrack load from rev
         raw_restored = checkpoints.restore_checkpoint(
-            model_version_path,
-            target=None,
-            step=None
+            model_version_path, target=None, step=None
         )
     except FileNotFoundError:
         print(f"No checkpoint found at {model_version_path}")
@@ -143,8 +138,7 @@ def load_params(model_version_path: Path, best=True) -> FrozenDict:
 
 
 def restore_single_parameters(model_dir: Path) -> Tuple[Config, FrozenDict]:
-    """Load the config and parameters of a single model
-    """
+    """Load the config and parameters of a single model"""
     model_dir = Path(model_dir)
     model_config = parse_config(model_dir / "config.yaml")
 
@@ -200,6 +194,6 @@ def canonicalize_energy_grad_model_parameters(params):
 
     first_level = param_dict["params"]
     if "energy_model" not in first_level.keys():
-        params = {"params": {"energy_model" : first_level}}
+        params = {"params": {"energy_model": first_level}}
     params = freeze(params)
     return params
