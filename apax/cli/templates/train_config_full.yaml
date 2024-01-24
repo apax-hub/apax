@@ -11,7 +11,7 @@ data:
   #train_data_path: <PATH>
   #val_data_path: <PATH>
   #test_data_path: <PATH>
-  
+
   n_train: 1000
   n_valid: 100
 
