@@ -157,7 +157,7 @@ class ASECalculator(Calculator):
                 positions = space.transform(inv_box, positions) # frac coords
                 self.neighbors = self.neighbor_fn.allocate(positions, box=box)
             else:
-                neighbor = neighbor.allocate(positions)
+                self.neighbors = self.neighbor_fn.allocate(positions)
         else:
             idxs_i = neighbour_list("i", atoms, self.r_max)
             self.padded_length = int(len(idxs_i) * self.padding_factor)
