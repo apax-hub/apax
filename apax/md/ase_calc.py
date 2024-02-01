@@ -154,7 +154,7 @@ class ASECalculator(Calculator):
                 positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
                 box = atoms.cell.array.T
                 inv_box = jnp.linalg.inv(box)
-                positions = space.transform(inv_box, positions) # frac coords
+                positions = space.transform(inv_box, positions)  # frac coords
                 self.neighbors = self.neighbor_fn.allocate(positions, box=box)
             else:
                 neighbor = neighbor.allocate(positions)
@@ -264,6 +264,7 @@ def get_step_fn(model, atoms, neigbor_from_jax):
             return results, neighbor
 
     else:
+
         @jax.jit
         def step_fn(positions, neighbor, box, offsets):
             results = model(positions, Z, neighbor, box, offsets)
