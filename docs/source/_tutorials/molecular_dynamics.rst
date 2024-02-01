@@ -54,9 +54,6 @@ Congratulations, you have calculated the first observable from a trajectory gene
 
 ## Custom Simulation Loops
 
-More complex simulation loops are relatively easy to build yourself in JaxMD (see their colab notebooks for examples). 
+More complex simulation loops are relatively easy to build yourself in JaxMD (see their colab notebooks for examples).
 Trained apax models can of course be used as `energy_fn` in such custom simulations.
 If you have a suggestion for adding some MD feature or thermostat to the core of `apax`, feel free to open up an issue on Github LINK.
-
-
-
