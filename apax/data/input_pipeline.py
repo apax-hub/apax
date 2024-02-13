@@ -134,12 +134,14 @@ def dataset_from_dicts(
     for key, val in labels["fixed"].items():
         labels["fixed"][key] = tf.constant(val)
 
-    ds = tf.data.Dataset.from_tensor_slices((
-        inputs["ragged"],
-        inputs["fixed"],
-        labels["ragged"],
-        labels["fixed"],
-    ))
+    ds = tf.data.Dataset.from_tensor_slices(
+        (
+            inputs["ragged"],
+            inputs["fixed"],
+            labels["ragged"],
+            labels["fixed"],
+        )
+    )
     return ds
 
 
