@@ -10,8 +10,8 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from jax_md import partition, quantity, space
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
-from apax.data.initialization import RawDataset, initialize_dataset
 
+from apax.data.initialization import RawDataset, initialize_dataset
 from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
 from apax.utils import jax_md_reduced
@@ -31,7 +31,6 @@ def maybe_vmap(apply, params):
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_jax):
     r_max = config.model.r_max
-    atomic_numbers = jnp.asarray(atoms.numbers)
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
     neigbor_from_jax = neighbor_calculable_with_jax(box, r_max)
     box = box.T
@@ -93,9 +92,9 @@ def unpack_results(results, inputs):
     unpacked_results = []
     for i in range(n_structures):
         single_results = jax.tree_map(lambda x: x[i], results)
-        for k,v in single_results.items():
+        for k, v in single_results.items():
             if "forces" in k:
-                single_results[k] = v[:inputs["n_atoms"][i]]
+                single_results[k] = v[: inputs["n_atoms"][i]]
         unpacked_results.append(single_results)
     return unpacked_results
 
@@ -234,7 +233,9 @@ class ASECalculator(Calculator):
     def batch_eval(self, data, batch_size=64, silent=False):
         if self.model is None:
             self.initialize(data[0])
-        dataset = initialize_dataset(self.model_config, RawDataset(atoms_list=data), calc_stats=False)
+        dataset = initialize_dataset(
+            self.model_config, RawDataset(atoms_list=data), calc_stats=False
+        )
         dataset.set_batch_size(batch_size)
 
         evaluated_data = []
@@ -242,7 +243,9 @@ class ASECalculator(Calculator):
         ds = dataset.batch()
         batched_model = jax.jit(jax.vmap(self.model, in_axes=(0, 0, 0, 0, 0)))
 
-        pbar = trange(n_data, desc="Computing features", ncols=100, leave=True, disable=silent)
+        pbar = trange(
+            n_data, desc="Computing features", ncols=100, leave=True, disable=silent
+        )
         for i, (inputs, _) in enumerate(ds):
             positions_b, Z_b, neighbor_b, box_b, offsets_b = (
                 inputs["positions"],
