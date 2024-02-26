@@ -57,6 +57,7 @@ main.py
 tmp/
 .npz
 .traj
+.h5
 events.out.*
 
 # Translations
