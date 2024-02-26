@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
+from ase.calculators.singlepoint import SinglePointCalculator
 from jax_md import partition, quantity, space
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
@@ -87,6 +88,18 @@ def make_ensemble(model):
         return results
 
     return ensemble
+
+
+def unpack_results(results, inputs):
+    unpacked_results = []
+
+    unpacked_results = jax.tree_transpose(
+        outer_treedef = jax.tree_structure(results),
+        inner_treedef = jax.tree_structure([0 for r in results["energy"]]),
+        pytree_to_transpose = results
+        )
+    return unpacked_results
+
 
 
 class ASECalculator(Calculator):
@@ -226,24 +239,23 @@ class ASECalculator(Calculator):
         dataset = initialize_dataset(self.model_config, RawDataset(atoms_list=data), calc_stats=False)
         dataset.set_batch_size(batch_size)
 
-        features = []
+        # features = []
+        evaluated_data = []
         n_data = dataset.n_data
         ds = dataset.batch()
-        batched_model = jax.jit(jax.vmap(self.model,))
+        batched_model = jax.jit(jax.vmap(self.model, in_axes=(None, 0, 0, 0, 0, 0)))
 
         pbar = trange(n_data, desc="Computing features", ncols=100, leave=True, disable=silent)
         for i, (inputs, _) in enumerate(ds):
             results = batched_model(inputs)
-            unpadded_results = unpad_results(results, inputs)
+            unpadded_results = unpack_results(results, inputs)
             for j in range(batch_size):
-                data[i].calc = SinglepointCalculator(atoms=data[i], results={})
+                atoms = data[i].copy()
+                atoms.calc = SinglePointCalculator(atoms=atoms, results=unpadded_results[j])
+                evaluated_data.append(atoms)
             pbar.update(batch_size)
         pbar.close()
-
-
-
-
-
+        return evaluated_data
 
 
 def neighbor_calculable_with_jax(box, r_max):
