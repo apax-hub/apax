@@ -107,7 +107,7 @@ class EnergyModel(nn.Module):
 
         # dr_vec shape: neighbors x 3
         if np.all(self.init_box < 1e-6):
-            # reverse conventnion to match TF
+            # reverse convention to match TF
             # distance vector for gas phase training and predicting
             dr_vec = self.displacement(Rj, Ri)
         else:
@@ -153,5 +153,13 @@ class EnergyDerivativeModel(nn.Module):
                 self.energy_model, R, box, Z=Z, neighbor=neighbor, offsets=offsets
             )
             prediction["stress"] = stress
+
+        if True:
+            hess = jax.hessian(self.energy_model)(
+                R, Z, neighbor, box, offsets
+            )
+            s0 = hess.shape[0]
+            s1 = hess.shape[1]
+            prediction["hessian"] = jnp.reshape(hess, (s0*s1, s0*s1))
 
         return prediction

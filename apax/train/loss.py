@@ -87,7 +87,7 @@ class Loss:
                 f"the loss function '{self.loss_type}' is not known."
             )
 
-        if self.name not in ["energy", "forces", "stress"]:
+        if self.name not in ["energy", "forces", "stress", "hessian"]:
             raise NotImplementedError(f"the quantity '{self.name}' is not known.")
         self.loss_fn = loss_functions[self.loss_type]
 

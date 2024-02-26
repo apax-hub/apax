@@ -67,7 +67,8 @@ def load_data(data_path):
     if label_path.is_file():
         log.info(f"Loading non ASE labels from {label_path.as_posix()}")
 
-        label_dict = np.load(label_path.as_posix(), allow_pickle=True)
+        label_dict = dict(np.load(label_path.as_posix(), allow_pickle=True))
+        label_dict["shape"] = ["fixed"]
 
         unique_shape = np.unique(label_dict["shape"])
         for shape in unique_shape:
@@ -78,7 +79,6 @@ def load_data(data_path):
             if key != "shape":
                 external_labels[label_dict["shape"][i]].update({key: val})
                 i += 1
-
     return atoms_list, external_labels
 
 
