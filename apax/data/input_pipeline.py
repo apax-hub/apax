@@ -134,14 +134,12 @@ def dataset_from_dicts(
     for key, val in labels["fixed"].items():
         labels["fixed"][key] = tf.constant(val)
 
-    ds = tf.data.Dataset.from_tensor_slices(
-        (
-            inputs["ragged"],
-            inputs["fixed"],
-            labels["ragged"],
-            labels["fixed"],
-        )
-    )
+    ds = tf.data.Dataset.from_tensor_slices((
+        inputs["ragged"],
+        inputs["fixed"],
+        labels["ragged"],
+        labels["fixed"],
+    ))
     return ds
 
 
@@ -174,6 +172,7 @@ class AtomisticDataset:
         """
         self.n_epoch = n_epoch
         self.batch_size = None
+        self.n_jit_steps = 1
         self.buffer_size = buffer_size
 
         max_atoms, max_nbrs = find_largest_system(inputs)
@@ -186,6 +185,9 @@ class AtomisticDataset:
 
     def set_batch_size(self, batch_size: int):
         self.batch_size = self.validate_batch_size(batch_size)
+
+    def batch_multiple_steps(self, n_steps: int):
+        self.n_jit_steps = n_steps
 
     def _check_batch_size(self):
         if self.batch_size is None:
@@ -208,7 +210,7 @@ class AtomisticDataset:
         number of steps, and all batches have the same length. To do so, some training
         data are dropped in each epoch.
         """
-        return self.n_data // self.batch_size
+        return self.n_data // self.batch_size // self.n_jit_steps
 
     def init_input(self) -> Dict[str, np.ndarray]:
         """Returns first batch of inputs and labels to init the model."""
@@ -240,15 +242,18 @@ class AtomisticDataset:
             Iterator that returns inputs and labels of one batch in each step.
         """
         self._check_batch_size()
-        shuffled_ds = (
+        ds = (
             self.ds.shuffle(buffer_size=self.buffer_size)
             .repeat(self.n_epoch)
             .batch(batch_size=self.batch_size)
             .map(PadToSpecificSize(self.max_atoms, self.max_nbrs))
         )
 
-        shuffled_ds = prefetch_to_single_device(shuffled_ds.as_numpy_iterator(), 2)
-        return shuffled_ds
+        if self.n_jit_steps > 1:
+            ds = ds.batch(batch_size=self.n_jit_steps)
+
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        return ds
 
     def batch(self) -> Iterator[jax.Array]:
         self._check_batch_size()
