@@ -36,16 +36,16 @@ class PadToSpecificSize:
         self.max_nbrs = max_nbrs
 
     def __call__(
-        self, r_inputs: dict, f_inputs: dict, r_labels: dict, f_labels: dict
+        self, inputs: dict, labels: dict = None
     ) -> tuple[dict, dict]:
         """
         Arguments
         ---------
 
         r_inputs :
-            Inputs of ragged shape. Untrainable system-determining properties.
+            Inputs of ragged shape.
         f_inputs :
-            Inputs of fixed shape. Untrainable system-determining properties.
+            Inputs of fixed shape.
         r_labels :
             Labels of ragged shape. Trainable system properties.
         f_labels :
@@ -58,6 +58,8 @@ class PadToSpecificSize:
         labels:
             Contains all labels and all entries are uniformly shaped.
         """
+        r_inputs = inputs["ragged"]
+        f_inputs = inputs["fixed"]
         for key, val in r_inputs.items():
             if self.max_atoms is None:
                 r_inputs[key] = val.to_tensor()
@@ -75,37 +77,71 @@ class PadToSpecificSize:
                 padded_shape = [shape[0], self.max_atoms, shape[2]]  # batch, atoms, 3
             r_inputs[key] = val.to_tensor(shape=padded_shape)
 
-        for key, val in r_labels.items():
-            if self.max_atoms is None:
-                r_labels[key] = val.to_tensor()
-            else:
-                padded_shape = [shape[0], self.max_atoms, shape[2]]
-                r_labels[key] = val.to_tensor(default_value=0.0, shape=padded_shape)
-
-        inputs = r_inputs.copy()
-        inputs.update(f_inputs)
-
-        labels = r_labels.copy()
-        labels.update(f_labels)
-
-        return inputs, labels
+        new_inputs = r_inputs.copy()
+        new_inputs.update(f_inputs)
 
 
-def create_dict_dataset(
+        if labels:
+            r_labels = labels["ragged"]
+            f_labels = labels["fixed"]
+            for key, val in r_labels.items():
+                if self.max_atoms is None:
+                    r_labels[key] = val.to_tensor()
+                else:
+                    padded_shape = [shape[0], self.max_atoms, shape[2]]
+                    r_labels[key] = val.to_tensor(default_value=0.0, shape=padded_shape)
+
+            new_labels = r_labels.copy()
+            new_labels.update(f_labels)
+
+            return new_inputs, new_labels
+        else:
+            return new_inputs
+        # for key, val in r_inputs.items():
+        #     if self.max_atoms is None:
+        #         r_inputs[key] = val.to_tensor()
+        #     elif key == "idx":
+        #         shape = r_inputs[key].shape
+        #         padded_shape = [shape[0], shape[1], self.max_nbrs]  # batch, ij, nbrs
+        #     elif key == "offsets":
+        #         shape = r_inputs[key].shape
+        #         padded_shape = [shape[0], self.max_nbrs, 3]  # batch, ij, nbrs
+        #     elif key == "numbers":
+        #         shape = r_inputs[key].shape
+        #         padded_shape = [shape[0], self.max_atoms]  # batch, atoms
+        #     else:
+        #         shape = r_inputs[key].shape
+        #         padded_shape = [shape[0], self.max_atoms, shape[2]]  # batch, atoms, 3
+        #     r_inputs[key] = val.to_tensor(shape=padded_shape)
+
+        # inputs = r_inputs.copy()
+        # inputs.update(f_inputs)
+
+
+        # if r_labels and f_labels:
+        #     for key, val in r_labels.items():
+        #         if self.max_atoms is None:
+        #             r_labels[key] = val.to_tensor()
+        #         else:
+        #             padded_shape = [shape[0], self.max_atoms, shape[2]]
+        #             r_labels[key] = val.to_tensor(default_value=0.0, shape=padded_shape)
+
+        #     labels = r_labels.copy()
+        #     labels.update(f_labels)
+        
+
+        #     return inputs, labels
+        # else:
+        #     return inputs
+
+
+def process_inputs(
     atoms_list: list,
     r_max: float,
-    external_labels: dict = {},
     disable_pbar=False,
     pos_unit: str = "Ang",
-    energy_unit: str = "eV",
-) -> tuple[dict]:
+) -> dict:
     inputs = atoms_to_inputs(atoms_list, pos_unit)
-    labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
-
-    if external_labels:
-        for shape, label in external_labels.items():
-            labels[shape].update(label)
-
     idx, offsets = dataset_neighborlist(
         inputs["ragged"]["positions"],
         box=inputs["fixed"]["box"],
@@ -116,7 +152,21 @@ def create_dict_dataset(
 
     inputs["ragged"]["idx"] = idx
     inputs["ragged"]["offsets"] = offsets
-    return inputs, labels
+    return inputs
+
+
+def process_labels(
+    atoms_list: list,
+    external_labels: dict = {},
+    pos_unit: str = "Ang",
+    energy_unit: str = "eV",
+) -> tuple[dict]:
+    labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
+
+    if external_labels:
+        for shape, label in external_labels.items():
+            labels[shape].update(label)
+    return labels
 
 
 def dataset_from_dicts(
@@ -130,8 +180,13 @@ def dataset_from_dicts(
         for key, val in doa["fixed"].items():
             doa["fixed"][key] = tf.constant(val)
 
-    tensors = (doa["ragged"], doa["fixed"] for doa in dicts_of_arrays)
-    ds = tf.data.Dataset.from_tensor_slices(tensors)
+    # tensors = []
+    # for doa in dicts_of_arrays:
+    #     tensors.append(doa["ragged"])
+    #     tensors.append(doa["fixed"])
+    # print(*tensors)
+    # quit()
+    ds = tf.data.Dataset.from_tensor_slices(*dicts_of_arrays)
     return ds
 
 
@@ -173,7 +228,11 @@ class AtomisticDataset:
 
         self.n_data = len(inputs["fixed"]["n_atoms"])
 
-        self.ds = dataset_from_dicts(inputs, labels)
+
+        if labels:
+            self.ds = dataset_from_dicts(inputs, labels)
+        else:
+            self.ds = dataset_from_dicts(inputs)
 
     def set_batch_size(self, batch_size: int):
         self.batch_size = self.validate_batch_size(batch_size)

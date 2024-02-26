@@ -132,6 +132,8 @@ def atoms_to_labels(
             "stress": [],
         },
     }
+    if not atoms_list[0].calc:
+        return None
 
     for atoms in atoms_list:
         for key, val in atoms.calc.results.items():
@@ -146,9 +148,8 @@ def atoms_to_labels(
                     atoms.get_stress(voigt=False)
                     * unit_dict[energy_unit]
                     / (unit_dict[pos_unit] ** 3)
-                    * atoms.cell.volume
                 )
-                labels["fixed"][key].append(stress)
+                labels["fixed"][key].append(stress * atoms.cell.volume)
 
     labels["fixed"] = prune_dict(labels["fixed"])
     labels["ragged"] = prune_dict(labels["ragged"])

@@ -268,15 +268,14 @@ class ASECalculator(Calculator):
         pbar = trange(
             n_data, desc="Computing features", ncols=100, leave=True, disable=silent
         )
-        for i, (inputs, _) in enumerate(ds):
-            positions_b, Z_b, neighbor_b, box_b, offsets_b = (
+        for i, inputs in enumerate(ds):
+            results = batched_model(
                 inputs["positions"],
                 inputs["numbers"],
                 inputs["idx"],
                 inputs["box"],
                 inputs["offsets"],
             )
-            results = batched_model(positions_b, Z_b, neighbor_b, box_b, offsets_b)
             unpadded_results = unpack_results(results, inputs)
 
             # for the last batch, the number of structures may be less than the batch_size,
