@@ -112,6 +112,7 @@ class ASECalculator(Calculator):
         self.model_config, self.params = restore_parameters(model_dir)
         self.n_models = check_for_ensemble(self.params)
         self.padding_factor = padding_factor
+        self.padded_length = 0
 
         if self.model_config.model.calc_stress:
             self.implemented_properties.append("stress")
@@ -148,11 +149,24 @@ class ASECalculator(Calculator):
         self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
         self.neighbor_fn = neighbor_fn
 
+        if self.neigbor_from_jax:
+            if np.any(atoms.get_cell().lengths() > 1e-6):
+                positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
+                box = atoms.cell.array.T
+                inv_box = jnp.linalg.inv(box)
+                positions = space.transform(inv_box, positions)  # frac coords
+                self.neighbors = self.neighbor_fn.allocate(positions, box=box)
+            else:
+                self.neighbors = self.neighbor_fn.allocate(positions)
+        else:
+            idxs_i = neighbour_list("i", atoms, self.r_max)
+            self.padded_length = int(len(idxs_i) * self.padding_factor)
+
     def set_neighbours_and_offsets(self, atoms, box):
         idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms, self.r_max)
 
         if len(idxs_i) > self.padded_length:
-            print("neighbor list overflowed, reallocating.")
+            print("neighbor list overflowed, extending.")
             self.padded_length = int(len(idxs_i) * self.padding_factor)
             self.initialize(atoms)
 
@@ -173,12 +187,6 @@ class ASECalculator(Calculator):
         if self.step is None:
             self.initialize(atoms)
 
-            if self.neigbor_from_jax:
-                self.neighbors = self.neighbor_fn.allocate(positions)
-            else:
-                idxs_i = neighbour_list("i", atoms, self.r_max)
-                self.padded_length = int(len(idxs_i) * self.padding_factor)
-
         elif "numbers" in system_changes:
             self.initialize(atoms)
 
@@ -197,8 +205,6 @@ class ASECalculator(Calculator):
             if self.neighbors.did_buffer_overflow:
                 print("neighbor list overflowed, reallocating.")
                 self.initialize(atoms)
-                self.neighbors = self.neighbor_fn.allocate(positions)
-
                 results, self.neighbors = self.step(positions, self.neighbors, box)
 
         else:
@@ -262,10 +268,8 @@ def get_step_fn(model, atoms, neigbor_from_jax):
         @jax.jit
         def step_fn(positions, neighbor, box, offsets):
             results = model(positions, Z, neighbor, box, offsets)
-
             if "stress" in results.keys():
                 results = process_stress(results, box)
-
             return results
 
     return step_fn
