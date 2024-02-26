@@ -5,6 +5,7 @@ from typing import Callable, Union
 import jax
 import jax.numpy as jnp
 import numpy as np
+import ase
 from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
 from jax_md import partition, quantity, space
@@ -230,15 +231,36 @@ class ASECalculator(Calculator):
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
 
-    def batch_eval(self, data, batch_size=64, silent=False):
+    def batch_eval(self, atoms_list: list[ase.Atoms], batch_size: int=64, silent: bool=False) -> list[ase.Atoms]:
+        """Evaluate the model on a list of Atoms. This is preferable to assigning
+        the calculator to each Atoms instance for 2 reasons:
+        1. Processing can be abtched, which is advantageous for larger datasets.
+        2. Inputs are padded so no recompilation is triggered when evaluating
+        differently sized systems.
+
+        Arguments
+        ---------
+        atoms_list :
+            List of Atoms to be evaluated.
+        batch_size:
+            Processing batch size. Does not affect results,
+            only speed and memory requirements.
+        silent:
+            Whether or not to suppress progress bars.
+
+        Returns
+        -------
+        evaluated_atoms_list:
+            List of Atoms with labels predicted by the model.
+        """
         if self.model is None:
-            self.initialize(data[0])
+            self.initialize(atoms_list[0])
         dataset = initialize_dataset(
-            self.model_config, RawDataset(atoms_list=data), calc_stats=False
+            self.model_config, RawDataset(atoms_list=atoms_list), calc_stats=False
         )
         dataset.set_batch_size(batch_size)
 
-        evaluated_data = []
+        evaluated_atoms_list = []
         n_data = dataset.n_data
         ds = dataset.batch()
         batched_model = jax.jit(jax.vmap(self.model, in_axes=(0, 0, 0, 0, 0)))
@@ -256,13 +278,17 @@ class ASECalculator(Calculator):
             )
             results = batched_model(positions_b, Z_b, neighbor_b, box_b, offsets_b)
             unpadded_results = unpack_results(results, inputs)
-            for j in range(batch_size):
-                atoms = data[i].copy()
+
+            # for the last batch, the number of structures may be less than the batch_size,
+            # which is why we check this explicitely
+            num_strucutres_in_batch = results["energy"].shape[0]
+            for j in range(num_strucutres_in_batch):
+                atoms = atoms_list[i].copy()
                 atoms.calc = SinglePointCalculator(atoms=atoms, **unpadded_results[j])
-                evaluated_data.append(atoms)
+                evaluated_atoms_list.append(atoms)
             pbar.update(batch_size)
         pbar.close()
-        return evaluated_data
+        return evaluated_atoms_list
 
 
 def neighbor_calculable_with_jax(box, r_max):
