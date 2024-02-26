@@ -7,7 +7,7 @@ import numpy as np
 import tensorflow as tf
 
 from apax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
-from apax.utils.convert import atoms_to_arrays
+from apax.utils.convert import atoms_to_inputs, atoms_to_labels
 
 log = logging.getLogger(__name__)
 
@@ -99,7 +99,8 @@ def create_dict_dataset(
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
 ) -> tuple[dict]:
-    inputs, labels = atoms_to_arrays(atoms_list, pos_unit, energy_unit)
+    inputs = atoms_to_inputs(atoms_list, pos_unit)
+    labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
 
     if external_labels:
         for shape, label in external_labels.items():
@@ -119,29 +120,18 @@ def create_dict_dataset(
 
 
 def dataset_from_dicts(
-    inputs: Dict[str, np.ndarray], labels: Dict[str, np.ndarray]
-) -> tf.data.Dataset:
+    *dicts_of_arrays: Dict[str, np.ndarray]) -> tf.data.Dataset:
     # tf.RaggedTensors should be created from `tf.ragged.stack`
     # instead of `tf.ragged.constant` for performance reasons.
     # See https://github.com/tensorflow/tensorflow/issues/47853
-    for key, val in inputs["ragged"].items():
-        inputs["ragged"][key] = tf.ragged.stack(val)
-    for key, val in inputs["fixed"].items():
-        inputs["fixed"][key] = tf.constant(val)
+    for doa in dicts_of_arrays:
+        for key, val in doa["ragged"].items():
+            doa["ragged"][key] = tf.ragged.stack(val)
+        for key, val in doa["fixed"].items():
+            doa["fixed"][key] = tf.constant(val)
 
-    for key, val in labels["ragged"].items():
-        labels["ragged"][key] = tf.ragged.stack(val)
-    for key, val in labels["fixed"].items():
-        labels["fixed"][key] = tf.constant(val)
-
-    ds = tf.data.Dataset.from_tensor_slices(
-        (
-            inputs["ragged"],
-            inputs["fixed"],
-            labels["ragged"],
-            labels["fixed"],
-        )
-    )
+    tensors = (doa["ragged"], doa["fixed"] for doa in dicts_of_arrays)
+    ds = tf.data.Dataset.from_tensor_slices(tensors)
     return ds
 
 
@@ -151,8 +141,8 @@ class AtomisticDataset:
     def __init__(
         self,
         inputs,
-        labels,
         n_epoch: int,
+        labels=None,
         buffer_size: int = 1000,
     ) -> None:
         """Processes inputs/labels and makes them accessible for training.
