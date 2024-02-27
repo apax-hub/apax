@@ -29,7 +29,7 @@ from apax.utils.random import seed_py_np_tf
             [{
                 "name": "ma_tensors",
                 "shape": "fixed",
-                "values": np.random.uniform(low=-1.0, high=1.0, size=(5, 3, 3))
+                "values": np.random.uniform(low=-1.0, high=1.0, size=(5, 3, 3)),
             }],
         ],
     ),
@@ -43,7 +43,7 @@ def test_input_pipeline(example_atoms, calc_results, num_data, external_labels):
         for l in external_labels:
             label_info[l["name"]] = l["shape"]
 
-            for a,v in zip(example_atoms, l["values"]):
+            for a, v in zip(example_atoms, l["values"]):
                 a.calc.results[l["name"]] = v
     else:
         label_info = {}
