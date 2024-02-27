@@ -3476,4 +3476,4 @@ dask = ["dask[array] (>=2022.11.1,<2023.0.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "ccf786de5155d696622984da7573282ff7f5e5062c9b386610145bf9fcb712b0"
+content-hash = "644ac71059a5fb1c264908c3d41b1c05575697f1e3d13d0e8bec33b419db4ad0"
