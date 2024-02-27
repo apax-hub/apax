@@ -63,13 +63,6 @@ def initialize_dataset(
         energy_unit=config.data.energy_unit,
     )
 
-    dataset = AtomisticDataset(
-        inputs,
-        config.n_epochs,
-        labels=labels,
-        buffer_size=config.data.shuffle_buffer_size,
-    )
-
     if calc_stats:
         ds_stats = compute_scale_shift_parameters(
             inputs,
@@ -79,6 +72,15 @@ def initialize_dataset(
             config.data.shift_options,
             config.data.scale_options,
         )
+
+    dataset = AtomisticDataset(
+        inputs,
+        config.n_epochs,
+        labels=labels,
+        buffer_size=config.data.shuffle_buffer_size,
+    )
+
+    if calc_stats:
         return dataset, ds_stats
     else:
         return dataset

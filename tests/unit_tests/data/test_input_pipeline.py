@@ -38,26 +38,27 @@ def test_input_pipeline(example_atoms, calc_results, num_data, external_labels):
     batch_size = 2
     r_max = 6.0
 
-    label_info = {}
     if external_labels:
+        label_info = {}
         for l in external_labels:
-            label_info[l["shape"]].update(l["name"])
-            label_info[l["shape"]] = l["values"]
+            label_info[l["name"]] = l["shape"]
 
             for a,v in zip(example_atoms, l["values"]):
                 a.calc.results[l["name"]] = v
+    else:
+        label_info = {}
 
     inputs = process_inputs(
         example_atoms,
         r_max=r_max,
         disable_pbar=True,
     )
-    labels = atoms_to_labels(example_atoms, additional_properties_info=external_labels)
+    labels = atoms_to_labels(example_atoms, additional_properties_info=label_info)
 
     ds = AtomisticDataset(
         inputs,
-        labels,
         1,
+        labels=labels,
         buffer_size=1000,
     )
     ds.set_batch_size(batch_size)
@@ -112,13 +113,15 @@ def test_pad_to_specific_size():
     f_2 = [[3.0, 3.0, 3.0], [3.0, 3.0, 3.0], [3.0, 3.0, 3.0]]
     r_lab = {"forces": tf.ragged.constant([f_1, f_2])}
     p_lab = {"energy": tf.constant([103.3, 98.4])}
+    inputs = {"fixed": p_inp, "ragged": r_inp}
+    labels = {"fixed": p_lab, "ragged": r_lab}
 
     max_atoms = 5
     max_nbrs = 6
 
     padding_fn = PadToSpecificSize(max_atoms=max_atoms, max_nbrs=max_nbrs)
 
-    inputs, labels = padding_fn(r_inp, p_inp, r_lab, p_lab)
+    inputs, labels = padding_fn(inputs, labels)
 
     assert "idx" in inputs
     assert inputs["idx"].shape == [2, 2, 6]

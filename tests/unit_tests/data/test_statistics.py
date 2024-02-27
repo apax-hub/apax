@@ -28,7 +28,7 @@ def test_energy_per_element():
         atoms_list,
         r_max=6.5,
     )
-    labels = atoms_to_labels(atoms)
+    labels = atoms_to_labels(atoms_list)
 
     elemental_shift = PerElementRegressionShift.compute(
         inputs, labels, {"energy_regularisation": 0.0}

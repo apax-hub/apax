@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Iterator
+from typing import Dict, Iterator, Optional
 
 import jax
 import jax.numpy as jnp
@@ -116,18 +116,29 @@ def process_inputs(
     return inputs
 
 
-def dataset_from_dicts(*dicts_of_arrays: Dict[str, np.ndarray]) -> tf.data.Dataset:
+def dataset_from_dicts(
+    inputs: Dict[str, np.ndarray], labels: Optional[Dict[str, np.ndarray]] = None
+) -> tf.data.Dataset:
     # tf.RaggedTensors should be created from `tf.ragged.stack`
     # instead of `tf.ragged.constant` for performance reasons.
     # See https://github.com/tensorflow/tensorflow/issues/47853
-    for doa in dicts_of_arrays:
-        for key, val in doa["ragged"].items():
-            doa["ragged"][key] = tf.ragged.stack(val)
-        for key, val in doa["fixed"].items():
-            doa["fixed"][key] = tf.constant(val)
+    for key, val in inputs["ragged"].items():
+        inputs["ragged"][key] = tf.ragged.stack(val)
+    for key, val in inputs["fixed"].items():
+        inputs["fixed"][key] = tf.constant(val)
 
-    # add check for more than 2 datasets
-    ds = tf.data.Dataset.from_tensor_slices(*dicts_of_arrays)
+    if labels:
+        for key, val in labels["ragged"].items():
+            labels["ragged"][key] = tf.ragged.stack(val)
+        for key, val in labels["fixed"].items():
+            labels["fixed"][key] = tf.constant(val)
+
+        tensors = (inputs, labels)
+    else:
+        tensors = inputs
+
+    ds = tf.data.Dataset.from_tensor_slices(tensors)
+
     return ds
 
 
@@ -205,12 +216,14 @@ class AtomisticDataset:
 
     def init_input(self) -> Dict[str, np.ndarray]:
         """Returns first batch of inputs and labels to init the model."""
-        inputs, _ = next(
+        inputs = next(
             self.ds.batch(1)
             .map(PadToSpecificSize(self.max_atoms, self.max_nbrs))
             .take(1)
             .as_numpy_iterator()
         )
+        if isinstance(inputs, tuple):
+            inputs = inputs[0]  # remove labels
 
         inputs = jax.tree_map(lambda x: jnp.array(x[0]), inputs)
         init_box = np.array(inputs["box"])
