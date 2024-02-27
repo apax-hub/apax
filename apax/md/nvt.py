@@ -10,7 +10,6 @@ from ase import units
 from ase.io import read
 from flax.training import checkpoints
 from jax.experimental.host_callback import barrier_wait, id_tap
-from jax_md import quantity, simulate
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -25,6 +24,7 @@ from apax.train.checkpoints import (
 )
 from apax.train.run import setup_logging
 from apax.utils import jax_md_reduced
+from apax.utils.jax_md_reduced import quantity, simulate
 
 log = logging.getLogger(__name__)
 

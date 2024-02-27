@@ -20,7 +20,7 @@ import jax.numpy as jnp
 import numpy as onp
 from jax.core import ShapedArray
 from jax import jit, vmap, eval_shape, lax
-from enum import IntEnum ,Enum
+from enum import IntEnum, Enum
 from apax.utils.jax_md_reduced import util, space, dataclasses
 
 Array = util.Array
@@ -38,324 +38,394 @@ MaskFn = Callable[[Array], Array]
 
 
 def _cell_size(box, minimum_cell_size) -> Array:
-  cells_per_side = jnp.floor(box / minimum_cell_size)
-  return box / cells_per_side
+    cells_per_side = jnp.floor(box / minimum_cell_size)
+    return box / cells_per_side
 
 
 def _fractional_cell_size(box, cutoff):
-  if jnp.isscalar(box) or box.ndim == 0:
-    return cutoff / box
-  elif box.ndim == 1:
-    return cutoff / jnp.min(box)
-  elif box.ndim == 2:
-    if box.shape[0] == 1:
-      return 1 / jnp.floor(box[0, 0] / cutoff)
-    elif box.shape[0] == 2:
-      xx = box[0, 0]
-      yy = box[1, 1]
-      xy = box[0, 1] / yy
+    if jnp.isscalar(box) or box.ndim == 0:
+        return cutoff / box
+    elif box.ndim == 1:
+        return cutoff / jnp.min(box)
+    elif box.ndim == 2:
+        if box.shape[0] == 1:
+            return 1 / jnp.floor(box[0, 0] / cutoff)
+        elif box.shape[0] == 2:
+            xx = box[0, 0]
+            yy = box[1, 1]
+            xy = box[0, 1] / yy
 
-      nx = xx / jnp.sqrt(1 + xy**2)
-      ny = yy
+            nx = xx / jnp.sqrt(1 + xy**2)
+            ny = yy
 
-      nmin = jnp.floor(jnp.min(jnp.array([nx, ny])) / cutoff)
-      nmin = jnp.where(nmin == 0, 1, nmin)
-      return 1 / nmin
-    elif box.shape[0] == 3:
-      xx = box[0, 0]
-      yy = box[1, 1]
-      zz = box[2, 2]
-      xy = box[0, 1] / yy
-      xz = box[0, 2] / zz
-      yz = box[1, 2] / zz
+            nmin = jnp.floor(jnp.min(jnp.array([nx, ny])) / cutoff)
+            nmin = jnp.where(nmin == 0, 1, nmin)
+            return 1 / nmin
+        elif box.shape[0] == 3:
+            xx = box[0, 0]
+            yy = box[1, 1]
+            zz = box[2, 2]
+            xy = box[0, 1] / yy
+            xz = box[0, 2] / zz
+            yz = box[1, 2] / zz
 
-      nx = xx / jnp.sqrt(1 + xy**2 + (xy * yz - xz)**2)
-      ny = yy / jnp.sqrt(1 + yz**2)
-      nz = zz
+            nx = xx / jnp.sqrt(1 + xy**2 + (xy * yz - xz) ** 2)
+            ny = yy / jnp.sqrt(1 + yz**2)
+            nz = zz
 
-      nmin = jnp.floor(jnp.min(jnp.array([nx, ny, nz])) / cutoff)
-      nmin = jnp.where(nmin == 0, 1, nmin)
-      return 1 / nmin
+            nmin = jnp.floor(jnp.min(jnp.array([nx, ny, nz])) / cutoff)
+            nmin = jnp.where(nmin == 0, 1, nmin)
+            return 1 / nmin
+        else:
+            raise ValueError(
+                f"Expected box to be either 1-, 2-, or 3-dimensional found {box.shape[0]}"
+            )
     else:
-      raise ValueError('Expected box to be either 1-, 2-, or 3-dimensional '
-                       f'found {box.shape[0]}')
-  else:
-    raise ValueError('Expected box to be either a scalar, a vector, or a '
-                     f'matrix. Found {type(box)}.')
+        raise ValueError(
+            "Expected box to be either a scalar, a vector, or a "
+            f"matrix. Found {type(box)}."
+        )
+
 
 def _displacement_or_metric_to_metric_sq(
-    displacement_or_metric: DisplacementOrMetricFn) -> MetricFn:
-  """Checks whether or not a displacement or metric was provided."""
-  for dim in range(1, 4):
-    try:
-      R = ShapedArray((dim,), f32)
-      dR_or_dr = eval_shape(displacement_or_metric, R, R, t=0)
-      if len(dR_or_dr.shape) == 0:
-        return lambda Ra, Rb, **kwargs: \
-          displacement_or_metric(Ra, Rb, **kwargs) ** 2
-      else:
-        return lambda Ra, Rb, **kwargs: space.square_distance(
-          displacement_or_metric(Ra, Rb, **kwargs))
-    except TypeError:
-      continue
-    except ValueError:
-      continue
-  raise ValueError(
-    'Canonicalize displacement not implemented for spatial dimension larger'
-    'than 4.')
+    displacement_or_metric: DisplacementOrMetricFn,
+) -> MetricFn:
+    """Checks whether or not a displacement or metric was provided."""
+    for dim in range(1, 4):
+        try:
+            R = ShapedArray((dim,), f32)
+            dR_or_dr = eval_shape(displacement_or_metric, R, R, t=0)
+            if len(dR_or_dr.shape) == 0:
+                return (
+                    lambda Ra, Rb, **kwargs: displacement_or_metric(Ra, Rb, **kwargs) ** 2
+                )
+            else:
+                return lambda Ra, Rb, **kwargs: space.square_distance(
+                    displacement_or_metric(Ra, Rb, **kwargs)
+                )
+        except TypeError:
+            continue
+        except ValueError:
+            continue
+    raise ValueError(
+        "Canonicalize displacement not implemented for spatial dimension largerthan 4."
+    )
+
 
 # Neighbor Lists
 
 
 @dataclasses.dataclass
 class CellList:
-  """Stores the spatial partition of a system into a cell list.
+    """Stores the spatial partition of a system into a cell list.
 
-  See :meth:`cell_list` for details on the construction / specification.
-  Cell list buffers all have a common shape, S, where
-    * `S = [cell_count_x, cell_count_y, cell_capacity]`
-    * `S = [cell_count_x, cell_count_y, cell_count_z, cell_capacity]`
-  in two- and three-dimensions respectively. It is assumed that each cell has
-  the same capacity.
+    See :meth:`cell_list` for details on the construction / specification.
+    Cell list buffers all have a common shape, S, where
+      * `S = [cell_count_x, cell_count_y, cell_capacity]`
+      * `S = [cell_count_x, cell_count_y, cell_count_z, cell_capacity]`
+    in two- and three-dimensions respectively. It is assumed that each cell has
+    the same capacity.
 
-  Attributes:
-    position_buffer: An ndarray of floating point positions with shape
-      `S + [spatial_dimension]`.
-    id_buffer: An ndarray of int32 particle ids of shape `S`. Note that empty
-      slots are specified by `id = N` where `N` is the number of particles in
-      the system.
-    named_buffer: A dictionary of ndarrays of shape `S + [...]`. This contains
-      side data placed into the cell list.
-    did_buffer_overflow: A boolean specifying whether or not the cell list
-      exceeded the maximum allocated capacity.
-    cell_capacity: An integer specifying the maximum capacity of each cell in
-      the cell list.
-    update_fn: A function that updates the cell list at a fixed capacity.
-  """
-  position_buffer: Array
-  id_buffer: Array
-  named_buffer: Dict[str, Array]
+    Attributes:
+      position_buffer: An ndarray of floating point positions with shape
+        `S + [spatial_dimension]`.
+      id_buffer: An ndarray of int32 particle ids of shape `S`. Note that empty
+        slots are specified by `id = N` where `N` is the number of particles in
+        the system.
+      named_buffer: A dictionary of ndarrays of shape `S + [...]`. This contains
+        side data placed into the cell list.
+      did_buffer_overflow: A boolean specifying whether or not the cell list
+        exceeded the maximum allocated capacity.
+      cell_capacity: An integer specifying the maximum capacity of each cell in
+        the cell list.
+      update_fn: A function that updates the cell list at a fixed capacity.
+    """
 
-  did_buffer_overflow: Array
+    position_buffer: Array
+    id_buffer: Array
+    named_buffer: Dict[str, Array]
 
-  cell_capacity: int = dataclasses.static_field()
-  cell_size: float = dataclasses.static_field()
+    did_buffer_overflow: Array
 
-  update_fn: Callable[..., 'CellList'] = \
-      dataclasses.static_field()
+    cell_capacity: int = dataclasses.static_field()
+    cell_size: float = dataclasses.static_field()
 
-  def update(self, position: Array, **kwargs) -> 'CellList':
-    cl_data = (self.cell_capacity, self.did_buffer_overflow, self.update_fn)
-    return self.update_fn(position, cl_data, **kwargs)
+    update_fn: Callable[..., "CellList"] = dataclasses.static_field()
 
-  @property
-  def kwarg_buffers(self):
-    logging.warning('kwarg_buffers renamed to named_buffer. The name '
-                    'kwarg_buffers will be depricated.')
-    return self.named_buffer
+    def update(self, position: Array, **kwargs) -> "CellList":
+        cl_data = (self.cell_capacity, self.did_buffer_overflow, self.update_fn)
+        return self.update_fn(position, cl_data, **kwargs)
 
-class NeighborListFormat(Enum):
-  """An enum listing the different neighbor list formats.
+    @property
+    def kwarg_buffers(self):
+        logging.warning(
+            "kwarg_buffers renamed to named_buffer. The name "
+            "kwarg_buffers will be depricated."
+        )
+        return self.named_buffer
 
-  Attributes:
-    Dense: A dense neighbor list where the ids are a square matrix
-      of shape `(N, max_neighbors_per_atom)`. Here the capacity of the neighbor
-      list must scale with the highest connectivity neighbor.
-    Sparse: A sparse neighbor list where the ids are a rectangular
-      matrix of shape `(2, max_neighbors)` specifying the start / end particle
-      of each neighbor pair.
-    OrderedSparse: A sparse neighbor list whose format is the same as `Sparse`
-      where only bonds with i < j are included.
-  """
-  Dense = 0
-  Sparse = 1
-  OrderedSparse = 2
 
 class PartitionErrorCode(IntEnum):
-  """An enum specifying different error codes.
+    """An enum specifying different error codes.
 
-  Attributes:
-    NONE: Means that no error was encountered during simulation.
-    NEIGHBOR_LIST_OVERFLOW: Indicates that the neighbor list was not large
-      enough to contain all of the particles. This should indicate that it is
-      necessary to allocate a new neighbor list.
-    CELL_LIST_OVERFLOW: Indicates that the cell list was not large enough to
-      contain all of the particles. This should indicate that it is necessary
-      to allocate a new cell list.
-    CELL_SIZE_TOO_SMALL: Indicates that the size of cells in a cell list was
-      not large enough to properly capture particle interactions. This
-      indicates that it is necessary to allcoate a new cell list with larger
-      cells.
-    MALFORMED_BOX: Indicates that a box matrix was not properly upper
-      triangular.
-  """
-  NONE = 0
-  NEIGHBOR_LIST_OVERFLOW = 1 << 0
-  CELL_LIST_OVERFLOW     = 1 << 1
-  CELL_SIZE_TOO_SMALL    = 1 << 2
-  MALFORMED_BOX          = 1 << 3
+    Attributes:
+      NONE: Means that no error was encountered during simulation.
+      NEIGHBOR_LIST_OVERFLOW: Indicates that the neighbor list was not large
+        enough to contain all of the particles. This should indicate that it is
+        necessary to allocate a new neighbor list.
+      CELL_LIST_OVERFLOW: Indicates that the cell list was not large enough to
+        contain all of the particles. This should indicate that it is necessary
+        to allocate a new cell list.
+      CELL_SIZE_TOO_SMALL: Indicates that the size of cells in a cell list was
+        not large enough to properly capture particle interactions. This
+        indicates that it is necessary to allcoate a new cell list with larger
+        cells.
+      MALFORMED_BOX: Indicates that a box matrix was not properly upper
+        triangular.
+    """
+
+    NONE = 0
+    NEIGHBOR_LIST_OVERFLOW = 1 << 0
+    CELL_LIST_OVERFLOW = 1 << 1
+    CELL_SIZE_TOO_SMALL = 1 << 2
+    MALFORMED_BOX = 1 << 3
+
+
 PEC = PartitionErrorCode
 
 
 @dataclasses.dataclass
 class PartitionError:
-  """A struct containing error codes while building / updating neighbor lists.
+    """A struct containing error codes while building / updating neighbor lists.
 
-  Attributes:
-    code: An array storing the error code. See `PartitionErrorCode` for
-      details.
-  """
-  code: Array
+    Attributes:
+      code: An array storing the error code. See `PartitionErrorCode` for
+        details.
+    """
 
-  def update(self, bit: bytes, pred: Array) -> Array:
-    """Possibly adds an error based on a predicate."""
-    zero = jnp.zeros((), jnp.uint8)
-    bit = jnp.array(bit, dtype=jnp.uint8)
-    return PartitionError(self.code | jnp.where(pred, bit, zero))
+    code: Array
 
-  def __str__(self) -> str:
-    """Produces a string representation of the error code."""
-    if not jnp.any(self.code):
-      return ''
+    def update(self, bit: bytes, pred: Array) -> Array:
+        """Possibly adds an error based on a predicate."""
+        zero = jnp.zeros((), jnp.uint8)
+        bit = jnp.array(bit, dtype=jnp.uint8)
+        return PartitionError(self.code | jnp.where(pred, bit, zero))
 
-    if jnp.any(self.code & PEC.NEIGHBOR_LIST_OVERFLOW):
-      return 'Partition Error: Neighbor list buffer overflow.'
 
-    if jnp.any(self.code & PEC.CELL_LIST_OVERFLOW):
-      return 'Partition Error: Cell list buffer overflow'
+class NeighborListFormat(Enum):
+    """An enum listing the different neighbor list formats.
 
-    if jnp.any(self.code & PEC.CELL_SIZE_TOO_SMALL):
-      return 'Partition Error: Cell size too small'
+    Attributes:
+      Dense: A dense neighbor list where the ids are a square matrix
+        of shape `(N, max_neighbors_per_atom)`. Here the capacity of the neighbor
+        list must scale with the highest connectivity neighbor.
+      Sparse: A sparse neighbor list where the ids are a rectangular
+        matrix of shape `(2, max_neighbors)` specifying the start / end particle
+        of each neighbor pair.
+      OrderedSparse: A sparse neighbor list whose format is the same as `Sparse`
+        where only bonds with i < j are included.
+    """
 
-    if jnp.any(self.code & PEC.MALFORMED_BOX):
-      return ('Partition Error: Incorrect box format. Expecting upper '
-              'triangular.')
+    Dense = 0
+    Sparse = 1
+    OrderedSparse = 2
 
-    raise ValueError(f'Unexpected Error Code {self.code}.')
-
-  __repr__ = __str__
 
 @dataclasses.dataclass
 class NeighborList:
-  """A struct containing the state of a Neighbor List.
+    """A struct containing the state of a Neighbor List.
 
-  Attributes:
-    idx: For an N particle system this is an `[N, max_occupancy]` array of
-      integers such that `idx[i, j]` is the j-th neighbor of particle i.
-    reference_position: The positions of particles when the neighbor list was
-      constructed. This is used to decide whether the neighbor list ought to be
-      updated.
-    error: An error code that is used to identify errors that occured during
-      neighbor list construction. See `PartitionError` and `PartitionErrorCode`
-      for details.
-    cell_list_capacity: An optional integer specifying the capacity of the cell
-      list used as an intermediate step in the creation of the neighbor list.
-    max_occupancy: A static integer specifying the maximum size of the
-      neighbor list. Changing this will invoke a recompilation.
-    format: A NeighborListFormat enum specifying the format of the neighbor
-      list.
-    cell_size: A float specifying the current minimum size of the cells used
-      in cell list construction.
-    cell_list_fn: The function used to construct the cell list.
-    update_fn: A static python function used to update the neighbor list.
-  """
-  idx: Array
-  reference_position: Array
-  error: PartitionError
-  cell_list_capacity: Optional[int] = dataclasses.static_field()
-  max_occupancy: int = dataclasses.static_field()
+    Attributes:
+      idx: For an N particle system this is an `[N, max_occupancy]` array of
+        integers such that `idx[i, j]` is the j-th neighbor of particle i.
+      reference_position: The positions of particles when the neighbor list was
+        constructed. This is used to decide whether the neighbor list ought to be
+        updated.
+      error: An error code that is used to identify errors that occured during
+        neighbor list construction. See `PartitionError` and `PartitionErrorCode`
+        for details.
+      cell_list_capacity: An optional integer specifying the capacity of the cell
+        list used as an intermediate step in the creation of the neighbor list.
+      max_occupancy: A static integer specifying the maximum size of the
+        neighbor list. Changing this will invoke a recompilation.
+      format: A NeighborListFormat enum specifying the format of the neighbor
+        list.
+      cell_size: A float specifying the current minimum size of the cells used
+        in cell list construction.
+      cell_list_fn: The function used to construct the cell list.
+      update_fn: A static python function used to update the neighbor list.
+    """
 
-  format: NeighborListFormat = dataclasses.static_field()
-  cell_size: Optional[float] = dataclasses.static_field()
-  cell_list_fn: Callable[[Array, CellList],
-                         CellList] = dataclasses.static_field()
-  update_fn: Callable[[Array, 'NeighborList'],
-                      'NeighborList'] = dataclasses.static_field()
+    idx: Array
+    reference_position: Array
+    error: PartitionError
+    cell_list_capacity: Optional[int] = dataclasses.static_field()
+    max_occupancy: int = dataclasses.static_field()
 
-  def update(self, position: Array, **kwargs) -> 'NeighborList':
-    return self.update_fn(position, self, **kwargs)
+    format: NeighborListFormat = dataclasses.static_field()
+    cell_size: Optional[float] = dataclasses.static_field()
+    cell_list_fn: Callable[[Array, CellList], CellList] = dataclasses.static_field()
+    update_fn: Callable[
+        [Array, "NeighborList"], "NeighborList"
+    ] = dataclasses.static_field()
 
-  @property
-  def did_buffer_overflow(self) -> bool:
-    return self.error.code & (PEC.NEIGHBOR_LIST_OVERFLOW |
-                              PEC.CELL_LIST_OVERFLOW)
+    def update(self, position: Array, **kwargs) -> "NeighborList":
+        return self.update_fn(position, self, **kwargs)
 
-  @property
-  def cell_size_too_small(self) -> bool:
-    return self.error.code & PEC.CELL_SIZE_TOO_SMALL
+    @property
+    def did_buffer_overflow(self) -> bool:
+        return self.error.code & (PEC.NEIGHBOR_LIST_OVERFLOW | PEC.CELL_LIST_OVERFLOW)
 
-  @property
-  def malformed_box(self) -> bool:
-    return self.error.code & PEC.MALFORMED_BOX
+    @property
+    def cell_size_too_small(self) -> bool:
+        return self.error.code & PEC.CELL_SIZE_TOO_SMALL
+
+    @property
+    def malformed_box(self) -> bool:
+        return self.error.code & PEC.MALFORMED_BOX
+
+    def __str__(self) -> str:
+        """Produces a string representation of the error code."""
+        if not jnp.any(self.code):
+            return ""
+
+        if jnp.any(self.code & PEC.NEIGHBOR_LIST_OVERFLOW):
+            return "Partition Error: Neighbor list buffer overflow."
+
+        if jnp.any(self.code & PEC.CELL_LIST_OVERFLOW):
+            return "Partition Error: Cell list buffer overflow"
+
+        if jnp.any(self.code & PEC.CELL_SIZE_TOO_SMALL):
+            return "Partition Error: Cell size too small"
+
+        if jnp.any(self.code & PEC.MALFORMED_BOX):
+            return "Partition Error: Incorrect box format. Expecting upper triangular."
+
+        raise ValueError(f"Unexpected Error Code {self.code}.")
+
+    __repr__ = __str__
+
+
+@dataclasses.dataclass
+class NeighborList:
+    """A struct containing the state of a Neighbor List.
+
+    Attributes:
+      idx: For an N particle system this is an `[N, max_occupancy]` array of
+        integers such that `idx[i, j]` is the j-th neighbor of particle i.
+      reference_position: The positions of particles when the neighbor list was
+        constructed. This is used to decide whether the neighbor list ought to be
+        updated.
+      error: An error code that is used to identify errors that occured during
+        neighbor list construction. See `PartitionError` and `PartitionErrorCode`
+        for details.
+      cell_list_capacity: An optional integer specifying the capacity of the cell
+        list used as an intermediate step in the creation of the neighbor list.
+      max_occupancy: A static integer specifying the maximum size of the
+        neighbor list. Changing this will invoke a recompilation.
+      format: A NeighborListFormat enum specifying the format of the neighbor
+        list.
+      cell_size: A float specifying the current minimum size of the cells used
+        in cell list construction.
+      cell_list_fn: The function used to construct the cell list.
+      update_fn: A static python function used to update the neighbor list.
+    """
+
+    idx: Array
+    reference_position: Array
+    error: PartitionError
+    cell_list_capacity: Optional[int] = dataclasses.static_field()
+    max_occupancy: int = dataclasses.static_field()
+
+    format: NeighborListFormat = dataclasses.static_field()
+    cell_size: Optional[float] = dataclasses.static_field()
+    cell_list_fn: Callable[[Array, CellList], CellList] = dataclasses.static_field()
+    update_fn: Callable[
+        [Array, "NeighborList"], "NeighborList"
+    ] = dataclasses.static_field()
+
+    def update(self, position: Array, **kwargs) -> "NeighborList":
+        return self.update_fn(position, self, **kwargs)
+
+    @property
+    def did_buffer_overflow(self) -> bool:
+        return self.error.code & (PEC.NEIGHBOR_LIST_OVERFLOW | PEC.CELL_LIST_OVERFLOW)
+
+    @property
+    def cell_size_too_small(self) -> bool:
+        return self.error.code & PEC.CELL_SIZE_TOO_SMALL
+
+    @property
+    def malformed_box(self) -> bool:
+        return self.error.code & PEC.MALFORMED_BOX
+
 
 def is_sparse(fmt: NeighborListFormat) -> bool:
-  return (fmt is NeighborListFormat.Sparse or
-          fmt is NeighborListFormat.OrderedSparse)
+    return fmt is NeighborListFormat.Sparse or fmt is NeighborListFormat.OrderedSparse
 
 
 def is_format_valid(fmt: NeighborListFormat):
-  if fmt not in list(NeighborListFormat):
-    raise ValueError((
-        'Neighbor list format must be a member of NeighborListFormat'
-        f' found {fmt}.'))
+    if fmt not in list(NeighborListFormat):
+        raise ValueError(
+            f"Neighbor list format must be a member of NeighborListFormat found {fmt}."
+        )
 
 
 def is_box_valid(box: Array) -> bool:
-  if jnp.isscalar(box) or box.ndim == 0 or box.ndim == 1:
-    return True
-  if box.ndim == 2:
-    return jnp.triu(box) == box
-  return False
+    if jnp.isscalar(box) or box.ndim == 0 or box.ndim == 1:
+        return True
+    if box.ndim == 2:
+        return jnp.triu(box) == box
+    return False
 
 
 @dataclasses.dataclass
 class NeighborListFns:
-  """A struct containing functions to allocate and update neighbor lists.
+    """A struct containing functions to allocate and update neighbor lists.
 
-  Attributes:
-    allocate: A function to allocate a new neighbor list. This function cannot
-      be compiled, since it uses the values of positions to infer the shapes.
-    update: A function to update a neighbor list given a new set of positions
-      and a previously allocated neighbor list.
-  """
-  allocate: Callable[..., NeighborList] = dataclasses.static_field()
-  update: Callable[[Array, NeighborList],
-                   NeighborList] = dataclasses.static_field()
-
-  def __call__(self,
-               position: Array,
-               neighbors: Optional[NeighborList] = None,
-               extra_capacity: int = 0,
-               **kwargs) -> NeighborList:
-    """A function for backward compatibility with previous neighbor lists.
-
-    Args:
-      position: An `(N, dim)` array of particle positions.
-      neighbors: An optional neighbor list object. If it is provided then
-        the function updates the neighbor list, otherwise it allocates a new
-        neighbor list.
-      extra_capacity: Extra capacity to add if allocating the neighbor list.
-    Returns:
-      A neighbor list object.
+    Attributes:
+      allocate: A function to allocate a new neighbor list. This function cannot
+        be compiled, since it uses the values of positions to infer the shapes.
+      update: A function to update a neighbor list given a new set of positions
+        and a previously allocated neighbor list.
     """
-    logging.warning('Using a deprecated code path to create / update neighbor '
-                    'lists. It will be removed in a later version of JAX MD. '
-                    'Using `neighbor_fn.allocate` and `neighbor_fn.update` '
-                    'is preferred.')
-    if neighbors is None:
-      return self.allocate(position, extra_capacity, **kwargs)
-    return self.update(position, neighbors, **kwargs)
 
-  def __iter__(self):
-    return iter((self.allocate, self.update))
+    allocate: Callable[..., NeighborList] = dataclasses.static_field()
+    update: Callable[[Array, NeighborList], NeighborList] = dataclasses.static_field()
 
-NeighborFn = Callable[[Array, Optional[NeighborList], Optional[int]],
-                      NeighborList]
+    def __call__(
+        self,
+        position: Array,
+        neighbors: Optional[NeighborList] = None,
+        extra_capacity: int = 0,
+        **kwargs,
+    ) -> NeighborList:
+        """A function for backward compatibility with previous neighbor lists.
 
-Sparse = NeighborListFormat.Sparse
+        Args:
+          position: An `(N, dim)` array of particle positions.
+          neighbors: An optional neighbor list object. If it is provided then
+            the function updates the neighbor list, otherwise it allocates a new
+            neighbor list.
+          extra_capacity: Extra capacity to add if allocating the neighbor list.
+        Returns:
+          A neighbor list object.
+        """
+        logging.warning(
+            "Using a deprecated code path to create / update neighbor "
+            "lists. It will be removed in a later version of JAX MD. "
+            "Using `neighbor_fn.allocate` and `neighbor_fn.update` "
+            "is preferred."
+        )
+        if neighbors is None:
+            return self.allocate(position, extra_capacity, **kwargs)
+        return self.update(position, neighbors, **kwargs)
+
+    def __iter__(self):
+        return iter((self.allocate, self.update))
 
 
-
+NeighborFn = Callable[[Array, Optional[NeighborList], Optional[int]], NeighborList]
 
 
 # def cell_list(box_size: Box,
@@ -405,8 +475,6 @@ Sparse = NeighborListFormat.Sparse
 #   return None #CellListFns(allocate_fn, update_fn)  # pytype: disable=wrong-arg-count
 
 
-
-
 def neighbor_list(
     displacement_or_metric: DisplacementOrMetricFn,
     box: Box,
@@ -418,7 +486,7 @@ def neighbor_list(
     custom_mask_function: Optional[MaskFn] = None,
     fractional_coordinates: bool = False,
     format: NeighborListFormat = NeighborListFormat.Dense,
-    **static_kwargs
+    **static_kwargs,
 ) -> NeighborFn:
     """Returns a function that builds a list neighbors for collections of points.
 
@@ -626,7 +694,9 @@ def neighbor_list(
                 cl_capacity = None
                 idx = candidate_fn(position)
             else:
-               raise NotImplementedError("Cell lists not implemented in apax' reduced jaxmd")
+                raise NotImplementedError(
+                    "Cell lists not implemented in apax' reduced jaxmd"
+                )
                 # err = err.update(PEC.CELL_LIST_OVERFLOW, cl.did_buffer_overflow)
                 # idx = cell_list_candidate_fn(cl, position)
                 # cl_capacity = cl.cell_capacity
@@ -665,7 +735,7 @@ def neighbor_list(
                 cl_capacity,
                 max_occupancy,
                 format,
-                0, # cell_size
+                0,  # cell_size
                 cl_fn,
                 update_fn,
             )  # pytype: disable=wrong-arg-count
@@ -715,3 +785,8 @@ def neighbor_list(
         return neighbor_list_fn(position, neighbors, **kwargs)
 
     return NeighborListFns(allocate_fn, update_fn)  # pytype: disable=wrong-arg-count
+
+
+Dense = NeighborListFormat.Dense
+Sparse = NeighborListFormat.Sparse
+OrderedSparse = NeighborListFormat.OrderedSparse
