@@ -8,10 +8,10 @@ from jax import vmap
 from apax.data.input_pipeline import (
     AtomisticDataset,
     PadToSpecificSize,
-    create_dict_dataset,
+    process_inputs,
 )
 from apax.model.gmnn import disp_fn
-from apax.utils.convert import atoms_to_arrays
+from apax.utils.convert import atoms_to_labels
 from apax.utils.data import split_atoms, split_idxs
 from apax.utils.random import seed_py_np_tf
 
@@ -26,11 +26,11 @@ from apax.utils.random import seed_py_np_tf
             5,
             True,
             ["energy", "forces"],
-            {
-                "fixed": {
-                    "ma_tensors": np.random.uniform(low=-1.0, high=1.0, size=(5, 3, 3))
-                }
-            },
+            [{
+                "name": "ma_tensors",
+                "shape": "fixed",
+                "values": np.random.uniform(low=-1.0, high=1.0, size=(5, 3, 3))
+            }],
         ],
     ),
 )
@@ -38,12 +38,21 @@ def test_input_pipeline(example_atoms, calc_results, num_data, external_labels):
     batch_size = 2
     r_max = 6.0
 
-    inputs, labels = create_dict_dataset(
+    label_info = {}
+    if external_labels:
+        for l in external_labels:
+            label_info[l["shape"]].update(l["name"])
+            label_info[l["shape"]] = l["values"]
+
+            for a,v in zip(example_atoms, l["values"]):
+                a.calc.results[l["name"]] = v
+
+    inputs = process_inputs(
         example_atoms,
-        r_max,
-        external_labels,
+        r_max=r_max,
         disable_pbar=True,
     )
+    labels = atoms_to_labels(example_atoms, additional_properties_info=external_labels)
 
     ds = AtomisticDataset(
         inputs,
@@ -157,7 +166,8 @@ def test_split_data(example_atoms):
     ),
 )
 def test_convert_atoms_to_arrays(example_atoms, pbc):
-    inputs, labels = atoms_to_arrays(example_atoms)
+    inputs = process_inputs(example_atoms, r_max=6.0)
+    labels = atoms_to_labels(example_atoms, read_labels=True)
 
     assert "fixed" in inputs
     assert "ragged" in inputs
@@ -185,29 +195,26 @@ def test_convert_atoms_to_arrays(example_atoms, pbc):
 
 
 @pytest.mark.parametrize(
-    "pbc, calc_results, external_labels, cell",
+    "pbc, calc_results, cell",
     (
         [
             True,
             ["energy"],
-            None,
             np.array([[1.8, 0.1, 0.0], [0.0, 2.5, 0.1], [0.1, 0.0, 2.5]]),
         ],
         [
             True,
             ["energy"],
-            None,
             np.array([[1.8, 0.0, 0.0], [0.0, 2.5, 0.0], [0.0, 0.0, 2.5]]),
         ],
         [
             True,
             ["energy"],
-            None,
             np.array([[1.5, 0.0, 0.5], [0.0, 2.5, 0.0], [0.0, 0.5, 1.5]]),
         ],
     ),
 )
-def test_neighbors_and_displacements(pbc, calc_results, external_labels, cell):
+def test_neighbors_and_displacements(pbc, calc_results, cell):
     r_max = 2.0
 
     numbers = np.array([1, 1])
@@ -228,12 +235,7 @@ def test_neighbors_and_displacements(pbc, calc_results, external_labels, cell):
             results[key] = result_shapes[key]
         atoms.calc = SinglePointCalculator(atoms, **results)
 
-    inputs, _ = create_dict_dataset(
-        [atoms],
-        r_max,
-        external_labels,
-        disable_pbar=True,
-    )
+    inputs = process_inputs([atoms], r_max=r_max, disable_pbar=True)
 
     idx = np.asarray(inputs["ragged"]["idx"])[0]
     offsets = np.asarray(inputs["ragged"]["offsets"][0])
