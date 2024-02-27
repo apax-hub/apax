@@ -5,11 +5,11 @@ import flax.linen as nn
 import jax.numpy as jnp
 from jax import vmap
 
-from apax.utils import jax_md_reduced
 from apax.layers.descriptor.basis_functions import RadialFunction
 from apax.layers.descriptor.moments import geometric_moments
 from apax.layers.descriptor.triangular_indices import tril_2d_indices, tril_3d_indices
 from apax.layers.masking import mask_by_neighbor
+from apax.utils import jax_md_reduced
 
 
 class GaussianMomentDescriptor(nn.Module):

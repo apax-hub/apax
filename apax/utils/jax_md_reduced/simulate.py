@@ -33,25 +33,22 @@
   can be used for testing purposes, but is not often used otherwise.
 """
 
-from collections import namedtuple
-
-from typing import Any, Callable, TypeVar, Union, Tuple, Dict, Optional
-
 import functools
+from collections import namedtuple
+from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, Union
 
-from jax import grad
-from jax import jit
-from jax import random
 import jax.numpy as jnp
-from jax import lax
-from jax.tree_util import tree_map, tree_reduce, tree_flatten, tree_unflatten
+from jax import grad, jit, lax, random
+from jax.tree_util import tree_flatten, tree_map, tree_reduce, tree_unflatten
 
-from apax.utils.jax_md_reduced import quantity
-from apax.utils.jax_md_reduced import util
-from apax.utils.jax_md_reduced import space
-from apax.utils.jax_md_reduced import dataclasses
-from apax.utils.jax_md_reduced import partition
-from apax.utils.jax_md_reduced import smap
+from apax.utils.jax_md_reduced import (
+    dataclasses,
+    partition,
+    quantity,
+    smap,
+    space,
+    util,
+)
 
 static_cast = util.static_cast
 

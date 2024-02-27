@@ -15,22 +15,17 @@
 """Describes different physical quantities."""
 
 
-from typing import TypeVar, Callable, Union, Tuple, Optional, Any
-
-from absl import logging
-
-from jax import grad, vmap, eval_shape
-from jax.tree_util import tree_map, tree_reduce
-import jax.numpy as jnp
-from jax import ops
-from jax import ShapeDtypeStruct
-from jax.tree_util import tree_map, tree_reduce
-from jax.scipy.special import gammaln
-
-from apax.utils.jax_md_reduced import space, dataclasses, partition, util
-
 import functools
 import operator
+from typing import Any, Callable, Optional, Tuple, TypeVar, Union
+
+import jax.numpy as jnp
+from absl import logging
+from jax import ShapeDtypeStruct, eval_shape, grad, ops, vmap
+from jax.scipy.special import gammaln
+from jax.tree_util import tree_map, tree_reduce
+
+from apax.utils.jax_md_reduced import dataclasses, partition, space, util
 
 partial = functools.partial
 

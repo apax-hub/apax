@@ -20,6 +20,7 @@ Accessed on 04/29/2020.
 """
 
 import dataclasses
+
 import jax
 
 

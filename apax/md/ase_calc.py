@@ -10,8 +10,8 @@ from matscipy.neighbours import neighbour_list
 
 from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
-from apax.utils.jax_md_reduced import quantity
 from apax.utils import jax_md_reduced
+from apax.utils.jax_md_reduced import quantity
 
 
 def maybe_vmap(apply, params, Z):

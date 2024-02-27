@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from functools import partial
 import logging
-from typing import Any, Callable, Optional, Dict, Generator
+from enum import Enum, IntEnum
+from functools import partial
+from typing import Any, Callable, Dict, Generator, Optional
 
 import jax.numpy as jnp
 import numpy as onp
+from jax import eval_shape, jit, lax, vmap
 from jax.core import ShapedArray
-from jax import jit, vmap, eval_shape, lax
-from enum import IntEnum, Enum
-from apax.utils.jax_md_reduced import util, space, dataclasses
+
+from apax.utils.jax_md_reduced import dataclasses, space, util
 
 Array = util.Array
 PyTree = Any

@@ -6,8 +6,8 @@ import jax.numpy as jnp
 import numpy as np
 from jax import vmap
 
-from apax.utils import jax_md_reduced
 from apax.layers.masking import mask_by_neighbor
+from apax.utils import jax_md_reduced
 from apax.utils.math import fp64_sum
 
 

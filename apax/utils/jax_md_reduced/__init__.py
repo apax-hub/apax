@@ -1,11 +1,11 @@
 from apax.utils.jax_md_reduced import (
+    dataclasses,
     partition,
-    space,
     quantity,
     simulate,
     smap,
+    space,
     util,
-    dataclasses,
 )
 
 __all__ = ["partition", "space", "quantity", "simulate", "smap", "util", "dataclasses"]
