@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
 from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
-from jax_md import space
+from apax.utils import jax_md_reduced
 
 
 def tf_to_jax_dict(data_dict: dict[str, list]) -> dict:
@@ -101,7 +101,7 @@ def atoms_to_arrays(
             inv_box = np.linalg.inv(box)
             inputs["ragged"]["positions"].append(
                 np.array(
-                    space.transform(
+                    jax_md_reduced.space.transform(
                         inv_box, (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
                     )
                 )

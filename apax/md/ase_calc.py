@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
-from jax_md import partition, quantity, space
+from jax_md import quantity
 from matscipy.neighbours import neighbour_list
 
 from apax.model import ModelBuilder
@@ -37,9 +37,9 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
 
     if neigbor_from_jax:
         if np.all(box < 1e-6):
-            displacement_fn, _ = space.free()
+            displacement_fn, _ = jax_md_reduced.space.free()
         else:
-            displacement_fn, _ = space.periodic_general(box, fractional_coordinates=True)
+            displacement_fn, _ = jax_md_reduced.space.periodic_general(box, fractional_coordinates=True)
 
         neighbor_fn = jax_md_reduced.partition.neighbor_list(
             displacement_fn,
@@ -48,7 +48,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
             dr_threshold,
             fractional_coordinates=True,
             disable_cell_list=True,
-            format=partition.Sparse,
+            format=jax_md_reduced.partition.Sparse,
         )
 
     Z = jnp.asarray(atomic_numbers)
@@ -154,7 +154,7 @@ class ASECalculator(Calculator):
                 positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
                 box = atoms.cell.array.T
                 inv_box = jnp.linalg.inv(box)
-                positions = space.transform(inv_box, positions)  # frac coords
+                positions = jax_md_reduced.space.transform(inv_box, positions)  # frac coords
                 self.neighbors = self.neighbor_fn.allocate(positions, box=box)
             else:
                 self.neighbors = self.neighbor_fn.allocate(positions)
@@ -209,7 +209,7 @@ class ASECalculator(Calculator):
 
         else:
             self.set_neighbours_and_offsets(atoms, box)
-            positions = np.array(space.transform(np.linalg.inv(box), atoms.positions))
+            positions = np.array(jax_md_reduced.space.transform(np.linalg.inv(box), atoms.positions))
 
             results = self.step(positions, self.neighbors, box, self.offsets)
 
@@ -250,7 +250,7 @@ def get_step_fn(model, atoms, neigbor_from_jax):
             if np.any(atoms.get_cell().lengths() > 1e-6):
                 box = box.T
                 inv_box = jnp.linalg.inv(box)
-                positions = space.transform(inv_box, positions)
+                positions = jax_md_reduced.space.transform(inv_box, positions)
                 neighbor = neighbor.update(positions, box=box)
             else:
                 neighbor = neighbor.update(positions)

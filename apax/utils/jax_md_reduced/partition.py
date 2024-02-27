@@ -37,6 +37,10 @@ DisplacementOrMetricFn = space.DisplacementOrMetricFn
 MetricFn = space.MetricFn
 MaskFn = Callable[[Array], Array]
 
+NeighborFn = Callable[[Array, Optional[NeighborList], Optional[int]],
+                      NeighborList]
+
+Sparse = NeighborListFormat.Sparse
 
 def neighbor_list(
     displacement_or_metric: DisplacementOrMetricFn,

@@ -10,7 +10,7 @@ from ase import units
 from ase.io import read
 from flax.training import checkpoints
 from jax.experimental.host_callback import barrier_wait, id_tap
-from jax_md import partition, quantity, simulate, space
+from jax_md import quantity, simulate
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -340,7 +340,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     r_max = model_config.model.r_max
     log.info("initializing model")
     if np.all(system.box < 1e-6):
-        displacement_fn, shift_fn = space.free()
+        displacement_fn, shift_fn = jax_md_reduced.space.free()
     else:
         heights = heights_of_box_sides(system.box)
 
@@ -356,7 +356,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
                 f"one cell vector direction {heights/2} < {r_max}",
                 "can not calculate the correct neighbors",
             )
-        displacement_fn, shift_fn = space.periodic_general(
+        displacement_fn, shift_fn = jax_md_reduced.space.periodic_general(
             system.box, fractional_coordinates=True
         )
 
@@ -370,7 +370,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         r_max,
         md_config.dr_threshold,
         fractional_coordinates=True,
-        format=partition.Sparse,
+        format=jax_md_reduced.partition.Sparse,
         disable_cell_list=True,
     )
 

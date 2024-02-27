@@ -5,8 +5,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import vmap
-from jax_md import space
 
+from apax.utils import jax_md_reduced
 from apax.layers.masking import mask_by_neighbor
 from apax.utils.math import fp64_sum
 
@@ -24,7 +24,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
     apply_mask: bool = True
 
     def setup(self):
-        self.distance = vmap(space.distance, 0, 0)
+        self.distance = vmap(jax_md_reduced.space.distance, 0, 0)
 
         self.ke = 14.3996
 

@@ -7,7 +7,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import vmap
-from jax_md import partition, space
 from jax_md.util import Array
 
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
@@ -17,23 +16,24 @@ from apax.layers.properties import stress_times_vol
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.utils.math import fp64_sum
+from apax.utils import jax_md_reduced
 
 DisplacementFn = Callable[[Array, Array], Array]
-MDModel = Tuple[partition.NeighborFn, Callable, Callable]
+MDModel = Tuple[jax_md_reduced.partition.NeighborFn, Callable, Callable]
 
 log = logging.getLogger(__name__)
 
 
 def canonicalize_neighbors(neighbor):
-    return neighbor.idx if isinstance(neighbor, partition.NeighborList) else neighbor
+    return neighbor.idx if isinstance(neighbor, jax_md_reduced.NeighborList) else neighbor
 
 
 def disp_fn(ri, rj, perturbation, box):
-    dR = space.pairwise_displacement(ri, rj)
-    dR = space.transform(box, dR)
+    dR = jax_md_reduced.space.pairwise_displacement(ri, rj)
+    dR = jax_md_reduced.space.transform(box, dR)
 
     if perturbation is not None:
-        dR = dR + space.raw_transform(perturbation, dR)
+        dR = dR + jax_md_reduced.space.raw_transform(perturbation, dR)
         # https://github.com/mir-group/nequip/blob/c56f48fcc9b4018a84e1ed28f762fadd5bc763f1/nequip/nn/_grad_output.py#L267
         # https://github.com/sirmarcel/glp/blob/main/glp/calculators/utils.py
         # other codes do R = R + strain, not dR
@@ -78,8 +78,8 @@ class EnergyModel(nn.Module):
     def setup(self):
         if np.all(self.init_box < 1e-6):
             # gas phase training and predicting
-            displacement_fn = space.free()[0]
-            self.displacement = space.map_bond(displacement_fn)
+            displacement_fn = jax_md_reduced.space.free()[0]
+            self.displacement = jax_md_reduced.space.map_bond(displacement_fn)
         elif self.inference_disp_fn is None:
             # for training on periodic systems
             self.displacement = vmap(disp_fn, (0, 0, None, None), 0)
@@ -91,7 +91,7 @@ class EnergyModel(nn.Module):
         self,
         R: Array,
         Z: Array,
-        neighbor: Union[partition.NeighborList, Array],
+        neighbor: Union[jax_md_reduced.partition.NeighborList, Array],
         box,
         offsets,
         perturbation=None,
@@ -138,7 +138,7 @@ class EnergyDerivativeModel(nn.Module):
         self,
         R: Array,
         Z: Array,
-        neighbor: Union[partition.NeighborList, Array],
+        neighbor: Union[jax_md_reduced.partition.NeighborList, Array],
         box,
         offsets,
     ):

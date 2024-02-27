@@ -4,8 +4,8 @@ import einops
 import flax.linen as nn
 import jax.numpy as jnp
 from jax import vmap
-from jax_md import space
 
+from apax.utils import jax_md_reduced
 from apax.layers.descriptor.basis_functions import RadialFunction
 from apax.layers.descriptor.moments import geometric_moments
 from apax.layers.descriptor.triangular_indices import tril_2d_indices, tril_3d_indices
@@ -22,7 +22,7 @@ class GaussianMomentDescriptor(nn.Module):
         self.r_max = self.radial_fn.r_max
         self.n_radial = self.radial_fn._n_radial
 
-        self.distance = vmap(space.distance, 0, 0)
+        self.distance = vmap(jax_md_reduced.space.distance, 0, 0)
 
         self.triang_idxs_2d = tril_2d_indices(self.n_radial)
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
