@@ -150,8 +150,8 @@ class ASECalculator(Calculator):
         self.neighbor_fn = neighbor_fn
 
         if self.neigbor_from_jax:
+            positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
             if np.any(atoms.get_cell().lengths() > 1e-6):
-                positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
                 box = atoms.cell.array.T
                 inv_box = jnp.linalg.inv(box)
                 positions = space.transform(inv_box, positions)  # frac coords
