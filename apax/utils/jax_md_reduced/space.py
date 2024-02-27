@@ -1,3 +1,59 @@
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from typing import Callable, Union, Tuple, Any, Optional
+
+from jax import custom_jvp
+
+import jax.numpy as jnp
+
+from apax.utils.jax_md_reduced.util import Array
+from apax.utils.jax_md_reduced.util import f32
+from apax.utils.jax_md_reduced.util import f64
+from apax.utils.jax_md_reduced.util import safe_mask
+
+
+# Types
+
+
+DisplacementFn = Callable[[Array, Array], Array]
+MetricFn = Callable[[Array, Array], float]
+DisplacementOrMetricFn = Union[DisplacementFn, MetricFn]
+
+ShiftFn = Callable[[Array, Array], Array]
+
+Space = Tuple[DisplacementFn, ShiftFn]
+Box = Array
+
+# Primitive Spatial Transforms
+
+
+def inverse(box: Box) -> Box:
+  """Compute the inverse of an affine transformation."""
+  if jnp.isscalar(box) or box.size == 1:
+    return 1 / box
+  elif box.ndim == 1:
+    return 1 / box
+  elif box.ndim == 2:
+    return jnp.linalg.inv(box)
+  raise ValueError(('Box must be either: a scalar, a vector, or a matrix. '
+                    f'Found {box}.'))
+
+
+def _get_free_indices(n: int) -> str:
+  return ''.join([chr(ord('a') + i) for i in range(n)])
+
 def raw_transform(box: Box, R: Array) -> Array:
   """Apply an affine transformation to positions.
 
@@ -68,6 +124,10 @@ def pairwise_displacement(Ra: Array, Rb: Array) -> Array:
 
   return Ra - Rb
 
+def periodic_shift(side: Box, R: Array, dR: Array) -> Array:
+  """Shifts positions, wrapping them back within a periodic hypercube."""
+  return jnp.mod(R + dR, side)
+
 def free() -> Space:
   """Free boundary conditions."""
   def displacement_fn(Ra: Array, Rb: Array, perturbation: Optional[Array]=None,
@@ -79,6 +139,30 @@ def free() -> Space:
   def shift_fn(R: Array, dR: Array, **unused_kwargs) -> Array:
     return R + dR
   return displacement_fn, shift_fn
+
+
+def periodic_displacement(side: Box, dR: Array) -> Array:
+  """Wraps displacement vectors into a hypercube.
+
+  Args:
+    side: Specification of hypercube size. Either,
+      (a) float if all sides have equal length.
+      (b) ndarray(spatial_dim) if sides have different lengths.
+    dR: Matrix of displacements; `ndarray(shape=[..., spatial_dim])`.
+  Returns:
+    Matrix of wrapped displacements; `ndarray(shape=[..., spatial_dim])`.
+  """
+  return jnp.mod(dR + side * f32(0.5), side) - f32(0.5) * side
+
+def square_distance(dR: Array) -> Array:
+  """Computes square distances.
+
+  Args:
+    dR: Matrix of displacements; `ndarray(shape=[..., spatial_dim])`.
+  Returns:
+    Matrix of squared distances; `ndarray(shape=[...])`.
+  """
+  return jnp.sum(dR ** 2, axis=-1)
 
 
 def periodic_general(box: Box,
