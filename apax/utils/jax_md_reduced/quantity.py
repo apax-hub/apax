@@ -333,12 +333,10 @@ def average_pair_correlation_results(gofr, species=None):
     if species is None:
         return jnp.mean(gofr, axis=0)
     species_types = jnp.unique(species)  # note: this returns in sorted order
-    return jnp.array(
-        [
-            [jnp.mean(gofr[si][species == s], axis=0) for s in species_types]
-            for si in range(species_types.size)
-        ]
-    )
+    return jnp.array([
+        [jnp.mean(gofr[si][species == s], axis=0) for s in species_types]
+        for si in range(species_types.size)
+    ])
 
 
 def pair_correlation(

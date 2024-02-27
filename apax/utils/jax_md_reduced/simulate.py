@@ -14,23 +14,23 @@
 
 """Code to simulate systems in various statistical ensembles.
 
-  This file contains a number of different methods that can be used to
-  simulate systems in a variety of ensembles.
+This file contains a number of different methods that can be used to
+simulate systems in a variety of ensembles.
 
-  In general, simulation code follows the same overall structure as optimizers
-  in JAX. Simulations are tuples of two functions:
+In general, simulation code follows the same overall structure as optimizers
+in JAX. Simulations are tuples of two functions:
 
-    init_fn:
-      Function that initializes the  state of a system. Should take
-      positions as an ndarray of shape `[n, output_dimension]`. Returns a state
-      which will be a namedtuple.
-    apply_fn:
-      Function that takes a state and produces a new state after one
-      step of optimization.
+  init_fn:
+    Function that initializes the  state of a system. Should take
+    positions as an ndarray of shape `[n, output_dimension]`. Returns a state
+    which will be a namedtuple.
+  apply_fn:
+    Function that takes a state and produces a new state after one
+    step of optimization.
 
-  One question that we need to think about is whether the simulations should
-  also return a function that computes the invariant for that ensemble. This
-  can be used for testing purposes, but is not often used otherwise.
+One question that we need to think about is whether the simulations should
+also return a function that computes the invariant for that ensemble. This
+can be used for testing purposes, but is not often used otherwise.
 """
 
 from collections import namedtuple
@@ -849,12 +849,7 @@ def npt_nose_hoover(
     def sinhx_x(x):
         """Taylor series for sinh(x) / x as x -> 0."""
         return (
-            1
-            + x**2 / 6
-            + x**4 / 120
-            + x**6 / 5040
-            + x**8 / 362_880
-            + x**10 / 39_916_800
+            1 + x**2 / 6 + x**4 / 120 + x**6 / 5040 + x**8 / 362_880 + x**10 / 39_916_800
         )
 
     def exp_iL1(box, R, V, V_b, **kwargs):

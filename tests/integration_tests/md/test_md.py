@@ -125,7 +125,9 @@ def test_ase_calc(get_tmp_path):
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(initial_structure_path.as_posix(), atoms)
 
-    displacement_fn, _ = jax_md_reduced.space.periodic_general(cell_size, fractional_coordinates=False)
+    displacement_fn, _ = jax_md_reduced.space.periodic_general(
+        cell_size, fractional_coordinates=False
+    )
 
     neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_or_metric=displacement_fn,
