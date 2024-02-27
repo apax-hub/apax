@@ -36,11 +36,11 @@ def test_input_pipeline(example_atoms, calc_results, num_data, external_labels):
 
     if external_labels:
         label_info = {}
-        for l in external_labels:
-            label_info[l["name"]] = l["shape"]
+        for label in external_labels:
+            label_info[label["name"]] = label["shape"]
 
-            for a, v in zip(example_atoms, l["values"]):
-                a.calc.results[l["name"]] = v
+            for a, v in zip(example_atoms, label["values"]):
+                a.calc.results[label["name"]] = v
     else:
         label_info = {}
 
