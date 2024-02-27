@@ -132,8 +132,6 @@ def atoms_to_labels(
             "stress": [],
         },
     }
-    if not atoms_list[0].calc:
-        return None
 
     for atoms in atoms_list:
         for key, val in atoms.calc.results.items():

@@ -52,19 +52,22 @@ def load_data_files(data_config):
     return train_raw_ds, val_raw_ds
 
 
-def initialize_dataset(config, raw_ds, calc_stats: bool = True):
+def initialize_dataset(config, raw_ds, calc_stats: bool = True, read_labels: bool =True):
     inputs = process_inputs(
         raw_ds.atoms_list,
         r_max=config.model.r_max,
         disable_pbar=config.progress_bar.disable_nl_pbar,
         pos_unit=config.data.pos_unit,
     )
-    labels = process_labels(
-        raw_ds.atoms_list,
-        external_labels=raw_ds.additional_labels,
-        pos_unit=config.data.pos_unit,
-        energy_unit=config.data.energy_unit,
-    )
+    if read_labels:
+        labels = process_labels(
+            raw_ds.atoms_list,
+            external_labels=raw_ds.additional_labels,
+            pos_unit=config.data.pos_unit,
+            energy_unit=config.data.energy_unit,
+        )
+    else:
+        labels = None
 
 
     if calc_stats:

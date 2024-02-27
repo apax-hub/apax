@@ -180,12 +180,7 @@ def dataset_from_dicts(
         for key, val in doa["fixed"].items():
             doa["fixed"][key] = tf.constant(val)
 
-    # tensors = []
-    # for doa in dicts_of_arrays:
-    #     tensors.append(doa["ragged"])
-    #     tensors.append(doa["fixed"])
-    # print(*tensors)
-    # quit()
+    # add check for more than 2 datasets
     ds = tf.data.Dataset.from_tensor_slices(*dicts_of_arrays)
     return ds
 
@@ -227,9 +222,10 @@ class AtomisticDataset:
         self.max_nbrs = max_nbrs
 
         self.n_data = len(inputs["fixed"]["n_atoms"])
-
+        inputs = process_inputs(inputs)
 
         if labels:
+            labels = process_labels(labels)
             self.ds = dataset_from_dicts(inputs, labels)
         else:
             self.ds = dataset_from_dicts(inputs)
