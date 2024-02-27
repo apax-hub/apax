@@ -6,7 +6,7 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import vmap, Array
+from jax import Array, vmap
 
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.empirical import EmpiricalEnergyTerm
