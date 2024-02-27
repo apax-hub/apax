@@ -16,7 +16,7 @@ from typing import Any, Callable, Optional, Tuple, Union
 
 import jax.numpy as jnp
 from jax import custom_jvp, vmap
-from jax_md import space
+# from jax_md import space
 
 from apax.utils.jax_md_reduced.util import Array, f32, f64, safe_mask
 

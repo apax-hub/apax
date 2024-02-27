@@ -6,7 +6,7 @@ import numpy as np
 import znh5md
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from jax_md.space import transform
+from apax.utils.jax_md_reduced.space import transform
 
 from apax.md.sim_utils import System
 

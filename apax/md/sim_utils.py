@@ -3,7 +3,7 @@ from typing import Callable, Optional
 
 import jax.numpy as jnp
 import numpy as np
-from jax_md.space import transform
+from apax.utils.jax_md_reduced.space import transform
 
 
 @dataclasses.dataclass
