@@ -1,3 +1,5 @@
+from typing import Optional
+
 import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
@@ -42,7 +44,7 @@ def atoms_to_inputs(
     atoms_list: list[Atoms],
     pos_unit: str = "Ang",
 ) -> dict[str, dict[str, list]]:
-    """Converts an list of ASE atoms to a dict where all inputs 
+    """Converts an list of ASE atoms to a dict where all inputs
     are sorted by their shape (ragged/fixed). Units are
     adjusted if ASE compatible and provided in the inputpipeline.
 
@@ -68,7 +70,7 @@ def atoms_to_inputs(
             "box": [],
         },
     }
-    
+
     box = atoms_list[0].cell.array
     pbc = np.all(box > 1e-6)
 
@@ -106,6 +108,8 @@ def atoms_to_inputs(
 
 def atoms_to_labels(
     atoms_list: list[Atoms],
+    additional_properties_info: Optional[dict] = {},
+    read_labels: bool = True,
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
 ) -> dict[str, dict[str, list]]:
@@ -122,6 +126,8 @@ def atoms_to_labels(
     labels :
         Labels are trainable system properties.
     """
+    if not read_labels:
+        return None
 
     labels = {
         "ragged": {
@@ -132,6 +138,10 @@ def atoms_to_labels(
             "stress": [],
         },
     }
+    for key in additional_properties_info.keys():
+        shape = additional_properties_info[key]
+        placeholder = {key: []}
+        labels[shape].update(placeholder)
 
     for atoms in atoms_list:
         for key, val in atoms.calc.results.items():
@@ -148,6 +158,10 @@ def atoms_to_labels(
                     / (unit_dict[pos_unit] ** 3)
                 )
                 labels["fixed"][key].append(stress * atoms.cell.volume)
+
+            elif key in additional_properties_info.keys():
+                shape = additional_properties_info[key]
+                labels[shape][key].append(atoms.calc.results[key])
 
     labels["fixed"] = prune_dict(labels["fixed"])
     labels["ragged"] = prune_dict(labels["ragged"])

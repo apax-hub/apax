@@ -15,7 +15,7 @@ from apax.train.checkpoints import restore_single_parameters
 from apax.train.metrics import initialize_metrics
 from apax.train.run import initialize_loss_fn, setup_logging
 from apax.train.trainer import make_step_fns
-from apax.utils.data import load_data, split_atoms, split_label
+from apax.utils.data import load_data, split_atoms
 from apax.utils.random import seed_py_np_tf
 
 log = logging.getLogger(__name__)
@@ -123,14 +123,12 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
 
     raw_ds = load_test_data(config, model_version_path, eval_path, n_test)
 
-    test_ds, ds_stats = initialize_dataset(config, raw_ds)
+    test_ds = initialize_dataset(config, raw_ds, read_labels=False, calc_stats=False)
 
     _, init_box = test_ds.init_input()
 
-    builder = ModelBuilder(config.model.get_dict(), n_species=ds_stats.n_species)
+    builder = ModelBuilder(config.model.get_dict())
     model = builder.build_energy_derivative_model(
-        scale=ds_stats.elemental_scale,
-        shift=ds_stats.elemental_shift,
         apply_mask=True,
         init_box=init_box,
     )

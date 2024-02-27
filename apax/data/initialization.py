@@ -1,12 +1,10 @@
-import dataclasses
 import logging
-from typing import Optional
 
 import numpy as np
-from ase import Atoms
 
-from apax.data.input_pipeline import AtomisticDataset, process_inputs, process_labels
+from apax.data.input_pipeline import AtomisticDataset, process_inputs
 from apax.data.statistics import compute_scale_shift_parameters
+from apax.utils.convert import atoms_to_labels
 from apax.utils.data import load_data, split_atoms, split_idxs
 
 log = logging.getLogger(__name__)
@@ -40,19 +38,36 @@ def load_data_files(data_config):
     return train_atoms_list, val_atoms_list
 
 
-def initialize_dataset(config, raw_ds, read_labels: list[str] = ["energy", "forces"], calc_stats: bool = True):
+def initialize_dataset(
+    config,
+    atoms_list,
+    read_labels: bool = True,
+    additional_properties_info: dict[str, str] = {},
+    calc_stats: bool = True,
+):
+    if calc_stats and not read_labels:
+        raise ValueError(
+            "Cannot calculate scale/shift parameters without reading labels."
+        )
     inputs = process_inputs(
-        raw_ds.atoms_list,
+        atoms_list,
         r_max=config.model.r_max,
         disable_pbar=config.progress_bar.disable_nl_pbar,
         pos_unit=config.data.pos_unit,
     )
-    labels = process_labels(
-        raw_ds.atoms_list,
+    labels = atoms_to_labels(
+        atoms_list,
+        additional_properties_info=additional_properties_info,
         read_labels=read_labels,
-        external_labels=raw_ds.additional_labels,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
+    )
+
+    dataset = AtomisticDataset(
+        inputs,
+        config.n_epochs,
+        labels=labels,
+        buffer_size=config.data.shuffle_buffer_size,
     )
 
     if calc_stats:
@@ -64,15 +79,6 @@ def initialize_dataset(config, raw_ds, read_labels: list[str] = ["energy", "forc
             config.data.shift_options,
             config.data.scale_options,
         )
-
-    dataset = AtomisticDataset(
-        inputs,
-        config.n_epochs,
-        labels=labels,
-        buffer_size=config.data.shuffle_buffer_size,
-    )
-
-    if calc_stats:
         return dataset, ds_stats
     else:
         return dataset

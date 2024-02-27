@@ -2,10 +2,10 @@ from functools import partial
 from pathlib import Path
 from typing import Callable, Union
 
+import ase
 import jax
 import jax.numpy as jnp
 import numpy as np
-import ase
 from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
 from jax_md import partition, quantity, space
@@ -231,7 +231,9 @@ class ASECalculator(Calculator):
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
 
-    def batch_eval(self, atoms_list: list[ase.Atoms], batch_size: int=64, silent: bool=False) -> list[ase.Atoms]:
+    def batch_eval(
+        self, atoms_list: list[ase.Atoms], batch_size: int = 64, silent: bool = False
+    ) -> list[ase.Atoms]:
         """Evaluate the model on a list of Atoms. This is preferable to assigning
         the calculator to each Atoms instance for 2 reasons:
         1. Processing can be abtched, which is advantageous for larger datasets.
@@ -256,7 +258,7 @@ class ASECalculator(Calculator):
         if self.model is None:
             self.initialize(atoms_list[0])
         dataset = initialize_dataset(
-            self.model_config, atoms_list, calc_stats=False
+            self.model_config, atoms_list, read_labels=False, calc_stats=False
         )
         dataset.set_batch_size(batch_size)
 
@@ -278,8 +280,8 @@ class ASECalculator(Calculator):
             )
             unpadded_results = unpack_results(results, inputs)
 
-            # for the last batch, the number of structures may be less than the batch_size,
-            # which is why we check this explicitely
+            # for the last batch, the number of structures may be less
+            # than the batch_size,  which is why we check this explicitely
             num_strucutres_in_batch = results["energy"].shape[0]
             for j in range(num_strucutres_in_batch):
                 atoms = atoms_list[i].copy()

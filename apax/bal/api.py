@@ -87,7 +87,7 @@ def kernel_selection(
 
     n_train = len(train_atoms)
     dataset = initialize_dataset(
-        config, train_atoms + pool_atoms, calc_stats=False
+        config, train_atoms + pool_atoms, read_labels=False, calc_stats=False
     )
     dataset.set_batch_size(processing_batch_size)
 

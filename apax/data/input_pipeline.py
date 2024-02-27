@@ -7,7 +7,7 @@ import numpy as np
 import tensorflow as tf
 
 from apax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
-from apax.utils.convert import atoms_to_inputs, atoms_to_labels
+from apax.utils.convert import atoms_to_inputs
 
 log = logging.getLogger(__name__)
 
@@ -35,9 +35,7 @@ class PadToSpecificSize:
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
 
-    def __call__(
-        self, inputs: dict, labels: dict = None
-    ) -> tuple[dict, dict]:
+    def __call__(self, inputs: dict, labels: dict = None) -> tuple[dict, dict]:
         """
         Arguments
         ---------
@@ -80,7 +78,6 @@ class PadToSpecificSize:
         new_inputs = r_inputs.copy()
         new_inputs.update(f_inputs)
 
-
         if labels:
             r_labels = labels["ragged"]
             f_labels = labels["fixed"]
@@ -97,42 +94,6 @@ class PadToSpecificSize:
             return new_inputs, new_labels
         else:
             return new_inputs
-        # for key, val in r_inputs.items():
-        #     if self.max_atoms is None:
-        #         r_inputs[key] = val.to_tensor()
-        #     elif key == "idx":
-        #         shape = r_inputs[key].shape
-        #         padded_shape = [shape[0], shape[1], self.max_nbrs]  # batch, ij, nbrs
-        #     elif key == "offsets":
-        #         shape = r_inputs[key].shape
-        #         padded_shape = [shape[0], self.max_nbrs, 3]  # batch, ij, nbrs
-        #     elif key == "numbers":
-        #         shape = r_inputs[key].shape
-        #         padded_shape = [shape[0], self.max_atoms]  # batch, atoms
-        #     else:
-        #         shape = r_inputs[key].shape
-        #         padded_shape = [shape[0], self.max_atoms, shape[2]]  # batch, atoms, 3
-        #     r_inputs[key] = val.to_tensor(shape=padded_shape)
-
-        # inputs = r_inputs.copy()
-        # inputs.update(f_inputs)
-
-
-        # if r_labels and f_labels:
-        #     for key, val in r_labels.items():
-        #         if self.max_atoms is None:
-        #             r_labels[key] = val.to_tensor()
-        #         else:
-        #             padded_shape = [shape[0], self.max_atoms, shape[2]]
-        #             r_labels[key] = val.to_tensor(default_value=0.0, shape=padded_shape)
-
-        #     labels = r_labels.copy()
-        #     labels.update(f_labels)
-        
-
-        #     return inputs, labels
-        # else:
-        #     return inputs
 
 
 def process_inputs(
@@ -155,25 +116,7 @@ def process_inputs(
     return inputs
 
 
-def process_labels(
-    atoms_list: list,
-    read_labels,
-    external_labels: dict = {},
-    pos_unit: str = "Ang",
-    energy_unit: str = "eV",
-) -> tuple[dict]:
-    if len(read_labels) == 0:
-        return None
-    labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
-
-    if external_labels:
-        for shape, label in external_labels.items():
-            labels[shape].update(label)
-    return labels
-
-
-def dataset_from_dicts(
-    *dicts_of_arrays: Dict[str, np.ndarray]) -> tf.data.Dataset:
+def dataset_from_dicts(*dicts_of_arrays: Dict[str, np.ndarray]) -> tf.data.Dataset:
     # tf.RaggedTensors should be created from `tf.ragged.stack`
     # instead of `tf.ragged.constant` for performance reasons.
     # See https://github.com/tensorflow/tensorflow/issues/47853
