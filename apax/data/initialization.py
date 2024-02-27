@@ -42,7 +42,6 @@ def initialize_dataset(
     config,
     atoms_list,
     read_labels: bool = True,
-    additional_properties_info: dict[str, str] = {},
     calc_stats: bool = True,
 ):
     if calc_stats and not read_labels:
@@ -57,7 +56,7 @@ def initialize_dataset(
     )
     labels = atoms_to_labels(
         atoms_list,
-        additional_properties_info=additional_properties_info,
+        additional_properties_info=config.data.additional_properties_info,
         read_labels=read_labels,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
