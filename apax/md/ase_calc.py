@@ -12,7 +12,7 @@ from jax_md import partition, quantity, space
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
-from apax.data.initialization import RawDataset, initialize_dataset
+from apax.data.initialization import initialize_dataset
 from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
 from apax.utils import jax_md_reduced
@@ -256,7 +256,7 @@ class ASECalculator(Calculator):
         if self.model is None:
             self.initialize(atoms_list[0])
         dataset = initialize_dataset(
-            self.model_config, RawDataset(atoms_list=atoms_list), calc_stats=False
+            self.model_config, atoms_list, calc_stats=False
         )
         dataset.set_batch_size(batch_size)
 

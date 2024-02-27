@@ -8,7 +8,7 @@ import numpy as np
 from tqdm import trange
 
 from apax.config import parse_config
-from apax.data.initialization import RawDataset, initialize_dataset
+from apax.data.initialization import initialize_dataset
 from apax.model import ModelBuilder
 from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import restore_single_parameters
@@ -38,7 +38,7 @@ def load_test_data(
     os.makedirs(eval_path, exist_ok=True)
     if config.data.data_path is not None:
         log.info(f"Read data file {config.data.data_path}")
-        atoms_list, label_dict = load_data(config.data.data_path)
+        atoms_list = load_data(config.data.data_path)
 
         idxs_dict = np.load(model_version_path / "train_val_idxs.npz")
 
@@ -53,7 +53,6 @@ def load_test_data(
         )
 
         atoms_list, _ = split_atoms(atoms_list, test_idxs)
-        label_dict, _ = split_label(label_dict, test_idxs)
 
     elif config.data.test_data_path is not None:
         log.info(f"Read test data file {config.data.test_data_path}")
@@ -64,8 +63,7 @@ def load_test_data(
     else:
         raise ValueError("input data path/paths not defined")
 
-    test_raw_ds = RawDataset(atoms_list=atoms_list, additional_labels=label_dict)
-    return test_raw_ds
+    return atoms_list
 
 
 def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=False):
@@ -138,7 +136,6 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     )
 
     model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
-
     config, params = restore_single_parameters(model_version_path)
 
     predict(

@@ -157,10 +157,13 @@ def process_inputs(
 
 def process_labels(
     atoms_list: list,
+    read_labels,
     external_labels: dict = {},
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
 ) -> tuple[dict]:
+    if len(read_labels) == 0:
+        return None
     labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
 
     if external_labels:
@@ -222,10 +225,8 @@ class AtomisticDataset:
         self.max_nbrs = max_nbrs
 
         self.n_data = len(inputs["fixed"]["n_atoms"])
-        inputs = process_inputs(inputs)
 
         if labels:
-            labels = process_labels(labels)
             self.ds = dataset_from_dicts(inputs, labels)
         else:
             self.ds = dataset_from_dicts(inputs)

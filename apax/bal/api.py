@@ -8,7 +8,6 @@ from click import Path
 from tqdm import trange
 
 from apax.bal import feature_maps, kernel, selection, transforms
-from apax.data.initialization import RawDataset
 from apax.data.input_pipeline import AtomisticDataset
 from apax.model.builder import ModelBuilder
 from apax.model.gmnn import EnergyModel
@@ -55,7 +54,7 @@ def compute_features(feature_fn, dataset: AtomisticDataset):
     ds = dataset.batch()
 
     pbar = trange(n_data, desc="Computing features", ncols=100, leave=True)
-    for i, (inputs, _) in enumerate(ds):
+    for inputs in ds:
         g = feature_fn(inputs)
         features.append(np.asarray(g))
         pbar.update(g.shape[0])
@@ -88,7 +87,7 @@ def kernel_selection(
 
     n_train = len(train_atoms)
     dataset = initialize_dataset(
-        config, RawDataset(atoms_list=train_atoms + pool_atoms), calc_stats=False
+        config, train_atoms + pool_atoms, calc_stats=False
     )
     dataset.set_batch_size(processing_batch_size)
 
