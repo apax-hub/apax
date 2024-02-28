@@ -1,8 +1,20 @@
+from typing import Optional
+
 import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
 from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
 from jax_md import space
+
+DTYPE = np.float64
+unit_dict = {
+    "Ang": Ang,
+    "Bohr": Bohr,
+    "eV": eV,
+    "kcal/mol": kcal / mol,
+    "Hartree": Hartree,
+    "kJ/mol": kJ / mol,
+}
 
 
 def tf_to_jax_dict(data_dict: dict[str, list]) -> dict:
@@ -28,15 +40,13 @@ def prune_dict(data_dict):
     return pruned
 
 
-def atoms_to_arrays(
+def atoms_to_inputs(
     atoms_list: list[Atoms],
     pos_unit: str = "Ang",
-    energy_unit: str = "eV",
-) -> tuple[dict[str, dict[str, list]], dict[str, dict[str, list]]]:
-    """Converts an list of ASE atoms to two dicts where all inputs and labels
-    are sorted by there shape (ragged/fixed), and property. Units are
+) -> dict[str, dict[str, list]]:
+    """Converts an list of ASE atoms to a dict where all inputs
+    are sorted by their shape (ragged/fixed). Units are
     adjusted if ASE compatible and provided in the inputpipeline.
-
 
     Parameters
     ----------
@@ -61,25 +71,6 @@ def atoms_to_arrays(
         },
     }
 
-    labels = {
-        "ragged": {
-            "forces": [],
-        },
-        "fixed": {
-            "energy": [],
-            "stress": [],
-        },
-    }
-    DTYPE = np.float64
-
-    unit_dict = {
-        "Ang": Ang,
-        "Bohr": Bohr,
-        "eV": eV,
-        "kcal/mol": kcal / mol,
-        "Hartree": Hartree,
-        "kJ/mol": kJ / mol,
-    }
     box = atoms_list[0].cell.array
     pbc = np.all(box > 1e-6)
 
@@ -109,6 +100,50 @@ def atoms_to_arrays(
 
         inputs["ragged"]["numbers"].append(atoms.numbers)
         inputs["fixed"]["n_atoms"].append(len(atoms))
+
+    inputs["fixed"] = prune_dict(inputs["fixed"])
+    inputs["ragged"] = prune_dict(inputs["ragged"])
+    return inputs
+
+
+def atoms_to_labels(
+    atoms_list: list[Atoms],
+    additional_properties_info: Optional[dict] = {},
+    read_labels: bool = True,
+    pos_unit: str = "Ang",
+    energy_unit: str = "eV",
+) -> dict[str, dict[str, list]]:
+    """Converts an list of ASE atoms to a dict of labels
+    Units are adjusted if ASE compatible and provided in the inputpipeline.
+
+    Parameters
+    ----------
+    atoms_list :
+        List of all structures. Enties are ASE atoms objects.
+
+    Returns
+    -------
+    labels :
+        Labels are trainable system properties.
+    """
+    if not read_labels:
+        return None
+
+    labels = {
+        "ragged": {
+            "forces": [],
+        },
+        "fixed": {
+            "energy": [],
+            "stress": [],
+        },
+    }
+    for key in additional_properties_info.keys():
+        shape = additional_properties_info[key]
+        placeholder = {key: []}
+        labels[shape].update(placeholder)
+
+    for atoms in atoms_list:
         for key, val in atoms.calc.results.items():
             if key == "forces":
                 labels["ragged"][key].append(
@@ -117,16 +152,17 @@ def atoms_to_arrays(
             elif key == "energy":
                 labels["fixed"][key].append(val * unit_dict[energy_unit])
             elif key == "stress":
-                stress = (  # TODO check whether we should transpose
-                    atoms.get_stress(voigt=False)  # .T
+                stress = (
+                    atoms.get_stress(voigt=False)
                     * unit_dict[energy_unit]
                     / (unit_dict[pos_unit] ** 3)
-                    * atoms.cell.volume
                 )
-                labels["fixed"][key].append(stress)
+                labels["fixed"][key].append(stress * atoms.cell.volume)
 
-    inputs["fixed"] = prune_dict(inputs["fixed"])
+            elif key in additional_properties_info.keys():
+                shape = additional_properties_info[key]
+                labels[shape][key].append(atoms.calc.results[key])
+
     labels["fixed"] = prune_dict(labels["fixed"])
-    inputs["ragged"] = prune_dict(inputs["ragged"])
     labels["ragged"] = prune_dict(labels["ragged"])
-    return inputs, labels
+    return labels
