@@ -8,14 +8,14 @@ import numpy as np
 from tqdm import trange
 
 from apax.config import parse_config
-from apax.data.initialization import RawDataset, initialize_dataset
+from apax.data.initialization import initialize_dataset
 from apax.model import ModelBuilder
 from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import restore_single_parameters
 from apax.train.metrics import initialize_metrics
 from apax.train.run import initialize_loss_fn, setup_logging
 from apax.train.trainer import make_step_fns
-from apax.utils.data import load_data, split_atoms, split_label
+from apax.utils.data import load_data, split_atoms
 from apax.utils.random import seed_py_np_tf
 
 log = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ def load_test_data(
     os.makedirs(eval_path, exist_ok=True)
     if config.data.data_path is not None:
         log.info(f"Read data file {config.data.data_path}")
-        atoms_list, label_dict = load_data(config.data.data_path)
+        atoms_list = load_data(config.data.data_path)
 
         idxs_dict = np.load(model_version_path / "train_val_idxs.npz")
 
@@ -53,7 +53,6 @@ def load_test_data(
         )
 
         atoms_list, _ = split_atoms(atoms_list, test_idxs)
-        label_dict, _ = split_label(label_dict, test_idxs)
 
     elif config.data.test_data_path is not None:
         log.info(f"Read test data file {config.data.test_data_path}")
@@ -64,8 +63,7 @@ def load_test_data(
     else:
         raise ValueError("input data path/paths not defined")
 
-    test_raw_ds = RawDataset(atoms_list=atoms_list, additional_labels=label_dict)
-    return test_raw_ds
+    return atoms_list
 
 
 def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=False):
@@ -125,20 +123,17 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
 
     raw_ds = load_test_data(config, model_version_path, eval_path, n_test)
 
-    test_ds, ds_stats = initialize_dataset(config, raw_ds)
+    test_ds = initialize_dataset(config, raw_ds, read_labels=False, calc_stats=False)
 
     _, init_box = test_ds.init_input()
 
-    builder = ModelBuilder(config.model.get_dict(), n_species=ds_stats.n_species)
+    builder = ModelBuilder(config.model.get_dict())
     model = builder.build_energy_derivative_model(
-        scale=ds_stats.elemental_scale,
-        shift=ds_stats.elemental_shift,
         apply_mask=True,
         init_box=init_box,
     )
 
     model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
-
     config, params = restore_single_parameters(model_version_path)
 
     predict(

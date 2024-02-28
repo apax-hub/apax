@@ -42,6 +42,8 @@ class DataConfig(BaseModel, extra="forbid"):
     batch_size: Number of training examples to be evaluated at once.
     valid_batch_size: Number of validation examples to be evaluated at once.
     shuffle_buffer_size: Size of the `tf.data` shuffle buffer.
+    additional_properties_info:
+        dict of property name, shape (ragged or fixed) pairs
     energy_regularisation: Magnitude of the regularization in the per-element
         energy regression.
     """
@@ -58,6 +60,7 @@ class DataConfig(BaseModel, extra="forbid"):
     batch_size: PositiveInt = 32
     valid_batch_size: PositiveInt = 100
     shuffle_buffer_size: PositiveInt = 1000
+    additional_properties_info: dict[str, str] = {}
 
     shift_method: str = "per_element_regression_shift"
     shift_options: dict = {"energy_regularisation": 1.0}

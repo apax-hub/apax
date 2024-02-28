@@ -2,19 +2,23 @@ from functools import partial
 from pathlib import Path
 from typing import Callable, Union
 
+import ase
 import jax
 import jax.numpy as jnp
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
+from ase.calculators.singlepoint import SinglePointCalculator
 from matscipy.neighbours import neighbour_list
+from tqdm import trange
 
+from apax.data.initialization import initialize_dataset
 from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
 from apax.utils import jax_md_reduced
 from apax.utils.jax_md_reduced import quantity
 
 
-def maybe_vmap(apply, params, Z):
+def maybe_vmap(apply, params):
     n_models = check_for_ensemble(params)
 
     if n_models > 1:
@@ -28,7 +32,6 @@ def maybe_vmap(apply, params, Z):
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_jax):
     r_max = config.model.r_max
-    atomic_numbers = jnp.asarray(atoms.numbers)
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
     neigbor_from_jax = neighbor_calculable_with_jax(box, r_max)
     box = box.T
@@ -53,7 +56,6 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
             format=jax_md_reduced.partition.Sparse,
         )
 
-    Z = jnp.asarray(atomic_numbers)
     n_species = 119  # int(np.max(Z) + 1)
     builder = ModelBuilder(config.model.get_dict(), n_species=n_species)
 
@@ -61,8 +63,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
         apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
     )
 
-    energy_fn = maybe_vmap(model.apply, params, Z)
-
+    energy_fn = maybe_vmap(model.apply, params)
     return energy_fn, neighbor_fn
 
 
@@ -87,6 +88,18 @@ def make_ensemble(model):
         return results
 
     return ensemble
+
+
+def unpack_results(results, inputs):
+    n_structures = len(results["energy"])
+    unpacked_results = []
+    for i in range(n_structures):
+        single_results = jax.tree_map(lambda x: x[i], results)
+        for k, v in single_results.items():
+            if "forces" in k:
+                single_results[k] = v[: inputs["n_atoms"][i]]
+        unpacked_results.append(single_results)
+    return unpacked_results
 
 
 class ASECalculator(Calculator):
@@ -129,6 +142,7 @@ class ASECalculator(Calculator):
         self.neighbor_fn = None
         self.neighbors = None
         self.offsets = None
+        self.model = None
 
     def initialize(self, atoms):
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
@@ -148,6 +162,7 @@ class ASECalculator(Calculator):
         for transformation in self.transformations:
             model = transformation.apply(model, self.n_models)
 
+        self.model = model
         self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
         self.neighbor_fn = neighbor_fn
 
@@ -221,6 +236,66 @@ class ASECalculator(Calculator):
 
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
+
+    def batch_eval(
+        self, atoms_list: list[ase.Atoms], batch_size: int = 64, silent: bool = False
+    ) -> list[ase.Atoms]:
+        """Evaluate the model on a list of Atoms. This is preferable to assigning
+        the calculator to each Atoms instance for 2 reasons:
+        1. Processing can be abtched, which is advantageous for larger datasets.
+        2. Inputs are padded so no recompilation is triggered when evaluating
+        differently sized systems.
+
+        Arguments
+        ---------
+        atoms_list :
+            List of Atoms to be evaluated.
+        batch_size:
+            Processing batch size. Does not affect results,
+            only speed and memory requirements.
+        silent:
+            Whether or not to suppress progress bars.
+
+        Returns
+        -------
+        evaluated_atoms_list:
+            List of Atoms with labels predicted by the model.
+        """
+        if self.model is None:
+            self.initialize(atoms_list[0])
+        dataset = initialize_dataset(
+            self.model_config, atoms_list, read_labels=False, calc_stats=False
+        )
+        dataset.set_batch_size(batch_size)
+
+        evaluated_atoms_list = []
+        n_data = dataset.n_data
+        ds = dataset.batch()
+        batched_model = jax.jit(jax.vmap(self.model, in_axes=(0, 0, 0, 0, 0)))
+
+        pbar = trange(
+            n_data, desc="Computing features", ncols=100, leave=True, disable=silent
+        )
+        for i, inputs in enumerate(ds):
+            results = batched_model(
+                inputs["positions"],
+                inputs["numbers"],
+                inputs["idx"],
+                inputs["box"],
+                inputs["offsets"],
+            )
+            unpadded_results = unpack_results(results, inputs)
+
+            # for the last batch, the number of structures may be less
+            # than the batch_size,  which is why we check this explicitely
+            num_strucutres_in_batch = results["energy"].shape[0]
+            for j in range(num_strucutres_in_batch):
+                atoms = atoms_list[i].copy()
+                atoms.calc = SinglePointCalculator(atoms=atoms, **unpadded_results[j])
+                evaluated_atoms_list.append(atoms)
+            pbar.update(batch_size)
+        pbar.close()
+        return evaluated_atoms_list
 
 
 def neighbor_calculable_with_jax(box, r_max):
