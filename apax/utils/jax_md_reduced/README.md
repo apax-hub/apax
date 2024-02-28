@@ -3,7 +3,6 @@
 apax relies on the amazing `jax_md` package for neighborlists and thermostats.
 Some of our use cases run into bugs in functionality provided by `jax_md`.
 Hence, this submodule contains a small number of fixes for some `jax_md` features.
-We will switch over to the official implementations for any bug fixed upstream.
 
 We would like to thank the developers of `jax_md` for the work on this great package.
 

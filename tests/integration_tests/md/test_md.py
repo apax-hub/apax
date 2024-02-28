@@ -9,7 +9,6 @@ import znh5md
 from ase import Atoms
 from ase.io import read, write
 from flax.training import checkpoints
-from jax_md import partition, space
 
 from apax.config import Config, MDConfig
 from apax.md import run_md
@@ -54,13 +53,13 @@ def test_run_md(get_tmp_path):
 
     n_species = 119  # int(np.max(atomic_numbers) + 1)
 
-    displacement_fn, _ = space.free()
+    displacement_fn, _ = jax_md_reduced.space.free()
 
     neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=model_config.model.r_max,
-        format=partition.Sparse,
+        format=jax_md_reduced.partition.Sparse,
         fractional_coordinates=False,
     )
     neighbors = neighbor_fn.allocate(positions)
@@ -126,13 +125,15 @@ def test_ase_calc(get_tmp_path):
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(initial_structure_path.as_posix(), atoms)
 
-    displacement_fn, _ = space.periodic_general(cell_size, fractional_coordinates=False)
+    displacement_fn, _ = jax_md_reduced.space.periodic_general(
+        cell_size, fractional_coordinates=False
+    )
 
     neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=model_config.model.r_max,
-        format=partition.Sparse,
+        format=jax_md_reduced.partition.Sparse,
         fractional_coordinates=False,
     )
     neighbors = neighbor_fn.allocate(positions)

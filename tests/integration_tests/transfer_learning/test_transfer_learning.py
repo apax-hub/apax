@@ -13,8 +13,8 @@ TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
 
 def l2_param_diff(p1, p2):
-    p1, _ = jax.tree_flatten(p1)
-    p2, _ = jax.tree_flatten(p2)
+    p1, _ = jax.tree.flatten(p1)
+    p2, _ = jax.tree.flatten(p2)
     diff = 0.0
     for i in range(len(p1)):
         diff += np.sum((p1[i] - p2[i]) ** 2)

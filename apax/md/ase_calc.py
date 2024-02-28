@@ -8,14 +8,13 @@ import jax.numpy as jnp
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
-from jax_md import partition, quantity, space
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
 from apax.data.initialization import initialize_dataset
 from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
-from apax.utils import jax_md_reduced
+from apax.utils.jax_md_reduced import partition, quantity, space
 
 
 def maybe_vmap(apply, params):
@@ -44,7 +43,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
         else:
             displacement_fn, _ = space.periodic_general(box, fractional_coordinates=True)
 
-        neighbor_fn = jax_md_reduced.partition.neighbor_list(
+        neighbor_fn = partition.neighbor_list(
             displacement_fn,
             box,
             config.model.r_max,

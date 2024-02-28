@@ -5,8 +5,8 @@ from jax import random
 from jax._src import dtypes
 from jax.nn.initializers import Initializer
 
-KeyArray = random.KeyArray
 Array = Any
+KeyArray = Array
 
 DTypeLikeFloat = Any
 DTypeLikeComplex = Any
