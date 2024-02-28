@@ -23,8 +23,7 @@ from apax.train.checkpoints import (
     restore_parameters,
 )
 from apax.train.run import setup_logging
-from apax.utils import jax_md_reduced
-from apax.utils.jax_md_reduced import quantity, simulate
+from apax.utils.jax_md_reduced import partition, quantity, simulate, space
 
 log = logging.getLogger(__name__)
 
@@ -340,7 +339,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     r_max = model_config.model.r_max
     log.info("initializing model")
     if np.all(system.box < 1e-6):
-        displacement_fn, shift_fn = jax_md_reduced.space.free()
+        displacement_fn, shift_fn = space.free()
     else:
         heights = heights_of_box_sides(system.box)
 
@@ -356,7 +355,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
                 f"one cell vector direction {heights/2} < {r_max}",
                 "can not calculate the correct neighbors",
             )
-        displacement_fn, shift_fn = jax_md_reduced.space.periodic_general(
+        displacement_fn, shift_fn = space.periodic_general(
             system.box, fractional_coordinates=True
         )
 
@@ -364,13 +363,13 @@ def md_setup(model_config: Config, md_config: MDConfig):
     model = builder.build_energy_model(
         apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
     )
-    neighbor_fn = jax_md_reduced.partition.neighbor_list(
+    neighbor_fn = partition.neighbor_list(
         displacement_fn,
         system.box,
         r_max,
         md_config.dr_threshold,
         fractional_coordinates=True,
-        format=jax_md_reduced.partition.Sparse,
+        format=partition.Sparse,
         disable_cell_list=True,
     )
 

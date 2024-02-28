@@ -10,7 +10,7 @@ from ase import Atoms
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
-from apax.utils import jax_md_reduced
+from apax.utils.jax_md_reduced import partition, space
 
 log = logging.getLogger(__name__)
 
@@ -21,14 +21,14 @@ def initialize_nbr_fn(atoms: Atoms, cutoff: float) -> Callable:
     box = jnp.asarray(atoms.cell.array)
 
     if np.all(box < 1e-6):
-        displacement_fn, _ = jax_md_reduced.space.free()
+        displacement_fn, _ = space.free()
         box = default_box
 
-        neighbor_fn = jax_md_reduced.partition.neighbor_list(
+        neighbor_fn = partition.neighbor_list(
             displacement_or_metric=displacement_fn,
             box=box,
             r_cutoff=cutoff,
-            format=jax_md_reduced.partition.Sparse,
+            format=partition.Sparse,
             fractional_coordinates=False,
         )
 

@@ -5,7 +5,7 @@ import numpy as np
 from ase import Atoms
 from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
 
-from apax.utils import jax_md_reduced
+from apax.utils.jax_md_reduced import space
 
 DTYPE = np.float64
 unit_dict = {
@@ -93,7 +93,7 @@ def atoms_to_inputs(
             inv_box = np.linalg.inv(box)
             inputs["ragged"]["positions"].append(
                 np.array(
-                    jax_md_reduced.space.transform(
+                    space.transform(
                         inv_box, (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
                     )
                 )

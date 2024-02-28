@@ -8,7 +8,7 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from apax.md.sim_utils import System
-from apax.utils.jax_md_reduced.space import transform
+from apax.utils.jax_md_reduced import space
 
 log = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class TrajHandler:
             box = self.box
 
         if self.fractional:
-            positions = transform(box, state.position)
+            positions = space.transform(box, state.position)
         else:
             positions = state.position
 

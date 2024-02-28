@@ -266,9 +266,9 @@ class NeighborList:
     format: NeighborListFormat = dataclasses.static_field()
     cell_size: Optional[float] = dataclasses.static_field()
     cell_list_fn: Callable[[Array, CellList], CellList] = dataclasses.static_field()
-    update_fn: Callable[[Array, "NeighborList"], "NeighborList"] = (
-        dataclasses.static_field()
-    )
+    update_fn: Callable[
+        [Array, "NeighborList"], "NeighborList"
+    ] = dataclasses.static_field()
 
     def update(self, position: Array, **kwargs) -> "NeighborList":
         return self.update_fn(position, self, **kwargs)
@@ -341,9 +341,9 @@ class NeighborList:
     format: NeighborListFormat = dataclasses.static_field()
     cell_size: Optional[float] = dataclasses.static_field()
     cell_list_fn: Callable[[Array, CellList], CellList] = dataclasses.static_field()
-    update_fn: Callable[[Array, "NeighborList"], "NeighborList"] = (
-        dataclasses.static_field()
-    )
+    update_fn: Callable[
+        [Array, "NeighborList"], "NeighborList"
+    ] = dataclasses.static_field()
 
     def update(self, position: Array, **kwargs) -> "NeighborList":
         return self.update_fn(position, self, **kwargs)
