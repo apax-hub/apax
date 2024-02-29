@@ -4,12 +4,12 @@ import einops
 import flax.linen as nn
 import jax.numpy as jnp
 from jax import vmap
-from jax_md import space
 
 from apax.layers.descriptor.basis_functions import RadialFunction
 from apax.layers.descriptor.moments import geometric_moments
 from apax.layers.descriptor.triangular_indices import tril_2d_indices, tril_3d_indices
 from apax.layers.masking import mask_by_neighbor
+from apax.utils.jax_md_reduced import space
 
 
 class GaussianMomentDescriptor(nn.Module):

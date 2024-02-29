@@ -10,7 +10,6 @@ from ase import units
 from ase.io import read
 from flax.training import checkpoints
 from jax.experimental.host_callback import barrier_wait, id_tap
-from jax_md import partition, quantity, simulate, space
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -24,7 +23,7 @@ from apax.train.checkpoints import (
     restore_parameters,
 )
 from apax.train.run import setup_logging
-from apax.utils import jax_md_reduced
+from apax.utils.jax_md_reduced import partition, quantity, simulate, space
 
 log = logging.getLogger(__name__)
 
@@ -364,7 +363,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     model = builder.build_energy_model(
         apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
     )
-    neighbor_fn = jax_md_reduced.partition.neighbor_list(
+    neighbor_fn = partition.neighbor_list(
         displacement_fn,
         system.box,
         r_max,
