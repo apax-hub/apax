@@ -117,4 +117,5 @@ def run(user_config, log_level="error"):
         patience=config.patience,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
         is_ensemble=config.n_models > 1,
+        n_jitted_steps=config.n_jitted_steps,
     )

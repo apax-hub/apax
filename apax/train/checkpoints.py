@@ -40,10 +40,7 @@ def create_train_state(model, params: FrozenDict, tx):
         return state
 
     if n_models > 1:
-        train_state_fn = jax.vmap(
-            create_single_train_state,
-            axis_name="ensemble"
-        )
+        train_state_fn = jax.vmap(create_single_train_state, axis_name="ensemble")
     else:
         train_state_fn = create_single_train_state
 
@@ -89,9 +86,9 @@ class CheckpointManager:
     def __init__(self) -> None:
         self.async_manager = checkpoints.AsyncManager()
 
-    def save_checkpoint(self, ckpt, epoch: int, path: str) -> None:
+    def save_checkpoint(self, ckpt, epoch: int, path: Path) -> None:
         checkpoints.save_checkpoint(
-            ckpt_dir=path,
+            ckpt_dir=path.resolve(),
             target=ckpt,
             step=epoch,
             overwrite=True,
@@ -129,9 +126,7 @@ def load_params(model_version_path: Path, best=True) -> FrozenDict:
     try:
         # keep try except block for zntrack load from rev
         raw_restored = checkpoints.restore_checkpoint(
-            model_version_path,
-            target=None,
-            step=None
+            model_version_path, target=None, step=None
         )
     except FileNotFoundError:
         print(f"No checkpoint found at {model_version_path}")
@@ -143,11 +138,14 @@ def load_params(model_version_path: Path, best=True) -> FrozenDict:
 
 
 def restore_single_parameters(model_dir: Path) -> Tuple[Config, FrozenDict]:
-    """Load the config and parameters of a single model
-    """
+    """Load the config and parameters of a single model"""
     model_dir = Path(model_dir)
     model_config = parse_config(model_dir / "config.yaml")
-    model_config.data.directory = model_dir.parent.resolve().as_posix()
+
+    if model_config.data.experiment == "":
+        model_config.data.directory = model_dir.resolve().as_posix()
+    else:
+        model_config.data.directory = model_dir.parent.resolve().as_posix()
 
     ckpt_dir = model_config.data.model_version_path
     return model_config, load_params(ckpt_dir)
@@ -196,6 +194,6 @@ def canonicalize_energy_grad_model_parameters(params):
 
     first_level = param_dict["params"]
     if "energy_model" not in first_level.keys():
-        params = {"params": {"energy_model" : first_level}}
+        params = {"params": {"energy_model": first_level}}
     params = freeze(params)
     return params

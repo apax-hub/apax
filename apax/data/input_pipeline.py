@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Iterator
+from typing import Dict, Iterator, Optional
 
 import jax
 import jax.numpy as jnp
@@ -7,7 +7,7 @@ import numpy as np
 import tensorflow as tf
 
 from apax.data.preprocessing import dataset_neighborlist, prefetch_to_single_device
-from apax.utils.convert import atoms_to_arrays
+from apax.utils.convert import atoms_to_inputs
 
 log = logging.getLogger(__name__)
 
@@ -35,17 +35,15 @@ class PadToSpecificSize:
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
 
-    def __call__(
-        self, r_inputs: dict, f_inputs: dict, r_labels: dict, f_labels: dict
-    ) -> tuple[dict, dict]:
+    def __call__(self, inputs: dict, labels: dict = None) -> tuple[dict, dict]:
         """
         Arguments
         ---------
 
         r_inputs :
-            Inputs of ragged shape. Untrainable system-determining properties.
+            Inputs of ragged shape.
         f_inputs :
-            Inputs of fixed shape. Untrainable system-determining properties.
+            Inputs of fixed shape.
         r_labels :
             Labels of ragged shape. Trainable system properties.
         f_labels :
@@ -58,6 +56,8 @@ class PadToSpecificSize:
         labels:
             Contains all labels and all entries are uniformly shaped.
         """
+        r_inputs = inputs["ragged"]
+        f_inputs = inputs["fixed"]
         for key, val in r_inputs.items():
             if self.max_atoms is None:
                 r_inputs[key] = val.to_tensor()
@@ -75,36 +75,34 @@ class PadToSpecificSize:
                 padded_shape = [shape[0], self.max_atoms, shape[2]]  # batch, atoms, 3
             r_inputs[key] = val.to_tensor(shape=padded_shape)
 
-        for key, val in r_labels.items():
-            if self.max_atoms is None:
-                r_labels[key] = val.to_tensor()
-            else:
-                padded_shape = [shape[0], self.max_atoms, shape[2]]
-                r_labels[key] = val.to_tensor(default_value=0.0, shape=padded_shape)
+        new_inputs = r_inputs.copy()
+        new_inputs.update(f_inputs)
 
-        inputs = r_inputs.copy()
-        inputs.update(f_inputs)
+        if labels:
+            r_labels = labels["ragged"]
+            f_labels = labels["fixed"]
+            for key, val in r_labels.items():
+                if self.max_atoms is None:
+                    r_labels[key] = val.to_tensor()
+                else:
+                    padded_shape = [shape[0], self.max_atoms, shape[2]]
+                    r_labels[key] = val.to_tensor(default_value=0.0, shape=padded_shape)
 
-        labels = r_labels.copy()
-        labels.update(f_labels)
+            new_labels = r_labels.copy()
+            new_labels.update(f_labels)
 
-        return inputs, labels
+            return new_inputs, new_labels
+        else:
+            return new_inputs
 
 
-def create_dict_dataset(
+def process_inputs(
     atoms_list: list,
     r_max: float,
-    external_labels: dict = {},
     disable_pbar=False,
     pos_unit: str = "Ang",
-    energy_unit: str = "eV",
-) -> tuple[dict]:
-    inputs, labels = atoms_to_arrays(atoms_list, pos_unit, energy_unit)
-
-    if external_labels:
-        for shape, label in external_labels.items():
-            labels[shape].update(label)
-
+) -> dict:
+    inputs = atoms_to_inputs(atoms_list, pos_unit)
     idx, offsets = dataset_neighborlist(
         inputs["ragged"]["positions"],
         box=inputs["fixed"]["box"],
@@ -115,11 +113,11 @@ def create_dict_dataset(
 
     inputs["ragged"]["idx"] = idx
     inputs["ragged"]["offsets"] = offsets
-    return inputs, labels
+    return inputs
 
 
 def dataset_from_dicts(
-    inputs: Dict[str, np.ndarray], labels: Dict[str, np.ndarray]
+    inputs: Dict[str, np.ndarray], labels: Optional[Dict[str, np.ndarray]] = None
 ) -> tf.data.Dataset:
     # tf.RaggedTensors should be created from `tf.ragged.stack`
     # instead of `tf.ragged.constant` for performance reasons.
@@ -129,19 +127,18 @@ def dataset_from_dicts(
     for key, val in inputs["fixed"].items():
         inputs["fixed"][key] = tf.constant(val)
 
-    for key, val in labels["ragged"].items():
-        labels["ragged"][key] = tf.ragged.stack(val)
-    for key, val in labels["fixed"].items():
-        labels["fixed"][key] = tf.constant(val)
+    if labels:
+        for key, val in labels["ragged"].items():
+            labels["ragged"][key] = tf.ragged.stack(val)
+        for key, val in labels["fixed"].items():
+            labels["fixed"][key] = tf.constant(val)
 
-    ds = tf.data.Dataset.from_tensor_slices(
-        (
-            inputs["ragged"],
-            inputs["fixed"],
-            labels["ragged"],
-            labels["fixed"],
-        )
-    )
+        tensors = (inputs, labels)
+    else:
+        tensors = inputs
+
+    ds = tf.data.Dataset.from_tensor_slices(tensors)
+
     return ds
 
 
@@ -151,8 +148,8 @@ class AtomisticDataset:
     def __init__(
         self,
         inputs,
-        labels,
         n_epoch: int,
+        labels=None,
         buffer_size: int = 1000,
     ) -> None:
         """Processes inputs/labels and makes them accessible for training.
@@ -174,6 +171,7 @@ class AtomisticDataset:
         """
         self.n_epoch = n_epoch
         self.batch_size = None
+        self.n_jit_steps = 1
         self.buffer_size = buffer_size
 
         max_atoms, max_nbrs = find_largest_system(inputs)
@@ -182,10 +180,16 @@ class AtomisticDataset:
 
         self.n_data = len(inputs["fixed"]["n_atoms"])
 
-        self.ds = dataset_from_dicts(inputs, labels)
+        if labels:
+            self.ds = dataset_from_dicts(inputs, labels)
+        else:
+            self.ds = dataset_from_dicts(inputs)
 
     def set_batch_size(self, batch_size: int):
         self.batch_size = self.validate_batch_size(batch_size)
+
+    def batch_multiple_steps(self, n_steps: int):
+        self.n_jit_steps = n_steps
 
     def _check_batch_size(self):
         if self.batch_size is None:
@@ -208,16 +212,18 @@ class AtomisticDataset:
         number of steps, and all batches have the same length. To do so, some training
         data are dropped in each epoch.
         """
-        return self.n_data // self.batch_size
+        return self.n_data // self.batch_size // self.n_jit_steps
 
     def init_input(self) -> Dict[str, np.ndarray]:
         """Returns first batch of inputs and labels to init the model."""
-        inputs, _ = next(
+        inputs = next(
             self.ds.batch(1)
             .map(PadToSpecificSize(self.max_atoms, self.max_nbrs))
             .take(1)
             .as_numpy_iterator()
         )
+        if isinstance(inputs, tuple):
+            inputs = inputs[0]  # remove labels
 
         inputs = jax.tree_map(lambda x: jnp.array(x[0]), inputs)
         init_box = np.array(inputs["box"])
@@ -240,15 +246,18 @@ class AtomisticDataset:
             Iterator that returns inputs and labels of one batch in each step.
         """
         self._check_batch_size()
-        shuffled_ds = (
+        ds = (
             self.ds.shuffle(buffer_size=self.buffer_size)
             .repeat(self.n_epoch)
             .batch(batch_size=self.batch_size)
             .map(PadToSpecificSize(self.max_atoms, self.max_nbrs))
         )
 
-        shuffled_ds = prefetch_to_single_device(shuffled_ds.as_numpy_iterator(), 2)
-        return shuffled_ds
+        if self.n_jit_steps > 1:
+            ds = ds.batch(batch_size=self.n_jit_steps)
+
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        return ds
 
     def batch(self) -> Iterator[jax.Array]:
         self._check_batch_size()

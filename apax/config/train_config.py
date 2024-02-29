@@ -42,6 +42,8 @@ class DataConfig(BaseModel, extra="forbid"):
     batch_size: Number of training examples to be evaluated at once.
     valid_batch_size: Number of validation examples to be evaluated at once.
     shuffle_buffer_size: Size of the `tf.data` shuffle buffer.
+    additional_properties_info:
+        dict of property name, shape (ragged or fixed) pairs
     energy_regularisation: Magnitude of the regularization in the per-element
         energy regression.
     """
@@ -58,6 +60,7 @@ class DataConfig(BaseModel, extra="forbid"):
     batch_size: PositiveInt = 32
     valid_batch_size: PositiveInt = 100
     shuffle_buffer_size: PositiveInt = 1000
+    additional_properties_info: dict[str, str] = {}
 
     shift_method: str = "per_element_regression_shift"
     shift_options: dict = {"energy_regularisation": 1.0}
@@ -279,7 +282,11 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     ----------
 
     n_epochs: Number of training epochs.
+    patience: Number of epochs without improvement before trainings gets terminated.
     seed: Random seed.
+    n_models: Number of models to be trained at once.
+    n_jitted_steps: Number of train batches to be processed in a compiled loop.
+        Can yield singificant speedups for small structures or small batch sizes.
     data: :class: `Data` <config.DataConfig> configuration.
     model: :class: `Model` <config.ModelConfig> configuration.
     metrics: List of :class: `metric` <config.MetricsConfig> configurations.
@@ -294,6 +301,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     patience: Optional[PositiveInt] = None
     seed: int = 1
     n_models: int = 1
+    n_jitted_steps: int = 1
 
     data: DataConfig
     model: ModelConfig = ModelConfig()
