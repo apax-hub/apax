@@ -12,9 +12,9 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from apax.config.train_config import Config
 from apax.model.builder import ModelBuilder
 from apax.train.run import run
-from apax.utils.random import seed_py_np_tf
 from apax.utils.datasets import download_md22_stachyose
 from apax.utils.helpers import mod_config
+from apax.utils.random import seed_py_np_tf
 
 
 @pytest.fixture(autouse=True)
