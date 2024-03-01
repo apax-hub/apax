@@ -16,6 +16,7 @@ from apax.utils.random import seed_py_np_tf
 from apax.utils.datasets import download_md22_stachyose
 from apax.utils.helpers import mod_config
 
+
 @pytest.fixture(autouse=True)
 def set_radom_seeds():
     seed_py_np_tf()
