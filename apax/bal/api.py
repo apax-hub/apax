@@ -5,8 +5,8 @@ import jax
 import numpy as np
 from ase import Atoms
 from click import Path
-from tqdm import trange
 from flax.core.frozen_dict import FrozenDict
+from tqdm import trange
 
 from apax.bal import feature_maps, kernel, selection, transforms
 from apax.data.input_pipeline import AtomisticDataset

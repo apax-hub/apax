@@ -2,12 +2,11 @@ from typing import Callable, Literal, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+from flax.core.frozen_dict import FrozenDict
 from flax.traverse_util import flatten_dict, unflatten_dict
 from pydantic import BaseModel, TypeAdapter
 
 from apax.model.gmnn import EnergyModel
-from flax.core.frozen_dict import FrozenDict
-
 
 FeatureMap = Callable[[FrozenDict, dict], jax.Array]
 
