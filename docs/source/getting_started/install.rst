@@ -44,6 +44,7 @@ You can then clone and install the project.
     poetry install
 
 
+=========================
 CUDA Support (Linux only)
 =========================
 
