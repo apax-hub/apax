@@ -39,6 +39,8 @@ matplotlib = "^3.6.2"
 pre-commit = "^2.20.0"
 isort = "^5.10.1"
 flake8 = "^5.0.4"
+nbsphinx = "^0.9.3"
+nbsphinx-link = "^1.3.0"
 
 [tool.poetry.group.docs.dependencies]
 sphinx = "^7.2.6"
