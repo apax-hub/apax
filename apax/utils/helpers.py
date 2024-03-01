@@ -17,5 +17,8 @@ def mod_config(config_path, updated_config):
         config_dict = yaml.safe_load(stream)
 
     for key, new_value in updated_config.items():
-        config_dict[key].update(new_value)
+        if isinstance(config_dict[key], dict):
+            config_dict[key].update(new_value)
+        else:
+            config_dict[key] = new_value
     return config_dict
