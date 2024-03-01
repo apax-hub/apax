@@ -2,6 +2,7 @@ import os
 import urllib
 import zipfile
 
+
 def download_md22_stachyose(data_path):
     url = "http://www.quantum-machine.org/gdml/repo/static/md22_stachyose.zip"
     file_path = data_path / "md22_stachyose.zip"
