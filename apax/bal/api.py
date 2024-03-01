@@ -44,7 +44,8 @@ def create_feature_fn(
     base_feature_map: FeatureTransformation
         Class that transforms the model into a `FeatureMap`
     is_ensemble: bool
-        Whether or not to apply the ensemble transformation i.e. an averaging of kernels for model ensembles.
+        Whether or not to apply the ensemble transformation i.e.
+        an averaging of kernels for model ensembles.
     """
     feature_fn = base_feature_map.apply(model)
 
@@ -99,8 +100,10 @@ def kernel_selection(
 ) -> list[int]:
     """
     Main function to facilitate batch data selection.
-    Currently only the last layer gradient features and MaxDist selection method are available.
-    More can be added as needed as this function is agnostic of the feature map/selection method internals.
+    Currently only the last layer gradient features and MaxDist selection method
+    are available.
+    More can be added as needed as this function is agnostic of the feature
+    map/selection method internals.
 
     Attributes
     ----------
@@ -115,7 +118,8 @@ def kernel_selection(
     selection_method:
         Currently only "max_dist" is supported.
     feature_transforms:
-        Feature tranforms to be applied on top of the base feature map transform.
+        Feature tranforms to be applied on top of the
+        base feature map transform.
         Examples would include multiplcation with or addition of a constant.
     selection_batch_size:
         Amount of new data points to be selected from `pool_atoms`.

@@ -126,7 +126,8 @@ class ASECalculator(Calculator):
         Parameters
         ----------
         model_dir:
-            Path to a model directory of the form `.../directory/experiment` (see Config docs for details).
+            Path to a model directory of the form `.../directory/experiment`
+            (see Config docs for details).
             If a list of model paths is provided, they will be ensembled.
         dr_threshold:
             Neighborlist skin for the JaxMD neighborlist.
@@ -135,7 +136,8 @@ class ASECalculator(Calculator):
             Transfomrations are implemented under `apax.md.transformations`.
         padding_factor:
             Multiple of the fallback Matscipy NL's amount of neighbors.
-            This NL will be padded to `len(neighbors) * padding_factor` on NL initialization.
+            This NL will be padded to `len(neighbors) * padding_factor`
+            on NL initialization.
         """
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
