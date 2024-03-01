@@ -60,7 +60,9 @@ def create_feature_fn(
     return feature_fn
 
 
-def compute_features(feature_fn: feature_maps.FeatureMap, dataset: AtomisticDataset) -> np.ndarray:
+def compute_features(
+    feature_fn: feature_maps.FeatureMap, dataset: AtomisticDataset
+) -> np.ndarray:
     """Compute the features of a dataset.
 
     Attributes

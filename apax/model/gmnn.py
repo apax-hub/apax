@@ -51,6 +51,7 @@ class AtomisticModel(nn.Module):
     """Most basic prediction model.
     Allesmbles descriptor, readout (NNs) and output scale-shifting.
     """
+
     descriptor: nn.Module = GaussianMomentDescriptor()
     readout: nn.Module = AtomisticReadout()
     scale_shift: nn.Module = PerElementScaleShift()
@@ -75,6 +76,7 @@ class EnergyModel(nn.Module):
     """Model which post processes the output of an atomistic model and
     adds empirical energy terms.
     """
+
     atomistic_model: AtomisticModel = AtomisticModel()
     corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: [])
     init_box: np.array = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
@@ -137,6 +139,7 @@ class EnergyDerivativeModel(nn.Module):
     """Transforms an EnergyModel into one that also predicts derivatives the total energy.
     Can calculate forces and stress tensors.
     """
+
     # Alternatively, should this be a function transformation?
     energy_model: EnergyModel = EnergyModel()
     calc_stress: bool = False
