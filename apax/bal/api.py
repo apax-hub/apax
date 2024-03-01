@@ -5,8 +5,8 @@ import jax
 import numpy as np
 from ase import Atoms
 from click import Path
-from tqdm import trange
 from flax.core.frozen_dict import FrozenDict
+from tqdm import trange
 
 from apax.bal import feature_maps, kernel, selection, transforms
 from apax.data.input_pipeline import AtomisticDataset
@@ -43,11 +43,9 @@ def create_feature_fn(
         Model parameters
     base_feature_map: FeatureTransformation
         Class that transforms the model into a `FeatureMap`
-    feature_transforms: list
-        Feature tranforms to be applied on top of the base feature map transform.
-        Examples would include multiplcation with or addition of a constant.
     is_ensemble: bool
-        Whether or not to apply the ensemble transformation i.e. an averaging of kernels for model ensembles.
+        Whether or not to apply the ensemble transformation i.e.
+        an averaging of kernels for model ensembles.
     """
     feature_fn = base_feature_map.apply(model)
 
@@ -63,14 +61,16 @@ def create_feature_fn(
     return feature_fn
 
 
-def compute_features(feature_fn: feature_maps.FeatureMap, dataset: AtomisticDataset) -> np.ndarray:
+def compute_features(
+    feature_fn: feature_maps.FeatureMap, dataset: AtomisticDataset
+) -> np.ndarray:
     """Compute the features of a dataset.
-    
+
     Attributes
     ----------
-    feature_fn: FeatureMap
+    feature_fn:
         Function to compute the features with.
-    dataset: AtomisticDataset
+    dataset:
         Dataset to compute the features for.
     """
     features = []
@@ -99,9 +99,11 @@ def kernel_selection(
     processing_batch_size: int = 64,
 ) -> list[int]:
     """
-    Main fuinction to facilitate batch data selection.
-    Currently only the last layer gradient features and MaxDist selection method are available.
-    More can be added as needed as this function is agnostic of the feature map/selection method internals.
+    Main function to facilitate batch data selection.
+    Currently only the last layer gradient features and MaxDist selection method
+    are available.
+    More can be added as needed as this function is agnostic of the feature
+    map/selection method internals.
 
     Attributes
     ----------
@@ -112,9 +114,13 @@ def kernel_selection(
     pool_atoms: List[Atoms]
         List of `ase.Atoms` to select new data from.
     base_fm_options:
-        Dict
+        Settings for the base feature map.
     selection_method:
+        Currently only "max_dist" is supported.
     feature_transforms:
+        Feature tranforms to be applied on top of the
+        base feature map transform.
+        Examples would include multiplcation with or addition of a constant.
     selection_batch_size:
         Amount of new data points to be selected from `pool_atoms`.
     processing_batch_size:

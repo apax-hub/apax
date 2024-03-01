@@ -35,33 +35,46 @@ class NPTOptions(NVTOptions, extra="forbid"):
 
 
 class MDConfig(BaseModel, frozen=True, extra="forbid"):
-    """
-    Configuration for a NHC molecular dynamics simulation.
+    """Configuration for a NHC molecular dynamics simulation.
 
-    Parameters:
-    seed: Random seed for momentum initialization.
-    temperature: Temperature of the simulation in Kelvin.
-    dt: Time step in fs.
-    duration: Total simulation time in fs.
-    n_inner: Number of compiled simulation steps (i.e. number of iterations of the
+    Attributes
+    ----------
+    seed:
+        Random seed for momentum initialization.
+    temperature:
+        Temperature of the simulation in Kelvin.
+    dt:
+        Time step in fs.
+    duration:
+        Total simulation time in fs.
+    n_inner:
+        Number of compiled simulation steps (i.e. number of iterations of the
         `jax.lax.fori_loop` loop). Also determines atoms buffer size.
     sampling_rate:
         Interval between saving frames.
     buffer_size:
         Number of collected frames to be dumped at once.
-    dr_threshold: Skin of the neighborlist.
-    extra_capacity: JaxMD allocates a maximal number of neighbors.
+    dr_threshold:
+        Skin of the neighborlist.
+    extra_capacity:
+        JaxMD allocates a maximal number of neighbors.
         This argument lets you add additional capacity to avoid recompilation.
         The default is usually fine.
-    intitial_structure: Path to the starting structure of the simulation.
-    sim_dir: Directory where simulation file will be stored.
-    traj_name: Name of the trajectory file.
-    restart: Whether the simulation should restart from the latest configuration
+    intitial_structure:
+        Path to the starting structure of the simulation.
+    sim_dir:
+        Directory where simulation file will be stored.
+    traj_name:
+        Name of the trajectory file.
+    restart:
+        Whether the simulation should restart from the latest configuration
         in `traj_name`.
-    checkpoint_interval: Number of time steps between saving
+    checkpoint_interval:
+        Number of time steps between saving
         full simulation state checkpoints. These will be loaded
         with the `restart` option.
-    disable_pbar: Disables the MD progressbar.
+    disable_pbar:
+        Disables the MD progressbar.
     """
 
     seed: int = 1

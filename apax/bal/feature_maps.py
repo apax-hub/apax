@@ -2,19 +2,19 @@ from typing import Callable, Literal, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+from flax.core.frozen_dict import FrozenDict
 from flax.traverse_util import flatten_dict, unflatten_dict
 from pydantic import BaseModel, TypeAdapter
 
 from apax.model.gmnn import EnergyModel
-from flax.core.frozen_dict import FrozenDict
-
 
 FeatureMap = Callable[[FrozenDict, dict], jax.Array]
 
+
 class FeatureTransformation(BaseModel):
 
-    def apply(self, model: EnergyModel) -> FeatureMap: 
-        ...
+    def apply(self, model: EnergyModel) -> FeatureMap:
+        return model
 
 
 def extract_feature_params(params: dict, layer_name: str) -> Tuple[dict, dict]:
@@ -43,7 +43,7 @@ class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
     name: Literal["ll_grad"]
     layer_name: str = "dense_2"
 
-    def apply(self, model: EnergyModel) -> FeatureMap: 
+    def apply(self, model: EnergyModel) -> FeatureMap:
         def ll_grad(params, inputs):
             ll_params, remaining_params = extract_feature_params(params, self.layer_name)
 
@@ -83,7 +83,7 @@ class IdentityFeatures(FeatureTransformation, extra="forbid"):
 
     name: Literal["identity"]
 
-    def apply(self, model: EnergyModel) -> FeatureMap: 
+    def apply(self, model: EnergyModel) -> FeatureMap:
         return model.apply
 
 

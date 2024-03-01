@@ -5,6 +5,6 @@ Tutorials
    :maxdepth: 2
 
    01_Model_Training
-   md_with_ase
-   molecular_dynamics
-   transfer_learning
+   02_Molecular_dynamics
+   03_Transfer_Learning
+   04_Batch_Data_Selection
