@@ -8,3 +8,4 @@ Tutorials
    02_Molecular_dynamics
    03_Transfer_Learning
    04_Batch_Data_Selection
+   05_Full_Config
