@@ -20,7 +20,7 @@ def download_md22_stachyose(data_path):
     return file_path
 
 
-def download_md17_benzene_DFT(data_path):
+def download_benzene_DFT(data_path):
     url = "http://www.quantum-machine.org/gdml/data/xyz/benzene2018_dft.zip"
     file_path = data_path / "benzene2018_dft.zip"
 
@@ -36,7 +36,7 @@ def download_md17_benzene_DFT(data_path):
     return new_file_path
 
 
-def download_md17_benzene_CCSDT(data_path):
+def download_md22_benzene_CCSDT(data_path):
     url = "http://www.quantum-machine.org/gdml/data/xyz/benzene_ccsd_t.zip"
     file_path = data_path / "benzene_ccsdt.zip"
 
@@ -63,7 +63,7 @@ def modify_xyz_file(file_path, target_string, replacement_string):
     return new_file_path
 
 
-def mod_md17(file_path):
+def mod_md_datasets(file_path):
     new_file_path = file_path.with_name(file_path.stem + "_mod" + file_path.suffix)
     with open(file_path, "r") as input_file, open(new_file_path, "w") as output_file:
         for line in input_file:
