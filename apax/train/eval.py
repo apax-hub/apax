@@ -72,39 +72,31 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=Fal
         loss_fn, Metrics, model=model, sam_rho=0.0, is_ensemble=is_ensemble
     )
 
-    test_steps_per_epoch = test_ds.steps_per_epoch()
-    batch_test_ds = test_ds.shuffle_and_batch()
+    batch_test_ds = test_ds.batch()
 
-    epoch_loss = {}
-    epoch_start_time = time.time()
-
-    epoch_loss.update({"test_loss": 0.0})
     test_metrics = Metrics.empty()
 
     batch_pbar = trange(
-        0, test_steps_per_epoch, desc="Batches", ncols=100, disable=False, leave=True
+        0, test_ds.n_data, desc="Structure", ncols=100, disable=False, leave=True
     )
-    for batch_idx in range(test_steps_per_epoch):
+    for batch_idx in range(test_ds.n_data):
         batch = next(batch_test_ds)
+        batch_start_time = time.time()
 
         batch_loss, test_metrics = test_step_fn(params, batch, test_metrics)
+        batch_metrics = {"test_loss": float(batch_loss)}
+        batch_metrics.update({
+            f"test_{key}": float(val) for key, val in test_metrics.compute().items()
+        })
+        batch_end_time = time.time()
+        batch_metrics.update({"time": batch_end_time - batch_start_time})
 
-        epoch_loss["test_loss"] += batch_loss
-        batch_pbar.set_postfix(test_loss=epoch_loss["test_loss"] / batch_idx)
+        callbacks.on_test_batch_begin(batch=batch_idx, logs=batch_metrics)
+
+        batch_pbar.set_postfix(test_loss=batch_metrics["test_loss"])
         batch_pbar.update()
     batch_pbar.close()
-
-    epoch_loss["test_loss"] /= test_steps_per_epoch
-    epoch_loss["test_loss"] = float(epoch_loss["test_loss"])
-    epoch_metrics = {
-        f"test_{key}": float(val) for key, val in test_metrics.compute().items()
-    }
-    epoch_metrics.update({**epoch_loss})
-    epoch_end_time = time.time()
-    epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
-    callbacks.on_epoch_end(epoch=1, logs=epoch_metrics)
     callbacks.on_train_end()
-    # TODO currently this has no informative output
 
 
 def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
