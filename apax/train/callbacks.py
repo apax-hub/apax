@@ -2,8 +2,56 @@ import logging
 
 import tensorflow as tf
 from keras.callbacks import CSVLogger, TensorBoard
+import numpy as np
+import collections
+import csv
 
 log = logging.getLogger(__name__)
+
+
+class CSVLoggerApax(CSVLogger):
+    def __init__(self, filename, separator=",", append=False):
+        super().__init__(filename, separator=",", append=False)
+
+    def on_test_batch_begin(self, batch, logs=None):
+        logs = logs or {}
+
+        def handle_value(k):
+            is_zero_dim_ndarray = isinstance(k, np.ndarray) and k.ndim == 0
+            if isinstance(k, str):
+                return k
+            elif (
+                isinstance(k, collections.abc.Iterable)
+                and not is_zero_dim_ndarray
+            ):
+                return f"\"[{', '.join(map(str, k))}]\""
+            else:
+                return k
+
+        if self.keys is None:
+            self.keys = sorted(logs.keys())
+            # When validation_freq > 1, `val_` keys are not in first epoch logs
+            # Add the `val_` keys so that its part of the fieldnames of writer.
+
+        if not self.writer:
+
+            class CustomDialect(csv.excel):
+                delimiter = self.sep
+
+            fieldnames = ["batch"] + self.keys
+
+            self.writer = csv.DictWriter(
+                self.csv_file, fieldnames=fieldnames, dialect=CustomDialect
+            )
+            if self.append_header:
+                self.writer.writeheader()
+
+        row_dict = collections.OrderedDict({"batch": batch})
+        row_dict.update(
+            (key, handle_value(logs.get(key, "NA"))) for key in self.keys
+        )
+        self.writer.writerow(row_dict)
+        self.csv_file.flush()
 
 
 def initialize_callbacks(callback_configs, model_version_path):
@@ -12,7 +60,7 @@ def initialize_callbacks(callback_configs, model_version_path):
     dummy_model = tf.keras.Model()
     callback_dict = {
         "csv": {
-            "class": CSVLogger,
+            "class": CSVLoggerApax,
             "log_path": model_version_path / "log.csv",
             "path_arg_name": "filename",
             "kwargs": {"append": True},
