@@ -1,10 +1,10 @@
-import logging
-
-import tensorflow as tf
-from keras.callbacks import CSVLogger, TensorBoard
-import numpy as np
 import collections
 import csv
+import logging
+
+import numpy as np
+import tensorflow as tf
+from keras.callbacks import CSVLogger, TensorBoard
 
 log = logging.getLogger(__name__)
 
@@ -20,10 +20,7 @@ class CSVLoggerApax(CSVLogger):
             is_zero_dim_ndarray = isinstance(k, np.ndarray) and k.ndim == 0
             if isinstance(k, str):
                 return k
-            elif (
-                isinstance(k, collections.abc.Iterable)
-                and not is_zero_dim_ndarray
-            ):
+            elif isinstance(k, collections.abc.Iterable) and not is_zero_dim_ndarray:
                 return f"\"[{', '.join(map(str, k))}]\""
             else:
                 return k
@@ -47,9 +44,7 @@ class CSVLoggerApax(CSVLogger):
                 self.writer.writeheader()
 
         row_dict = collections.OrderedDict({"batch": batch})
-        row_dict.update(
-            (key, handle_value(logs.get(key, "NA"))) for key in self.keys
-        )
+        row_dict.update((key, handle_value(logs.get(key, "NA"))) for key in self.keys)
         self.writer.writerow(row_dict)
         self.csv_file.flush()
 

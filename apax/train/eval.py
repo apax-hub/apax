@@ -85,9 +85,9 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=Fal
 
         batch_loss, test_metrics = test_step_fn(params, batch, test_metrics)
         batch_metrics = {"test_loss": float(batch_loss)}
-        batch_metrics.update({
-            f"test_{key}": float(val) for key, val in test_metrics.compute().items()
-        })
+        batch_metrics.update(
+            {f"test_{key}": float(val) for key, val in test_metrics.compute().items()}
+        )
         batch_end_time = time.time()
         batch_metrics.update({"time": batch_end_time - batch_start_time})
 
@@ -116,7 +116,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     raw_ds = load_test_data(config, model_version_path, eval_path, n_test)
 
     test_ds = initialize_dataset(config, raw_ds, read_labels=True, calc_stats=False)
-    test_ds.set_batch_size(1)  # TODO temporary
+    test_ds.set_batch_size(1)
 
     _, init_box = test_ds.init_input()
 
