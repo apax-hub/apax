@@ -60,7 +60,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
         JaxMD allocates a maximal number of neighbors.
         This argument lets you add additional capacity to avoid recompilation.
         The default is usually fine.
-    intitial_structure:
+    initial_structure:
         Path to the starting structure of the simulation.
     sim_dir:
         Directory where simulation file will be stored.
