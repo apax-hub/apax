@@ -91,7 +91,7 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=Fal
         batch_end_time = time.time()
         batch_metrics.update({"time": batch_end_time - batch_start_time})
 
-        callbacks.on_test_batch_begin(batch=batch_idx, logs=batch_metrics)
+        callbacks.on_test_batch_end(batch=batch_idx, logs=batch_metrics)
 
         batch_pbar.set_postfix(test_loss=batch_metrics["test_loss"])
         batch_pbar.update()

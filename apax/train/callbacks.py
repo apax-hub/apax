@@ -13,7 +13,7 @@ class CSVLoggerApax(CSVLogger):
     def __init__(self, filename, separator=",", append=False):
         super().__init__(filename, separator=",", append=False)
 
-    def on_test_batch_begin(self, batch, logs=None):
+    def on_test_batch_end(self, batch, logs=None):
         logs = logs or {}
 
         def handle_value(k):
