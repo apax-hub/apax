@@ -27,8 +27,6 @@ class CSVLoggerApax(CSVLogger):
 
         if self.keys is None:
             self.keys = sorted(logs.keys())
-            # When validation_freq > 1, `val_` keys are not in first epoch logs
-            # Add the `val_` keys so that its part of the fieldnames of writer.
 
         if not self.writer:
 
