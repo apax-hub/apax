@@ -15,11 +15,40 @@ from apax.utils.jax_md_reduced import partition, space
 log = logging.getLogger(__name__)
 
 
+def compute_nl(position, box, r_max):
+    if np.all(box < 1e-6):
+        cell, cell_origin = get_shrink_wrapped_cell(position)
+        idxs_i, idxs_j = neighbour_list(
+            "ij",
+            positions=position,
+            cutoff=r_max,
+            cell=cell,
+            cell_origin=cell_origin,
+            pbc=[False, False, False],
+        )
+
+        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
+
+        n_neighbors = neighbor_idxs.shape[1]
+        offsets = np.full([n_neighbors, 3], 0)
+
+    else:
+        idxs_i, idxs_j, offsets = neighbour_list(
+            "ijS",
+            positions=position,
+            cutoff=r_max,
+            cell=cell,
+        )
+        offsets = np.matmul(offsets, box)
+        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
+    return neighbor_idxs, offsets
+
+
+
 def dataset_neighborlist(
     positions: list[np.array],
-    box: list[np.array],
+    boxs: list[np.array],
     r_max: float,
-    atoms_list,
     disable_pbar: bool = False,
 ) -> list[int]:
     """Calculates the neighbor list of all systems within positions using
@@ -50,31 +79,8 @@ def dataset_neighborlist(
         disable=disable_pbar,
         leave=True,
     )
-    for i, position in enumerate(positions):
-        if np.all(box[i] < 1e-6):
-            cell, cell_origin = get_shrink_wrapped_cell(position)
-            idxs_i, idxs_j = neighbour_list(
-                "ij",
-                positions=position,
-                cutoff=r_max,
-                cell=cell,
-                cell_origin=cell_origin,
-                pbc=[False, False, False],
-            )
-
-            neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
-
-            n_neighbors = neighbor_idxs.shape[1]
-            offsets = np.full([n_neighbors, 3], 0)
-        else:
-            idxs_i, idxs_j, offsets = neighbour_list(
-                "ijS",
-                atoms_list[i],
-                r_max,
-            )
-            offsets = np.matmul(offsets, box[i])
-            neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
-
+    for position, box in zip(positions, boxs):
+        neighbor_idxs, offsets = compute_nl(position, box, r_max)
         offset_list.append(offsets)
         idx_list.append(neighbor_idxs)
         nl_pbar.update()
