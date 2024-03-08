@@ -15,32 +15,6 @@ from apax.utils.jax_md_reduced import partition, space
 log = logging.getLogger(__name__)
 
 
-def initialize_nbr_fn(atoms: Atoms, cutoff: float) -> Callable:
-    neighbor_fn = None
-    default_box = 100
-    box = jnp.asarray(atoms.cell.array)
-
-    if np.all(box < 1e-6):
-        displacement_fn, _ = space.free()
-        box = default_box
-
-        neighbor_fn = partition.neighbor_list(
-            displacement_or_metric=displacement_fn,
-            box=box,
-            r_cutoff=cutoff,
-            format=partition.Sparse,
-            fractional_coordinates=False,
-        )
-
-    return neighbor_fn
-
-
-@jax.jit
-def extract_nl(neighbors, position):
-    neighbors = neighbors.update(position)
-    return neighbors
-
-
 def dataset_neighborlist(
     positions: list[np.array],
     box: list[np.array],
