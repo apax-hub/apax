@@ -343,7 +343,7 @@ class Dataset:
 
         self.buffer_size = 10
 
-        self.enqueue(self.buffer_size)
+        self.enqueue(min(self.buffer_size, self.n_data))
     
     def steps_per_epoch(self) -> int:
         """Returns the number of steps per epoch dependent on the number of data and the
@@ -393,6 +393,7 @@ class Dataset:
             space = self.buffer_size - len(self.buffer)
             if self.count + space > self.n_data:
                 space = self.n_data - self.count
+            print(self.count, space)
             self.enqueue(space)
 
     def make_signature(self) -> tf.TensorSpec:
