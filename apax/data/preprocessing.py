@@ -6,6 +6,7 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 import numpy as np
+import tensorflow as tf
 from ase import Atoms
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
@@ -37,10 +38,10 @@ def compute_nl(position, box, r_max):
             "ijS",
             positions=position,
             cutoff=r_max,
-            cell=cell,
+            cell=box,
         )
-        offsets = np.matmul(offsets, box)
         neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
+        offsets = np.matmul(offsets, box)
     return neighbor_idxs, offsets
 
 
@@ -70,6 +71,7 @@ def dataset_neighborlist(
     # The JaxMD NL throws an error if np arrays are passed to it in the CPU version
     idx_list = []
     offset_list = []
+    largest_nl = 0
 
     nl_pbar = trange(
         len(positions),
@@ -81,12 +83,15 @@ def dataset_neighborlist(
     )
     for position, box in zip(positions, boxs):
         neighbor_idxs, offsets = compute_nl(position, box, r_max)
+        n_neighbors = neighbor_idxs.shape[1]
+        largest_nl = max(largest_nl, n_neighbors)
+
         offset_list.append(offsets)
         idx_list.append(neighbor_idxs)
         nl_pbar.update()
     nl_pbar.close()
 
-    return idx_list, offset_list
+    return idx_list, offset_list, largest_nl
 
 
 def get_shrink_wrapped_cell(positions):

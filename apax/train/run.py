@@ -6,6 +6,8 @@ import jax
 
 from apax.config import LossConfig, parse_config
 from apax.data.initialization import initialize_dataset, load_data_files
+from apax.data.input_pipeline import Dataset
+from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
 from apax.optimizer import get_opt
 from apax.train.callbacks import initialize_callbacks
@@ -31,7 +33,6 @@ def setup_logging(log_file, log_level):
     while len(logging.root.handlers) > 0:
         logging.root.removeHandler(logging.root.handlers[-1])
 
-    # Remove uninformative checkpointing absl logs
     logging.getLogger("absl").setLevel(logging.WARNING)
 
     logging.basicConfig(
@@ -66,15 +67,21 @@ def run(user_config, log_level="error"):
     Metrics = initialize_metrics(config.metrics)
 
     train_raw_ds, val_raw_ds = load_data_files(config.data)
-    train_ds, ds_stats = initialize_dataset(config, train_raw_ds)
-    val_ds = initialize_dataset(config, val_raw_ds, calc_stats=False)
 
-    train_ds.set_batch_size(config.data.batch_size)
-    val_ds.set_batch_size(config.data.valid_batch_size)
+    train_ds = Dataset(train_raw_ds, config.model.r_max, config.data.batch_size, config.n_jitted_steps, name="train", pre_shuffle=True)
+    val_ds = Dataset(val_raw_ds, config.model.r_max, config.data.valid_batch_size, name="val")
+    ds_stats = compute_scale_shift_parameters(
+            train_ds.inputs,
+            train_ds.labels,
+            config.data.shift_method,
+            config.data.scale_method,
+            config.data.shift_options,
+            config.data.scale_options,
+        )
+    # TODO IMPL DELETE FILES
 
     log.info("Initializing Model")
     sample_input, init_box = train_ds.init_input()
-
     builder = ModelBuilder(config.model.get_dict())
     model = builder.build_energy_derivative_model(
         scale=ds_stats.elemental_scale,
