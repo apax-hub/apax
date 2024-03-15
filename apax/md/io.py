@@ -50,7 +50,7 @@ class TrajHandler:
 
         atoms = Atoms(self.atomic_numbers, positions, momenta=momenta, cell=box)
         atoms.cell = atoms.cell.T
-        atoms.pbc = np.diag(atoms.cell.array) > 1e-7
+        atoms.pbc = np.diag(atoms.cell.array) > 1e-6
         atoms.calc = SinglePointCalculator(atoms, energy=float(energy), forces=forces)
         return atoms
 
@@ -66,7 +66,7 @@ class H5TrajHandler(TrajHandler):
     ) -> None:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
-        self.fractional = np.any(self.box < 1e-6)
+        self.fractional = np.any(self.box > 1e-6)
         self.sampling_rate = sampling_rate
         self.traj_path = traj_path
         self.db = znh5md.io.DataWriter(self.traj_path)
