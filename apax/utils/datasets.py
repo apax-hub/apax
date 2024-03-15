@@ -52,6 +52,7 @@ def download_etoh_ccsdt(data_path):
 
     return train_file_path, test_file_path
 
+
 def download_md22_benzene_CCSDT(data_path):
     url = "http://www.quantum-machine.org/gdml/data/xyz/benzene_ccsd_t.zip"
     file_path = data_path / "benzene_ccsdt.zip"

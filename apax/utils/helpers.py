@@ -1,6 +1,7 @@
 import yaml
 import csv
 
+
 def setup_ase():
     """Add uncertainty keys to ASE all properties.
     from https://github.com/zincware/IPSuite/blob/main/ipsuite/utils/helpers.py#L10
@@ -30,7 +31,7 @@ def mod_config(config_path, updated_config):
 def load_csv_metrics(path):
     data_dict = {}
 
-    with open(path, 'r') as file:
+    with open(path, "r") as file:
         reader = csv.reader(file)
 
         # Extract the headers (keys) from the first row
