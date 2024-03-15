@@ -339,8 +339,10 @@ def md_setup(model_config: Config, md_config: MDConfig):
     r_max = model_config.model.r_max
     log.info("initializing model")
     if np.all(system.box < 1e-6):
+        frac_coords = False
         displacement_fn, shift_fn = space.free()
     else:
+        frac_coords = True
         heights = heights_of_box_sides(system.box)
 
         if np.any(atoms.cell.lengths() / 2 < r_max):
@@ -356,7 +358,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
                 "can not calculate the correct neighbors",
             )
         displacement_fn, shift_fn = space.periodic_general(
-            system.box, fractional_coordinates=True
+            system.box, fractional_coordinates=frac_coords
         )
 
     builder = ModelBuilder(model_config.model.get_dict())
@@ -368,7 +370,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         system.box,
         r_max,
         md_config.dr_threshold,
-        fractional_coordinates=True,
+        fractional_coordinates=frac_coords,
         format=partition.Sparse,
         disable_cell_list=True,
     )
