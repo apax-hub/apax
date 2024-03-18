@@ -108,7 +108,7 @@ def get_shrink_wrapped_cell(positions):
     return cell, cell_origin
 
 
-def prefetch_to_single_device(iterator, size: int):
+def prefetch_to_single_device(iterator, size: int, sharding = None):
     """
     inspired by
     https://flax.readthedocs.io/en/latest/_modules/flax/jax_utils.html#prefetch_to_device
@@ -117,7 +117,11 @@ def prefetch_to_single_device(iterator, size: int):
     queue = collections.deque()
 
     def _prefetch(x):
-        return jnp.asarray(x)
+        x = jnp.asarray(x)
+        if sharding:
+            shape = (2, *([1]*len(x.shape[1:])))
+            x = jax.device_put(x, sharding.reshape(shape))
+        return x
 
     def enqueue(n):
         for data in itertools.islice(iterator, n):

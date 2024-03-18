@@ -50,12 +50,22 @@ def fit(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
 
+
+    from jax.experimental import mesh_utils
+    from jax.sharding import PositionalSharding
+    sharding = PositionalSharding(mesh_utils.create_device_mesh((len(jax.devices()),)))
+
+    jax.device_put(state, sharding.replicate())
+
     train_steps_per_epoch = train_ds.steps_per_epoch()
-    batch_train_ds = train_ds.shuffle_and_batch()
+    batch_train_ds = train_ds.shuffle_and_batch(sharding)
 
     if val_ds is not None:
         val_steps_per_epoch = val_ds.steps_per_epoch()
-        batch_val_ds = val_ds.batch()
+        batch_val_ds = val_ds.batch(sharding)
+
+
+
 
     best_loss = np.inf
     early_stopping_counter = 0
@@ -74,6 +84,9 @@ def fit(
             callbacks.on_train_batch_begin(batch=batch_idx)
 
             batch = next(batch_train_ds)
+
+            # print(jax.tree_map(lambda x: x.devices(), batch))
+
             (
                 (state, train_batch_metrics),
                 batch_loss,
