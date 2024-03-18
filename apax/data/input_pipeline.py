@@ -315,7 +315,7 @@ def find_largest_system2(inputs: dict[str, np.ndarray], r_max) -> tuple[int]:
     return max_atoms, max_nbrs
 
 class Dataset:
-    def __init__(self, atoms, cutoff, bs, n_jit_steps= 1, name="train", pre_shuffle=False) -> None:
+    def __init__(self, atoms, cutoff, bs, n_epochs, buffer_size, n_jit_steps= 1, name="train", pre_shuffle=False) -> None:
         if pre_shuffle:
             shuffle(atoms)
         self.sample_atoms = atoms[0]
@@ -323,6 +323,9 @@ class Dataset:
         finputs = {k: v for k,v in inputs["fixed"].items()}
         finputs.update({k: v for k,v in inputs["ragged"].items()})
         self.inputs = finputs
+
+        self.n_epochs = n_epochs
+        self.buffer_size = buffer_size
 
         max_atoms, max_nbrs = find_largest_system2(self.inputs, cutoff)
         self.max_atoms = max_atoms
@@ -393,7 +396,6 @@ class Dataset:
             space = self.buffer_size - len(self.buffer)
             if self.count + space > self.n_data:
                 space = self.n_data - self.count
-            print(self.count, space)
             self.enqueue(space)
 
     def make_signature(self) -> tf.TensorSpec:
@@ -433,14 +435,22 @@ class Dataset:
         return inputs, np.array(box)
     
     def shuffle_and_batch(self):
+        """Shuffles and batches the inputs/labels. This function prepares the
+        inputs and labels for the whole training and prefetches the data.
+
+        Returns
+        -------
+        ds :
+            Iterator that returns inputs and labels of one batch in each step.
+        """
         gen = lambda: self
         ds = tf.data.Dataset.from_generator(gen, output_signature=self.make_signature())
         
         ds = (
             ds
             .cache(self.name)
-            .repeat(10)
-            .shuffle(buffer_size=100, reshuffle_each_iteration=True)
+            .repeat(self.n_epochs)
+            .shuffle(buffer_size=self.buffer_size, reshuffle_each_iteration=True)
             .batch(batch_size=self.batch_size)
         )
         if self.n_jit_steps > 1:
@@ -453,8 +463,14 @@ class Dataset:
         ds = tf.data.Dataset.from_generator(gen, output_signature=self.make_signature())
         ds = (ds
             .cache(self.name)
-            .repeat(10)
+            .repeat(self.n_epochs)
             .batch(batch_size=self.batch_size)
         )
         ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
         return ds
+    
+    def cleanup(self):
+        """Removes cache files from disk.
+        Used after training
+        """
+        pass
