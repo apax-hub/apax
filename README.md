@@ -12,40 +12,24 @@ It is based on [JAX](https://jax.readthedocs.io/en/latest/) and uses [JaxMD](htt
 
 ## Installation
 
-You can install [Poetry](https://python-poetry.org/) via
+Apax is available on PyPI with a CPU version of JAX.
 
 ```bash
-curl -sSL https://install.python-poetry.org | python3 -
+pip install apax
 ```
 
-Now you can install apax in your project by running
+For more detailed instructions, please refer to the [documentation](https://apax.readthedocs.io/en/latest/).
 
-```bash
-poetry add git+https://github.com/apax-hub/apax.git
-```
-
-As a developer, you can clone the repository and install it via
-
-```bash
-git clone https://github.com/apax-hub/apax.git <dest_dir>
-cd <dest_dir>
-poetry install
-```
 
 ### CUDA Support
-Note that the above only installs the CPU version.
-If you want to enable GPU support, please overwrite the jaxlib version:
+If you want to enable GPU support (only on Linux), please overwrite the jaxlib version:
 
-```bash
-pip install --upgrade pip
-```
-
-CUDA 12 installation. Wheels only available on linux.
+CUDA 12:
 ```bash
 pip install --upgrade "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
 
-CUDA 11 installation. Wheels only available on linux.
+CUDA 11:
 ```bash
 pip install --upgrade "jax[cuda11_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
