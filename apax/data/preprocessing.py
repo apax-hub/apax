@@ -116,11 +116,29 @@ def prefetch_to_single_device(iterator, size: int, sharding = None):
     """
     queue = collections.deque()
 
-    def _prefetch(x):
-        x = jnp.asarray(x)
+    n_devices = 2
+    multistep_jit = True
+    slice_start = 1
+    shape = [n_devices]
+    if multistep_jit:
+        # replicate over multi-batch axis
+        # data shape: njit x bs x ...
+        slice_start = 2
+        shape.insert(0, 1) 
+
+    def _prefetch(x: jax.Array):
+        
+        print(x.shape)
+        # quit()
+        shape 
         if sharding:
-            shape = (2, *([1]*len(x.shape[1:])))
+            remaining_axes = [1]*len(x.shape[slice_start:])
+            shape = tuple(shape + remaining_axes)
             x = jax.device_put(x, sharding.reshape(shape))
+            print(x.devices())
+            quit()
+        else:
+            x = jnp.asarray(x)
         return x
 
     def enqueue(n):
