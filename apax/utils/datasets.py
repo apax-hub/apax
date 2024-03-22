@@ -36,6 +36,23 @@ def download_benzene_DFT(data_path):
     return new_file_path
 
 
+def download_etoh_ccsdt(data_path):
+    url = "http://www.quantum-machine.org/gdml/data/xyz/ethanol_ccsd_t.zip"
+    file_path = data_path / "ethanol_ccsd_t.zip"
+
+    os.makedirs(data_path, exist_ok=True)
+    urllib.request.urlretrieve(url, file_path)
+
+    with zipfile.ZipFile(file_path, "r") as zip_ref:
+        zip_ref.extractall(data_path)
+
+    test_file_path = data_path / "ethanol_ccsd_t-test.xyz"
+    train_file_path = data_path / "ethanol_ccsd_t-train.xyz"
+    os.remove(file_path)
+
+    return train_file_path, test_file_path
+
+
 def download_md22_benzene_CCSDT(data_path):
     url = "http://www.quantum-machine.org/gdml/data/xyz/benzene_ccsd_t.zip"
     file_path = data_path / "benzene_ccsdt.zip"

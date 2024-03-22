@@ -36,7 +36,13 @@ def load_test_data(
 ):  # TODO double code run.py in progress
     log.info("Running Input Pipeline")
     os.makedirs(eval_path, exist_ok=True)
-    if config.data.data_path is not None:
+
+    if config.data.test_data_path is not None:
+        log.info(f"Read test data file {config.data.test_data_path}")
+        atoms_list = load_data(config.data.test_data_path)
+        atoms_list = atoms_list[:n_test]
+
+    elif config.data.data_path is not None:
         log.info(f"Read data file {config.data.data_path}")
         atoms_list = load_data(config.data.data_path)
 
@@ -54,12 +60,6 @@ def load_test_data(
 
         atoms_list, _ = split_atoms(atoms_list, test_idxs)
 
-    elif config.data.test_data_path is not None:
-        log.info(f"Read test data file {config.data.test_data_path}")
-        atoms_list, label_dict = load_data(config.data.test_data_path)
-        atoms_list = atoms_list[:n_test]
-        for key, val in label_dict.items():
-            label_dict[key] = val[:n_test]
     else:
         raise ValueError("input data path/paths not defined")
 
@@ -80,6 +80,7 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=Fal
         0, test_ds.n_data, desc="Structure", ncols=100, disable=False, leave=True
     )
     for batch_idx in range(test_ds.n_data):
+        callbacks.on_test_batch_begin(batch_idx)
         batch = next(batch_test_ds)
         batch_start_time = time.time()
 
