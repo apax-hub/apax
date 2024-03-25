@@ -5,8 +5,8 @@ from typing import List
 import jax
 
 from apax.config import LossConfig, parse_config
-from apax.data.initialization import initialize_dataset, load_data_files
-from apax.data.input_pipeline import Dataset
+from apax.data.initialization import load_data_files
+from apax.data.input_pipeline import InMemoryDataset
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
 from apax.optimizer import get_opt
@@ -68,16 +68,26 @@ def run(user_config, log_level="error"):
 
     train_raw_ds, val_raw_ds = load_data_files(config.data)
 
-    train_ds = Dataset(train_raw_ds, config.model.r_max, config.data.batch_size, config.n_jitted_steps, name="train", pre_shuffle=True)
-    val_ds = Dataset(val_raw_ds, config.model.r_max, config.data.valid_batch_size, name="val")
+    train_ds = InMemoryDataset(
+        train_raw_ds,
+        config.model.r_max,
+        config.data.batch_size,
+        config.n_epochs,
+        config.data.shuffle_buffer_size,
+        config.n_jitted_steps,
+        pre_shuffle=True,
+    )
+    val_ds = InMemoryDataset(
+        val_raw_ds, config.model.r_max, config.data.valid_batch_size, config.n_epochs
+    )
     ds_stats = compute_scale_shift_parameters(
-            train_ds.inputs,
-            train_ds.labels,
-            config.data.shift_method,
-            config.data.scale_method,
-            config.data.shift_options,
-            config.data.scale_options,
-        )
+        train_ds.inputs,
+        train_ds.labels,
+        config.data.shift_method,
+        config.data.scale_method,
+        config.data.shift_options,
+        config.data.scale_options,
+    )
     # TODO IMPL DELETE FILES
 
     log.info("Initializing Model")
