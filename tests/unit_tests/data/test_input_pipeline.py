@@ -1,11 +1,9 @@
 import numpy as np
 import pytest
-import tensorflow as tf
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from jax import vmap
 
-from apax.data.input_pipeline import InMemoryDataset
 from apax.data.preprocessing import compute_nl
 from apax.model.gmnn import disp_fn
 from apax.utils.convert import atoms_to_inputs, atoms_to_labels
