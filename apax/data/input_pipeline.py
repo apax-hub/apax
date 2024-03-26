@@ -90,7 +90,7 @@ class InMemoryDataset:
             batch_size = self.n_data
         return batch_size
 
-    def prepare_item(self, i):
+    def prepare_data(self, i):
         inputs = {k: v[i] for k, v in self.inputs.items()}
         idx, offsets = compute_nl(inputs["positions"], inputs["box"], self.cutoff)
         inputs["idx"], inputs["offsets"] = pad_nl(idx, offsets, self.max_nbrs)
@@ -121,7 +121,7 @@ class InMemoryDataset:
 
     def enqueue(self, num_elements):
         for _ in range(num_elements):
-            data = self.prepare_item(self.count)
+            data = self.prepare_data(self.count)
             self.buffer.append(data)
             self.count += 1
 
