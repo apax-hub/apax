@@ -846,7 +846,12 @@ def npt_nose_hoover(
     def sinhx_x(x):
         """Taylor series for sinh(x) / x as x -> 0."""
         return (
-            1 + x**2 / 6 + x**4 / 120 + x**6 / 5040 + x**8 / 362_880 + x**10 / 39_916_800
+            1
+            + x**2 / 6
+            + x**4 / 120
+            + x**6 / 5040
+            + x**8 / 362_880
+            + x**10 / 39_916_800
         )
 
     def exp_iL1(box, R, V, V_b, **kwargs):

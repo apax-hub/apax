@@ -10,7 +10,7 @@ import numpy as np
 from clu import metrics
 from tqdm import trange
 
-from apax.data.input_pipeline import AtomisticDataset
+from apax.data.input_pipeline import InMemoryDataset
 from apax.train.checkpoints import CheckpointManager, load_state
 
 log = logging.getLogger(__name__)
@@ -18,19 +18,18 @@ log = logging.getLogger(__name__)
 
 def fit(
     state,
-    train_ds: AtomisticDataset,
+    train_ds: InMemoryDataset,
     loss_fn,
     Metrics: metrics.Collection,
     callbacks: list,
     n_epochs: int,
     ckpt_dir,
     ckpt_interval: int = 1,
-    val_ds: Optional[AtomisticDataset] = None,
+    val_ds: Optional[InMemoryDataset] = None,
     sam_rho=0.0,
     patience: Optional[int] = None,
     disable_pbar: bool = False,
     is_ensemble=False,
-    n_jitted_steps=1,
 ):
     log.info("Beginning Training")
     callbacks.on_train_begin()
@@ -42,7 +41,7 @@ def fit(
     train_step, val_step = make_step_fns(
         loss_fn, Metrics, model=state.apply_fn, sam_rho=sam_rho, is_ensemble=is_ensemble
     )
-    if n_jitted_steps > 1:
+    if train_ds.n_jit_steps > 1:
         train_step = jax.jit(functools.partial(jax.lax.scan, train_step))
 
     state, start_epoch = load_state(state, latest_dir)
@@ -51,13 +50,12 @@ def fit(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
 
-    train_ds.batch_multiple_steps(n_jitted_steps)
     train_steps_per_epoch = train_ds.steps_per_epoch()
     batch_train_ds = train_ds.shuffle_and_batch()
 
     if val_ds is not None:
         val_steps_per_epoch = val_ds.steps_per_epoch()
-        batch_val_ds = val_ds.shuffle_and_batch()
+        batch_val_ds = val_ds.batch()
 
     best_loss = np.inf
     early_stopping_counter = 0
