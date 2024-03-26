@@ -88,7 +88,6 @@ def run(user_config, log_level="error"):
         config.data.shift_options,
         config.data.scale_options,
     )
-    # TODO IMPL DELETE FILES
 
     log.info("Initializing Model")
     sample_input, init_box = train_ds.init_input()
