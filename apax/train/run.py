@@ -50,22 +50,7 @@ def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
         loss_funcs.append(Loss(**loss.model_dump()))
     return LossCollection(loss_funcs)
 
-
-def run(user_config, log_level="error"):
-    config = parse_config(user_config)
-
-    seed_py_np_tf(config.seed)
-    rng_key = jax.random.PRNGKey(config.seed)
-
-    log.info("Initializing directories")
-    config.data.model_version_path.mkdir(parents=True, exist_ok=True)
-    setup_logging(config.data.model_version_path / "train.log", log_level)
-    config.dump_config(config.data.model_version_path)
-
-    callbacks = initialize_callbacks(config.callbacks, config.data.model_version_path)
-    loss_fn = initialize_loss_fn(config.loss)
-    Metrics = initialize_metrics(config.metrics)
-
+def initialize_datasets(config):
     train_raw_ds, val_raw_ds = load_data_files(config.data)
 
     train_ds = InMemoryDataset(
@@ -89,6 +74,26 @@ def run(user_config, log_level="error"):
         config.data.shift_options,
         config.data.scale_options,
     )
+    return train_ds, val_ds, ds_stats
+
+
+
+def run(user_config, log_level="error"):
+    config = parse_config(user_config)
+
+    seed_py_np_tf(config.seed)
+    rng_key = jax.random.PRNGKey(config.seed)
+
+    log.info("Initializing directories")
+    config.data.model_version_path.mkdir(parents=True, exist_ok=True)
+    setup_logging(config.data.model_version_path / "train.log", log_level)
+    config.dump_config(config.data.model_version_path)
+
+    callbacks = initialize_callbacks(config.callbacks, config.data.model_version_path)
+    loss_fn = initialize_loss_fn(config.loss)
+    Metrics = initialize_metrics(config.metrics)
+
+    train_ds, val_ds, ds_stats = initialize_datasets(config)
 
     log.info("Initializing Model")
     sample_input, init_box = train_ds.init_input()
