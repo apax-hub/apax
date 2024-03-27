@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from jax_md.util import Array
+from jax import Array
 
 
 def stress_times_vol(energy_fn, position: Array, box, **kwargs) -> Array:

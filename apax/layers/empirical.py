@@ -5,9 +5,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import vmap
-from jax_md import space
 
 from apax.layers.masking import mask_by_neighbor
+from apax.utils.jax_md_reduced import space
 from apax.utils.math import fp64_sum
 
 

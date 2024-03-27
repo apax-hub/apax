@@ -6,9 +6,7 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import vmap
-from jax_md import partition, space
-from jax_md.util import Array
+from jax import Array, vmap
 
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.empirical import EmpiricalEnergyTerm
@@ -16,6 +14,7 @@ from apax.layers.masking import mask_by_atom
 from apax.layers.properties import stress_times_vol
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
+from apax.utils.jax_md_reduced import partition, space
 from apax.utils.math import fp64_sum
 
 DisplacementFn = Callable[[Array, Array], Array]

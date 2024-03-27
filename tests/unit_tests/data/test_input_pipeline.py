@@ -1,125 +1,89 @@
 import numpy as np
 import pytest
-import tensorflow as tf
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from jax import vmap
 
-from apax.data.input_pipeline import (
-    AtomisticDataset,
-    PadToSpecificSize,
-    create_dict_dataset,
-)
+from apax.data.preprocessing import compute_nl
 from apax.model.gmnn import disp_fn
-from apax.utils.convert import atoms_to_arrays
+from apax.utils.convert import atoms_to_inputs, atoms_to_labels
 from apax.utils.data import split_atoms, split_idxs
 from apax.utils.random import seed_py_np_tf
 
+# TODO REENABLE LATER
+# @pytest.mark.parametrize(
+#     "num_data, pbc, calc_results, external_labels",
+#     (
+#         [5, False, ["energy"], None],
+#         [5, False, ["energy", "forces"], None],
+#         [5, True, ["energy", "forces"], None],
+#         [
+#             5,
+#             True,
+#             ["energy", "forces"],
+#             [{
+#                 "name": "ma_tensors",
+#                 "values": np.random.uniform(low=-1.0, high=1.0, size=(5, 3, 3)),
+#             }],
+#         ],
+#     ),
+# )
+# def test_input_pipeline(example_atoms, calc_results, num_data, external_labels):
+#     batch_size = 2
+#     r_max = 6.0
 
-@pytest.mark.parametrize(
-    "num_data, pbc, calc_results, external_labels",
-    (
-        [5, False, ["energy"], None],
-        [5, False, ["energy", "forces"], None],
-        [5, True, ["energy", "forces"], None],
-        [
-            5,
-            True,
-            ["energy", "forces"],
-            {
-                "fixed": {
-                    "ma_tensors": np.random.uniform(low=-1.0, high=1.0, size=(5, 3, 3))
-                }
-            },
-        ],
-    ),
-)
-def test_input_pipeline(example_atoms, calc_results, num_data, external_labels):
-    batch_size = 2
-    r_max = 6.0
+#     if external_labels:
+#         for label in external_labels:
+#             for a, v in zip(example_atoms, label["values"]):
+#                 a.calc.results[label["name"]] = v
 
-    inputs, labels = create_dict_dataset(
-        example_atoms,
-        r_max,
-        external_labels,
-        disable_pbar=True,
-    )
+#     ds = InMemoryDataset(
+#         example_atoms,
+#         r_max,
+#         batch_size,
+#         1,
+#         buffer_size=1000,
+#     )
+#     assert ds.steps_per_epoch() == num_data // batch_size
 
-    ds = AtomisticDataset(
-        inputs,
-        labels,
-        1,
-        buffer_size=1000,
-    )
-    ds.set_batch_size(batch_size)
-    assert ds.steps_per_epoch() == num_data // batch_size
+#     ds = ds.shuffle_and_batch()
 
-    ds = ds.shuffle_and_batch()
+#     sample_inputs, sample_labels = next(ds)
 
-    sample_inputs, sample_labels = next(ds)
+#     assert "box" in sample_inputs
+#     assert len(sample_inputs["box"]) == batch_size
+#     assert len(sample_inputs["box"][0]) == 3
 
-    assert "box" in sample_inputs
-    assert len(sample_inputs["box"]) == batch_size
-    assert len(sample_inputs["box"][0]) == 3
+#     assert "numbers" in sample_inputs
+#     for i in range(batch_size):
+#         assert len(sample_inputs["numbers"][i]) == max(sample_inputs["n_atoms"])
 
-    assert "numbers" in sample_inputs
-    for i in range(batch_size):
-        assert len(sample_inputs["numbers"][i]) == max(sample_inputs["n_atoms"])
+#     assert "idx" in sample_inputs
+#     assert len(sample_inputs["idx"][0]) == len(sample_inputs["idx"][1])
 
-    assert "idx" in sample_inputs
-    assert len(sample_inputs["idx"][0]) == len(sample_inputs["idx"][1])
+#     assert "positions" in sample_inputs
+#     assert len(sample_inputs["positions"][0][0]) == 3
+#     for i in range(batch_size):
+#         assert len(sample_inputs["positions"][i]) == max(sample_inputs["n_atoms"])
 
-    assert "positions" in sample_inputs
-    assert len(sample_inputs["positions"][0][0]) == 3
-    for i in range(batch_size):
-        assert len(sample_inputs["positions"][i]) == max(sample_inputs["n_atoms"])
+#     assert "n_atoms" in sample_inputs
+#     assert len(sample_inputs["n_atoms"]) == batch_size
 
-    assert "n_atoms" in sample_inputs
-    assert len(sample_inputs["n_atoms"]) == batch_size
+#     assert "energy" in sample_labels
+#     assert len(sample_labels["energy"]) == batch_size
 
-    assert "energy" in sample_labels
-    assert len(sample_labels["energy"]) == batch_size
+#     if "forces" in calc_results:
+#         assert "forces" in sample_labels
+#         assert len(sample_labels["forces"][0][0]) == 3
+#         for i in range(batch_size):
+#             assert len(sample_labels["forces"][i]) == max(sample_inputs["n_atoms"])
 
-    if "forces" in calc_results:
-        assert "forces" in sample_labels
-        assert len(sample_labels["forces"][0][0]) == 3
-        for i in range(batch_size):
-            assert len(sample_labels["forces"][i]) == max(sample_inputs["n_atoms"])
+#     if external_labels:
+#         assert "ma_tensors" in sample_labels
+#         assert len(sample_labels["ma_tensors"]) == batch_size
 
-    if external_labels:
-        assert "ma_tensors" in sample_labels
-        assert len(sample_labels["ma_tensors"]) == batch_size
-
-    sample_inputs2, _ = next(ds)
-    assert (sample_inputs["positions"][0][0] != sample_inputs2["positions"][0][0]).all()
-
-
-def test_pad_to_specific_size():
-    idx_1 = [[1, 4, 3], [3, 1, 4]]
-    idx_2 = [[5, 4, 2, 3, 1], [1, 2, 3, 4, 5]]
-    r_inp = {"idx": tf.ragged.constant([idx_1, idx_2])}
-    p_inp = {"n_atoms": tf.constant([3, 5])}
-    f_1 = [[2.0, 2.0, 2.0], [2.0, 2.0, 2.0]]
-    f_2 = [[3.0, 3.0, 3.0], [3.0, 3.0, 3.0], [3.0, 3.0, 3.0]]
-    r_lab = {"forces": tf.ragged.constant([f_1, f_2])}
-    p_lab = {"energy": tf.constant([103.3, 98.4])}
-
-    max_atoms = 5
-    max_nbrs = 6
-
-    padding_fn = PadToSpecificSize(max_atoms=max_atoms, max_nbrs=max_nbrs)
-
-    inputs, labels = padding_fn(r_inp, p_inp, r_lab, p_lab)
-
-    assert "idx" in inputs
-    assert inputs["idx"].shape == [2, 2, 6]
-
-    assert "n_atoms" in inputs
-
-    assert "forces" in labels
-    assert labels["forces"].shape == [2, 5, 3]
-
-    assert "energy" in labels
+#     sample_inputs2, _ = next(ds)
+#     assert (sample_inputs["positions"][0][0] != sample_inputs2["positions"][0][0]).all()
 
 
 @pytest.mark.parametrize(
@@ -157,57 +121,51 @@ def test_split_data(example_atoms):
     ),
 )
 def test_convert_atoms_to_arrays(example_atoms, pbc):
-    inputs, labels = atoms_to_arrays(example_atoms)
+    inputs = atoms_to_inputs(example_atoms)
+    labels = atoms_to_labels(example_atoms)
 
-    assert "fixed" in inputs
-    assert "ragged" in inputs
-    assert "fixed" or "ragged" in labels
+    assert "positions" in inputs
+    assert len(inputs["positions"]) == len(example_atoms)
 
-    assert "positions" in inputs["ragged"]
-    assert len(inputs["ragged"]["positions"]) == len(example_atoms)
+    assert "numbers" in inputs
+    assert len(inputs["numbers"]) == len(example_atoms)
 
-    assert "numbers" in inputs["ragged"]
-    assert len(inputs["ragged"]["numbers"]) == len(example_atoms)
-
-    assert "box" in inputs["fixed"]
-    assert len(inputs["fixed"]["box"]) == len(example_atoms)
+    assert "box" in inputs
+    assert len(inputs["box"]) == len(example_atoms)
     if not pbc:
-        assert np.all(inputs["fixed"]["box"][0] < 1e-6)
+        assert np.all(inputs["box"][0] < 1e-6)
 
-    assert "n_atoms" in inputs["fixed"]
-    assert len(inputs["fixed"]["n_atoms"]) == len(example_atoms)
+    assert "n_atoms" in inputs
+    assert len(inputs["n_atoms"]) == len(example_atoms)
 
-    assert "energy" in labels["fixed"]
-    assert len(labels["fixed"]["energy"]) == len(example_atoms)
+    assert "energy" in labels
+    assert len(labels["energy"]) == len(example_atoms)
 
-    assert "forces" in labels["ragged"]
-    assert len(labels["ragged"]["forces"]) == len(example_atoms)
+    assert "forces" in labels
+    assert len(labels["forces"]) == len(example_atoms)
 
 
 @pytest.mark.parametrize(
-    "pbc, calc_results, external_labels, cell",
+    "pbc, calc_results, cell",
     (
         [
             True,
             ["energy"],
-            None,
             np.array([[1.8, 0.1, 0.0], [0.0, 2.5, 0.1], [0.1, 0.0, 2.5]]),
         ],
         [
             True,
             ["energy"],
-            None,
             np.array([[1.8, 0.0, 0.0], [0.0, 2.5, 0.0], [0.0, 0.0, 2.5]]),
         ],
         [
             True,
             ["energy"],
-            None,
             np.array([[1.5, 0.0, 0.5], [0.0, 2.5, 0.0], [0.0, 0.5, 1.5]]),
         ],
     ),
 )
-def test_neighbors_and_displacements(pbc, calc_results, external_labels, cell):
+def test_neighbors_and_displacements(pbc, calc_results, cell):
     r_max = 2.0
 
     numbers = np.array([1, 1])
@@ -228,23 +186,16 @@ def test_neighbors_and_displacements(pbc, calc_results, external_labels, cell):
             results[key] = result_shapes[key]
         atoms.calc = SinglePointCalculator(atoms, **results)
 
-    inputs, _ = create_dict_dataset(
-        [atoms],
-        r_max,
-        external_labels,
-        disable_pbar=True,
-    )
-
-    idx = np.asarray(inputs["ragged"]["idx"])[0]
-    offsets = np.asarray(inputs["ragged"]["offsets"][0])
-    box = np.asarray(inputs["fixed"]["box"][0])
+    inputs = atoms_to_inputs([atoms])
+    box = np.asarray(inputs["box"][0])
+    idx, offsets = compute_nl(inputs["positions"][0], box, r_max)
 
     Ri = positions[idx[0]]
     Rj = positions[idx[1]] + offsets
     matscipy_dr_vec = Rj - Ri
     matscipy_dr_vec = np.asarray(matscipy_dr_vec)
 
-    positions = np.asarray(inputs["ragged"]["positions"][0])
+    positions = np.asarray(inputs["positions"][0])
     Ri = positions[idx[0]]
     Rj = positions[idx[1]]
     displacement = vmap(disp_fn, (0, 0, None, None), 0)

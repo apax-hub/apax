@@ -14,15 +14,18 @@ repos:
     rev: 24.1.1
     hooks:
       - id: black
+        exclude: ^apax/utils/jax_md_reduced/
 
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
       - id: isort
         args: ["--profile", "black", "--filter-files"]
+        exclude: ^apax/utils/jax_md_reduced/
 
   - repo: https://github.com/pycqa/flake8
     rev: 7.0.0
     hooks:
       - id: flake8
         additional_dependencies: [ flake8-isort ]
+        exclude: ^apax/utils/jax_md_reduced/
