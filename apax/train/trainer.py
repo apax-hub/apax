@@ -1,5 +1,6 @@
 import functools
 import logging
+from pathlib import Path
 import time
 from functools import partial
 from typing import Callable, Optional
@@ -141,6 +142,10 @@ def fit(
             break
     epoch_pbar.close()
     callbacks.on_train_end()
+
+    train_ds.cleanup()
+    if val_ds:
+        val_ds.cleanup()
 
 
 def global_norm(updates) -> jnp.ndarray:

@@ -76,9 +76,10 @@ def run(user_config, log_level="error"):
         config.data.shuffle_buffer_size,
         config.n_jitted_steps,
         pre_shuffle=True,
+        cache_path=config.data.model_version_path,
     )
     val_ds = InMemoryDataset(
-        val_raw_ds, config.model.r_max, config.data.valid_batch_size, config.n_epochs
+        val_raw_ds, config.model.r_max, config.data.valid_batch_size, config.n_epochs, cache_path=config.data.model_version_path,
     )
     ds_stats = compute_scale_shift_parameters(
         train_ds.inputs,

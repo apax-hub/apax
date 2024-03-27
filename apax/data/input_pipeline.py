@@ -3,6 +3,7 @@ from collections import deque
 from random import shuffle
 from typing import Dict, Iterator
 import uuid
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
@@ -231,6 +232,7 @@ class InMemoryDataset:
         n_jit_steps=1,
         pre_shuffle=False,
         ignore_labels=False,
+        cache_path = "."
     ) -> None:
         if pre_shuffle:
             shuffle(atoms)
@@ -255,7 +257,7 @@ class InMemoryDataset:
         self.buffer = deque()
         self.batch_size = self.validate_batch_size(bs)
         self.n_jit_steps = n_jit_steps
-        self.name = str(uuid.uuid4())
+        self.file = Path(cache_path) / str(uuid.uuid4())
 
         self.enqueue(min(self.buffer_size, self.n_data))
 
@@ -383,7 +385,7 @@ class InMemoryDataset:
         """
         ds = tf.data.Dataset.from_generator(
             lambda: self, output_signature=self.make_signature()
-        ).cache(self.name).repeat(self.n_epochs)
+        ).cache(self.file.as_posix()).repeat(self.n_epochs)
 
         ds = ds.shuffle(
             buffer_size=self.buffer_size, reshuffle_each_iteration=True
@@ -396,7 +398,15 @@ class InMemoryDataset:
     def batch(self) -> Iterator[jax.Array]:
         ds = tf.data.Dataset.from_generator(
             lambda: self, output_signature=self.make_signature()
-        ).cache(self.name).repeat(self.n_epochs)
+        ).cache(self.file.as_posix()).repeat(self.n_epochs)
         ds = ds.batch(batch_size=self.batch_size)
         ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
         return ds
+    
+    def cleanup(self):
+        for p in self.file.parent.glob(f"{self.file.name}.data*"):
+            p.unlink()
+
+        index_file = self.file.parent / f"{self.file.name}.index"
+        index_file.unlink()
+        
