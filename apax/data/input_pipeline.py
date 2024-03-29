@@ -89,7 +89,6 @@ class InMemoryDataset:
                 f"requested batch size {batch_size} is larger than the number of data"
                 f" points {self.n_data}. Setting batch size = {self.n_data}"
             )
-            print("Warning: " + msg)
             log.warning(msg)
             batch_size = self.n_data
         return batch_size
