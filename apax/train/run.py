@@ -4,9 +4,9 @@ from typing import List
 
 import jax
 
-from apax.config import LossConfig, parse_config
+from apax.config import LossConfig, parse_config, Config
 from apax.data.initialization import load_data_files
-from apax.data.input_pipeline import InMemoryDataset
+from apax.data.input_pipeline import dataset_dict
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
 from apax.optimizer import get_opt
@@ -50,10 +50,12 @@ def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
         loss_funcs.append(Loss(**loss.model_dump()))
     return LossCollection(loss_funcs)
 
-def initialize_datasets(config):
+def initialize_datasets(config: Config):
     train_raw_ds, val_raw_ds = load_data_files(config.data)
 
-    train_ds = InMemoryDataset(
+    Dataset = dataset_dict[config.data.ds_type]
+
+    train_ds = Dataset(
         train_raw_ds,
         config.model.r_max,
         config.data.batch_size,
@@ -63,7 +65,7 @@ def initialize_datasets(config):
         pre_shuffle=True,
         cache_path=config.data.model_version_path,
     )
-    val_ds = InMemoryDataset(
+    val_ds = Dataset(
         val_raw_ds, config.model.r_max, config.data.valid_batch_size, config.n_epochs, cache_path=config.data.model_version_path,
     )
     ds_stats = compute_scale_shift_parameters(

@@ -50,6 +50,7 @@ class DataConfig(BaseModel, extra="forbid"):
 
     directory: str
     experiment: str
+    ds_type: Literal["cached", "otf"] = "cached"
     data_path: Optional[str] = None
     train_data_path: Optional[str] = None
     val_data_path: Optional[str] = None
