@@ -1,9 +1,9 @@
 import logging
+import uuid
 from collections import deque
+from pathlib import Path
 from random import shuffle
 from typing import Dict, Iterator
-import uuid
-from pathlib import Path
 
 import jax
 import jax.numpy as jnp
@@ -46,7 +46,7 @@ class InMemoryDataset:
         n_jit_steps=1,
         pre_shuffle=False,
         ignore_labels=False,
-        cache_path = "."
+        cache_path=".",
     ) -> None:
         if pre_shuffle:
             shuffle(atoms)
@@ -82,7 +82,7 @@ class InMemoryDataset:
         data are dropped in each epoch.
         """
         return self.n_data // self.batch_size // self.n_jit_steps
-    
+
     def validate_batch_size(self, batch_size: int) -> int:
         if batch_size > self.n_data:
             msg = (
@@ -92,7 +92,7 @@ class InMemoryDataset:
             log.warning(msg)
             batch_size = self.n_data
         return batch_size
-    
+
     def prepare_data(self, i):
         inputs = {k: v[i] for k, v in self.inputs.items()}
         idx, offsets = compute_nl(inputs["positions"], inputs["box"], self.cutoff)
@@ -177,7 +177,7 @@ class InMemoryDataset:
 
         inputs = jax.tree_map(lambda x: jnp.array(x), inputs)
         return inputs, np.array(box)
-    
+
     def __iter__(self):
         raise NotImplementedError
 
@@ -192,7 +192,6 @@ class InMemoryDataset:
 
 
 class CachedInMemoryDataset(InMemoryDataset):
-    
     def __iter__(self):
         while self.count < self.n_data or len(self.buffer) > 0:
             yield self.buffer.popleft()
@@ -201,8 +200,6 @@ class CachedInMemoryDataset(InMemoryDataset):
             if self.count + space > self.n_data:
                 space = self.n_data - self.count
             self.enqueue(space)
-
-    
 
     def shuffle_and_batch(self):
         """Shuffles and batches the inputs/labels. This function prepares the
@@ -213,9 +210,13 @@ class CachedInMemoryDataset(InMemoryDataset):
         ds :
             Iterator that returns inputs and labels of one batch in each step.
         """
-        ds = tf.data.Dataset.from_generator(
-            lambda: self, output_signature=self.make_signature()
-        ).cache(self.file.as_posix()).repeat(self.n_epochs)
+        ds = (
+            tf.data.Dataset.from_generator(
+                lambda: self, output_signature=self.make_signature()
+            )
+            .cache(self.file.as_posix())
+            .repeat(self.n_epochs)
+        )
 
         ds = ds.shuffle(
             buffer_size=self.buffer_size, reshuffle_each_iteration=True
@@ -226,13 +227,17 @@ class CachedInMemoryDataset(InMemoryDataset):
         return ds
 
     def batch(self) -> Iterator[jax.Array]:
-        ds = tf.data.Dataset.from_generator(
-            lambda: self, output_signature=self.make_signature()
-        ).cache(self.file.as_posix()).repeat(self.n_epochs)
+        ds = (
+            tf.data.Dataset.from_generator(
+                lambda: self, output_signature=self.make_signature()
+            )
+            .cache(self.file.as_posix())
+            .repeat(self.n_epochs)
+        )
         ds = ds.batch(batch_size=self.batch_size)
         ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
         return ds
-    
+
     def cleanup(self):
         for p in self.file.parent.glob(f"{self.file.name}.data*"):
             p.unlink()
@@ -242,7 +247,6 @@ class CachedInMemoryDataset(InMemoryDataset):
 
 
 class OTFInMemoryDataset(InMemoryDataset):
-
     def __iter__(self):
         epoch = 0
         while epoch < self.n_epochs or len(self.buffer) > 0:
@@ -285,7 +289,7 @@ class OTFInMemoryDataset(InMemoryDataset):
         ds = ds.batch(batch_size=self.batch_size)
         ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
         return ds
-    
+
 
 dataset_dict = {
     "cached": CachedInMemoryDataset,
