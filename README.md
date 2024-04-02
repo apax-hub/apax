@@ -60,14 +60,14 @@ See the [Jax installation instructions](https://github.com/google/jax#installati
 
 In order to train a model, you need to run
 
-```python
+```bash
 apax train config.yaml
 ```
 
 We offer some input file templates to get new users started as quickly as possible.
 Simply run the following commands and add the appropriate entries in the marked fields
 
-```python
+```bash
 apax template train # use --full for a template with all input options
 ```
 
@@ -79,13 +79,39 @@ The documentation can convenienty be accessed by running `apax docs`.
 There are two ways in which `apax` models can be used for molecular dynamics out of the box.
 High performance NVT simulations using JaxMD can be started with the CLI by running
 
-```python
+```bash
 apax md config.yaml md_config.yaml
 ```
 
 A template command for MD input files is provided as well.
 
 The second way is to use the ASE calculator provided in `apax.md`.
+
+
+## Input File Auto-Completion
+
+use the following command to generate JSON schemata for training and validation files:
+
+```bash
+apax schema
+```
+
+If you are using VSCode, you can utilize them to lint and autocomplete your input files by including them in `.vscode/settings.json`
+
+```json
+{
+    "yaml.schemas": {
+        
+        "/absolute/path/to/apaxtrain.schema.json": [
+            "train.yaml"
+        ]
+        ,
+        "/absolute/path/to/apaxmd.schema.json": [
+            "md.yaml"
+        ]
+    }
+}
+```
 
 
 ## Authors
