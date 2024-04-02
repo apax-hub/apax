@@ -101,7 +101,7 @@ If you are using VSCode, you can utilize them to lint and autocomplete your inpu
 ```json
 {
     "yaml.schemas": {
-        
+
         "/absolute/path/to/apaxtrain.schema.json": [
             "train.yaml"
         ]
