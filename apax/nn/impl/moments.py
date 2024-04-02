@@ -1,5 +1,5 @@
 import einops
-import jax
+from apax import ops
 
 
 def geometric_moments(radial_function, dn, idx_i, n_atoms=None):
@@ -19,10 +19,10 @@ def geometric_moments(radial_function, dn, idx_i, n_atoms=None):
     third_moment = einops.repeat(second_moment, "n r s1 s2 -> n r s1 s2 1") * xyz3
 
     # shape: n_atoms x n_radial x (3)^(moment_number)
-    zero_moment = jax.ops.segment_sum(zero_moment, idx_i, n_atoms)
-    first_moment = jax.ops.segment_sum(first_moment, idx_i, n_atoms)
-    second_moment = jax.ops.segment_sum(second_moment, idx_i, n_atoms)
-    third_moment = jax.ops.segment_sum(third_moment, idx_i, n_atoms)
+    zero_moment = ops.segment_sum(zero_moment, idx_i, n_atoms)
+    first_moment = ops.segment_sum(first_moment, idx_i, n_atoms)
+    second_moment = ops.segment_sum(second_moment, idx_i, n_atoms)
+    third_moment = ops.segment_sum(third_moment, idx_i, n_atoms)
 
     moments = [zero_moment, first_moment, second_moment, third_moment]
 
