@@ -15,7 +15,7 @@ class PerElementScaleShift(nn.Module):
         self.dtype = dtype
 
 
-    def __call__(self, x: torch.Tensor, Z: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, Z: torch.Tensor) -> torch.Tensor:
         # x shape: n_atoms x 1
         # Z shape: n_atoms
         # scale[Z] shape: n_atoms x 1

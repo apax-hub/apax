@@ -1,4 +1,5 @@
 import einops
+import numpy as np
 from apax import ops
 
 def gaussian_basis_impl(dr, shifts, betta, rad_norm):

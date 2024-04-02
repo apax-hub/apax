@@ -18,6 +18,6 @@ class AtomisticReadout(nn.Module):
                 dense.append(activation_fn)
         self.sequential = nn.Sequential(dense)
 
-    def __call__(self, x):
+    def forward(self, x):
         h = self.sequential(x)
         return h
