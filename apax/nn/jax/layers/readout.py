@@ -4,8 +4,8 @@ from typing import Any, Callable, List
 import flax.linen as nn
 import jax.numpy as jnp
 
-from apax.layers.activation import swish
-from apax.layers.ntk_linear import NTKLinear
+from apax.nn.impl.activation import swish
+from apax.nn.jax.layers.ntk_linear import NTKLinear
 
 
 class AtomisticReadout(nn.Module):
@@ -18,13 +18,12 @@ class AtomisticReadout(nn.Module):
         units = [u for u in self.units] + [1]
         dense = []
         for ii, n_hidden in enumerate(units):
-            dense.append(
-                NTKLinear(
+            layer = NTKLinear(
                     n_hidden, b_init=self.b_init, dtype=self.dtype, name=f"dense_{ii}"
                 )
-            )
+            dense.append(layer)
             if ii < len(units) - 1:
-                dense.append(swish)
+                dense.append(self.activation_fn)
         self.sequential = nn.Sequential(dense, name="readout")
 
     def __call__(self, x):
