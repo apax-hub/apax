@@ -6,13 +6,11 @@ import jax.numpy as jnp
 import numpy as np
 from jax import vmap
 
-from apax.layers.masking import mask_by_neighbor
+from apax import ops
+from apax.nn.impl.activation import inverse_softplus
+from apax.nn.jax.layers.masking import mask_by_neighbor
 from apax.utils.jax_md_reduced import space
 from apax.utils.math import fp64_sum
-
-
-def inverse_softplus(x):
-    return jnp.log(jnp.exp(x) - 1.0)
 
 
 class EmpiricalEnergyTerm(nn.Module):
@@ -72,11 +70,11 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
 
         # Ensure positive parameters
-        a_exp = jax.nn.softplus(self.a_exp)
-        a_num = jax.nn.softplus(self.a_num)
-        coefficients = jax.nn.softplus(self.coefficients)
-        exponents = jax.nn.softplus(self.exponents)
-        rep_scale = jax.nn.softplus(self.rep_scale)
+        a_exp = ops.softplus(self.a_exp)
+        a_num = ops.softplus(self.a_num)
+        coefficients = ops.softplus(self.coefficients)
+        exponents = ops.softplus(self.exponents)
+        rep_scale = ops.softplus(self.rep_scale)
 
         a_divisor = Z_i**a_exp + Z_j**a_exp
         dist = dr * a_divisor / a_num
