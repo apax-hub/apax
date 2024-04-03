@@ -72,6 +72,7 @@ def plot_with_uncertainty(value, ylabel: str, xlabel: str, x=None, **kwargs) -> 
 
     return fig, ax, data
 
+
 def check_duplicate_keys(dict_a: dict, dict_b: dict, log: logging.Logger) -> None:
     """Check if a key of dict_a is present in dict_b and then log a warning."""
     for key in dict_a:
