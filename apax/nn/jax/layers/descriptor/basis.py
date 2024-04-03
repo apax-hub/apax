@@ -72,7 +72,9 @@ class RadialFunction(nn.Module):
         # basis shape: neighbors x n_basis
         basis = self.basis_fn(dr)
 
-        radial_function = radial_basis_impl(basis, Z_i, Z_j, self.embeddings, self.embed_norm)
+        radial_function = radial_basis_impl(
+            basis, Z_i, Z_j, self.embeddings, self.embed_norm
+        )
         cutoff = cosine_cutoff(dr, self.r_max)
         radial_function = radial_function * cutoff
 

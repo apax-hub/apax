@@ -13,7 +13,6 @@ from apax.nn.jax.layers.masking import mask_by_neighbor
 from apax.utils.jax_md_reduced import space
 
 
-
 class GaussianMomentDescriptor(nn.Module):
     radial_fn: nn.Module = RadialFunction()
     n_contr: int = 8
@@ -52,7 +51,9 @@ class GaussianMomentDescriptor(nn.Module):
             radial_function = mask_by_neighbor(radial_function, neighbor_idxs)
 
         moments = geometric_moments(radial_function, dn, idx_j, n_atoms)
-        gaussian_moments = gaussian_moment_impl(moments, self.triang_idxs_2d, self.triang_idxs_3d, self.n_contr)
+        gaussian_moments = gaussian_moment_impl(
+            moments, self.triang_idxs_2d, self.triang_idxs_3d, self.n_contr
+        )
 
         # # gaussian_moments shape: n_atoms x n_features
         # gaussian_moments = jnp.concatenate(gaussian_moments[: self.n_contr], axis=-1)

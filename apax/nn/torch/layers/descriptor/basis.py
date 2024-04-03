@@ -10,7 +10,13 @@ from apax.nn.impl.basis import cosine_cutoff, gaussian_basis_impl, radial_basis_
 
 
 class GaussianBasis(nn.Module):
-    def __init__(self, n_basis: int = 7, r_min: float = 0.5, r_max: float = 6.0, dtype: Any = torch.float32) -> None:
+    def __init__(
+        self,
+        n_basis: int = 7,
+        r_min: float = 0.5,
+        r_max: float = 6.0,
+        dtype: Any = torch.float32,
+    ) -> None:
         super().__init__()
         self.n_basis = n_basis
         self.r_min = r_min
@@ -28,12 +34,20 @@ class GaussianBasis(nn.Module):
         self.shifts = torch.tensor(shifts, dtype=self.dtype)
 
     def forward(self, dr: torch.Tensor) -> torch.Tensor:
-        basis = gaussian_basis_impl(dr.type(self.dtype), self.shifts, self.betta, self.rad_norm)
+        basis = gaussian_basis_impl(
+            dr.type(self.dtype), self.shifts, self.betta, self.rad_norm
+        )
         return basis
 
 
 class RadialFunction(nn.Module):
-    def __init__(self, n_radial: int = 5, basis_fn: nn.Module = GaussianBasis(), n_species: int = 119, dtype: Any = torch.float32) -> None:
+    def __init__(
+        self,
+        n_radial: int = 5,
+        basis_fn: nn.Module = GaussianBasis(),
+        n_species: int = 119,
+        dtype: Any = torch.float32,
+    ) -> None:
         super().__init__()
         self.n_radial = n_radial
         self.basis_fn = basis_fn
@@ -42,7 +56,7 @@ class RadialFunction(nn.Module):
 
         self.r_max = self.basis_fn.r_max
         norm = 1.0 / np.sqrt(self.basis_fn.n_basis)
-        self.embed_norm = torch.Tensor(norm , dtype=self.dtype)
+        self.embed_norm = torch.Tensor(norm, dtype=self.dtype)
         self.embeddings = None
         if self.emb_init is not None:
             self.embeddings = nn.Parameter()
@@ -54,7 +68,9 @@ class RadialFunction(nn.Module):
         # basis shape: neighbors x n_basis
         basis = self.basis_fn(dr)
 
-        radial_function = radial_basis_impl(basis, Z_i, Z_j, self.embeddings, self.embed_norm)
+        radial_function = radial_basis_impl(
+            basis, Z_i, Z_j, self.embeddings, self.embed_norm
+        )
         cutoff = cosine_cutoff(dr, self.r_max)
         radial_function = radial_function * cutoff
 

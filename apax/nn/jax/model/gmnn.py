@@ -8,12 +8,14 @@ import jax.numpy as jnp
 import numpy as np
 from jax import Array, vmap
 
-from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
-from apax.layers.empirical import EmpiricalEnergyTerm
-from apax.layers.masking import mask_by_atom
-from apax.layers.properties import stress_times_vol
-from apax.layers.readout import AtomisticReadout
-from apax.layers.scaling import PerElementScaleShift
+from apax.nn.jax.layers.descriptor.gaussian_moment_descriptor import (
+    GaussianMomentDescriptor,
+)
+from apax.nn.jax.layers.empirical import EmpiricalEnergyTerm
+from apax.nn.jax.layers.masking import mask_by_atom
+from apax.nn.jax.layers.properties import stress_times_vol
+from apax.nn.jax.layers.readout import AtomisticReadout
+from apax.nn.jax.layers.scaling import PerElementScaleShift
 from apax.utils.jax_md_reduced import partition, space
 from apax.utils.math import fp64_sum
 

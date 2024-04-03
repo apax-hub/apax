@@ -1,12 +1,13 @@
 import jax
 import torch
 
+
 def swish(x):
     if isinstance(x, jax.Array):
         return jax.nn.swish(x)
     elif isinstance(x, torch.Tensor):
         return torch.nn.functional.silu(x)
-    
+
 
 def exp(x):
     if isinstance(x, jax.Array):
@@ -55,6 +56,7 @@ def sum(x, axis, keepdims=False):
         return jax.numpy.sum(x, axis=axis, keepdims=keepdims)
     elif isinstance(x, torch.Tensor):
         return torch.sum(x, dim=axis, keepdim=keepdims)
+
 
 def concatenate(x, axis):
     if isinstance(x, jax.Array):

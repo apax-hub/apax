@@ -6,9 +6,12 @@ from typing import Any, Callable, List
 from apax.nn.impl.activation import swish
 from apax.nn.torch.layers.ntk_linear import NTKLinear
 
+
 class AtomisticReadout(nn.Module):
-    def __init__(self, units:  List[int]= [512, 512], activation_fn: Callable = swish) -> None:
-        super().__init__()    
+    def __init__(
+        self, units: List[int] = [512, 512], activation_fn: Callable = swish
+    ) -> None:
+        super().__init__()
 
         units = [u for u in self.units] + [1]
         dense = []

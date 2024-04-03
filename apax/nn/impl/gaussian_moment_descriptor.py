@@ -4,7 +4,6 @@ from apax import ops
 
 
 def gaussian_moment_impl(moments, triang_idxs_2d, triang_idxs_3d, n_contr):
-    
     contr_0 = moments[0]
     contr_1 = ops.einsum("ari, asi -> rsa", moments[1], moments[1])
     contr_2 = ops.einsum("arij, asij -> rsa", moments[2], moments[2])
@@ -49,5 +48,5 @@ def gaussian_moment_impl(moments, triang_idxs_2d, triang_idxs_3d, n_contr):
     ]
 
     # gaussian_moments shape: n_atoms x n_features
-    gaussian_moments = ops.concatenate(gaussian_moments[: n_contr], axis=-1)
+    gaussian_moments = ops.concatenate(gaussian_moments[:n_contr], axis=-1)
     return gaussian_moments

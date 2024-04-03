@@ -4,7 +4,6 @@ import torch.nn.functional as F
 
 
 class NTKLinear(nn.Module):
-
     def __init__(self, units) -> None:
         super().__init__()
 

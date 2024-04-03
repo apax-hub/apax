@@ -2,6 +2,7 @@ import einops
 import numpy as np
 from apax import ops
 
+
 def gaussian_basis_impl(dr, shifts, betta, rad_norm):
     dr = einops.repeat(dr, "neighbors -> neighbors 1")
     # 1 x n_basis, neighbors x 1 -> neighbors x n_basis

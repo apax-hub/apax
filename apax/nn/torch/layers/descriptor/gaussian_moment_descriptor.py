@@ -17,8 +17,12 @@ def distance(dR):
 
 
 class GaussianMomentDescriptor(nn.Module):
-    
-    def __init__(self, radial_fn: nn.Module = RadialFunction(), n_contr: int = 8, dtype: Any = torch.float32):
+    def __init__(
+        self,
+        radial_fn: nn.Module = RadialFunction(),
+        n_contr: int = 8,
+        dtype: Any = torch.float32,
+    ):
         super().__init__()
         self.radial_fn = radial_fn
         self.n_contr = n_contr
@@ -32,7 +36,9 @@ class GaussianMomentDescriptor(nn.Module):
         self.triang_idxs_2d = torch.tensor(tril_2d_indices(self.n_radial))
         self.triang_idxs_3d = torch.tensor(tril_3d_indices(self.n_radial))
 
-    def forward(self, dr_vec: torch.Tensor, Z: torch.Tensor, neighbor_idxs: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, dr_vec: torch.Tensor, Z: torch.Tensor, neighbor_idxs: torch.Tensor
+    ) -> torch.Tensor:
         dr_vec = dr_vec.type(self.dtype)
         # Z shape n_atoms
         n_atoms = Z.shape[0]
@@ -53,7 +59,9 @@ class GaussianMomentDescriptor(nn.Module):
         radial_function = self.radial_fn(dr, Z_i, Z_j)
 
         moments = geometric_moments(radial_function, dn, idx_j, n_atoms)
-        gaussian_moments = gaussian_moment_impl(moments, self.triang_idxs_2d, self.triang_idxs_3d, self.n_contr)
+        gaussian_moments = gaussian_moment_impl(
+            moments, self.triang_idxs_2d, self.triang_idxs_3d, self.n_contr
+        )
 
         # # gaussian_moments shape: n_atoms x n_features
         # gaussian_moments = jnp.concatenate(gaussian_moments[: self.n_contr], axis=-1)
