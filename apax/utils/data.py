@@ -3,7 +3,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
-from ase.io import read
+from ase.io import read, write
 
 log = logging.getLogger(__name__)
 
@@ -112,3 +112,23 @@ def split_atoms(atoms_list, train_idxs, val_idxs=None):
         val_atoms_list = []
 
     return train_atoms_list, val_atoms_list
+
+
+def split_dataset(path: Path, n_train: int, n_val: int, save_indices: bool = False):
+    atoms_list = load_data(path)
+
+    train_idxs, val_idxs = split_idxs(atoms_list, n_train, n_val)
+    train_atoms_list, val_atoms_list = split_atoms(atoms_list, train_idxs, val_idxs)
+    train_path = path.parent / f"{path.stem}_train.extxyz"
+    val_path = path.parent / f"{path.stem}_val.extxyz"
+    write(train_path.as_posix(), train_atoms_list)
+    write(val_path.as_posix(), val_atoms_list)
+
+    if save_indices:
+        idx_path = (path.parent / f"{path.stem}_train_val_idxs").as_posix()
+
+        np.savez(
+            idx_path,
+            train_idxs=train_idxs,
+            val_idxs=val_idxs,
+        )

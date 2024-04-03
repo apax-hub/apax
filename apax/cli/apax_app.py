@@ -85,6 +85,38 @@ def eval(
 
 
 @app.command()
+def split(
+    path: Path = typer.Argument(..., help="Dataset to split."),
+    n_train: int = typer.Argument(
+        ...,
+        help="Number of training samples.",
+    ),
+    n_val: int = typer.Argument(
+        ...,
+        help="Number of validation samples.",
+    ),
+    seed: int = typer.Argument(
+        0,
+        help="Random number generator seed.",
+    ),
+    indices: bool = typer.Option(
+        False,
+        help="Whether or not to write train/val indices to disk.",
+    ),
+):
+    """
+    Small utility for splitting datasets on the command line.
+    """
+    import numpy as np
+
+    from apax.utils.data import split_dataset
+
+    np.random.seed(seed)
+
+    split_dataset(path, n_train, n_val, indices)
+
+
+@app.command()
 def docs():
     """
     Opens the documentation website in your browser.
