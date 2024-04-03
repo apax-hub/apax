@@ -229,8 +229,10 @@ class LossConfig(BaseModel, extra="forbid"):
     """
 
     name: str
-    loss_type: str = "structures"
+    loss_type: str = "mse"
     weight: NonNegativeFloat = 1.0
+    atoms_exponent: NonNegativeFloat = 1
+    parameters: dict = {}
 
 
 class CallbackConfig(BaseModel, frozen=True, extra="forbid"):
