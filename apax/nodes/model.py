@@ -9,13 +9,13 @@ import numpy as np
 import pandas as pd
 import yaml
 import zntrack.utils
+from jax import config
+from matplotlib import pyplot as plt
+from zntrack import dvc, zn
 
 from apax.md import ASECalculator
 from apax.md.function_transformations import available_transformations
 from apax.train.run import run as apax_run
-from jax import config
-from matplotlib import pyplot as plt
-from zntrack import dvc, zn
 
 from .utils import check_duplicate_keys
 

@@ -10,8 +10,8 @@ import znh5md
 import zntrack.utils
 from zntrack import dvc, zn
 
-from .utils import check_duplicate_keys
 from .model import Apax
+from .utils import check_duplicate_keys
 
 log = logging.getLogger(__name__)
 

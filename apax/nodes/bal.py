@@ -1,11 +1,13 @@
-import zntrack
 import ase
-import numpy as np
 import matplotlib.pyplot as plt
-from .utils import get_flat_data_from_dict, plot_with_uncertainty
+import numpy as np
 import znflow
+import zntrack
 
 from apax.bal import kernel_selection
+
+from .utils import get_flat_data_from_dict, plot_with_uncertainty
+
 
 class BatchKernelSelection(zntrack.Node):
     """Interface to the batch active learning methods implemented in apax.

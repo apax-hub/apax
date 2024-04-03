@@ -1,6 +1,8 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import logging
+
+import matplotlib.pyplot as plt
+import numpy as np
+
 
 def get_flat_data_from_dict(data: dict, silent_ignore: bool = False) -> list:
     """Flatten a dictionary of lists into a single list.
