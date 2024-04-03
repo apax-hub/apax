@@ -8,7 +8,7 @@ from click import Path
 from tqdm import trange
 
 from apax.bal import feature_maps, kernel, selection, transforms
-from apax.data.input_pipeline import InMemoryDataset
+from apax.data.input_pipeline import OTFInMemoryDataset
 from apax.model.builder import ModelBuilder
 from apax.model.gmnn import EnergyModel
 from apax.train.checkpoints import (
@@ -46,7 +46,7 @@ def create_feature_fn(
     return feature_fn
 
 
-def compute_features(feature_fn, dataset: InMemoryDataset):
+def compute_features(feature_fn, dataset: OTFInMemoryDataset):
     """Compute the features of a dataset."""
     features = []
     n_data = dataset.n_data
@@ -85,7 +85,7 @@ def kernel_selection(
     is_ensemble = n_models > 1
 
     n_train = len(train_atoms)
-    dataset = InMemoryDataset(
+    dataset = OTFInMemoryDataset(
         train_atoms + pool_atoms,
         cutoff=config.model.r_max,
         bs=processing_batch_size,

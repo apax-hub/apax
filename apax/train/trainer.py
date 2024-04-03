@@ -142,6 +142,10 @@ def fit(
     epoch_pbar.close()
     callbacks.on_train_end()
 
+    train_ds.cleanup()
+    if val_ds:
+        val_ds.cleanup()
+
 
 def global_norm(updates) -> jnp.ndarray:
     """Returns the l2 norm of the input.

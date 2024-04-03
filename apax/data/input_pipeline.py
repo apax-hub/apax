@@ -1,5 +1,7 @@
 import logging
+import uuid
 from collections import deque
+from pathlib import Path
 from random import shuffle
 from typing import Dict, Iterator
 
@@ -44,6 +46,7 @@ class InMemoryDataset:
         n_jit_steps=1,
         pre_shuffle=False,
         ignore_labels=False,
+        cache_path=".",
     ) -> None:
         if pre_shuffle:
             shuffle(atoms)
@@ -68,6 +71,7 @@ class InMemoryDataset:
         self.buffer = deque()
         self.batch_size = self.validate_batch_size(bs)
         self.n_jit_steps = n_jit_steps
+        self.file = Path(cache_path) / str(uuid.uuid4())
 
         self.enqueue(min(self.buffer_size, self.n_data))
 
@@ -85,7 +89,6 @@ class InMemoryDataset:
                 f"requested batch size {batch_size} is larger than the number of data"
                 f" points {self.n_data}. Setting batch size = {self.n_data}"
             )
-            print("Warning: " + msg)
             log.warning(msg)
             batch_size = self.n_data
         return batch_size
@@ -124,20 +127,6 @@ class InMemoryDataset:
             data = self.prepare_data(self.count)
             self.buffer.append(data)
             self.count += 1
-
-    def __iter__(self):
-        epoch = 0
-        while epoch < self.n_epochs or len(self.buffer) > 0:
-            yield self.buffer.popleft()
-
-            space = self.buffer_size - len(self.buffer)
-            if self.count + space > self.n_data:
-                space = self.n_data - self.count
-
-            if self.count >= self.n_data and epoch < self.n_epochs:
-                epoch += 1
-                self.count = 0
-            self.enqueue(space)
 
     def make_signature(self) -> tf.TensorSpec:
         input_signature = {}
@@ -189,6 +178,89 @@ class InMemoryDataset:
         inputs = jax.tree_map(lambda x: jnp.array(x), inputs)
         return inputs, np.array(box)
 
+    def __iter__(self):
+        raise NotImplementedError
+
+    def shuffle_and_batch(self):
+        raise NotImplementedError
+
+    def batch(self) -> Iterator[jax.Array]:
+        raise NotImplementedError
+
+    def cleanup(self):
+        pass
+
+
+class CachedInMemoryDataset(InMemoryDataset):
+    def __iter__(self):
+        while self.count < self.n_data or len(self.buffer) > 0:
+            yield self.buffer.popleft()
+
+            space = self.buffer_size - len(self.buffer)
+            if self.count + space > self.n_data:
+                space = self.n_data - self.count
+            self.enqueue(space)
+
+    def shuffle_and_batch(self):
+        """Shuffles and batches the inputs/labels. This function prepares the
+        inputs and labels for the whole training and prefetches the data.
+
+        Returns
+        -------
+        ds :
+            Iterator that returns inputs and labels of one batch in each step.
+        """
+        ds = (
+            tf.data.Dataset.from_generator(
+                lambda: self, output_signature=self.make_signature()
+            )
+            .cache(self.file.as_posix())
+            .repeat(self.n_epochs)
+        )
+
+        ds = ds.shuffle(
+            buffer_size=self.buffer_size, reshuffle_each_iteration=True
+        ).batch(batch_size=self.batch_size)
+        if self.n_jit_steps > 1:
+            ds = ds.batch(batch_size=self.n_jit_steps)
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        return ds
+
+    def batch(self) -> Iterator[jax.Array]:
+        ds = (
+            tf.data.Dataset.from_generator(
+                lambda: self, output_signature=self.make_signature()
+            )
+            .cache(self.file.as_posix())
+            .repeat(self.n_epochs)
+        )
+        ds = ds.batch(batch_size=self.batch_size)
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        return ds
+
+    def cleanup(self):
+        for p in self.file.parent.glob(f"{self.file.name}.data*"):
+            p.unlink()
+
+        index_file = self.file.parent / f"{self.file.name}.index"
+        index_file.unlink()
+
+
+class OTFInMemoryDataset(InMemoryDataset):
+    def __iter__(self):
+        epoch = 0
+        while epoch < self.n_epochs or len(self.buffer) > 0:
+            yield self.buffer.popleft()
+
+            space = self.buffer_size - len(self.buffer)
+            if self.count + space > self.n_data:
+                space = self.n_data - self.count
+
+            if self.count >= self.n_data and epoch < self.n_epochs:
+                epoch += 1
+                self.count = 0
+            self.enqueue(space)
+
     def shuffle_and_batch(self):
         """Shuffles and batches the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
@@ -217,3 +289,9 @@ class InMemoryDataset:
         ds = ds.batch(batch_size=self.batch_size)
         ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
         return ds
+
+
+dataset_dict = {
+    "cached": CachedInMemoryDataset,
+    "otf": OTFInMemoryDataset,
+}

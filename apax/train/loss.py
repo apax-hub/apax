@@ -8,7 +8,7 @@ from apax.utils.math import normed_dotp
 
 
 def weighted_squared_error(
-    label: jnp.array, prediction: jnp.array, divisor: float = 1.0
+    label: jnp.array, prediction: jnp.array, divisor: float = 1.0, parameters: dict = {}
 ) -> jnp.array:
     """
     Squared error function that allows weighting of
@@ -17,8 +17,23 @@ def weighted_squared_error(
     return (label - prediction) ** 2 / divisor
 
 
+def weighted_huber_loss(
+    label: jnp.array, prediction: jnp.array, divisor: float = 1.0, parameters: dict = {}
+) -> jnp.array:
+    """
+    Huber loss function that allows weighting of
+    individual contributions by the number of atoms in the system.
+    """
+    if "delta" not in parameters.keys():
+        raise KeyError("Huber loss function requires 'delta' parameter")
+    delta = parameters["delta"]
+    diff = jnp.abs(label - prediction)
+    loss = jnp.where(diff > delta, delta * (diff - 0.5 * delta), 0.5 * diff**2)
+    return loss / divisor
+
+
 def force_angle_loss(
-    label: jnp.array, prediction: jnp.array, divisor: float = 1.0
+    label: jnp.array, prediction: jnp.array, divisor: float = 1.0, parameters: dict = {}
 ) -> jnp.array:
     """
     Consine similarity loss function. Contributions are summed in `Loss`.
@@ -28,7 +43,7 @@ def force_angle_loss(
 
 
 def force_angle_div_force_label(
-    label: jnp.array, prediction: jnp.array, divisor: float = 1.0
+    label: jnp.array, prediction: jnp.array, divisor: float = 1.0, parameters: dict = {}
 ):
     """
     Consine similarity loss function weighted by the norm of the force labels.
@@ -41,7 +56,7 @@ def force_angle_div_force_label(
 
 
 def force_angle_exponential_weight(
-    label: jnp.array, prediction: jnp.array, divisor: float = 1.0
+    label: jnp.array, prediction: jnp.array, divisor: float = 1.0, parameters: dict = {}
 ) -> jnp.array:
     """
     Consine similarity loss function exponentially scaled by the norm of the force labels.
@@ -52,7 +67,7 @@ def force_angle_exponential_weight(
     return (1.0 - dotp) * jnp.exp(-F_0_norm) / divisor
 
 
-def stress_tril(label, prediction, divisor=1.0):
+def stress_tril(label, prediction, divisor=1.0, parameters: dict = {}):
     idxs = jnp.tril_indices(3)
     label_tril = label[:, idxs[0], idxs[1]]
     prediction_tril = prediction[:, idxs[0], idxs[1]]
@@ -60,9 +75,8 @@ def stress_tril(label, prediction, divisor=1.0):
 
 
 loss_functions = {
-    "molecules": weighted_squared_error,
-    "structures": weighted_squared_error,
-    "vibrations": weighted_squared_error,
+    "mse": weighted_squared_error,
+    "huber": weighted_huber_loss,
     "cosine_sim": force_angle_loss,
     "cosine_sim_div_magnitude": force_angle_div_force_label,
     "cosine_sim_exp_magnitude": force_angle_exponential_weight,
@@ -80,6 +94,8 @@ class Loss:
     name: str
     loss_type: str
     weight: float = 1.0
+    atoms_exponent: float = 1.0
+    parameters: dict = dataclasses.field(default_factory=lambda: {})
 
     def __post_init__(self):
         if self.loss_type not in loss_functions.keys():
@@ -94,25 +110,18 @@ class Loss:
     def __call__(self, inputs: dict, prediction: dict, label: dict) -> float:
         # TODO we may want to insert an additional `mask` argument for this method
         divisor = self.determine_divisor(inputs["n_atoms"])
-        loss = self.loss_fn(label[self.name], prediction[self.name], divisor=divisor)
-        return self.weight * jnp.sum(jnp.mean(loss, axis=0))
+        batch_losses = self.loss_fn(
+            label[self.name], prediction[self.name], divisor, self.parameters
+        )
+        loss = self.weight * jnp.sum(jnp.mean(batch_losses, axis=0))
+        return loss
 
     def determine_divisor(self, n_atoms: jnp.array) -> jnp.array:
-        divisor_id = self.name + "_" + self.loss_type
-        divisor_dict = {
-            "energy_structures": n_atoms**2,
-            "energy_vibrations": n_atoms,
-            "forces_structures": einops.repeat(n_atoms, "batch -> batch 1 1"),
-            "forces_cosine_sim": einops.repeat(n_atoms, "batch -> batch 1 1"),
-            "cosine_sim_div_magnitude": einops.repeat(n_atoms, "batch -> batch 1 1"),
-            "forces_cosine_sim_exp_magnitude": einops.repeat(
-                n_atoms, "batch -> batch 1 1"
-            ),
-            "stress_structures": einops.repeat(n_atoms**2, "batch -> batch 1 1"),
-            "stress_tril": einops.repeat(n_atoms**2, "batch -> batch 1 1"),
-            "stress_vibrations": einops.repeat(n_atoms, "batch -> batch 1 1"),
-        }
-        divisor = divisor_dict.get(divisor_id, jnp.array(1.0))
+        # shape: batch
+        divisor = n_atoms**self.atoms_exponent
+
+        if self.name in ["forces", "stress"]:
+            divisor = einops.repeat(divisor, "batch -> batch 1 1")
 
         return divisor
 

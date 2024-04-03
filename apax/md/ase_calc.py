@@ -11,7 +11,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
-from apax.data.input_pipeline import InMemoryDataset
+from apax.data.input_pipeline import OTFInMemoryDataset
 from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
 from apax.utils.jax_md_reduced import partition, quantity, space
@@ -256,7 +256,7 @@ class ASECalculator(Calculator):
         """
         if self.model is None:
             self.initialize(atoms_list[0])
-        dataset = InMemoryDataset(
+        dataset = OTFInMemoryDataset(
             atoms_list,
             self.model_config.model.r_max,
             batch_size,

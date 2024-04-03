@@ -59,6 +59,7 @@ tmp/
 .traj
 .h5
 events.out.*
+*.schema.json
 
 # Translations
 *.mo

@@ -8,7 +8,7 @@ import numpy as np
 from tqdm import trange
 
 from apax.config import parse_config
-from apax.data.input_pipeline import InMemoryDataset
+from apax.data.input_pipeline import OTFInMemoryDataset
 from apax.model import ModelBuilder
 from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import restore_single_parameters
@@ -122,7 +122,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     Metrics = initialize_metrics(config.metrics)
 
     atoms_list = load_test_data(config, model_version_path, eval_path, n_test)
-    test_ds = InMemoryDataset(
+    test_ds = OTFInMemoryDataset(
         atoms_list, config.model.r_max, config.data.valid_batch_size
     )
 
