@@ -70,6 +70,10 @@ def fit(
         epoch_loss.update({"train_loss": 0.0})
         train_batch_metrics = Metrics.empty()
 
+        batch_pbar = trange(
+            0, train_steps_per_epoch, desc="batches", ncols=100, mininterval=1.0, disable=disable_pbar, leave=False
+        )
+
         for batch_idx in range(train_steps_per_epoch):
             callbacks.on_train_batch_begin(batch=batch_idx)
 
@@ -84,6 +88,7 @@ def fit(
 
             epoch_loss["train_loss"] += jnp.mean(batch_loss)
             callbacks.on_train_batch_end(batch=batch_idx)
+            batch_pbar.update()
 
         epoch_loss["train_loss"] /= train_steps_per_epoch
         epoch_loss["train_loss"] = float(epoch_loss["train_loss"])
@@ -96,6 +101,10 @@ def fit(
         if val_ds is not None:
             epoch_loss.update({"val_loss": 0.0})
             val_batch_metrics = Metrics.empty()
+
+            batch_pbar = trange(
+                0, val_steps_per_epoch, desc="batches", ncols=100, mininterval=1.0, disable=disable_pbar, leave=False
+            )
             for batch_idx in range(val_steps_per_epoch):
                 batch = next(batch_val_ds)
 
@@ -103,6 +112,7 @@ def fit(
                     state.params, batch, val_batch_metrics
                 )
                 epoch_loss["val_loss"] += batch_loss
+                batch_pbar.update()
 
             epoch_loss["val_loss"] /= val_steps_per_epoch
             epoch_loss["val_loss"] = float(epoch_loss["val_loss"])
