@@ -89,7 +89,7 @@ def atoms_to_inputs(
             frac_pos = space.transform(inv_box, pos)
             inputs["positions"].append(np.array(frac_pos))
 
-        inputs["numbers"].append(atoms.numbers)
+        inputs["numbers"].append(atoms.numbers.astype(np.int16))
         inputs["n_atoms"].append(len(atoms))
 
     inputs = prune_dict(inputs)
