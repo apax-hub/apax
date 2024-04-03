@@ -1,12 +1,17 @@
 import logging
+from pathlib import Path
 
 import tensorflow as tf
 from keras.callbacks import CSVLogger, TensorBoard
 
+from apax.config.common import flatten
+from apax.config.train_config import Config
+
 log = logging.getLogger(__name__)
 
 
-def initialize_callbacks(callback_configs, model_version_path):
+def initialize_callbacks(config: Config, model_version_path: Path):
+    callback_configs = config.callbacks
     log.info("Initializing Callbacks")
 
     dummy_model = tf.keras.Model()
@@ -27,32 +32,41 @@ def initialize_callbacks(callback_configs, model_version_path):
         },
     }
 
-    callback_configs = [config.name for config in callback_configs]
-    if "csv" in callback_configs and "tensorboard" in callback_configs:
-        csv_idx, tb_idx = callback_configs.index("csv"), callback_configs.index(
-            "tensorboard"
-        )
+    names = [conf.name for conf in callback_configs]
+    if "csv" in names and "tensorboard" in names:
         msg = (
             "Using both csv and tensorboard callbacks is not supported at the moment."
-            " Only the first of the two will be used."
+            " Rerun training with only one of the two."
         )
-        print("Warning: " + msg)
-        log.warning(msg)
-        if csv_idx < tb_idx:
-            callback_configs.pop(tb_idx)
-        else:
-            callback_configs.pop(csv_idx)
+        raise ValueError(msg)
 
     callbacks = []
     for callback_config in callback_configs:
-        callback_info = callback_dict[callback_config]
+        if callback_config.name == "mlflow":
+            try:
+                import mlflow
+                from mlflow.tensorflow import MLflowCallback
+            except ImportError:
+                log.warning("Make sure MLFlow is installed correctly")
+            mlflow.login()
+            mlflow.tensorflow.autolog()
+            experiment = callback_config.experiment
+            mlflow.set_experiment(experiment)
 
-        path_arg_name = callback_info["path_arg_name"]
-        path = {path_arg_name: callback_info["log_path"]}
+            params = config.model_dump()
+            params = flatten(params)
+            mlflow.log_params(params)
+            callback = MLflowCallback()
+            callback.set_model(dummy_model)
+        else:
+            callback_info = callback_dict[callback_config.name]
 
-        kwargs = callback_info["kwargs"]
-        callback = callback_info["class"](**path, **kwargs)
-        callback.set_model(callback_info["model"])
+            path_arg_name = callback_info["path_arg_name"]
+            path = {path_arg_name: callback_info["log_path"]}
+
+            kwargs = callback_info["kwargs"]
+            callback = callback_info["class"](**path, **kwargs)
+            callback.set_model(callback_info["model"])
         callbacks.append(callback)
 
     return tf.keras.callbacks.CallbackList([callback])

@@ -1,12 +1,13 @@
 import logging
 import os
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 import yaml
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     NonNegativeFloat,
     PositiveFloat,
     PositiveInt,
@@ -235,16 +236,42 @@ class LossConfig(BaseModel, extra="forbid"):
     parameters: dict = {}
 
 
-class CallbackConfig(BaseModel, frozen=True, extra="forbid"):
+class CSVCallback(BaseModel, frozen=True, extra="forbid"):
     """
-    Configuration of the training callbacks.
+    Configuration of the CSVCallback.
 
     Parameters
     ----------
-    name: Keyword of the callback used. Currently we implement "csv" and "tensorboard".
+    name: Keyword of the callback used..
     """
 
-    name: str
+    name: Literal["csv"]
+
+
+class TBCallback(BaseModel, frozen=True, extra="forbid"):
+    """
+    Configuration of the TensorBoard callback.
+
+    Parameters
+    ----------
+    name: Keyword of the callback used..
+    """
+
+    name: Literal["tensorboard"]
+
+
+class MLFlowCallback(BaseModel, frozen=True, extra="forbid"):
+    """
+    Configuration of the MLFlow callback.
+
+    Parameters
+    ----------
+    name: Keyword of the callback used.
+    experiment: Path to the MLFlow experiment, e.g. /Users/<user>/<my_experiment>
+    """
+
+    name: Literal["mlflow"]
+    experiment: str
 
 
 class TrainProgressbarConfig(BaseModel, extra="forbid"):
@@ -311,7 +338,9 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     metrics: List[MetricsConfig] = []
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()
-    callbacks: List[CallbackConfig] = [CallbackConfig(name="csv")]
+    callbacks: List[Union[CSVCallback, TBCallback, MLFlowCallback]] = Field(
+        CSVCallback(name="csv"), discriminator="name"
+    )
     progress_bar: TrainProgressbarConfig = TrainProgressbarConfig()
     checkpoints: CheckpointConfig = CheckpointConfig()
 
