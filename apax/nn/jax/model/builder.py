@@ -1,12 +1,12 @@
 import numpy as np
 
 from apax.config import ModelConfig
-from apax.layers.descriptor.basis_functions import GaussianBasis, RadialFunction
-from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
-from apax.layers.empirical import ZBLRepulsion
-from apax.layers.readout import AtomisticReadout
-from apax.layers.scaling import PerElementScaleShift
-from apax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
+from apax.nn.jax.layers.descriptor.basis import GaussianBasis, RadialFunction
+from apax.nn.jax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
+from apax.nn.jax.layers.empirical import ZBLRepulsion
+from apax.nn.jax.layers.readout import AtomisticReadout
+from apax.nn.jax.layers.scaling import PerElementScaleShift
+from apax.nn.jax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
 
 
 class ModelBuilder:

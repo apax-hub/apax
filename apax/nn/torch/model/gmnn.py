@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import autograd
 
 from apax.nn.torch.layers.descriptor import GaussianMomentDescriptor
 from apax.nn.torch.layers.readout import AtomisticReadout
@@ -35,6 +36,21 @@ class AtomisticModel(nn.Module):
         return output
 
 
+def get_displacement(init_box, inference_disp_fn):
+    if np.all(init_box < 1e-6):
+        # gas phase training and predicting
+        displacement_fn = space.free()[0]
+        displacement = space.map_bond(displacement_fn)
+    elif inference_disp_fn is None:
+        # for training on periodic systems
+        displacement = vmap(disp_fn, (0, 0, None, None), 0)
+    else:
+        mappable_displacement_fn = get_disp_fn(self.inference_disp_fn)
+        displacement = vmap(mappable_displacement_fn, (0, 0, None, None), 0)
+
+    return displacement
+
+
 class EnergyModel(nn.Module):
     def __init__(
         self,
@@ -49,16 +65,7 @@ class EnergyModel(nn.Module):
         self.init_box = init_box
         self.inference_disp_fn = inference_disp_fn
 
-        if np.all(self.init_box < 1e-6):
-            # gas phase training and predicting
-            displacement_fn = space.free()[0]
-            self.displacement = space.map_bond(displacement_fn)
-        elif self.inference_disp_fn is None:
-            # for training on periodic systems
-            self.displacement = vmap(disp_fn, (0, 0, None, None), 0)
-        else:
-            mappable_displacement_fn = get_disp_fn(self.inference_disp_fn)
-            self.displacement = vmap(mappable_displacement_fn, (0, 0, None, None), 0)
+        self.displacement = get_displacement(init_box, inference_disp_fn)
 
     def forward(
         self,
@@ -86,7 +93,7 @@ class EnergyModel(nn.Module):
 
         # Model Core
         atomic_energies = self.atomistic_model(dr_vec, Z, idx)
-        total_energy = fp64_sum(atomic_energies)
+        total_energy = torch.sum(atomic_energies, dtype=torch.float64)
 
         # Corrections
         # for correction in self.corrections:
@@ -94,3 +101,54 @@ class EnergyModel(nn.Module):
         #     total_energy = total_energy + energy_correction
 
         return total_energy
+
+
+class EnergyDerivativeModel(nn.Module):
+    def __init__(
+        self,
+        energy_model: EnergyModel = EnergyModel(),
+        calc_stress: bool = False,
+    ):
+        super().__init__()
+
+        self.energy_model = energy_model
+        self.calc_stress = calc_stress
+
+
+    def forward(
+        self,
+        R: torch.Tensor,
+        Z: torch.Tensor,
+        neighbor: torch.Tensor,
+        box: torch.Tensor,
+        offsets: torch.Tensor,
+    ):
+        R.requires_grad = True
+        requires_grad = [R]
+        if self.calc_stress:
+            eps = torch.zeros((3, 3), torch.float64)
+            eps.requires_grad = True
+            eps_sym = 0.5 * (eps + eps.T)
+            identity = torch.eye(3, dtype=torch.float64)
+            perturbation = identity + eps_sym
+            requires_grad.append(eps)
+        else:
+            perturbation = None
+        
+        energy = self.energy_model(R, Z, neighbor, box, offsets, perturbation)
+                    
+
+        grads = autograd.grad(energy, requires_grad,
+                            grad_outputs=torch.ones_like(energy),
+                            create_graph=True)
+        
+        neg_forces = grads[0]
+        forces = -neg_forces
+
+        prediction = {"energy": energy, "forces": forces}
+
+        if self.calc_stress:
+            stress = grads[-1]
+            prediction["stress"] = stress
+
+        return prediction
