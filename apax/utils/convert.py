@@ -67,19 +67,19 @@ def atoms_to_inputs(
     }
 
     box = atoms_list[0].cell.array
-    pbc = np.all(box > 1e-6)
+    pbc = np.any(np.abs(box) > 1e-6)
 
     for atoms in atoms_list:
         box = (atoms.cell.array * unit_dict[pos_unit]).astype(DTYPE)
         box = box.T  # takes row and column convention of ase into account
         inputs["box"].append(box)
 
-        if pbc != np.all(box > 1e-6):
+        if pbc != np.any(np.abs(box) > 1e-6):
             raise ValueError(
                 "Apax does not support dataset periodic and non periodic structures"
             )
 
-        if np.all(box < 1e-6):
+        if np.all(np.abs(box) < 1e-6):
             inputs["positions"].append(
                 (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
             )
