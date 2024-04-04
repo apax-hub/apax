@@ -53,8 +53,8 @@ class InMemoryDataset:
         self.sample_atoms = atoms[0]
         self.inputs = atoms_to_inputs(atoms)
 
-        self.n_epochs = 100
-        self.buffer_size = 100
+        self.n_epochs = n_epochs
+        self.buffer_size = buffer_size
 
         max_atoms, max_nbrs = find_largest_system(self.inputs, cutoff)
         self.max_atoms = max_atoms
