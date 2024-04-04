@@ -75,7 +75,7 @@ optimizer:
   transition_begin: 0
 
 callbacks:
-- name: csv
+  - name: csv
 
 checkpoints:
   ckpt_interval: 1

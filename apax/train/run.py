@@ -99,7 +99,7 @@ def run(user_config, log_level="error"):
     config.dump_config(config.data.model_version_path)
     log.info(f"Running on {jax.devices()}")
 
-    callbacks = initialize_callbacks(config.callbacks, config.data.model_version_path)
+    callbacks = initialize_callbacks(config, config.data.model_version_path)
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
 
