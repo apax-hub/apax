@@ -147,3 +147,4 @@ def run(user_config, log_level="error"):
         disable_batch_pbar=config.progress_bar.disable_batch_pbar,
         is_ensemble=config.n_models > 1,
     )
+    log.info("Finished training")
