@@ -8,6 +8,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from clu import metrics
+from jax.experimental import mesh_utils
+from jax.sharding import PositionalSharding
 from tqdm import trange
 
 from apax.data.input_pipeline import InMemoryDataset
@@ -50,9 +52,6 @@ def fit(
         raise ValueError(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
-
-    from jax.experimental import mesh_utils
-    from jax.sharding import PositionalSharding
 
     devices = len(jax.devices())
     if devices > 1 and data_parallel:
