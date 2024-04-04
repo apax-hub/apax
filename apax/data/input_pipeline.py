@@ -122,10 +122,10 @@ class InMemoryDataset:
             inputs["n_atoms"], (0, zeros_to_add), "constant"
         ).astype(np.int16)
 
-        if not self.labels:
+        if not self.compute_labels:
             return inputs
 
-        labels = {k: v[i] for k, v in self.labels.items()}
+        # labels = {k: v[i] for k, v in self.labels.items()}
         if "forces" in labels:
             labels["forces"] = np.pad(
                 labels["forces"], ((0, zeros_to_add), (0, 0)), "constant"
