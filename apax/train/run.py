@@ -4,9 +4,9 @@ from typing import List
 
 import jax
 
-from apax.config import LossConfig, parse_config
-from apax.data.initialization import initialize_dataset, load_data_files
-from apax.data.input_pipeline import Dataset
+from apax.config import Config, LossConfig, parse_config
+from apax.data.initialization import load_data_files
+from apax.data.input_pipeline import dataset_dict
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.model import ModelBuilder
 from apax.optimizer import get_opt
@@ -51,6 +51,39 @@ def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
     return LossCollection(loss_funcs)
 
 
+def initialize_datasets(config: Config):
+    train_raw_ds, val_raw_ds = load_data_files(config.data)
+
+    Dataset = dataset_dict[config.data.ds_type]
+
+    train_ds = Dataset(
+        train_raw_ds,
+        config.model.r_max,
+        config.data.batch_size,
+        config.n_epochs,
+        config.data.shuffle_buffer_size,
+        config.n_jitted_steps,
+        pre_shuffle=True,
+        cache_path=config.data.model_version_path,
+    )
+    val_ds = Dataset(
+        val_raw_ds,
+        config.model.r_max,
+        config.data.valid_batch_size,
+        config.n_epochs,
+        cache_path=config.data.model_version_path,
+    )
+    ds_stats = compute_scale_shift_parameters(
+        train_ds.inputs,
+        train_ds.labels,
+        config.data.shift_method,
+        config.data.scale_method,
+        config.data.shift_options,
+        config.data.scale_options,
+    )
+    return train_ds, val_ds, ds_stats
+
+
 def run(user_config, log_level="error"):
     config = parse_config(user_config)
 
@@ -66,19 +99,7 @@ def run(user_config, log_level="error"):
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
 
-    train_raw_ds, val_raw_ds = load_data_files(config.data)
-
-    train_ds = Dataset(train_raw_ds, config.model.r_max, config.data.batch_size, config.n_jitted_steps, name="train", pre_shuffle=True)
-    val_ds = Dataset(val_raw_ds, config.model.r_max, config.data.valid_batch_size, name="val")
-    ds_stats = compute_scale_shift_parameters(
-            train_ds.inputs,
-            train_ds.labels,
-            config.data.shift_method,
-            config.data.scale_method,
-            config.data.shift_options,
-            config.data.scale_options,
-        )
-    # TODO IMPL DELETE FILES
+    train_ds, val_ds, ds_stats = initialize_datasets(config)
 
     log.info("Initializing Model")
     sample_input, init_box = train_ds.init_input()

@@ -10,7 +10,7 @@ import numpy as np
 from clu import metrics
 from tqdm import trange
 
-from apax.data.input_pipeline import AtomisticDataset
+from apax.data.input_pipeline import InMemoryDataset
 from apax.train.checkpoints import CheckpointManager, load_state
 
 log = logging.getLogger(__name__)
@@ -18,14 +18,14 @@ log = logging.getLogger(__name__)
 
 def fit(
     state,
-    train_ds: AtomisticDataset,
+    train_ds: InMemoryDataset,
     loss_fn,
     Metrics: metrics.Collection,
     callbacks: list,
     n_epochs: int,
     ckpt_dir,
     ckpt_interval: int = 1,
-    val_ds: Optional[AtomisticDataset] = None,
+    val_ds: Optional[InMemoryDataset] = None,
     sam_rho=0.0,
     patience: Optional[int] = None,
     disable_pbar: bool = False,
@@ -154,6 +154,10 @@ def fit(
             break
     epoch_pbar.close()
     callbacks.on_train_end()
+
+    train_ds.cleanup()
+    if val_ds:
+        val_ds.cleanup()
 
 
 def global_norm(updates) -> jnp.ndarray:
