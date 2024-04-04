@@ -3,8 +3,9 @@ import uuid
 from collections import deque
 from pathlib import Path
 from random import shuffle
-from typing import Dict, Iterator
+from typing import Dict, Iterator, List
 
+from ase import Atoms
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -23,12 +24,12 @@ def pad_nl(idx, offsets, max_neighbors):
     return idx, offsets
 
 
-def find_largest_system(inputs: dict[str, np.ndarray], r_max) -> tuple[int]:
-    max_atoms = np.max(inputs["n_atoms"])
+def find_largest_system(atoms_list: List[Atoms], r_max) -> tuple[int]:
+    max_atoms = np.max([atoms.numbers.shape[0] for atoms in atoms_list])
 
     max_nbrs = 0
-    for position, box in zip(inputs["positions"], inputs["box"]):
-        neighbor_idxs, _ = compute_nl(position, box, r_max)
+    for atoms in atoms_list:
+        neighbor_idxs, _ = compute_nl(atoms, r_max)
         n_neighbors = neighbor_idxs.shape[1]
         max_nbrs = max(max_nbrs, n_neighbors)
 
@@ -52,13 +53,16 @@ class InMemoryDataset:
             shuffle(atoms)
         self.sample_atoms = atoms[0]
         self.inputs = atoms_to_inputs(atoms)
+        self.atoms = atoms
 
         self.n_epochs = n_epochs
         self.buffer_size = buffer_size
 
-        max_atoms, max_nbrs = find_largest_system(self.inputs, cutoff)
+        max_atoms, max_nbrs = find_largest_system(atoms, cutoff)
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
+        # print(max_atoms, max_nbrs)
+        # quit()
 
         if atoms[0].calc and not ignore_labels:
             self.labels = atoms_to_labels(atoms)
@@ -94,8 +98,8 @@ class InMemoryDataset:
         return batch_size
 
     def prepare_data(self, i):
-        inputs = {k: v[i] for k, v in self.inputs.items()}
-        idx, offsets = compute_nl(inputs["positions"], inputs["box"], self.cutoff)
+        inputs = {k: v[i] for k, v in self.inputs.items()} # inputs["positions"], inputs["box"]
+        idx, offsets = compute_nl(self.atoms[i], self.cutoff)
         inputs["idx"], inputs["offsets"] = pad_nl(idx, offsets, self.max_nbrs)
 
         zeros_to_add = self.max_atoms - inputs["numbers"].shape[0]
@@ -166,7 +170,7 @@ class InMemoryDataset:
         """Returns first batch of inputs and labels to init the model."""
         positions = self.sample_atoms.positions
         box = self.sample_atoms.cell.array
-        idx, offsets = compute_nl(positions, box, self.cutoff)
+        idx, offsets = compute_nl(self.sample_atoms, self.cutoff)
         inputs = (
             positions,
             self.sample_atoms.numbers,
