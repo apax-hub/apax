@@ -50,13 +50,14 @@ metrics:
   #   - mse
 
 loss:
-  - loss_type: structures
-    name: energy
+  - name: energy
+    atoms_exponent: 2
     weight: 1.0
-  - loss_type: structures
-    name: forces
+  - name: forces
+    atoms_exponent: 1
     weight: 8.0
   - loss_type: cosine_sim
+    atoms_exponent: 1
     name: forces
     weight: 0.1
   # - loss_type: structures
