@@ -14,6 +14,7 @@ from pydantic import (
     create_model,
     model_validator,
 )
+from typing_extensions import Annotated
 
 from apax.data.statistics import scale_method_list, shift_method_list
 
@@ -274,6 +275,11 @@ class MLFlowCallback(BaseModel, frozen=True, extra="forbid"):
     experiment: str
 
 
+CallBack = Annotated[
+    Union[CSVCallback, TBCallback, MLFlowCallback], Field(discriminator="name")
+]
+
+
 class TrainProgressbarConfig(BaseModel, extra="forbid"):
     """
     Configuration of progressbars.
@@ -338,9 +344,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     metrics: List[MetricsConfig] = []
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()
-    callbacks: List[Union[CSVCallback, TBCallback, MLFlowCallback]] = Field(
-        CSVCallback(name="csv"), discriminator="name"
-    )
+    callbacks: List[CallBack] = [CSVCallback(name="csv")]
     progress_bar: TrainProgressbarConfig = TrainProgressbarConfig()
     checkpoints: CheckpointConfig = CheckpointConfig()
 
