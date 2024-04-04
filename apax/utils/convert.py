@@ -38,6 +38,14 @@ def prune_dict(data_dict):
     pruned = {key: val for key, val in data_dict.items() if len(val) != 0}
     return pruned
 
+def is_periodic(box):
+    pbc_dims = np.any(np.abs(box) > 1e-6)
+    if np.all(pbc_dims == True) or np.all(pbc_dims == False):
+        return pbc_dims
+    else:
+        msg = f"Only 3D periodic and gas phase system supported at the moment. Found {box}"
+        raise ValueError(msg)
+
 
 def atoms_to_inputs(
     atoms_list: list[Atoms],
@@ -67,19 +75,21 @@ def atoms_to_inputs(
     }
 
     box = atoms_list[0].cell.array
-    pbc = np.all(box > 1e-6)
+    pbc = is_periodic(box)
 
     for atoms in atoms_list:
         box = (atoms.cell.array * unit_dict[pos_unit]).astype(DTYPE)
         box = box.T  # takes row and column convention of ase into account
         inputs["box"].append(box)
 
-        if pbc != np.all(box > 1e-6):
+        current_pbc = is_periodic(box)
+
+        if pbc != current_pbc:
             raise ValueError(
                 "Apax does not support dataset periodic and non periodic structures"
             )
 
-        if np.all(box < 1e-6):
+        if not current_pbc:
             inputs["positions"].append(
                 (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
             )
