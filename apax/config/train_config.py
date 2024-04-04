@@ -287,11 +287,11 @@ class TrainProgressbarConfig(BaseModel, extra="forbid"):
     Parameters
     ----------
     disable_epoch_pbar: Set to True to disable the epoch progress bar.
-    disable_nl_pbar: Set to True to disable the NL precomputation progress bar.
+    disable_batch_pbar: Set to True to disable the batch progress bar.
     """
 
     disable_epoch_pbar: bool = False
-    disable_nl_pbar: bool = False
+    disable_batch_pbar: bool = True
 
 
 class CheckpointConfig(BaseModel, extra="forbid"):

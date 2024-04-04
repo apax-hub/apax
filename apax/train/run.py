@@ -94,10 +94,10 @@ def run(user_config, log_level="error"):
     seed_py_np_tf(config.seed)
     rng_key = jax.random.PRNGKey(config.seed)
 
-    log.info("Initializing directories")
     config.data.model_version_path.mkdir(parents=True, exist_ok=True)
     setup_logging(config.data.model_version_path / "train.log", log_level)
     config.dump_config(config.data.model_version_path)
+    log.info(f"Running on {jax.devices()}")
 
     callbacks = initialize_callbacks(config, config.data.model_version_path)
     loss_fn = initialize_loss_fn(config.loss)
@@ -148,5 +148,7 @@ def run(user_config, log_level="error"):
         sam_rho=config.optimizer.sam_rho,
         patience=config.patience,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
+        disable_batch_pbar=config.progress_bar.disable_batch_pbar,
         is_ensemble=config.n_models > 1,
     )
+    log.info("Finished training")
