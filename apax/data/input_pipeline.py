@@ -11,7 +11,7 @@ import numpy as np
 import tensorflow as tf
 
 from apax.data.preprocessing import compute_nl, prefetch_to_single_device
-from apax.utils.convert import atoms_to_inputs, atoms_to_labels
+from apax.utils.convert import atoms_to_inputs, atoms_to_labels, unit_dict
 
 log = logging.getLogger(__name__)
 
@@ -44,33 +44,37 @@ class InMemoryDataset:
         n_epochs,
         buffer_size=1000,
         n_jit_steps=1,
+        pos_unit: str = "Ang",
+        energy_unit: str = "eV",
         pre_shuffle=False,
         ignore_labels=False,
         cache_path=".",
     ) -> None:
+
+        self.n_epochs = n_epochs
+        self.cutoff = cutoff
+        self.n_jit_steps = n_jit_steps
+        self.buffer_size = buffer_size
+        self.n_data = len(atoms)
+        self.batch_size = self.validate_batch_size(bs)
+        self.pos_unit = pos_unit
+
         if pre_shuffle:
             shuffle(atoms)
         self.sample_atoms = atoms[0]
-        self.inputs = atoms_to_inputs(atoms)
+        self.inputs = atoms_to_inputs(atoms, self.pos_unit)
 
-        self.n_epochs = n_epochs
-        self.buffer_size = buffer_size
-
-        max_atoms, max_nbrs = find_largest_system(self.inputs, cutoff)
+        max_atoms, max_nbrs = find_largest_system(self.inputs, self.cutoff)
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
 
         if atoms[0].calc and not ignore_labels:
-            self.labels = atoms_to_labels(atoms)
+            self.labels = atoms_to_labels(atoms, self.pos_unit, energy_unit)
         else:
             self.labels = None
 
-        self.n_data = len(atoms)
         self.count = 0
-        self.cutoff = cutoff
         self.buffer = deque()
-        self.batch_size = self.validate_batch_size(bs)
-        self.n_jit_steps = n_jit_steps
         self.file = Path(cache_path) / str(uuid.uuid4())
 
         self.enqueue(min(self.buffer_size, self.n_data))
@@ -164,8 +168,8 @@ class InMemoryDataset:
 
     def init_input(self) -> Dict[str, np.ndarray]:
         """Returns first batch of inputs and labels to init the model."""
-        positions = self.sample_atoms.positions
-        box = self.sample_atoms.cell.array
+        positions = self.sample_atoms.positions * unit_dict[self.pos_unit]
+        box = self.sample_atoms.cell.array * unit_dict[self.pos_unit]
         idx, offsets = compute_nl(positions, box, self.cutoff)
         inputs = (
             positions,
