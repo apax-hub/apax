@@ -91,6 +91,8 @@ def kernel_selection(
         bs=processing_batch_size,
         n_epochs=1,
         ignore_labels=True,
+        pos_unit=config.data.pos_unit,
+        energy_unit=config.data.energy_unit,
     )
 
     _, init_box = dataset.init_input()
