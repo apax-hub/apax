@@ -50,10 +50,10 @@ metrics:
   #   - mse
 
 loss:
-  - loss_type: structures
+  - loss_type: mse
     name: energy
     weight: 1.0
-  - loss_type: structures
+  - loss_type: mse
     name: forces
     weight: 8.0
   - loss_type: cosine_sim
@@ -74,7 +74,7 @@ optimizer:
   transition_begin: 0
 
 callbacks:
-- name: csv
+  - name: csv
 
 checkpoints:
   ckpt_interval: 1
