@@ -298,6 +298,8 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     callbacks: List of :class: `callback` <config.CallbackConfig> configurations.
     progress_bar: Progressbar configuration.
     checkpoints: Checkpoint configuration.
+    data_parallel: Automatically uses all available GPUs for data parallel training.
+        Set to false to force single device training.
     """
 
     n_epochs: PositiveInt
@@ -305,6 +307,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     seed: int = 1
     n_models: int = 1
     n_jitted_steps: int = 1
+    data_parallel: int = True
 
     data: DataConfig
     model: ModelConfig = ModelConfig()

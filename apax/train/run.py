@@ -145,4 +145,5 @@ def run(user_config, log_level="error"):
         patience=config.patience,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
         is_ensemble=config.n_models > 1,
+        data_parallel=config.data_parallel,
     )

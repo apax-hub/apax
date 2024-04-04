@@ -30,6 +30,7 @@ def fit(
     patience: Optional[int] = None,
     disable_pbar: bool = False,
     is_ensemble=False,
+    data_parallel=True,
 ):
     log.info("Beginning Training")
     callbacks.on_train_begin()
@@ -50,12 +51,15 @@ def fit(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
 
-
     from jax.experimental import mesh_utils
     from jax.sharding import PositionalSharding
-    sharding = PositionalSharding(mesh_utils.create_device_mesh((len(jax.devices()),)))
 
-    jax.device_put(state, sharding.replicate())
+    devices = len(jax.devices())
+    if devices > 1 and data_parallel:
+        sharding = PositionalSharding(mesh_utils.create_device_mesh((devices,)))
+        state = jax.device_put(state, sharding.replicate())
+    else:
+        sharding = None
 
     train_steps_per_epoch = train_ds.steps_per_epoch()
     batch_train_ds = train_ds.shuffle_and_batch(sharding)
@@ -63,9 +67,6 @@ def fit(
     if val_ds is not None:
         val_steps_per_epoch = val_ds.steps_per_epoch()
         batch_val_ds = val_ds.batch(sharding)
-
-
-
 
     best_loss = np.inf
     early_stopping_counter = 0
@@ -120,10 +121,12 @@ def fit(
             epoch_loss["val_loss"] /= val_steps_per_epoch
             epoch_loss["val_loss"] = float(epoch_loss["val_loss"])
 
-            epoch_metrics.update({
-                f"val_{key}": float(val)
-                for key, val in val_batch_metrics.compute().items()
-            })
+            epoch_metrics.update(
+                {
+                    f"val_{key}": float(val)
+                    for key, val in val_batch_metrics.compute().items()
+                }
+            )
 
         epoch_metrics.update({**epoch_loss})
 
