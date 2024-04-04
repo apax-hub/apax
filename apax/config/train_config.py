@@ -1,18 +1,20 @@
 import logging
 import os
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 import yaml
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     NonNegativeFloat,
     PositiveFloat,
     PositiveInt,
     create_model,
     model_validator,
 )
+from typing_extensions import Annotated
 
 from apax.data.statistics import scale_method_list, shift_method_list
 
@@ -235,16 +237,47 @@ class LossConfig(BaseModel, extra="forbid"):
     parameters: dict = {}
 
 
-class CallbackConfig(BaseModel, frozen=True, extra="forbid"):
+class CSVCallback(BaseModel, frozen=True, extra="forbid"):
     """
-    Configuration of the training callbacks.
+    Configuration of the CSVCallback.
 
     Parameters
     ----------
-    name: Keyword of the callback used. Currently we implement "csv" and "tensorboard".
+    name: Keyword of the callback used..
     """
 
-    name: str
+    name: Literal["csv"]
+
+
+class TBCallback(BaseModel, frozen=True, extra="forbid"):
+    """
+    Configuration of the TensorBoard callback.
+
+    Parameters
+    ----------
+    name: Keyword of the callback used..
+    """
+
+    name: Literal["tensorboard"]
+
+
+class MLFlowCallback(BaseModel, frozen=True, extra="forbid"):
+    """
+    Configuration of the MLFlow callback.
+
+    Parameters
+    ----------
+    name: Keyword of the callback used.
+    experiment: Path to the MLFlow experiment, e.g. /Users/<user>/<my_experiment>
+    """
+
+    name: Literal["mlflow"]
+    experiment: str
+
+
+CallBack = Annotated[
+    Union[CSVCallback, TBCallback, MLFlowCallback], Field(discriminator="name")
+]
 
 
 class TrainProgressbarConfig(BaseModel, extra="forbid"):
@@ -254,11 +287,11 @@ class TrainProgressbarConfig(BaseModel, extra="forbid"):
     Parameters
     ----------
     disable_epoch_pbar: Set to True to disable the epoch progress bar.
-    disable_nl_pbar: Set to True to disable the NL precomputation progress bar.
+    disable_batch_pbar: Set to True to disable the batch progress bar.
     """
 
     disable_epoch_pbar: bool = False
-    disable_nl_pbar: bool = False
+    disable_batch_pbar: bool = True
 
 
 class CheckpointConfig(BaseModel, extra="forbid"):
@@ -314,7 +347,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     metrics: List[MetricsConfig] = []
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()
-    callbacks: List[CallbackConfig] = [CallbackConfig(name="csv")]
+    callbacks: List[CallBack] = [CSVCallback(name="csv")]
     progress_bar: TrainProgressbarConfig = TrainProgressbarConfig()
     checkpoints: CheckpointConfig = CheckpointConfig()
 

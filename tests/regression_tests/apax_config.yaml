@@ -75,7 +75,7 @@ optimizer:
   transition_begin: 0
 
 callbacks:
-- name: csv
+  - name: csv
 
 checkpoints:
   ckpt_interval: 1
@@ -85,4 +85,3 @@ checkpoints:
 
 progress_bar:
   disable_epoch_pbar: true
-  disable_nl_pbar: true
