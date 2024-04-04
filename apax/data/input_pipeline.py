@@ -39,7 +39,7 @@ def find_largest_system(atoms_list: List[Atoms], r_max) -> tuple[int]:
 class InMemoryDataset:
     def __init__(
         self,
-        atoms,
+        atoms_list,
         cutoff,
         bs,
         n_epochs,
@@ -50,26 +50,29 @@ class InMemoryDataset:
         cache_path=".",
     ) -> None:
         if pre_shuffle:
-            shuffle(atoms)
-        self.sample_atoms = atoms[0]
-        self.inputs = atoms_to_inputs(atoms)
+            shuffle(atoms_list)
+        self.sample_atoms = atoms_list[0]
+        # self.inputs = atoms_to_inputs(atoms)
         self.atoms = atoms
 
         self.n_epochs = n_epochs
         self.buffer_size = buffer_size
 
-        max_atoms, max_nbrs = find_largest_system(atoms, cutoff)
+        max_atoms, max_nbrs = find_largest_system(atoms_list, cutoff)
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
         # print(max_atoms, max_nbrs)
         # quit()
 
-        if atoms[0].calc and not ignore_labels:
-            self.labels = atoms_to_labels(atoms)
-        else:
-            self.labels = None
+        self.compute_labels = False
+        if atoms_list[0].calc and not ignore_labels:
+            self.compute_labels = True
+        # if atoms[0].calc and not ignore_labels:
+        #     self.labels = atoms_to_labels(atoms)
+        # else:
+        #     self.labels = None
 
-        self.n_data = len(atoms)
+        self.n_data = len(atoms_list)
         self.count = 0
         self.cutoff = cutoff
         self.buffer = deque()
@@ -98,7 +101,9 @@ class InMemoryDataset:
         return batch_size
 
     def prepare_data(self, i):
-        inputs = {k: v[i] for k, v in self.inputs.items()} # inputs["positions"], inputs["box"]
+        # inputs = {k: v[i] for k, v in self.inputs.items()}
+        atoms = self.atoms_list[i]
+        inputs = atoms_to_inputs(atoms, self.pos_unit)
         idx, offsets = compute_nl(self.atoms[i], self.cutoff)
         inputs["idx"], inputs["offsets"] = pad_nl(idx, offsets, self.max_nbrs)
 
