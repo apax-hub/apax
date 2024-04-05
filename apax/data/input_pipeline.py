@@ -251,18 +251,19 @@ class CachedInMemoryDataset(InMemoryDataset):
 
 class OTFInMemoryDataset(InMemoryDataset):
     def __iter__(self):
-        epoch = 0
-        while epoch < self.n_epochs or len(self.buffer) > 0:
+        outer_count = 0
+        max_iter = self.n_data * self.n_epochs
+        while outer_count < max_iter:
             yield self.buffer.popleft()
 
             space = self.buffer_size - len(self.buffer)
             if self.count + space > self.n_data:
                 space = self.n_data - self.count
 
-            if self.count >= self.n_data and epoch < self.n_epochs:
-                epoch += 1
+            if self.count >= self.n_data:
                 self.count = 0
             self.enqueue(space)
+            outer_count += 1
 
     def shuffle_and_batch(self):
         """Shuffles and batches the inputs/labels. This function prepares the
