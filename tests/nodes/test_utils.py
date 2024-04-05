@@ -2,7 +2,6 @@ from apax.nodes.utils import AddData
 import zntrack
 import os
 import ase.io
-import shutil
 
 def test_add_data(tmp_path, get_md22_stachyose):
     os.chdir(tmp_path)

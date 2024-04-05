@@ -1,6 +1,7 @@
 from apax.nodes.utils import AddData
 from apax.nodes.model import Apax
-import zntrack, os
+import zntrack
+import os
 import pathlib
 import shutil
 

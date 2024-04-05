@@ -1,16 +1,12 @@
 import logging
 import pathlib
-import shutil
 import typing as t
 from typing import Optional
 
 import ase.io
-import numpy as np
-import pandas as pd
 import yaml
 import zntrack.utils
 from jax import config
-from matplotlib import pyplot as plt
 from zntrack import dvc, zn
 
 from apax.md import ASECalculator
