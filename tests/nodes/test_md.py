@@ -3,14 +3,14 @@ import pathlib
 import shutil
 
 import zntrack
-import yaml
 
-from apax.nodes.model import Apax
 from apax.nodes.md import ApaxJaxMD
+from apax.nodes.model import Apax
 from apax.nodes.utils import AddData
 
 CONFIG_PATH = pathlib.Path(__file__).parent / "example.yaml"
 MD_CONFIG_PATH = pathlib.Path(__file__).parent / "md.yaml"
+
 
 def test_n_jax_md(tmp_path, get_md22_stachyose):
     os.chdir(tmp_path)

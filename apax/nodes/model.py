@@ -6,7 +6,6 @@ import ase.io
 import pandas as pd
 import yaml
 import zntrack.utils
-from jax import config
 
 from apax.md import ASECalculator
 from apax.md.function_transformations import available_transformations
