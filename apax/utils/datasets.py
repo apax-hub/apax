@@ -64,9 +64,10 @@ def download_md22_benzene_CCSDT(data_path):
         zip_ref.extractall(data_path)
 
     train_file_path = data_path / "benzene_ccsd_t-train.xyz"
+    test_file_path = data_path / "benzene_ccsd_t-test.xyz"
     os.remove(file_path)
 
-    return train_file_path
+    return train_file_path, test_file_path
 
 
 def modify_xyz_file(file_path, target_string, replacement_string):
