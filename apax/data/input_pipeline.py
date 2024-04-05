@@ -3,9 +3,8 @@ import uuid
 from collections import deque
 from pathlib import Path
 from random import shuffle
-from typing import Dict, Iterator, List
+from typing import Dict, Iterator
 
-from ase import Atoms
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -52,7 +51,6 @@ class InMemoryDataset:
         ignore_labels=False,
         cache_path=".",
     ) -> None:
-
         self.n_epochs = n_epochs
         self.cutoff = cutoff
         self.n_jit_steps = n_jit_steps

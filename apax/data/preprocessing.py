@@ -34,11 +34,7 @@ def compute_nl(positions, box, r_max):
     else:
         positions = positions @ box
         idxs_i, idxs_j, offsets = neighbour_list(
-            "ijS",
-            positions=positions,
-            cutoff=r_max,
-            cell=box,
-            pbc=[True, True, True]
+            "ijS", positions=positions, cutoff=r_max, cell=box, pbc=[True, True, True]
         )
         neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int16)
         offsets = np.matmul(offsets, box)

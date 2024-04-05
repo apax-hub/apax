@@ -38,12 +38,15 @@ def prune_dict(data_dict):
     pruned = {key: val for key, val in data_dict.items() if len(val) != 0}
     return pruned
 
+
 def is_periodic(box):
     pbc_dims = np.any(np.abs(box) > 1e-6)
     if np.all(pbc_dims == True) or np.all(pbc_dims == False):
         return pbc_dims
     else:
-        msg = f"Only 3D periodic and gas phase system supported at the moment. Found {box}"
+        msg = (
+            f"Only 3D periodic and gas phase system supported at the moment. Found {box}"
+        )
         raise ValueError(msg)
 
 
