@@ -20,7 +20,7 @@ def test_n_jax_md(tmp_path, get_md22_stachyose):
     with proj:
         data = AddData(file=get_md22_stachyose)
         model = Apax(data=data.atoms, validation_data=data.atoms, config="example.yaml")
-        md = ApaxJaxMD(model=model, md_parameter_file="md.yaml", data=data.atoms)
+        md = ApaxJaxMD(model=model, config="md.yaml", data=data.atoms)
 
     proj.run()
 

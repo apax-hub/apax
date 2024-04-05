@@ -23,14 +23,18 @@ class Apax(zntrack.Node):
     ----------
     config: str
         path to the apax config file
-    validation_data: ase.Atoms
+    data: list[ase.Atoms]
+        the training data set
+    validation_data: list[ase.Atoms]
         atoms object with the validation data set
+    model: t.Optional[Apax]
+        model to be used as a base model
     model_directory: pathlib.Path
         model directory
     train_data_file: pathlib.Path
-        path to the training data
+        output path to the training data
     validation_data_file: pathlib.Path
-        path to the valdidation data
+        output path to the validation data
     """
 
     data: list = zntrack.deps()
