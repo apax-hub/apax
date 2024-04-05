@@ -51,7 +51,6 @@ class CSVLoggerApax(CSVLogger):
         self.csv_file.flush()
 
 
-<<<<<<< HEAD
 class CSVLoggerApax(CSVLogger):
     def __init__(self, filename, separator=",", append=False):
         super().__init__(filename, separator=",", append=False)
