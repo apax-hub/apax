@@ -1,5 +1,6 @@
 import importlib.metadata
 import importlib.resources as pkg_resources
+import json
 import sys
 from pathlib import Path
 
@@ -91,6 +92,23 @@ def docs():
     """
     console.print("Opening apax's docs at https://apax.readthedocs.io/en/latest/")
     typer.launch("https://apax.readthedocs.io/en/latest/")
+
+
+@app.command()
+def schema():
+    """
+    Generating JSON schemata for autocompletion of train/md inputs in VSCode.
+    """
+    console.print("Generating JSON schema")
+    from apax.config import Config, MDConfig
+
+    train_schema = Config.model_json_schema()
+    md_schema = MDConfig.model_json_schema()
+    with open("./apaxtrain.schema.json", "w") as f:
+        f.write(json.dumps(train_schema, indent=2))
+
+    with open("./apaxmd.schema.json", "w") as f:
+        f.write(json.dumps(md_schema, indent=2))
 
 
 @validate_app.command("train")

@@ -1,5 +1,3 @@
-from typing import Optional
-
 import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
@@ -62,14 +60,10 @@ def atoms_to_inputs(
         Labels are trainable system properties.
     """
     inputs = {
-        "ragged": {
-            "positions": [],
-            "numbers": [],
-        },
-        "fixed": {
-            "n_atoms": [],
-            "box": [],
-        },
+        "positions": [],
+        "numbers": [],
+        "n_atoms": [],
+        "box": [],
     }
 
     box = atoms_list[0].cell.array
@@ -78,7 +72,7 @@ def atoms_to_inputs(
     for atoms in atoms_list:
         box = (atoms.cell.array * unit_dict[pos_unit]).astype(DTYPE)
         box = box.T  # takes row and column convention of ase into account
-        inputs["fixed"]["box"].append(box)
+        inputs["box"].append(box)
 
         if pbc != np.all(box > 1e-6):
             raise ValueError(
@@ -86,31 +80,24 @@ def atoms_to_inputs(
             )
 
         if np.all(box < 1e-6):
-            inputs["ragged"]["positions"].append(
+            inputs["positions"].append(
                 (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
             )
         else:
             inv_box = np.linalg.inv(box)
-            inputs["ragged"]["positions"].append(
-                np.array(
-                    space.transform(
-                        inv_box, (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
-                    )
-                )
-            )
+            pos = (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+            frac_pos = space.transform(inv_box, pos)
+            inputs["positions"].append(np.array(frac_pos))
 
-        inputs["ragged"]["numbers"].append(atoms.numbers)
-        inputs["fixed"]["n_atoms"].append(len(atoms))
+        inputs["numbers"].append(atoms.numbers.astype(np.int16))
+        inputs["n_atoms"].append(len(atoms))
 
-    inputs["fixed"] = prune_dict(inputs["fixed"])
-    inputs["ragged"] = prune_dict(inputs["ragged"])
+    inputs = prune_dict(inputs)
     return inputs
 
 
 def atoms_to_labels(
     atoms_list: list[Atoms],
-    additional_properties_info: Optional[dict] = {},
-    read_labels: bool = True,
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
 ) -> dict[str, dict[str, list]]:
@@ -127,43 +114,29 @@ def atoms_to_labels(
     labels :
         Labels are trainable system properties.
     """
-    if not read_labels:
-        return None
 
     labels = {
-        "ragged": {
-            "forces": [],
-        },
-        "fixed": {
-            "energy": [],
-            "stress": [],
-        },
+        "forces": [],
+        "energy": [],
+        "stress": [],
     }
-    for key in additional_properties_info.keys():
-        shape = additional_properties_info[key]
-        placeholder = {key: []}
-        labels[shape].update(placeholder)
+    # for key in atoms_list[0].calc.results.keys():
+    #     if key not in labels.keys():
+    #         placeholder = {key: []}
+    #         labels.update(placeholder)
 
     for atoms in atoms_list:
         for key, val in atoms.calc.results.items():
             if key == "forces":
-                labels["ragged"][key].append(
-                    val * unit_dict[energy_unit] / unit_dict[pos_unit]
-                )
+                labels[key].append(val * unit_dict[energy_unit] / unit_dict[pos_unit])
             elif key == "energy":
-                labels["fixed"][key].append(val * unit_dict[energy_unit])
+                labels[key].append(val * unit_dict[energy_unit])
             elif key == "stress":
-                stress = (
-                    atoms.get_stress(voigt=False)
-                    * unit_dict[energy_unit]
-                    / (unit_dict[pos_unit] ** 3)
-                )
-                labels["fixed"][key].append(stress * atoms.cell.volume)
+                factor = unit_dict[energy_unit] / (unit_dict[pos_unit] ** 3)
+                stress = atoms.get_stress(voigt=False) * factor
+                labels[key].append(stress * atoms.cell.volume)
+            # else:
+            #     labels[key].append(atoms.calc.results[key])
 
-            elif key in additional_properties_info.keys():
-                shape = additional_properties_info[key]
-                labels[shape][key].append(atoms.calc.results[key])
-
-    labels["fixed"] = prune_dict(labels["fixed"])
-    labels["ragged"] = prune_dict(labels["ragged"])
+    labels = prune_dict(labels)
     return labels
