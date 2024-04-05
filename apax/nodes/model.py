@@ -39,6 +39,7 @@ class Apax(zntrack.Node):
         path to the valdidation data
     """
 
+    data: list = zntrack.deps()
     config: str = dvc.params("apax.yaml")
     validation_data = zntrack.deps()
     model: Optional[t.Any] = zntrack.deps(None)
@@ -50,15 +51,15 @@ class Apax(zntrack.Node):
 
     jax_enable_x64: bool = zn.params(True)
 
-    metrics_epoch = dvc.plots(
-        zntrack.nwd / "log.csv",
-        # template=STATIC_PATH / "y_log.json",
-        # x="epoch",
-        # x_label="epochs",
-        # y="val_loss",
-        # y_label="validation loss",
-    )
-    metrics = zn.metrics()
+    # metrics_epoch = zntrack.plots_path(
+    #     zntrack.nwd / "apax_model" / "log.csv",
+    #     # template=STATIC_PATH / "y_log.json",
+    #     # x="epoch",
+    #     # x_label="epochs",
+    #     # y="val_loss",
+    #     # y_label="validation loss",
+    # )
+    # metrics = zn.metrics()
 
     _parameter: dict = None
 
@@ -98,15 +99,15 @@ class Apax(zntrack.Node):
         """Train the model using `apax.train.run`"""
         apax_run(self._parameter)
 
-    def move_metrics(self):
-        """Move the metrics to the correct directories for DVC"""
-        path = self.model_directory / self.metrics_epoch.name
-        shutil.move(path, self.metrics_epoch)
+    # def move_metrics(self):
+    #     """Move the metrics to the correct directories for DVC"""
+    #     path = self.model_directory / self.metrics_epoch.name
+    #     shutil.move(path, self.metrics_epoch)
 
-    def get_metrics_from_plots(self):
-        """In addition to the plots write a model metric"""
-        metrics_df = pd.read_csv(self.metrics_epoch)
-        self.metrics = metrics_df.iloc[-1].to_dict()
+    # def get_metrics_from_plots(self):
+    #     """In addition to the plots write a model metric"""
+    #     metrics_df = pd.read_csv(self.metrics_epoch)
+    #     self.metrics = metrics_df.iloc[-1].to_dict()
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
@@ -117,8 +118,8 @@ class Apax(zntrack.Node):
         ase.io.write(self.validation_data_file, self.validation_data)
 
         self.train_model()
-        self.move_metrics()
-        self.get_metrics_from_plots()
+        # self.move_metrics()
+        # self.get_metrics_from_plots()
 
     def get_calculator(self, **kwargs):
         """Get an apax ase calculator"""

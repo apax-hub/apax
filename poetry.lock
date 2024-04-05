@@ -5521,7 +5521,10 @@ znflow = ">=0.1.14,<0.2.0"
 zninit = ">=0.1.11,<0.2.0"
 znjson = ">=0.2.2,<0.3.0"
 
+[extras]
+zntrack = ["zntrack"]
+
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "bfb4a82828c9b988a7954ccf86f7d5d1f4e8bfe142d4c1b373f566dc8edc18e7"
+content-hash = "0a034a99dea4a2718da2a248b0287f88ad1692030585737ddef5215c6422088f"

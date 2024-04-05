@@ -2,6 +2,24 @@ import logging
 
 import matplotlib.pyplot as plt
 import numpy as np
+import ase.io
+import zntrack
+import functools
+
+
+class AddData(zntrack.Node):
+    file: str = zntrack.deps_path()
+
+    def run(self):
+        pass
+
+    @functools.cached_property
+    def atoms(self) -> list[ase.Atoms]:
+        data = []
+        for atoms in ase.io.iread(self.file):
+            data.append(atoms)
+            if len(data) == 50:
+                return data
 
 
 def get_flat_data_from_dict(data: dict, silent_ignore: bool = False) -> list:

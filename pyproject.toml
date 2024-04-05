@@ -28,6 +28,9 @@ jax = "^0.4.14"
 jax-md = {git = "https://github.com/jax-md/jax-md.git"}
 zntrack = {version = "^0.7.2", optional = true}
 
+[tool.poetry.extras]
+zntrack = ["zntrack"]
+
 [tool.poetry.scripts]
 apax = 'apax.cli.apax_app:app'
 
