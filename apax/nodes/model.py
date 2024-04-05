@@ -46,9 +46,6 @@ class Apax(zntrack.Node):
         zntrack.nwd / "val_atoms.extxyz"
     )
 
-    # TODO: why is this an extra parameter?
-    jax_enable_x64: bool = zntrack.params(True)
-
     metrics = zntrack.metrics()
 
     _parameter: dict = None
@@ -89,9 +86,6 @@ class Apax(zntrack.Node):
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
-
-        config.update("jax_enable_x64", self.jax_enable_x64)
-
         ase.io.write(self.train_data_file, self.data)
         ase.io.write(self.validation_data_file, self.validation_data)
 
