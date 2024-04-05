@@ -1,9 +1,11 @@
-from apax.nodes.utils import AddData
-from apax.nodes.model import Apax
-import zntrack
 import os
 import pathlib
 import shutil
+
+import zntrack
+
+from apax.nodes.model import Apax
+from apax.nodes.utils import AddData
 
 CONFIG_PATH = pathlib.Path(__file__).parent / "config.yaml"
 

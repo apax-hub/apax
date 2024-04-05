@@ -1,10 +1,10 @@
+import functools
 import logging
 
+import ase.io
 import matplotlib.pyplot as plt
 import numpy as np
-import ase.io
 import zntrack
-import functools
 
 
 class AddData(zntrack.Node):
