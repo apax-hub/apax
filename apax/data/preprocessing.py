@@ -10,31 +10,37 @@ from matscipy.neighbours import neighbour_list
 log = logging.getLogger(__name__)
 
 
-def compute_nl(atoms, r_max):
-    if np.all(atoms.cell.array < 1e-6):
-        cell, cell_origin = get_shrink_wrapped_cell(atoms.positions)
+def compute_nl(positions, box, r_max):
+    """Computes the NL for a single structure.
+    For periodic systems, positions are assumed to be in
+    fractional coordinates.
+    """
+    if np.all(box < 1e-6):
+        box, box_origin = get_shrink_wrapped_cell(positions)
         idxs_i, idxs_j = neighbour_list(
             "ij",
-            positions=atoms.positions,
+            positions=positions,
             cutoff=r_max,
-            cell=cell,
-            cell_origin=cell_origin,
+            cell=box,
+            cell_origin=box_origin,
             pbc=[False, False, False],
         )
 
-        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
+        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int16)
 
         n_neighbors = neighbor_idxs.shape[1]
         offsets = np.full([n_neighbors, 3], 0)
 
     else:
+        positions = positions @ box
         idxs_i, idxs_j, offsets = neighbour_list(
             "ijS",
-            atoms = atoms,
+            positions=positions,
             cutoff=r_max,
+            cell=box,
+            pbc=[True, True, True]
         )
-        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
-        box = atoms.cell.array
+        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int16)
         offsets = np.matmul(offsets, box)
     return neighbor_idxs, offsets
 
