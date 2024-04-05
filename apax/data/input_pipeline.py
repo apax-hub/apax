@@ -62,13 +62,13 @@ class InMemoryDataset:
         if pre_shuffle:
             shuffle(atoms_list)
         self.sample_atoms = atoms_list[0]
-        self.inputs = atoms_to_inputs(atoms_list, self.pos_unit)
+        self.inputs = atoms_to_inputs(atoms_list, pos_unit)
 
         max_atoms, max_nbrs = find_largest_system(self.inputs, self.cutoff)
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
         if atoms_list[0].calc and not ignore_labels:
-            self.labels = atoms_to_labels(atoms_list)
+            self.labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
         else:
             self.labels = None
 

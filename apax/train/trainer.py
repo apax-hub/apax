@@ -84,7 +84,6 @@ def fit(
 
             epoch_loss["train_loss"] += jnp.mean(batch_loss)
             callbacks.on_train_batch_end(batch=batch_idx)
-
         epoch_loss["train_loss"] /= train_steps_per_epoch
         epoch_loss["train_loss"] = float(epoch_loss["train_loss"])
 
