@@ -9,8 +9,6 @@ import yaml
 import znh5md
 import zntrack.utils
 
-from apax.md.nvt import run_md
-
 from .model import Apax
 from .utils import check_duplicate_keys
 
@@ -65,6 +63,7 @@ class ApaxJaxMD(zntrack.Node):
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
+        from apax.md.nvt import run_md
 
         atoms = self.data[self.data_id]
         if self.repeat is not None:
