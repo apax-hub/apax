@@ -3,6 +3,7 @@ import zntrack
 import os
 import ase.io
 
+
 def test_add_data(tmp_path, get_md22_stachyose):
     os.chdir(tmp_path)
     proj = zntrack.Project()

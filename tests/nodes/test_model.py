@@ -7,6 +7,7 @@ import shutil
 
 CONFIG_PATH = pathlib.Path(__file__).parent / "config.yaml"
 
+
 def test_add_data(tmp_path, get_md22_stachyose):
     os.chdir(tmp_path)
     shutil.copy(CONFIG_PATH, tmp_path)
