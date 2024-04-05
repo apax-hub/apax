@@ -43,30 +43,6 @@ class ApaxJaxMD(zntrack.Node):
     sim_dir: pathlib.Path = dvc.outs(zntrack.nwd / "md")
     init_struc_dir: pathlib.Path = dvc.outs(zntrack.nwd / "initial_structure.extxyz")
 
-    # def post_init(self):
-    #     if not self.state.loaded:
-    #         dict_supplied = self.md_parameter is None
-    #         file_supplied = self.md_parameter_file is None
-
-    #         if dict_supplied and file_supplied:
-    #             raise TypeError("Please specify either an input dict or a file")
-    #         elif not dict_supplied and not file_supplied:
-    #             raise TypeError(
-    #                 "Can not train apax model without a parameter dict or file"
-    #             )
-    #         else:
-    #             log.info(
-    #                 "Please keep track of the parameter file with git, just like the"
-    #                 " params.yaml"
-    #             )
-
-    #     if not isinstance(self.model, Apax):
-    #         raise TypeError(
-    #             "Performing simulations with JaxMD requires a apax model Node"
-    #         )
-
-    #     self.data = utils.helpers.get_deps_if_node(self.data, "atoms")
-
     def _post_load_(self) -> None:
         self._handle_parameter_file()
 
@@ -97,7 +73,6 @@ class ApaxJaxMD(zntrack.Node):
 
     @functools.cached_property
     def atoms(self) -> typing.List[ase.Atoms]:
-        # filename should be changeable
         def file_handle(filename):
             file = self.state.fs.open(filename, "rb")
             return h5py.File(file)
