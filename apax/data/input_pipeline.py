@@ -50,7 +50,6 @@ class InMemoryDataset:
         ignore_labels=False,
         cache_path=".",
     ) -> None:
-
         self.n_epochs = n_epochs
         self.cutoff = cutoff
         self.n_jit_steps = n_jit_steps

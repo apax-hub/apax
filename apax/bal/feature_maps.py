@@ -12,7 +12,6 @@ FeatureMap = Callable[[FrozenDict, dict], jax.Array]
 
 
 class FeatureTransformation(BaseModel):
-
     def apply(self, model: EnergyModel) -> FeatureMap:
         return model
 
