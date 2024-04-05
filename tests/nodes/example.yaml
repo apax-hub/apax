@@ -1,0 +1,43 @@
+n_epochs: 5
+seed: 1
+n_models: 1
+
+data:
+  batch_size: 8
+  scale_method: per_element_force_rms_scale
+  shift_method: per_element_regression_shift
+  shift_options:
+    energy_regularisation: 1.0
+  valid_batch_size: 32
+loss:
+- name: energy
+
+metrics:
+- name: energy
+  reductions:
+  - mae
+
+model:
+  n_basis: 7
+  n_radial: 5
+  nn:
+  - 512
+  - 512
+  r_max: 5.5
+  r_min: 0.7
+
+  b_init: zeros
+  emb_init: uniform
+  use_zbl: true
+
+  descriptor_dtype: fp32
+  readout_dtype: fp32
+  scale_shift_dtype: fp32
+
+optimizer:
+  opt_name: adam
+  emb_lr: 0.01
+  nn_lr: 0.005
+  scale_lr: 0.001
+  shift_lr: 0.05
+  zbl_lr: 0.001

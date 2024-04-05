@@ -7,7 +7,7 @@ import zntrack
 from apax.nodes.model import Apax
 from apax.nodes.utils import AddData
 
-CONFIG_PATH = pathlib.Path(__file__).parent / "config.yaml"
+CONFIG_PATH = pathlib.Path(__file__).parent / "example.yaml"
 
 
 def test_add_data(tmp_path, get_md22_stachyose):
@@ -16,7 +16,7 @@ def test_add_data(tmp_path, get_md22_stachyose):
     proj = zntrack.Project()
     with proj:
         data = AddData(file=get_md22_stachyose)
-        model = Apax(data=data.atoms, validation_data=data.atoms, config="config.yaml")
+        model = Apax(data=data.atoms, validation_data=data.atoms, config="example.yaml")
 
     proj.run()
 
