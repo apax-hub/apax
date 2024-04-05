@@ -41,7 +41,7 @@ def prune_dict(data_dict):
 
 def is_periodic(box):
     pbc_dims = np.any(np.abs(box) > 1e-6)
-    if np.all(pbc_dims == True) or np.all(pbc_dims == False):
+    if np.all(pbc_dims == True) or np.all(pbc_dims == False):  # noqa: E712
         return pbc_dims
     else:
         msg = (
@@ -85,22 +85,22 @@ def atoms_to_inputs(
         box = box.T  # takes row and column convention of ase into account
         inputs["box"].append(box)
 
-        current_pbc = is_periodic(box)
+        is_pbc = is_periodic(box)
 
-        if pbc != current_pbc:
+        if pbc != is_pbc:
             raise ValueError(
                 "Apax does not support dataset periodic and non periodic structures"
             )
 
-        if not current_pbc:
-            inputs["positions"].append(
-                (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
-            )
-        else:
+        if is_pbc:
             inv_box = np.linalg.inv(box)
             pos = (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
             frac_pos = space.transform(inv_box, pos)
             inputs["positions"].append(np.array(frac_pos))
+        else:
+            inputs["positions"].append(
+                (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+            )
 
         inputs["numbers"].append(atoms.numbers.astype(np.int16))
         inputs["n_atoms"].append(len(atoms))
