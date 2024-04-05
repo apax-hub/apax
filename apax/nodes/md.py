@@ -31,6 +31,9 @@ class ApaxJaxMD(zntrack.Node):
         path to the MD simulation parameter file
     """
 
+    data: list[ase.Atoms] = zntrack.deps()
+    data_id: int = zntrack.params(-1)
+
     model: Apax = zntrack.deps()
     repeat = zn.params(None)
 
@@ -84,7 +87,7 @@ class ApaxJaxMD(zntrack.Node):
         from apax.md.nvt import run_md
 
         # self._handle_parameter_file()
-        atoms = self.get_data()
+        atoms = self.data[self.data_id]
         if self.repeat is not None:
             atoms = atoms.repeat(self.repeat)
         ase.io.write(self.init_struc_dir.as_posix(), atoms)
