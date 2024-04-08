@@ -201,7 +201,7 @@ class CachedInMemoryDataset(InMemoryDataset):
                 space = self.n_data - self.count
             self.enqueue(space)
 
-    def shuffle_and_batch(self):
+    def shuffle_and_batch(self, sharding=None):
         """Shuffles and batches the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
 
@@ -223,10 +223,12 @@ class CachedInMemoryDataset(InMemoryDataset):
         ).batch(batch_size=self.batch_size)
         if self.n_jit_steps > 1:
             ds = ds.batch(batch_size=self.n_jit_steps)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        ds = prefetch_to_single_device(
+            ds.as_numpy_iterator(), 2, sharding, n_step_jit=self.n_jit_steps > 1
+        )
         return ds
 
-    def batch(self) -> Iterator[jax.Array]:
+    def batch(self, sharding=None) -> Iterator[jax.Array]:
         ds = (
             tf.data.Dataset.from_generator(
                 lambda: self, output_signature=self.make_signature()
@@ -235,7 +237,9 @@ class CachedInMemoryDataset(InMemoryDataset):
             .repeat(self.n_epochs)
         )
         ds = ds.batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        ds = prefetch_to_single_device(
+            ds.as_numpy_iterator(), 2, sharding, n_step_jit=self.n_jit_steps > 1
+        )
         return ds
 
     def cleanup(self):
@@ -261,7 +265,7 @@ class OTFInMemoryDataset(InMemoryDataset):
                 self.count = 0
             self.enqueue(space)
 
-    def shuffle_and_batch(self):
+    def shuffle_and_batch(self, sharding=None):
         """Shuffles and batches the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
 
@@ -279,15 +283,19 @@ class OTFInMemoryDataset(InMemoryDataset):
         ).batch(batch_size=self.batch_size)
         if self.n_jit_steps > 1:
             ds = ds.batch(batch_size=self.n_jit_steps)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        ds = prefetch_to_single_device(
+            ds.as_numpy_iterator(), 2, sharding, n_step_jit=self.n_jit_steps > 1
+        )
         return ds
 
-    def batch(self) -> Iterator[jax.Array]:
+    def batch(self, sharding=None) -> Iterator[jax.Array]:
         ds = tf.data.Dataset.from_generator(
             lambda: self, output_signature=self.make_signature()
         )
         ds = ds.batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        ds = prefetch_to_single_device(
+            ds.as_numpy_iterator(), 2, sharding, n_step_jit=self.n_jit_steps > 1
+        )
         return ds
 
 
