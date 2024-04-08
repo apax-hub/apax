@@ -115,8 +115,7 @@ class EnergyDerivativeModel(nn.Module):
         super().__init__()
 
         self.energy_model = energy_model
-        self.calc_stress = False# calc_stress
-
+        self.calc_stress = False  # calc_stress
 
     def forward(
         self,
@@ -140,10 +139,9 @@ class EnergyDerivativeModel(nn.Module):
 
         energy = self.energy_model(R, Z, neighbor, box, offsets, perturbation)
 
-
-        grads = autograd.grad(energy, requires_grad,
-                            grad_outputs=torch.ones_like(energy),
-                            create_graph=True)
+        grads = autograd.grad(
+            energy, requires_grad, grad_outputs=torch.ones_like(energy), create_graph=True
+        )
 
         neg_forces = grads[0]
         forces = -neg_forces

@@ -2,7 +2,10 @@ import numpy as np
 
 from apax.config import ModelConfig
 from apax.nn.torch.layers.descriptor.basis import GaussianBasis, RadialFunction
-from apax.nn.torch.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
+from apax.nn.torch.layers.descriptor.gaussian_moment_descriptor import (
+    GaussianMomentDescriptor,
+)
+
 # from apax.nn.torch.layers.empirical import ZBLRepulsion
 from apax.nn.torch.layers.readout import AtomisticReadout
 from apax.nn.torch.layers.scaling import PerElementScaleShift

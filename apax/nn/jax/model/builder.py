@@ -2,7 +2,9 @@ import numpy as np
 
 from apax.config import ModelConfig
 from apax.nn.jax.layers.descriptor.basis import GaussianBasis, RadialFunction
-from apax.nn.jax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
+from apax.nn.jax.layers.descriptor.gaussian_moment_descriptor import (
+    GaussianMomentDescriptor,
+)
 from apax.nn.jax.layers.empirical import ZBLRepulsion
 from apax.nn.jax.layers.readout import AtomisticReadout
 from apax.nn.jax.layers.scaling import PerElementScaleShift
