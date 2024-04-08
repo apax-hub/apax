@@ -26,10 +26,13 @@ znh5md = "^0.1.7"
 pydantic = "^2.3.0"
 jax = "^0.4.25"
 zntrack = {version = "^0.7.2", optional = true}
-mlflow = {version = "^2.11.3", extras = ["mlflow"]}
+mlflow = {version = "^2.11.3", optional = true}
+torch = {version = "^2.2.2", optional = true}
 
 [tool.poetry.extras]
 zntrack = ["zntrack"]
+mlflow = ["mlflow"]
+torch = ["torch"]
 
 [tool.poetry.scripts]
 apax = 'apax.cli.apax_app:app'
