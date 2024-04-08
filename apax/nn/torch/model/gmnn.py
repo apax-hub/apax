@@ -6,17 +6,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import autograd
 
-from apax.nn.torch.layers.descriptor import GaussianMomentDescriptor
-from apax.nn.torch.layers.readout import AtomisticReadout
-from apax.nn.torch.layers.scaling import PerElementScaleShift
+from apax.nn.torch.layers.descriptor import GaussianMomentDescriptorT
+from apax.nn.torch.layers.readout import AtomisticReadoutT
+from apax.nn.torch.layers.scaling import PerElementScaleShiftT
 
 
-class AtomisticModel(nn.Module):
+class AtomisticModelT(nn.Module):
     def __init__(
         self,
-        descriptor: nn.Module = GaussianMomentDescriptor(),
-        readout: nn.Module = AtomisticReadout(),
-        scale_shift: nn.Module = PerElementScaleShift(),
+        descriptor: nn.Module = GaussianMomentDescriptorT(),
+        readout: nn.Module = AtomisticReadoutT(),
+        scale_shift: nn.Module = PerElementScaleShiftT(),
     ):
         super().__init__()
         self.descriptor = descriptor
@@ -54,10 +54,10 @@ def get_displacement(init_box, inference_disp_fn):
     return displacement
 
 
-class EnergyModel(nn.Module):
+class EnergyModelT(nn.Module):
     def __init__(
         self,
-        atomistic_model: AtomisticModel = AtomisticModel(),
+        atomistic_model: AtomisticModelT = AtomisticModelT(),
         # corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: []),
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn: Any = None,
@@ -106,10 +106,10 @@ class EnergyModel(nn.Module):
         return total_energy
 
 
-class EnergyDerivativeModel(nn.Module):
+class EnergyDerivativeModelT(nn.Module):
     def __init__(
         self,
-        energy_model: EnergyModel = EnergyModel(),
+        energy_model: EnergyModelT = EnergyModelT(),
         calc_stress: bool = False,
     ):
         super().__init__()

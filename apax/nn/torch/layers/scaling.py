@@ -4,7 +4,7 @@ import torch.nn as nn
 from typing import Any, Union
 
 
-class PerElementScaleShift(nn.Module):
+class PerElementScaleShiftT(nn.Module):
     def __init__(
         self,
         scale: Union[torch.Tensor, float] = 1.0,

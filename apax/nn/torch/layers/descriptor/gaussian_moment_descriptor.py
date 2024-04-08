@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from apax.nn.impl.gaussian_moment_descriptor import gaussian_moment_impl
-from apax.nn.torch.layers.descriptor.basis import RadialFunction
+from apax.nn.torch.layers.descriptor.basis import RadialFunctionT
 from apax.nn.impl.moments import geometric_moments
 from apax.nn.impl.triangular_indices import tril_2d_indices, tril_3d_indices
 from apax.utils.jax_md_reduced import space
@@ -16,10 +16,10 @@ def distance(dR):
     return torch.sqrt(torch.sum(dR**2, axis=-1))
 
 
-class GaussianMomentDescriptor(nn.Module):
+class GaussianMomentDescriptorT(nn.Module):
     def __init__(
         self,
-        radial_fn: nn.Module = RadialFunction(),
+        radial_fn: nn.Module = RadialFunctionT(),
         n_contr: int = 8,
         dtype: Any = torch.float32,
     ):

@@ -9,7 +9,7 @@ import numpy as np
 from apax.nn.impl.basis import cosine_cutoff, gaussian_basis_impl, radial_basis_impl
 
 
-class GaussianBasis(nn.Module):
+class GaussianBasisT(nn.Module):
     def __init__(
         self,
         n_basis: int = 7,
@@ -40,11 +40,12 @@ class GaussianBasis(nn.Module):
         return basis
 
 
-class RadialFunction(nn.Module):
+class RadialFunctionT(nn.Module):
     def __init__(
         self,
         n_radial: int = 5,
-        basis_fn: nn.Module = GaussianBasis(),
+        basis_fn: nn.Module = GaussianBasisT(),
+        emb_init: str = "uniform",
         n_species: int = 119,
         dtype: Any = torch.float32,
     ) -> None:
@@ -52,11 +53,12 @@ class RadialFunction(nn.Module):
         self.n_radial = n_radial
         self.basis_fn = basis_fn
         self.n_species = n_species
+        self.emb_init = emb_init
         self.dtype = dtype
 
         self.r_max = self.basis_fn.r_max
         norm = 1.0 / np.sqrt(self.basis_fn.n_basis)
-        self.embed_norm = torch.Tensor(norm, dtype=self.dtype)
+        self.embed_norm = torch.tensor(norm, dtype=self.dtype)
         self.embeddings = None
         if self.emb_init is not None:
             self.embeddings = nn.Parameter()

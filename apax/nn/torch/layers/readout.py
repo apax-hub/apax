@@ -7,7 +7,7 @@ from apax.nn.impl.activation import swish
 from apax.nn.torch.layers.ntk_linear import NTKLinear
 
 
-class AtomisticReadout(nn.Module):
+class AtomisticReadoutT(nn.Module):
     def __init__(
         self, units: List[int] = [512, 512], activation_fn: Callable = swish
     ) -> None:

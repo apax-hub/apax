@@ -1,5 +1,5 @@
 from apax.nn.torch.layers.descriptor.gaussian_moment_descriptor import (
-    GaussianMomentDescriptor,
+    GaussianMomentDescriptorT,
 )
 
-__all__ = ["GaussianMomentDescriptor"]
+__all__ = ["GaussianMomentDescriptorT"]
