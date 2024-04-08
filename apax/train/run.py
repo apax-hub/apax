@@ -63,6 +63,8 @@ def initialize_datasets(config: Config):
         config.n_epochs,
         config.data.shuffle_buffer_size,
         config.n_jitted_steps,
+        pos_unit=config.data.pos_unit,
+        energy_unit=config.data.energy_unit,
         pre_shuffle=True,
         cache_path=config.data.model_version_path,
     )
@@ -71,6 +73,8 @@ def initialize_datasets(config: Config):
         config.model.r_max,
         config.data.valid_batch_size,
         config.n_epochs,
+        pos_unit=config.data.pos_unit,
+        energy_unit=config.data.energy_unit,
         cache_path=config.data.model_version_path,
     )
     ds_stats = compute_scale_shift_parameters(
@@ -90,12 +94,12 @@ def run(user_config, log_level="error"):
     seed_py_np_tf(config.seed)
     rng_key = jax.random.PRNGKey(config.seed)
 
-    log.info("Initializing directories")
     config.data.model_version_path.mkdir(parents=True, exist_ok=True)
     setup_logging(config.data.model_version_path / "train.log", log_level)
     config.dump_config(config.data.model_version_path)
+    log.info(f"Running on {jax.devices()}")
 
-    callbacks = initialize_callbacks(config.callbacks, config.data.model_version_path)
+    callbacks = initialize_callbacks(config, config.data.model_version_path)
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
 
@@ -144,5 +148,8 @@ def run(user_config, log_level="error"):
         sam_rho=config.optimizer.sam_rho,
         patience=config.patience,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
+        disable_batch_pbar=config.progress_bar.disable_batch_pbar,
         is_ensemble=config.n_models > 1,
+        data_parallel=config.data_parallel,
     )
+    log.info("Finished training")

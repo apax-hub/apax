@@ -123,7 +123,11 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
 
     atoms_list = load_test_data(config, model_version_path, eval_path, n_test)
     test_ds = OTFInMemoryDataset(
-        atoms_list, config.model.r_max, config.data.valid_batch_size
+        atoms_list,
+        config.model.r_max,
+        config.data.valid_batch_size,
+        pos_unit=config.data.pos_unit,
+        energy_unit=config.data.energy_unit,
     )
 
     _, init_box = test_ds.init_input()

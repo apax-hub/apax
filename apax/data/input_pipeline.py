@@ -11,7 +11,7 @@ import numpy as np
 import tensorflow as tf
 
 from apax.data.preprocessing import compute_nl, prefetch_to_single_device
-from apax.utils.convert import atoms_to_inputs, atoms_to_labels
+from apax.utils.convert import atoms_to_inputs, atoms_to_labels, unit_dict
 
 log = logging.getLogger(__name__)
 
@@ -23,12 +23,13 @@ def pad_nl(idx, offsets, max_neighbors):
     return idx, offsets
 
 
-def find_largest_system(inputs: dict[str, np.ndarray], r_max) -> tuple[int]:
+def find_largest_system(inputs, r_max) -> tuple[int]:
+    positions, boxes = inputs["positions"], inputs["box"]
     max_atoms = np.max(inputs["n_atoms"])
 
     max_nbrs = 0
-    for position, box in zip(inputs["positions"], inputs["box"]):
-        neighbor_idxs, _ = compute_nl(position, box, r_max)
+    for pos, box in zip(positions, boxes):
+        neighbor_idxs, _ = compute_nl(pos, box, r_max)
         n_neighbors = neighbor_idxs.shape[1]
         max_nbrs = max(max_nbrs, n_neighbors)
 
@@ -38,39 +39,41 @@ def find_largest_system(inputs: dict[str, np.ndarray], r_max) -> tuple[int]:
 class InMemoryDataset:
     def __init__(
         self,
-        atoms,
+        atoms_list,
         cutoff,
         bs,
         n_epochs,
         buffer_size=1000,
         n_jit_steps=1,
+        pos_unit: str = "Ang",
+        energy_unit: str = "eV",
         pre_shuffle=False,
         ignore_labels=False,
         cache_path=".",
     ) -> None:
-        if pre_shuffle:
-            shuffle(atoms)
-        self.sample_atoms = atoms[0]
-        self.inputs = atoms_to_inputs(atoms)
-
         self.n_epochs = n_epochs
+        self.cutoff = cutoff
+        self.n_jit_steps = n_jit_steps
         self.buffer_size = buffer_size
+        self.n_data = len(atoms_list)
+        self.batch_size = self.validate_batch_size(bs)
+        self.pos_unit = pos_unit
 
-        max_atoms, max_nbrs = find_largest_system(self.inputs, cutoff)
+        if pre_shuffle:
+            shuffle(atoms_list)
+        self.sample_atoms = atoms_list[0]
+        self.inputs = atoms_to_inputs(atoms_list, pos_unit)
+
+        max_atoms, max_nbrs = find_largest_system(self.inputs, self.cutoff)
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
-
-        if atoms[0].calc and not ignore_labels:
-            self.labels = atoms_to_labels(atoms)
+        if atoms_list[0].calc and not ignore_labels:
+            self.labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
         else:
             self.labels = None
 
-        self.n_data = len(atoms)
         self.count = 0
-        self.cutoff = cutoff
         self.buffer = deque()
-        self.batch_size = self.validate_batch_size(bs)
-        self.n_jit_steps = n_jit_steps
         self.file = Path(cache_path) / str(uuid.uuid4())
 
         self.enqueue(min(self.buffer_size, self.n_data))
@@ -105,9 +108,6 @@ class InMemoryDataset:
         inputs["numbers"] = np.pad(
             inputs["numbers"], (0, zeros_to_add), "constant"
         ).astype(np.int16)
-        inputs["n_atoms"] = np.pad(
-            inputs["n_atoms"], (0, zeros_to_add), "constant"
-        ).astype(np.int16)
 
         if not self.labels:
             return inputs
@@ -117,7 +117,6 @@ class InMemoryDataset:
             labels["forces"] = np.pad(
                 labels["forces"], ((0, zeros_to_add), (0, 0)), "constant"
             )
-
         inputs = {k: tf.constant(v) for k, v in inputs.items()}
         labels = {k: tf.constant(v) for k, v in labels.items()}
         return (inputs, labels)
@@ -164,8 +163,9 @@ class InMemoryDataset:
 
     def init_input(self) -> Dict[str, np.ndarray]:
         """Returns first batch of inputs and labels to init the model."""
-        positions = self.sample_atoms.positions
-        box = self.sample_atoms.cell.array
+        positions = self.sample_atoms.positions * unit_dict[self.pos_unit]
+        box = self.sample_atoms.cell.array * unit_dict[self.pos_unit]
+        # For an input sample, it does not matter whether pos is fractional or cartesian
         idx, offsets = compute_nl(positions, box, self.cutoff)
         inputs = (
             positions,
@@ -201,7 +201,7 @@ class CachedInMemoryDataset(InMemoryDataset):
                 space = self.n_data - self.count
             self.enqueue(space)
 
-    def shuffle_and_batch(self):
+    def shuffle_and_batch(self, sharding=None):
         """Shuffles and batches the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
 
@@ -223,10 +223,12 @@ class CachedInMemoryDataset(InMemoryDataset):
         ).batch(batch_size=self.batch_size)
         if self.n_jit_steps > 1:
             ds = ds.batch(batch_size=self.n_jit_steps)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        ds = prefetch_to_single_device(
+            ds.as_numpy_iterator(), 2, sharding, n_step_jit=self.n_jit_steps > 1
+        )
         return ds
 
-    def batch(self) -> Iterator[jax.Array]:
+    def batch(self, sharding=None) -> Iterator[jax.Array]:
         ds = (
             tf.data.Dataset.from_generator(
                 lambda: self, output_signature=self.make_signature()
@@ -235,7 +237,9 @@ class CachedInMemoryDataset(InMemoryDataset):
             .repeat(self.n_epochs)
         )
         ds = ds.batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        ds = prefetch_to_single_device(
+            ds.as_numpy_iterator(), 2, sharding, n_step_jit=self.n_jit_steps > 1
+        )
         return ds
 
     def cleanup(self):
@@ -261,7 +265,7 @@ class OTFInMemoryDataset(InMemoryDataset):
                 self.count = 0
             self.enqueue(space)
 
-    def shuffle_and_batch(self):
+    def shuffle_and_batch(self, sharding=None):
         """Shuffles and batches the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
 
@@ -279,15 +283,19 @@ class OTFInMemoryDataset(InMemoryDataset):
         ).batch(batch_size=self.batch_size)
         if self.n_jit_steps > 1:
             ds = ds.batch(batch_size=self.n_jit_steps)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        ds = prefetch_to_single_device(
+            ds.as_numpy_iterator(), 2, sharding, n_step_jit=self.n_jit_steps > 1
+        )
         return ds
 
-    def batch(self) -> Iterator[jax.Array]:
+    def batch(self, sharding=None) -> Iterator[jax.Array]:
         ds = tf.data.Dataset.from_generator(
             lambda: self, output_signature=self.make_signature()
         )
         ds = ds.batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2)
+        ds = prefetch_to_single_device(
+            ds.as_numpy_iterator(), 2, sharding, n_step_jit=self.n_jit_steps > 1
+        )
         return ds
 
 
