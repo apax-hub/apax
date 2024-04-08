@@ -62,8 +62,9 @@ class RadialFunctionT(nn.Module):
         self.embeddings = None
         if self.emb_init is not None:
             self.embeddings = nn.Parameter()
+            self.n_radial = n_radial
         else:
-            self._n_radial = self.basis_fn.n_basis
+            self.n_radial = self.basis_fn.n_basis
 
     def forward(self, dr, Z_i, Z_j):
         dr = dr.type(self.dtype)

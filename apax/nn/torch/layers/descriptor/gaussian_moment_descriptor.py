@@ -29,7 +29,7 @@ class GaussianMomentDescriptorT(nn.Module):
         self.dtype = dtype
 
         self.r_max = self.radial_fn.r_max
-        self.n_radial = self.radial_fn._n_radial
+        self.n_radial = self.radial_fn.n_radial
 
         self.distance = torch.vmap(distance, 0, 0)
 

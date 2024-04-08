@@ -58,10 +58,10 @@ def sum(x, axis, keepdims=False):
         return torch.sum(x, dim=axis, keepdim=keepdims)
 
 
-def concatenate(x, axis):
-    if isinstance(x, jax.Array):
+def concatenate(x: list, axis):
+    if isinstance(x[0], jax.Array):
         return jax.numpy.concatenate(x, axis=axis)
-    elif isinstance(x, torch.Tensor):
+    elif isinstance(x[0], torch.Tensor):
         return torch.concatenate(x, dim=axis)
 
 

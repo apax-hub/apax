@@ -15,8 +15,8 @@ class PerElementScaleShiftT(nn.Module):
         super().__init__()
         self.n_species = n_species
 
-        self.scale_param = nn.Parameter(scale)
-        self.shift_param = nn.Parameter(shift)
+        self.scale_param = nn.Parameter(torch.tensor(scale))
+        self.shift_param = nn.Parameter(torch.tensor(shift))
         self.dtype = dtype
 
     def forward(self, x: torch.Tensor, Z: torch.Tensor) -> torch.Tensor:
