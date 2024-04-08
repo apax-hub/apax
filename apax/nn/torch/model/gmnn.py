@@ -36,17 +36,20 @@ class AtomisticModel(nn.Module):
         return output
 
 
+def free_displacement(Ri, Rj, box, perturbation):
+    return Ri - Rj
+
+
 def get_displacement(init_box, inference_disp_fn):
     if np.all(init_box < 1e-6):
         # gas phase training and predicting
-        displacement_fn = space.free()[0]
-        displacement = space.map_bond(displacement_fn)
-    elif inference_disp_fn is None:
-        # for training on periodic systems
-        displacement = vmap(disp_fn, (0, 0, None, None), 0)
-    else:
-        mappable_displacement_fn = get_disp_fn(self.inference_disp_fn)
-        displacement = vmap(mappable_displacement_fn, (0, 0, None, None), 0)
+        displacement = free_displacement
+    # elif inference_disp_fn is None:
+    #     # for training on periodic systems
+    #     displacement = vmap(disp_fn, (0, 0, None, None), 0)
+    # else:
+    #     mappable_displacement_fn = get_disp_fn(self.inference_disp_fn)
+    #     displacement = vmap(mappable_displacement_fn, (0, 0, None, None), 0)
 
     return displacement
 
@@ -112,7 +115,7 @@ class EnergyDerivativeModel(nn.Module):
         super().__init__()
 
         self.energy_model = energy_model
-        self.calc_stress = calc_stress
+        self.calc_stress = False# calc_stress
 
 
     def forward(
