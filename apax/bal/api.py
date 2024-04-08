@@ -60,8 +60,18 @@ def create_feature_fn(
     return feature_fn
 
 
-def compute_features(feature_fn, dataset: OTFInMemoryDataset):
-    """Compute the features of a dataset."""
+def compute_features(
+    feature_fn: feature_maps.FeatureMap, dataset: OTFInMemoryDataset
+) -> np.ndarray:
+    """Compute the features of a dataset.
+
+    Attributes
+    ----------
+    feature_fn:
+        Function to compute the features with.
+    dataset:
+        Dataset to compute the features for.
+    """
     features = []
     n_data = dataset.n_data
     ds = dataset.batch()
