@@ -95,9 +95,6 @@ def fit(
             callbacks.on_train_batch_begin(batch=batch_idx)
 
             batch = next(batch_train_ds)
-
-            # print(jax.tree_map(lambda x: x.devices(), batch))
-
             (
                 (state, train_batch_metrics),
                 batch_loss,
