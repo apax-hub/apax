@@ -78,4 +78,3 @@ checkpoints:
 
 progress_bar:
   disable_epoch_pbar: false
-  disable_nl_pbar: false

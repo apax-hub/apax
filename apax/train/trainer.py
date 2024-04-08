@@ -8,9 +8,11 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from clu import metrics
+from jax.experimental import mesh_utils
+from jax.sharding import PositionalSharding
 from tqdm import trange
 
-from apax.data.input_pipeline import AtomisticDataset
+from apax.data.input_pipeline import InMemoryDataset
 from apax.train.checkpoints import CheckpointManager, load_state
 
 log = logging.getLogger(__name__)
@@ -18,19 +20,20 @@ log = logging.getLogger(__name__)
 
 def fit(
     state,
-    train_ds: AtomisticDataset,
+    train_ds: InMemoryDataset,
     loss_fn,
     Metrics: metrics.Collection,
     callbacks: list,
     n_epochs: int,
     ckpt_dir,
     ckpt_interval: int = 1,
-    val_ds: Optional[AtomisticDataset] = None,
+    val_ds: Optional[InMemoryDataset] = None,
     sam_rho=0.0,
     patience: Optional[int] = None,
     disable_pbar: bool = False,
+    disable_batch_pbar: bool = True,
     is_ensemble=False,
-    n_jitted_steps=1,
+    data_parallel=True,
 ):
     log.info("Beginning Training")
     callbacks.on_train_begin()
@@ -42,7 +45,7 @@ def fit(
     train_step, val_step = make_step_fns(
         loss_fn, Metrics, model=state.apply_fn, sam_rho=sam_rho, is_ensemble=is_ensemble
     )
-    if n_jitted_steps > 1:
+    if train_ds.n_jit_steps > 1:
         train_step = jax.jit(functools.partial(jax.lax.scan, train_step))
 
     state, start_epoch = load_state(state, latest_dir)
@@ -51,13 +54,19 @@ def fit(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
 
-    train_ds.batch_multiple_steps(n_jitted_steps)
+    devices = len(jax.devices())
+    if devices > 1 and data_parallel:
+        sharding = PositionalSharding(mesh_utils.create_device_mesh((devices,)))
+        state = jax.device_put(state, sharding.replicate())
+    else:
+        sharding = None
+
     train_steps_per_epoch = train_ds.steps_per_epoch()
-    batch_train_ds = train_ds.shuffle_and_batch()
+    batch_train_ds = train_ds.shuffle_and_batch(sharding)
 
     if val_ds is not None:
         val_steps_per_epoch = val_ds.steps_per_epoch()
-        batch_val_ds = val_ds.shuffle_and_batch()
+        batch_val_ds = val_ds.batch(sharding)
 
     best_loss = np.inf
     early_stopping_counter = 0
@@ -71,6 +80,16 @@ def fit(
 
         epoch_loss.update({"train_loss": 0.0})
         train_batch_metrics = Metrics.empty()
+
+        batch_pbar = trange(
+            0,
+            train_steps_per_epoch,
+            desc="Batches",
+            ncols=100,
+            mininterval=1.0,
+            disable=disable_batch_pbar,
+            leave=False,
+        )
 
         for batch_idx in range(train_steps_per_epoch):
             callbacks.on_train_batch_begin(batch=batch_idx)
@@ -86,6 +105,7 @@ def fit(
 
             epoch_loss["train_loss"] += jnp.mean(batch_loss)
             callbacks.on_train_batch_end(batch=batch_idx)
+            batch_pbar.update()
 
         epoch_loss["train_loss"] /= train_steps_per_epoch
         epoch_loss["train_loss"] = float(epoch_loss["train_loss"])
@@ -98,6 +118,16 @@ def fit(
         if val_ds is not None:
             epoch_loss.update({"val_loss": 0.0})
             val_batch_metrics = Metrics.empty()
+
+            batch_pbar = trange(
+                0,
+                val_steps_per_epoch,
+                desc="Batches",
+                ncols=100,
+                mininterval=1.0,
+                disable=disable_batch_pbar,
+                leave=False,
+            )
             for batch_idx in range(val_steps_per_epoch):
                 batch = next(batch_val_ds)
 
@@ -105,14 +135,17 @@ def fit(
                     state.params, batch, val_batch_metrics
                 )
                 epoch_loss["val_loss"] += batch_loss
+                batch_pbar.update()
 
             epoch_loss["val_loss"] /= val_steps_per_epoch
             epoch_loss["val_loss"] = float(epoch_loss["val_loss"])
 
-            epoch_metrics.update({
-                f"val_{key}": float(val)
-                for key, val in val_batch_metrics.compute().items()
-            })
+            epoch_metrics.update(
+                {
+                    f"val_{key}": float(val)
+                    for key, val in val_batch_metrics.compute().items()
+                }
+            )
 
         epoch_metrics.update({**epoch_loss})
 
@@ -143,6 +176,10 @@ def fit(
             break
     epoch_pbar.close()
     callbacks.on_train_end()
+
+    train_ds.cleanup()
+    if val_ds:
+        val_ds.cleanup()
 
 
 def global_norm(updates) -> jnp.ndarray:

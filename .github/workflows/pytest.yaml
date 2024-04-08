@@ -24,7 +24,7 @@ jobs:
     - name: Install package
       run: |
         poetry --version
-        poetry install
+        poetry install --all-extras
 
     - name: Unit Tests
       run: |

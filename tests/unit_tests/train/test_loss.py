@@ -19,10 +19,12 @@ def test_weighted_squared_error():
     assert loss.shape == ()
     assert abs(loss - ref) < 1e-6
 
-    pred = jnp.array([
-        [0.6, 0.4, 0.2, -0.5],
-        [0.1, -0.1, 0.8, 0.6],
-    ])
+    pred = jnp.array(
+        [
+            [0.6, 0.4, 0.2, -0.5],
+            [0.1, -0.1, 0.8, 0.6],
+        ]
+    )
     loss = weighted_squared_error(energy_label, pred, divisor=1.0)
     loss = jnp.sum(loss)
     ref = 0.25
@@ -35,23 +37,31 @@ def test_weighted_squared_error():
 
 
 def test_force_angle_loss():
-    F_pred = jnp.array([[
-        [0.5, 0.0, 0.0],
-        [0.5, 0.0, 0.0],
-        [0.5, 0.5, 0.0],
-        [0.0, 0.5, 0.0],
-        [0.0, 0.5, 0.0],
-        [0.0, 0.0, 0.0],  # padding
-    ]])
+    F_pred = jnp.array(
+        [
+            [
+                [0.5, 0.0, 0.0],
+                [0.5, 0.0, 0.0],
+                [0.5, 0.5, 0.0],
+                [0.0, 0.5, 0.0],
+                [0.0, 0.5, 0.0],
+                [0.0, 0.0, 0.0],  # padding
+            ]
+        ]
+    )
 
-    F_0 = jnp.array([[
-        [0.5, 0.0, 0.0],
-        [0.9, 0.0, 0.0],
-        [0.5, 0.0, 0.0],
-        [0.5, 0.0, 0.0],
-        [0.9, 0.0, 0.0],
-        [0.0, 0.0, 0.0],  # padding
-    ]])
+    F_0 = jnp.array(
+        [
+            [
+                [0.5, 0.0, 0.0],
+                [0.9, 0.0, 0.0],
+                [0.5, 0.0, 0.0],
+                [0.5, 0.0, 0.0],
+                [0.9, 0.0, 0.0],
+                [0.0, 0.0, 0.0],  # padding
+            ]
+        ]
+    )
 
     F_angle_loss = force_angle_loss(F_pred, F_0)
     F_angle_loss = jnp.arccos(-F_angle_loss + 1) * 360 / (2 * np.pi)
@@ -68,23 +78,31 @@ def test_force_angle_loss():
 
 def test_force_loss():
     name = "forces"
-    loss_type = "structures"
+    loss_type = "mse"
     weight = 1
     inputs = {
         "n_atoms": jnp.array([2]),
     }
     label = {
-        name: jnp.array([[
-            [0.4, 0.2, 0.5],
-            [0.3, 0.8, 0.1],
-        ]]),
+        name: jnp.array(
+            [
+                [
+                    [0.4, 0.2, 0.5],
+                    [0.3, 0.8, 0.1],
+                ]
+            ]
+        ),
     }
 
     pred = {
-        name: jnp.array([[
-            [0.4, 0.2, 0.5],
-            [0.3, 0.8, 0.1],
-        ]]),
+        name: jnp.array(
+            [
+                [
+                    [0.4, 0.2, 0.5],
+                    [0.3, 0.8, 0.1],
+                ]
+            ]
+        ),
     }
     loss_func = Loss(name=name, loss_type=loss_type, weight=weight)
     loss = loss_func(inputs=inputs, label=label, prediction=pred)
@@ -93,10 +111,14 @@ def test_force_loss():
     assert abs(loss - ref_loss) < 1e-6
 
     pred = {
-        name: jnp.array([[
-            [0.4, 0.2, 0.5],
-            [0.3, 0.8, 0.6],
-        ]]),
+        name: jnp.array(
+            [
+                [
+                    [0.4, 0.2, 0.5],
+                    [0.3, 0.8, 0.6],
+                ]
+            ]
+        ),
     }
     loss_func = Loss(name=name, loss_type=loss_type, weight=weight)
     loss = loss_func(inputs=inputs, label=label, prediction=pred)

@@ -2,9 +2,8 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from apax.data.input_pipeline import process_inputs
 from apax.data.statistics import PerElementRegressionShift
-from apax.utils.convert import atoms_to_labels
+from apax.utils.convert import atoms_to_inputs, atoms_to_labels
 
 
 def test_energy_per_element():
@@ -24,9 +23,8 @@ def test_energy_per_element():
         energies.append(energy)
         atoms.calc = SinglePointCalculator(atoms, energy=energy)
 
-    inputs = process_inputs(
+    inputs = atoms_to_inputs(
         atoms_list,
-        r_max=6.5,
     )
     labels = atoms_to_labels(atoms_list)
 

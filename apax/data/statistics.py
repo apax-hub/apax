@@ -23,9 +23,9 @@ class PerElementRegressionShift:
         log.info("Computing per element energy regression.")
 
         lambd = shift_options["energy_regularisation"]
-        energies = labels["fixed"]["energy"]
-        numbers = inputs["ragged"]["numbers"]
-        system_sizes = inputs["fixed"]["n_atoms"]
+        energies = labels["energy"]
+        numbers = inputs["numbers"]
+        system_sizes = inputs["n_atoms"]
 
         energies = np.array(energies)
         system_sizes = np.array(system_sizes)
@@ -80,9 +80,9 @@ class MeanEnergyRMSScale:
     @staticmethod
     def compute(inputs, labels, scale_options):
         # log.info("Computing per element energy regression.")
-        energies = labels["fixed"]["energy"]
-        numbers = inputs["ragged"]["numbers"]
-        system_sizes = inputs["fixed"]["n_atoms"]
+        energies = labels["energy"]
+        numbers = inputs["numbers"]
+        system_sizes = inputs["n_atoms"]
 
         energies = np.array(energies)
         system_sizes = np.array(system_sizes)
@@ -111,8 +111,8 @@ class PerElementForceRMSScale:
     def compute(inputs, labels, scale_options):
         n_species = 119
 
-        forces = np.concatenate(labels["ragged"]["forces"], axis=0)
-        numbers = np.concatenate(inputs["ragged"]["numbers"], axis=0)
+        forces = np.concatenate(labels["forces"], axis=0)
+        numbers = np.concatenate(inputs["numbers"], axis=0)
 
         elements = np.unique(numbers)
 

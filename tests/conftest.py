@@ -120,11 +120,13 @@ def get_md22_stachyose(tmp_data_path):
 
 @pytest.fixture()
 def get_sample_input():
-    positions = np.array([
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 0.0, 1.0],
-    ])
+    positions = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
     atomic_numbers = np.array([1, 1, 8])
     box = np.diag(np.zeros(3))
     offsets = np.full([3, 3], 0)

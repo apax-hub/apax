@@ -8,18 +8,22 @@ from apax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
 
 
 def test_apax_variable_size():
-    R = np.array([
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    ])
+    R = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
+    )
 
     Z = np.array([1, 2, 2])
 
-    idx = np.array([
-        [1, 2, 0, 2, 0, 1],
-        [0, 0, 1, 1, 2, 2],
-    ])
+    idx = np.array(
+        [
+            [1, 2, 0, 2, 0, 1],
+            [0, 0, 1, 1, 2, 2],
+        ]
+    )
     offsets = jnp.full([6, 3], 0)
     box = np.array([0, 0, 0])
 
@@ -65,20 +69,24 @@ def test_apax_variable_size():
 def test_atomistic_model():
     key = jax.random.PRNGKey(0)
 
-    dR = np.array([
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [-1.0, 0.0, 0.0],
-        [-1.0, 1.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [1.0, -1.0, 0.0],
-    ])
+    dR = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            [-1.0, 1.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [1.0, -1.0, 0.0],
+        ]
+    )
     Z = np.array([1, 2, 2])
 
-    idx = np.array([
-        [1, 2, 0, 2, 0, 1],
-        [0, 0, 1, 1, 2, 2],
-    ])
+    idx = np.array(
+        [
+            [1, 2, 0, 2, 0, 1],
+            [0, 0, 1, 1, 2, 2],
+        ]
+    )
 
     model = AtomisticModel(mask_atoms=False)
 
@@ -91,18 +99,22 @@ def test_atomistic_model():
 def test_energy_model():
     key = jax.random.PRNGKey(0)
 
-    R = np.array([
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    ])
+    R = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
+    )
 
     Z = np.array([1, 2, 2])
 
-    idx = np.array([
-        [1, 2, 0, 2, 0, 1],
-        [0, 0, 1, 1, 2, 2],
-    ])
+    idx = np.array(
+        [
+            [1, 2, 0, 2, 0, 1],
+            [0, 0, 1, 1, 2, 2],
+        ]
+    )
     offsets = jnp.full([6, 3], 0)
     box = np.array([0.0, 0.0, 0.0])
 
@@ -117,18 +129,22 @@ def test_energy_model():
 def test_energy_force_model():
     key = jax.random.PRNGKey(0)
 
-    R = np.array([
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    ])
+    R = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
+    )
 
     Z = np.array([1, 2, 2])
 
-    idx = np.array([
-        [1, 2, 0, 2, 0, 1],
-        [0, 0, 1, 1, 2, 2],
-    ])
+    idx = np.array(
+        [
+            [1, 2, 0, 2, 0, 1],
+            [0, 0, 1, 1, 2, 2],
+        ]
+    )
     offsets = jnp.full([6, 3], 0)
 
     box = np.array([0.0, 0.0, 0.0])

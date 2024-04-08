@@ -25,6 +25,11 @@ matscipy = "^0.8.0"
 znh5md = "^0.1.7"
 pydantic = "^2.3.0"
 jax = "^0.4.25"
+zntrack = {version = "^0.7.2", optional = true}
+mlflow = {version = "^2.11.3", extras = ["mlflow"]}
+
+[tool.poetry.extras]
+zntrack = ["zntrack"]
 
 [tool.poetry.scripts]
 apax = 'apax.cli.apax_app:app'
