@@ -134,14 +134,14 @@ class EnergyDerivativeModel(nn.Module):
             requires_grad.append(eps)
         else:
             perturbation = None
-        
+
         energy = self.energy_model(R, Z, neighbor, box, offsets, perturbation)
-                    
+
 
         grads = autograd.grad(energy, requires_grad,
                             grad_outputs=torch.ones_like(energy),
                             create_graph=True)
-        
+
         neg_forces = grads[0]
         forces = -neg_forces
 
