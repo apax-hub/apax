@@ -114,11 +114,13 @@ def test_ase_calc(get_tmp_path):
     model_config.dump_config(model_config.data.model_version_path)
 
     cell_size = 10.0
-    positions = np.array([
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 0.0, 1.0],
-    ])
+    positions = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
     atomic_numbers = np.array([1, 1, 8])
     box = np.diag([cell_size] * 3)
     offsets = jnp.full([3, 3], 0)

@@ -6,17 +6,25 @@ from apax.train.metrics import cosine_sim, initialize_metrics
 
 def test_cosine_sim():
     prediction = {
-        "forces": jnp.array([[
-            [0.5, 0.0, 0.0],
-            [0.5, 0.0, 0.0],
-        ]])
+        "forces": jnp.array(
+            [
+                [
+                    [0.5, 0.0, 0.0],
+                    [0.5, 0.0, 0.0],
+                ]
+            ]
+        )
     }
 
     label = {
-        "forces": jnp.array([[
-            [0.0, 0.5, 0.0],
-            [0.5, 0.0, 0.0],
-        ]])
+        "forces": jnp.array(
+            [
+                [
+                    [0.0, 0.5, 0.0],
+                    [0.5, 0.0, 0.0],
+                ]
+            ]
+        )
     }
 
     angle_error = cosine_sim(label, prediction, "forces")
@@ -28,18 +36,22 @@ def test_cosine_sim():
 def test_initialize_metrics_collection():
     prediction = {
         "energy": jnp.array([1.0, 1.0]),
-        "forces": jnp.array([
-            [[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
-            [[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
-        ]),
+        "forces": jnp.array(
+            [
+                [[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
+                [[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
+            ]
+        ),
     }
 
     label = {
         "energy": jnp.array([1.0, 2.0]),
-        "forces": jnp.array([
-            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
-            [[1.0, 0.0, 0.0], [2.0, 1.0, 0.0]],
-        ]),
+        "forces": jnp.array(
+            [
+                [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+                [[1.0, 0.0, 0.0], [2.0, 1.0, 0.0]],
+            ]
+        ),
     }
     metrics_list = [
         MetricsConfig(name="energy", reductions=["mae", "rmse"]),
