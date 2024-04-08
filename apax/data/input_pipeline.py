@@ -23,12 +23,13 @@ def pad_nl(idx, offsets, max_neighbors):
     return idx, offsets
 
 
-def find_largest_system(inputs: dict[str, np.ndarray], r_max) -> tuple[int]:
+def find_largest_system(inputs, r_max) -> tuple[int]:
+    positions, boxes = inputs["positions"], inputs["box"]
     max_atoms = np.max(inputs["n_atoms"])
 
     max_nbrs = 0
-    for position, box in zip(inputs["positions"], inputs["box"]):
-        neighbor_idxs, _ = compute_nl(position, box, r_max)
+    for pos, box in zip(positions, boxes):
+        neighbor_idxs, _ = compute_nl(pos, box, r_max)
         n_neighbors = neighbor_idxs.shape[1]
         max_nbrs = max(max_nbrs, n_neighbors)
 
@@ -38,7 +39,7 @@ def find_largest_system(inputs: dict[str, np.ndarray], r_max) -> tuple[int]:
 class InMemoryDataset:
     def __init__(
         self,
-        atoms,
+        atoms_list,
         cutoff,
         bs,
         n_epochs,
@@ -50,26 +51,24 @@ class InMemoryDataset:
         ignore_labels=False,
         cache_path=".",
     ) -> None:
-
         self.n_epochs = n_epochs
         self.cutoff = cutoff
         self.n_jit_steps = n_jit_steps
         self.buffer_size = buffer_size
-        self.n_data = len(atoms)
+        self.n_data = len(atoms_list)
         self.batch_size = self.validate_batch_size(bs)
         self.pos_unit = pos_unit
 
         if pre_shuffle:
-            shuffle(atoms)
-        self.sample_atoms = atoms[0]
-        self.inputs = atoms_to_inputs(atoms, self.pos_unit)
+            shuffle(atoms_list)
+        self.sample_atoms = atoms_list[0]
+        self.inputs = atoms_to_inputs(atoms_list, pos_unit)
 
         max_atoms, max_nbrs = find_largest_system(self.inputs, self.cutoff)
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
-
-        if atoms[0].calc and not ignore_labels:
-            self.labels = atoms_to_labels(atoms, self.pos_unit, energy_unit)
+        if atoms_list[0].calc and not ignore_labels:
+            self.labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
         else:
             self.labels = None
 
@@ -109,9 +108,6 @@ class InMemoryDataset:
         inputs["numbers"] = np.pad(
             inputs["numbers"], (0, zeros_to_add), "constant"
         ).astype(np.int16)
-        inputs["n_atoms"] = np.pad(
-            inputs["n_atoms"], (0, zeros_to_add), "constant"
-        ).astype(np.int16)
 
         if not self.labels:
             return inputs
@@ -121,7 +117,6 @@ class InMemoryDataset:
             labels["forces"] = np.pad(
                 labels["forces"], ((0, zeros_to_add), (0, 0)), "constant"
             )
-
         inputs = {k: tf.constant(v) for k, v in inputs.items()}
         labels = {k: tf.constant(v) for k, v in labels.items()}
         return (inputs, labels)
@@ -170,6 +165,7 @@ class InMemoryDataset:
         """Returns first batch of inputs and labels to init the model."""
         positions = self.sample_atoms.positions * unit_dict[self.pos_unit]
         box = self.sample_atoms.cell.array * unit_dict[self.pos_unit]
+        # For an input sample, it does not matter whether pos is fractional or cartesian
         idx, offsets = compute_nl(positions, box, self.cutoff)
         inputs = (
             positions,
