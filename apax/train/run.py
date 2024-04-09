@@ -1,6 +1,8 @@
 import logging
 import sys
 from typing import List
+from typing import Union
+import os
 
 import jax
 
@@ -22,6 +24,17 @@ log = logging.getLogger(__name__)
 
 
 def setup_logging(log_file, log_level):
+    """
+    Setup logging configuration.
+
+    Parameters
+    ----------
+    log_file : str
+        Path to the log file.
+    log_level : str
+        Logging level. Options: {'debug', 'info', 'warning', 'error', 'critical'}.
+    """
+
     log_levels = {
         "debug": logging.DEBUG,
         "info": logging.INFO,
@@ -44,6 +57,20 @@ def setup_logging(log_file, log_level):
 
 
 def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
+    """
+    Initialize loss functions based on configuration.
+
+    Parameters
+    ----------
+    loss_config_list : List[LossConfig]
+        List of loss configurations.
+
+    Returns
+    -------
+    LossCollection
+        Collection of initialized loss functions.
+    """
+
     log.info("Initializing Loss Function")
     loss_funcs = []
     for loss in loss_config_list:
@@ -52,6 +79,24 @@ def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
 
 
 def initialize_datasets(config: Config):
+    """
+    Initialize training and validation datasets based on the provided configuration.
+
+    Parameters
+    ----------
+    config : Config
+        Configuration object all parameters.
+
+    Returns
+    -------
+    train_ds : Dataset
+        Training dataset.
+    val_ds : Dataset
+        Validation dataset.
+    ds_stats : Dict[str, Tuple[float, float]]
+        Dictionary containing scale and shift parameters for normalization.
+    """
+
     train_raw_ds, val_raw_ds = load_data_files(config.data)
 
     Dataset = dataset_dict[config.data.ds_type]
@@ -88,7 +133,16 @@ def initialize_datasets(config: Config):
     return train_ds, val_ds, ds_stats
 
 
-def run(user_config, log_level="error"):
+def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
+    """
+    Starts the training of a model with parameters provided by a the config.
+
+    Parameters
+    ----------
+
+    user_config : str | os.PathLike | dict
+        training config full exmaple can be finde :ref:`here <config>`:
+    """
     config = parse_config(user_config)
 
     seed_py_np_tf(config.seed)
