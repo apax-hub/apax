@@ -62,10 +62,9 @@ class RadialFunctionT(nn.Module):
         self.embeddings = None
         if self.emb_init is not None:
             self.n_radial = n_radial
-            emb = torch.rand((self.n_species,
-                        self.n_species,
-                        self.n_radial,
-                        self.basis_fn.n_basis))
+            emb = torch.rand(
+                (self.n_species, self.n_species, self.n_radial, self.basis_fn.n_basis)
+            )
             self.embeddings = nn.Parameter(emb)
         else:
             self.n_radial = self.basis_fn.n_basis
