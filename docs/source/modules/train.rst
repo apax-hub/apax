@@ -18,6 +18,6 @@ Training
 
 .. automodule:: apax.train.run
     :members:
-
+    
 .. automodule:: apax.train.trainer
     :members:
