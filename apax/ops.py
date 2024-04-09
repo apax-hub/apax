@@ -1,5 +1,6 @@
 import jax
 import torch
+import torch_scatter
 
 
 def swish(x):
@@ -80,9 +81,12 @@ def cast(x, dtype):
 
 
 def einsum(pattern, *operands, **kwargs):
+    # print([type(o) for o in operands])
+    # quit()
     if isinstance(operands[0], jax.Array):
         return jax.numpy.einsum(pattern, *operands, **kwargs)
     elif isinstance(operands[0], torch.Tensor):
+        # opt_einsum_fx
         return torch.einsum(pattern, *operands, **kwargs)
 
 
@@ -90,5 +94,5 @@ def segment_sum(x, segment_ids, num_segments=None):
     if isinstance(x, jax.Array):
         return jax.ops.segment_sum(x, segment_ids, num_segments)
     elif isinstance(x, torch.Tensor):
-        # TODO pytorch scatter
-        return None
+        out = torch_scatter.scatter(x, segment_ids, dim=0, reduce="sum")
+        return out

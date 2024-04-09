@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 from typing import Any, Union
 
@@ -15,8 +16,11 @@ class PerElementScaleShiftT(nn.Module):
         super().__init__()
         self.n_species = n_species
 
-        self.scale_param = nn.Parameter(torch.tensor(scale))
-        self.shift_param = nn.Parameter(torch.tensor(shift))
+        scale = np.repeat(scale, n_species)
+        shift = np.repeat(shift, n_species)
+
+        self.scale_param = nn.Parameter(torch.from_numpy(scale))
+        self.shift_param = nn.Parameter(torch.from_numpy(shift))
         self.dtype = dtype
 
     def forward(self, x: torch.Tensor, Z: torch.Tensor) -> torch.Tensor:

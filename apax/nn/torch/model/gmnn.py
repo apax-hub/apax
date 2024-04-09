@@ -20,7 +20,7 @@ class AtomisticModelT(nn.Module):
     ):
         super().__init__()
         self.descriptor = descriptor
-        self.readout = torch.vmap(readout)
+        self.readout = readout # readout??
         self.scale_shift = scale_shift
 
     def forward(
@@ -30,13 +30,15 @@ class AtomisticModelT(nn.Module):
         idx: torch.tensor,
     ) -> torch.tensor:
         gm = self.descriptor(dr_vec, Z, idx)
-        h = self.readout(gm)
+        # print(gm.size())
+        h = self.readout(gm).squeeze()
+        # print(h.size())
         output = self.scale_shift(h, Z)
 
         return output
 
 
-def free_displacement(Ri, Rj, box, perturbation):
+def free_displacement(Ri, Rj):
     return Ri - Rj
 
 
@@ -125,11 +127,11 @@ class EnergyDerivativeModelT(nn.Module):
         box: torch.Tensor,
         offsets: torch.Tensor,
     ):
-        R.requires_grad = True
+        R.requires_grad_(True)
         requires_grad = [R]
         if self.calc_stress:
             eps = torch.zeros((3, 3), torch.float64)
-            eps.requires_grad = True
+            eps.requires_grad_(True)
             eps_sym = 0.5 * (eps + eps.T)
             identity = torch.eye(3, dtype=torch.float64)
             perturbation = identity + eps_sym
@@ -138,10 +140,13 @@ class EnergyDerivativeModelT(nn.Module):
             perturbation = None
 
         energy = self.energy_model(R, Z, neighbor, box, offsets, perturbation)
+        # print(energy)
+        # quit()
 
         grads = autograd.grad(
-            energy, requires_grad, grad_outputs=torch.ones_like(energy), create_graph=True
+            energy, requires_grad, grad_outputs=torch.ones_like(energy), create_graph=False, retain_graph=False, allow_unused=True,
         )
+        print(grads)
 
         neg_forces = grads[0]
         forces = -neg_forces

@@ -13,11 +13,12 @@ class AtomisticReadoutT(nn.Module):
     ) -> None:
         super().__init__()
 
-        units = [u for u in units] + [1]
+        units = [360] + [u for u in units] + [1]
         dense = []
-        for ii, n_hidden in enumerate(units):
-            dense.append(NTKLinear(n_hidden))
-            if ii < len(units) - 1:
+        for ii in range(len(units)-1):
+            units_in, units_out = units[ii], units[ii+1]
+            dense.append(NTKLinear(units_in, units_out))
+            if ii < len(units) - 2:
                 dense.append(activation_fn())
         self.sequential = nn.Sequential(*dense)
 
