@@ -10,7 +10,7 @@ from apax.utils.convert import atoms_to_inputs, atoms_to_labels
 from apax.utils.data import split_atoms, split_idxs
 from apax.utils.random import seed_py_np_tf
 
-# TODO REENABLE LATER
+# TODO RE-ENABLE LATER
 # @pytest.mark.parametrize(
 #     "num_data, pbc, calc_results, external_labels",
 #     (
