@@ -95,7 +95,8 @@ class NPTOptions(NVTOptions, extra="forbid"):
 
 class MDConfig(BaseModel, frozen=True, extra="forbid"):
     """
-    Configuration for a NHC molecular dynamics simulation. Full config :ref:`here <md_config>`:
+    Configuration for a NHC molecular dynamics simulation.
+    Full config :ref:`here <md_config>`:
 
     Parameters
     ----------
@@ -108,7 +109,8 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     duration : float, required
         | Total simulation time in fs.
     n_inner : int, default = 100
-        | Number of compiled simulation steps (i.e. number of iterations of the `jax.lax.fori_loop` loop). Also determines atoms buffer size.
+        | Number of compiled simulation steps (i.e. number of iterations of the
+        | `jax.lax.fori_loop` loop). Also determines atoms buffer size.
     sampling_rate : int, default = 10
         | Interval between saving frames.
     buffer_size : int, default = 100
@@ -116,7 +118,8 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     dr_threshold : float, default = 0.5
         | Skin of the neighborlist.
     extra_capacity : int, default = 0
-        | JaxMD allocates a maximal number of neighbors. This argument lets you add additional capacity to avoid recompilation. The default is usually fine.
+        | JaxMD allocates a maximal number of neighbors. This argument lets you add
+        | additional capacity to avoid recompilation. The default is usually fine.
     initial_structure : str, required
         | Path to the starting structure of the simulation.
     sim_dir : str, default = "."
@@ -124,9 +127,11 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     traj_name : str, default = "md.h5"
         | Name of the trajectory file.
     restart : bool, default = True
-        | Whether the simulation should restart from the latest configuration in `traj_name`.
+        | Whether the simulation should restart from the latest configuration in
+        | `traj_name`.
     checkpoint_interval : int, default = 50_000
-        | Number of time steps between saving full simulation state checkpoints. These will be loaded with the `restart` option.
+        | Number of time steps between saving full simulation state checkpoints.
+        | These will be loaded with the `restart` option.
     disable_pbar : bool, False
         | Disables the MD progressbar.
     """

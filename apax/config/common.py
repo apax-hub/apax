@@ -20,7 +20,8 @@ def parse_config(config: Union[str, os.PathLike, dict], mode: str = "train") -> 
             Path to the config file or a dictionary
             containing the config.
         mode: str, default = train
-            Defines if the config is validated for training ("train") or MD simulation("md").
+            Defines if the config is validated for training ("train")
+            or MD simulation("md").
     """
     if isinstance(config, (str, os.PathLike)):
         with open(config, "r") as stream:
