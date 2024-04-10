@@ -19,4 +19,3 @@ Full config can be downloaded :download:`here <../../../apax/cli/templates/md_co
 
 .. include:: ../../../apax/cli/templates/md_config_minimal.yaml
     :literal:
-

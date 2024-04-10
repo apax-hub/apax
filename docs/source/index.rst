@@ -13,4 +13,3 @@ It is based on `JAX <https://jax.readthedocs.io/en/latest/>`_ and uses `JaxMD <h
    _tutorials/index
    configs/index
    modules/index
-
