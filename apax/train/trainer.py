@@ -35,6 +35,43 @@ def fit(
     is_ensemble=False,
     data_parallel=True,
 ):
+    """
+    Trains the model using the provided training dataset.
+
+    Parameters
+    ----------
+    state :
+        The initial state of the model.
+    train_ds : InMemoryDataset
+        The training dataset.
+    loss_fn :
+        The loss function to be minimized.
+    Metrics metrics.Collection :
+        Collection of metrics to evaluate during training.
+    callbacks : list
+        List of callback functions to be executed during training.
+    n_epochs : int
+        Number of epochs for training.
+    ckpt_dir:
+        Directory to save checkpoints.
+    ckpt_interval : int, default = 1
+        Interval for saving checkpoints.
+    val_ds : InMemoryDataset, default = None
+        Validation dataset.
+    sam_rho : float, default = 0.0
+        Rho parameter for Sharpness-Aware Minimization.
+    patience : int, default = None
+        Patience for early stopping.
+    disable_pbar : bool, default = False
+        Whether to disable progress bar for epochs..
+    disable_batch_pbar : bool, default = True
+        Whether to disable progress bar for batches.
+    is_ensemble : bool, default = False
+        Whether the model is an ensemble.
+    data_parallel : bool, default = True
+        Whether to use data parallelism.
+    """
+
     log.info("Beginning Training")
     callbacks.on_train_begin()
 
@@ -183,8 +220,11 @@ def fit(
 
 
 def global_norm(updates) -> jnp.ndarray:
-    """Returns the l2 norm of the input.
-    Args:
+    """
+    Returns the l2 norm of the input.
+
+    Parameters
+    ----------
       updates: A pytree of ndarrays representing the gradient.
     """
     norm = jax.tree_map(lambda u: jnp.sqrt(jnp.sum(jnp.square(u))), updates)

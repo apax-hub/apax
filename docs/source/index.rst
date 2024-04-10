@@ -11,4 +11,5 @@ It is based on `JAX <https://jax.readthedocs.io/en/latest/>`_ and uses `JaxMD <h
 
    getting_started/index
    _tutorials/index
+   configs/index
    modules/index

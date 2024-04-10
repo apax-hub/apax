@@ -145,25 +145,22 @@ def run_nvt(
 
     Parameters
     ----------
-    ensemble:
+    ensemble :
         Thermodynamic ensemble.
-    temperature:
-        Temperature of the system in K.
-    n_steps:
+    n_steps : int
         Total time steps.
-    n_inner:
+    n_inner : int
         JIT compiled inner loop. Also determines atoms buffer size.
-    sampling_rate:
-        Trajectory dumping interval.
-    extra_capacity:
+    extra_capacity : int
         Extra capacity for the neighborlist.
-    rng_key:
+    rng_key : int
         RNG key used to initialize the simulation.
-    restart:
+    restart : bool, default = True
         Whether a checkpoint should be loaded. No implemented yet.
-    checkpoint_interval: Number of time steps between saving
+    checkpoint_interval : int, default = 50_000
+        Number of time steps between saving
         full simulation state checkpoints.
-    sim_dir:
+    sim_dir : Path
         Directory where the trajectory and simulation checkpoints will be saved.
     """
     energy_fn = sim_fns.energy_fn
@@ -310,9 +307,9 @@ def md_setup(model_config: Config, md_config: MDConfig):
 
     Parameters
     ----------
-    model_config:
+    model_config : Config
         Configuration of the model used as an interatomic potential.
-    md_config:
+    md_config : MDConfig
         configuration of the MD simulation.
 
     Returns
@@ -391,9 +388,9 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
 
     Parameters
     ----------
-    model_config:
+    model_config : Config
         Configuration of the model used as an interatomic potential.
-    md_config:
+    md_config : MDConfig
         configuration of the MD simulation.
     """
 

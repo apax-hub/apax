@@ -89,24 +89,22 @@ def split_idxs(atoms_list, n_train, n_valid):
 
 
 def split_atoms(atoms_list, train_idxs, val_idxs=None):
-    """Shuffles and splits a list in two resulting lists
-    of the length length1 and length2.
+    """
+    Split the list of atoms into training and validation sets (validation is optional).
 
     Parameters
     ----------
-    data_list :
-        A list.
-    length1 :
-        Length of the first resulting list.
-    length2 :
-        Length of the second resulting list.
+    atoms_list : list[ase.Atoms]
+        List of atoms.
+    train_idxs : list[int]
+        List of indices for the training set.
+    val_idxs : list[int], optional
+        List of indices for the validation set.
 
     Returns
     -------
-    splitted_list1
-        List of random structures from atoms_list of the length length1.
-    splitted_list2
-        List of random structures from atoms_list of the length length2.
+    Tuple[list, list]
+        Tuple containing lists of atoms for training and validation sets.
     """
     train_atoms_list = [atoms_list[i] for i in train_idxs]
 

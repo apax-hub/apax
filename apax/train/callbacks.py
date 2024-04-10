@@ -72,6 +72,7 @@ def initialize_callbacks(config: Config, model_version_path: Path):
             "model": dummy_model,
         },
     }
+
     names = [conf.name for conf in callback_configs]
     if "csv" in names and "tensorboard" in names:
         msg = (

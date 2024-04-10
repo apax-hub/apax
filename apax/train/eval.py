@@ -34,6 +34,26 @@ def get_test_idxs(atoms_list, used_idxs, n_test=-1):
 def load_test_data(
     config, model_version_path, eval_path, n_test=-1
 ):  # TODO double code run.py in progress
+    """
+    Load test data for evaluation.
+
+    Parameters
+    ----------
+    config : object
+        Configuration object.
+    model_version_path : str
+        Path to the model version.
+    eval_path : str
+        Path to evaluation directory.
+    n_test : int, default = -1
+        Number of test samples to load, by default -1 (load all).
+
+    Returns
+    -------
+    atoms_list
+        List of ase.Atoms containing the test data.
+    """
+
     log.info("Running Input Pipeline")
     os.makedirs(eval_path, exist_ok=True)
 
@@ -67,6 +87,27 @@ def load_test_data(
 
 
 def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=False):
+    """
+    Perform predictions on the test dataset.
+
+    Parameters
+    ----------
+    model :
+        Trained model.
+    params :
+        Model parameters.
+    Metrics :
+        Collection of metrics.
+    loss_fn :
+        Loss function.
+    test_ds :
+        Test dataset.
+    callbacks :
+        Callback functions.
+    is_ensemble : bool, default = False
+        Whether the model is an ensemble.
+    """
+
     callbacks.on_train_begin()
     _, test_step_fn = make_step_fns(
         loss_fn, Metrics, model=model, sam_rho=0.0, is_ensemble=is_ensemble
@@ -101,6 +142,21 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=Fal
 
 
 def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
+    """
+    Evaluate the model using the provided configuration.
+
+    Parameters
+    ----------
+    config_path : str
+        Path to the configuration file.
+    n_test : int, default = -1
+        Number of test samples to evaluate, by default -1 (evaluate all).
+    log_file : str, default = "eval.log"
+        Path to the log file.
+    log_level : str, default = "error"
+        Logging level.
+    """
+
     setup_logging(log_file, log_level)
     log.info("Starting model evaluation")
     config = parse_config(config_path)
@@ -110,7 +166,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     model_version_path = Path(config.data.directory) / config.data.experiment
     eval_path = model_version_path / "eval"
 
-    callbacks = initialize_callbacks(config.callbacks, eval_path)
+    callbacks = initialize_callbacks(config, eval_path)
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
 
@@ -118,6 +174,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     test_ds = OTFInMemoryDataset(
         atoms_list,
         config.model.r_max,
+        1,
         config.data.valid_batch_size,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,

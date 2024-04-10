@@ -261,8 +261,8 @@ class ASECalculator(Calculator):
         2. Inputs are padded so no recompilation is triggered when evaluating
         differently sized systems.
 
-        Arguments
-        ---------
+        Parameters
+        ----------
         atoms_list :
             List of Atoms to be evaluated.
         batch_size:

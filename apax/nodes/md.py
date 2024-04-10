@@ -20,11 +20,11 @@ log = logging.getLogger(__name__)
 class ApaxJaxMD(zntrack.Node):
     """Class to run a more performant JaxMD simulation with a apax Model.
 
-    Attributes
+    Parameters
     ----------
     data: list[ase.Atoms]
         MD starting structure
-    data_id: int, default=-1
+    data_id: int, default = -1
         index of the configuration from the data list to use
     model: ApaxModel
         model to use for the simulation
