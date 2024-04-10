@@ -161,7 +161,7 @@ class CellList:
     def kwarg_buffers(self):
         logging.warning(
             "kwarg_buffers renamed to named_buffer. The name "
-            "kwarg_buffers will be depricated."
+            "kwarg_buffers will be deprecated."
         )
         return self.named_buffer
 
@@ -179,7 +179,7 @@ class PartitionErrorCode(IntEnum):
         to allocate a new cell list.
       CELL_SIZE_TOO_SMALL: Indicates that the size of cells in a cell list was
         not large enough to properly capture particle interactions. This
-        indicates that it is necessary to allcoate a new cell list with larger
+        indicates that it is necessary to allocate a new cell list with larger
         cells.
       MALFORMED_BOX: Indicates that a box matrix was not properly upper
         triangular.
@@ -242,7 +242,7 @@ class NeighborList:
       reference_position: The positions of particles when the neighbor list was
         constructed. This is used to decide whether the neighbor list ought to be
         updated.
-      error: An error code that is used to identify errors that occured during
+      error: An error code that is used to identify errors that occurred during
         neighbor list construction. See `PartitionError` and `PartitionErrorCode`
         for details.
       cell_list_capacity: An optional integer specifying the capacity of the cell
@@ -317,7 +317,7 @@ class NeighborList:
       reference_position: The positions of particles when the neighbor list was
         constructed. This is used to decide whether the neighbor list ought to be
         updated.
-      error: An error code that is used to identify errors that occured during
+      error: An error code that is used to identify errors that occurred during
         neighbor list construction. See `PartitionError` and `PartitionErrorCode`
         for details.
       cell_list_capacity: An optional integer specifying the capacity of the cell

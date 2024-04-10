@@ -305,7 +305,7 @@ class ASECalculator(Calculator):
             unpadded_results = unpack_results(results, inputs)
 
             # for the last batch, the number of structures may be less
-            # than the batch_size,  which is why we check this explicitely
+            # than the batch_size,  which is why we check this explicitly
             num_strucutres_in_batch = results["energy"].shape[0]
             for j in range(num_strucutres_in_batch):
                 atoms = atoms_list[i].copy()

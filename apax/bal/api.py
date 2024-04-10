@@ -117,9 +117,9 @@ def kernel_selection(
     selection_method:
         Currently only "max_dist" is supported.
     feature_transforms:
-        Feature tranforms to be applied on top of the
+        Feature transforms to be applied on top of the
         base feature map transform.
-        Examples would include multiplcation with or addition of a constant.
+        Examples would include multiplication with or addition of a constant.
     selection_batch_size:
         Amount of new data points to be selected from `pool_atoms`.
     processing_batch_size:

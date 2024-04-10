@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 def pad_nl(idx, offsets, max_neighbors):
     """
-    Pad the neighbor list arrays to the maximal number of neighbors occuring.
+    Pad the neighbor list arrays to the maximal number of neighbors occurring.
 
     Parameters
     ----------

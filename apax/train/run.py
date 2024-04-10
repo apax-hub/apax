@@ -139,7 +139,7 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
     Parameters
     ----------
     user_config : str | os.PathLike | dict
-        training config full exmaple can be finde :ref:`here <train_config>`:
+        training config full example can be find :ref:`here <train_config>`:
 
     """
     config = parse_config(user_config)

@@ -1590,8 +1590,8 @@ def temp_csvr(
 
     Samples from the canonical ensemble in which the number of particles (N),
     the system volume (V), and the temperature (T) are held constant. CSVR
-    algorithmn samples the canonical distribution by rescaling the velocities
-    by a appropritely chosen random factor. At each timestep (dt) the rescaling
+    algorithm samples the canonical distribution by rescaling the velocities
+    by a appropriately chosen random factor. At each timestep (dt) the rescaling
     takes place and the rescaling factor is calculated using
     A7 Bussi et al. [#bussi2007]_. CSVR updates to the velocity are stochastic in
     nature and unlike the Berendsen thermostat it samples the true canonical
