@@ -11,6 +11,13 @@ def max_dist_selection(matrix: KernelMatrix, batch_size: int):
 
     https://arxiv.org/pdf/2203.09410.pdf
     https://doi.org/10.1039/D2DD00034B
+
+    Attributes
+    ----------
+    matrix: KernelMatrix
+        Kernel used to compare structures.
+    batch_size: int
+        Number of new data points to be selected.
     """
     n_train = matrix.n_train
 

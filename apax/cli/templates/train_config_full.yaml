@@ -1,5 +1,9 @@
 n_epochs: <NUMBER OF EPOCHS>
 seed: 1
+patience: null
+n_models: 1
+n_jitted_steps: 1
+data_parallel: True
 
 data:
   directory: models/
@@ -11,6 +15,8 @@ data:
   #train_data_path: <PATH>
   #val_data_path: <PATH>
   #test_data_path: <PATH>
+  additional_properties_info: {}
+  ds_type: cached
 
   n_train: 1000
   n_valid: 100
@@ -20,6 +26,10 @@ data:
 
   shift_method: "per_element_regression_shift"
   shift_options: {"energy_regularisation": 1.0}
+
+  scale_method: "per_element_force_rms_scale"
+  scale_options: {}
+
   shuffle_buffer_size: 1000
 
   pos_unit: Ang
@@ -28,25 +38,30 @@ data:
 model:
   n_basis: 7
   n_radial: 5
+  n_contr: -1
   nn: [512, 512]
 
   r_max: 6.0
   r_min: 0.5
 
+  calc_stress: true
   use_zbl: false
 
   b_init: normal
-  descriptor_dtype: fp32
+  descriptor_dtype: fp64
   readout_dtype: fp32
   scale_shift_dtype: fp32
+  emb_init: uniform
 
 loss:
-- loss_type: structures
-  name: energy
+- name: energy
+  loss_type: mse
   weight: 1.0
-- loss_type: structures
-  name: forces
+  atoms_exponent: 1
+- name: forces
+  loss_type: mse
   weight: 4.0
+  atoms_exponent: 1
 
 metrics:
 - name: energy
@@ -66,6 +81,7 @@ optimizer:
   shift_lr: 0.05
   zbl_lr: 0.001
   transition_begin: 0
+  sam_rho: 0.0
 
 callbacks:
 - name: csv
@@ -78,4 +94,4 @@ checkpoints:
 
 progress_bar:
   disable_epoch_pbar: false
-  disable_nl_pbar: false
+  disable_batch_pbar: true

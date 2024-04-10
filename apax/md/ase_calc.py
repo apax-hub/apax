@@ -2,19 +2,22 @@ from functools import partial
 from pathlib import Path
 from typing import Callable, Union
 
+import ase
 import jax
 import jax.numpy as jnp
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
-from jax_md import partition, quantity, space
+from ase.calculators.singlepoint import SinglePointCalculator
 from matscipy.neighbours import neighbour_list
+from tqdm import trange
 
+from apax.data.input_pipeline import OTFInMemoryDataset
 from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
-from apax.utils import jax_md_reduced
+from apax.utils.jax_md_reduced import partition, quantity, space
 
 
-def maybe_vmap(apply, params, Z):
+def maybe_vmap(apply, params):
     n_models = check_for_ensemble(params)
 
     if n_models > 1:
@@ -28,7 +31,6 @@ def maybe_vmap(apply, params, Z):
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_jax):
     r_max = config.model.r_max
-    atomic_numbers = jnp.asarray(atoms.numbers)
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
     neigbor_from_jax = neighbor_calculable_with_jax(box, r_max)
     box = box.T
@@ -41,7 +43,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
         else:
             displacement_fn, _ = space.periodic_general(box, fractional_coordinates=True)
 
-        neighbor_fn = jax_md_reduced.partition.neighbor_list(
+        neighbor_fn = partition.neighbor_list(
             displacement_fn,
             box,
             config.model.r_max,
@@ -51,7 +53,6 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
             format=partition.Sparse,
         )
 
-    Z = jnp.asarray(atomic_numbers)
     n_species = 119  # int(np.max(Z) + 1)
     builder = ModelBuilder(config.model.get_dict(), n_species=n_species)
 
@@ -59,8 +60,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
         apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
     )
 
-    energy_fn = maybe_vmap(model.apply, params, Z)
-
+    energy_fn = maybe_vmap(model.apply, params)
     return energy_fn, neighbor_fn
 
 
@@ -87,9 +87,26 @@ def make_ensemble(model):
     return ensemble
 
 
+def unpack_results(results, inputs):
+    n_structures = len(results["energy"])
+    unpacked_results = []
+    for i in range(n_structures):
+        single_results = jax.tree_map(lambda x: x[i], results)
+        for k, v in single_results.items():
+            if "forces" in k:
+                single_results[k] = v[: inputs["n_atoms"][i]]
+        unpacked_results.append(single_results)
+    return unpacked_results
+
+
 class ASECalculator(Calculator):
     """
     ASE Calculator for apax models.
+    Always implements energy and force predictions.
+    Stress predictions and corresponding uncertainties are added to
+    `implemented_properties` based on whether the stress flag is set
+    in the model config and whether a model ensemble is loaded.
+
     """
 
     implemented_properties = [
@@ -105,6 +122,23 @@ class ASECalculator(Calculator):
         padding_factor: float = 1.5,
         **kwargs
     ):
+        """
+        Parameters
+        ----------
+        model_dir:
+            Path to a model directory of the form `.../directory/experiment`
+            (see Config docs for details).
+            If a list of model paths is provided, they will be ensembled.
+        dr_threshold:
+            Neighborlist skin for the JaxMD neighborlist.
+        transformations:
+            Function transformations applied on top of the EnergyDerivativeModel.
+            Transfomrations are implemented under `apax.md.transformations`.
+        padding_factor:
+            Multiple of the fallback Matscipy NL's amount of neighbors.
+            This NL will be padded to `len(neighbors) * padding_factor`
+            on NL initialization.
+        """
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
         self.transformations = transformations
@@ -127,6 +161,7 @@ class ASECalculator(Calculator):
         self.neighbor_fn = None
         self.neighbors = None
         self.offsets = None
+        self.model = None
 
     def initialize(self, atoms):
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
@@ -146,18 +181,28 @@ class ASECalculator(Calculator):
         for transformation in self.transformations:
             model = transformation.apply(model, self.n_models)
 
+        self.model = model
         self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
         self.neighbor_fn = neighbor_fn
 
         if self.neigbor_from_jax:
             positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
-            self.neighbors = self.neighbor_fn.allocate(positions)
+            if np.any(atoms.get_cell().lengths() > 1e-6):
+                box = atoms.cell.array.T
+                inv_box = jnp.linalg.inv(box)
+                positions = space.transform(inv_box, positions)  # frac coords
+                self.neighbors = self.neighbor_fn.allocate(positions, box=box)
+            else:
+                self.neighbors = self.neighbor_fn.allocate(positions)
+        else:
+            idxs_i = neighbour_list("i", atoms, self.r_max)
+            self.padded_length = int(len(idxs_i) * self.padding_factor)
 
     def set_neighbours_and_offsets(self, atoms, box):
         idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms, self.r_max)
 
         if len(idxs_i) > self.padded_length:
-            print("neighbor list overflowed, reallocating.")
+            print("neighbor list overflowed, extending.")
             self.padded_length = int(len(idxs_i) * self.padding_factor)
             self.initialize(atoms)
 
@@ -178,12 +223,6 @@ class ASECalculator(Calculator):
         if self.step is None:
             self.initialize(atoms)
 
-            if self.neigbor_from_jax:
-                self.neighbors = self.neighbor_fn.allocate(positions)
-            else:
-                idxs_i = neighbour_list("i", atoms, self.r_max)
-                self.padded_length = int(len(idxs_i) * self.padding_factor)
-
         elif "numbers" in system_changes:
             self.initialize(atoms)
 
@@ -202,8 +241,6 @@ class ASECalculator(Calculator):
             if self.neighbors.did_buffer_overflow:
                 print("neighbor list overflowed, reallocating.")
                 self.initialize(atoms)
-                self.neighbors = self.neighbor_fn.allocate(positions)
-
                 results, self.neighbors = self.step(positions, self.neighbors, box)
 
         else:
@@ -214,6 +251,69 @@ class ASECalculator(Calculator):
 
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
+
+    def batch_eval(
+        self, atoms_list: list[ase.Atoms], batch_size: int = 64, silent: bool = False
+    ) -> list[ase.Atoms]:
+        """Evaluate the model on a list of Atoms. This is preferable to assigning
+        the calculator to each Atoms instance for 2 reasons:
+        1. Processing can be abtched, which is advantageous for larger datasets.
+        2. Inputs are padded so no recompilation is triggered when evaluating
+        differently sized systems.
+
+        Parameters
+        ----------
+        atoms_list :
+            List of Atoms to be evaluated.
+        batch_size:
+            Processing batch size. Does not affect results,
+            only speed and memory requirements.
+        silent:
+            Whether or not to suppress progress bars.
+
+        Returns
+        -------
+        evaluated_atoms_list:
+            List of Atoms with labels predicted by the model.
+        """
+        if self.model is None:
+            self.initialize(atoms_list[0])
+        dataset = OTFInMemoryDataset(
+            atoms_list,
+            self.model_config.model.r_max,
+            batch_size,
+            n_epochs=1,
+            ignore_labels=True,
+        )
+
+        evaluated_atoms_list = []
+        n_data = dataset.n_data
+        ds = dataset.batch()
+        batched_model = jax.jit(jax.vmap(self.model, in_axes=(0, 0, 0, 0, 0)))
+
+        pbar = trange(
+            n_data, desc="Computing features", ncols=100, leave=True, disable=silent
+        )
+        for i, inputs in enumerate(ds):
+            results = batched_model(
+                inputs["positions"],
+                inputs["numbers"],
+                inputs["idx"],
+                inputs["box"],
+                inputs["offsets"],
+            )
+            unpadded_results = unpack_results(results, inputs)
+
+            # for the last batch, the number of structures may be less
+            # than the batch_size,  which is why we check this explicitly
+            num_strucutres_in_batch = results["energy"].shape[0]
+            for j in range(num_strucutres_in_batch):
+                atoms = atoms_list[i].copy()
+                atoms.calc = SinglePointCalculator(atoms=atoms, **unpadded_results[j])
+                evaluated_atoms_list.append(atoms)
+            pbar.update(batch_size)
+        pbar.close()
+        return evaluated_atoms_list
 
 
 def neighbor_calculable_with_jax(box, r_max):
@@ -267,10 +367,8 @@ def get_step_fn(model, atoms, neigbor_from_jax):
         @jax.jit
         def step_fn(positions, neighbor, box, offsets):
             results = model(positions, Z, neighbor, box, offsets)
-
             if "stress" in results.keys():
                 results = process_stress(results, box)
-
             return results
 
     return step_fn

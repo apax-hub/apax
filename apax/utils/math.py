@@ -1,7 +1,7 @@
 from typing import Iterable, Optional, Union
 
 import jax.numpy as jnp
-from jax_md.util import Array
+from jax import Array
 
 
 def fp64_sum(

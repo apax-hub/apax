@@ -6,9 +6,7 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import vmap
-from jax_md import partition, space
-from jax_md.util import Array
+from jax import Array, vmap
 
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.empirical import EmpiricalEnergyTerm
@@ -16,6 +14,7 @@ from apax.layers.masking import mask_by_atom
 from apax.layers.properties import stress_times_vol
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
+from apax.utils.jax_md_reduced import partition, space
 from apax.utils.math import fp64_sum
 
 DisplacementFn = Callable[[Array, Array], Array]
@@ -49,6 +48,10 @@ def get_disp_fn(displacement):
 
 
 class AtomisticModel(nn.Module):
+    """Most basic prediction model.
+    Allesmbles descriptor, readout (NNs) and output scale-shifting.
+    """
+
     descriptor: nn.Module = GaussianMomentDescriptor()
     readout: nn.Module = AtomisticReadout()
     scale_shift: nn.Module = PerElementScaleShift()
@@ -70,6 +73,10 @@ class AtomisticModel(nn.Module):
 
 
 class EnergyModel(nn.Module):
+    """Model which post processes the output of an atomistic model and
+    adds empirical energy terms.
+    """
+
     atomistic_model: AtomisticModel = AtomisticModel()
     corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: [])
     init_box: np.array = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
@@ -129,9 +136,12 @@ class EnergyModel(nn.Module):
 
 
 class EnergyDerivativeModel(nn.Module):
+    """Transforms an EnergyModel into one that also predicts derivatives the total energy.
+    Can calculate forces and stress tensors.
+    """
+
     # Alternatively, should this be a function transformation?
     energy_model: EnergyModel = EnergyModel()
-    corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: [])
     calc_stress: bool = False
 
     def __call__(

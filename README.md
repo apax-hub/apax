@@ -12,40 +12,24 @@ It is based on [JAX](https://jax.readthedocs.io/en/latest/) and uses [JaxMD](htt
 
 ## Installation
 
-You can install [Poetry](https://python-poetry.org/) via
+Apax is available on PyPI with a CPU version of JAX.
 
 ```bash
-curl -sSL https://install.python-poetry.org | python3 -
+pip install apax
 ```
 
-Now you can install apax in your project by running
+For more detailed instructions, please refer to the [documentation](https://apax.readthedocs.io/en/latest/).
 
-```bash
-poetry add git+https://github.com/apax-hub/apax.git
-```
-
-As a developer, you can clone the repository and install it via
-
-```bash
-git clone https://github.com/apax-hub/apax.git <dest_dir>
-cd <dest_dir>
-poetry install
-```
 
 ### CUDA Support
-Note that the above only installs the CPU version.
-If you want to enable GPU support, please overwrite the jaxlib version:
+If you want to enable GPU support (only on Linux), please overwrite the jaxlib version:
 
-```bash
-pip install --upgrade pip
-```
-
-CUDA 12 installation. Wheels only available on linux.
+CUDA 12:
 ```bash
 pip install --upgrade "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
 
-CUDA 11 installation. Wheels only available on linux.
+CUDA 11:
 ```bash
 pip install --upgrade "jax[cuda11_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
@@ -60,14 +44,14 @@ See the [Jax installation instructions](https://github.com/google/jax#installati
 
 In order to train a model, you need to run
 
-```python
+```bash
 apax train config.yaml
 ```
 
 We offer some input file templates to get new users started as quickly as possible.
 Simply run the following commands and add the appropriate entries in the marked fields
 
-```python
+```bash
 apax template train # use --full for a template with all input options
 ```
 
@@ -79,13 +63,39 @@ The documentation can convenienty be accessed by running `apax docs`.
 There are two ways in which `apax` models can be used for molecular dynamics out of the box.
 High performance NVT simulations using JaxMD can be started with the CLI by running
 
-```python
+```bash
 apax md config.yaml md_config.yaml
 ```
 
 A template command for MD input files is provided as well.
 
 The second way is to use the ASE calculator provided in `apax.md`.
+
+
+## Input File Auto-Completion
+
+use the following command to generate JSON schemata for training and validation files:
+
+```bash
+apax schema
+```
+
+If you are using VSCode, you can utilize them to lint and autocomplete your input files by including them in `.vscode/settings.json`
+
+```json
+{
+    "yaml.schemas": {
+
+        "/absolute/path/to/apaxtrain.schema.json": [
+            "train.yaml"
+        ]
+        ,
+        "/absolute/path/to/apaxmd.schema.json": [
+            "md.yaml"
+        ]
+    }
+}
+```
 
 
 ## Authors

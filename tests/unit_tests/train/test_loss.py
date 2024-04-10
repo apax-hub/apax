@@ -78,7 +78,7 @@ def test_force_angle_loss():
 
 def test_force_loss():
     name = "forces"
-    loss_type = "structures"
+    loss_type = "mse"
     weight = 1
     inputs = {
         "n_atoms": jnp.array([2]),

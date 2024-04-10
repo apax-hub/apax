@@ -6,9 +6,9 @@ import numpy as np
 import znh5md
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from jax_md.space import transform
 
 from apax.md.sim_utils import System
+from apax.utils.jax_md_reduced import space
 
 log = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class TrajHandler:
             box = self.box
 
         if self.fractional:
-            positions = transform(box, state.position)
+            positions = space.transform(box, state.position)
         else:
             positions = state.position
 
@@ -50,7 +50,7 @@ class TrajHandler:
 
         atoms = Atoms(self.atomic_numbers, positions, momenta=momenta, cell=box)
         atoms.cell = atoms.cell.T
-        atoms.pbc = np.diag(atoms.cell.array) > 1e-7
+        atoms.pbc = np.diag(atoms.cell.array) > 1e-6
         atoms.calc = SinglePointCalculator(atoms, energy=float(energy), forces=forces)
         return atoms
 
@@ -66,7 +66,7 @@ class H5TrajHandler(TrajHandler):
     ) -> None:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
-        self.fractional = np.any(self.box < 1e-6)
+        self.fractional = np.any(self.box > 1e-6)
         self.sampling_rate = sampling_rate
         self.traj_path = traj_path
         self.db = znh5md.io.DataWriter(self.traj_path)

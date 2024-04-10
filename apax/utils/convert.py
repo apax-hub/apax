@@ -2,7 +2,18 @@ import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
 from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
-from jax_md import space
+
+from apax.utils.jax_md_reduced import space
+
+DTYPE = np.float64
+unit_dict = {
+    "Ang": Ang,
+    "Bohr": Bohr,
+    "eV": eV,
+    "kcal/mol": kcal / mol,
+    "Hartree": Hartree,
+    "kJ/mol": kJ / mol,
+}
 
 
 def tf_to_jax_dict(data_dict: dict[str, list]) -> dict:
@@ -28,15 +39,24 @@ def prune_dict(data_dict):
     return pruned
 
 
-def atoms_to_arrays(
+def is_periodic(box):
+    pbc_dims = np.any(np.abs(box) > 1e-6)
+    if np.all(pbc_dims == True) or np.all(pbc_dims == False):  # noqa: E712
+        return pbc_dims
+    else:
+        msg = (
+            f"Only 3D periodic and gas phase system supported at the moment. Found {box}"
+        )
+        raise ValueError(msg)
+
+
+def atoms_to_inputs(
     atoms_list: list[Atoms],
     pos_unit: str = "Ang",
-    energy_unit: str = "eV",
-) -> tuple[dict[str, dict[str, list]], dict[str, dict[str, list]]]:
-    """Converts an list of ASE atoms to two dicts where all inputs and labels
-    are sorted by there shape (ragged/fixed), and property. Units are
+) -> dict[str, dict[str, list]]:
+    """Converts an list of ASE atoms to a dict where all inputs
+    are sorted by their shape (ragged/fixed). Units are
     adjusted if ASE compatible and provided in the inputpipeline.
-
 
     Parameters
     ----------
@@ -51,82 +71,85 @@ def atoms_to_arrays(
         Labels are trainable system properties.
     """
     inputs = {
-        "ragged": {
-            "positions": [],
-            "numbers": [],
-        },
-        "fixed": {
-            "n_atoms": [],
-            "box": [],
-        },
+        "positions": [],
+        "numbers": [],
+        "n_atoms": [],
+        "box": [],
     }
 
-    labels = {
-        "ragged": {
-            "forces": [],
-        },
-        "fixed": {
-            "energy": [],
-            "stress": [],
-        },
-    }
-    DTYPE = np.float64
-
-    unit_dict = {
-        "Ang": Ang,
-        "Bohr": Bohr,
-        "eV": eV,
-        "kcal/mol": kcal / mol,
-        "Hartree": Hartree,
-        "kJ/mol": kJ / mol,
-    }
     box = atoms_list[0].cell.array
-    pbc = np.all(box > 1e-6)
+    pbc = is_periodic(box)
 
     for atoms in atoms_list:
         box = (atoms.cell.array * unit_dict[pos_unit]).astype(DTYPE)
         box = box.T  # takes row and column convention of ase into account
-        inputs["fixed"]["box"].append(box)
+        inputs["box"].append(box)
 
-        if pbc != np.all(box > 1e-6):
+        is_pbc = is_periodic(box)
+
+        if pbc != is_pbc:
             raise ValueError(
                 "Apax does not support dataset periodic and non periodic structures"
             )
 
-        if np.all(box < 1e-6):
-            inputs["ragged"]["positions"].append(
+        if is_pbc:
+            inv_box = np.linalg.inv(box)
+            pos = (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+            frac_pos = space.transform(inv_box, pos)
+            inputs["positions"].append(np.array(frac_pos))
+        else:
+            inputs["positions"].append(
                 (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
             )
-        else:
-            inv_box = np.linalg.inv(box)
-            inputs["ragged"]["positions"].append(
-                np.array(
-                    space.transform(
-                        inv_box, (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
-                    )
-                )
-            )
 
-        inputs["ragged"]["numbers"].append(atoms.numbers)
-        inputs["fixed"]["n_atoms"].append(len(atoms))
+        inputs["numbers"].append(atoms.numbers.astype(np.int16))
+        inputs["n_atoms"].append(len(atoms))
+
+    inputs = prune_dict(inputs)
+    return inputs
+
+
+def atoms_to_labels(
+    atoms_list: list[Atoms],
+    pos_unit: str = "Ang",
+    energy_unit: str = "eV",
+) -> dict[str, dict[str, list]]:
+    """Converts an list of ASE atoms to a dict of labels
+    Units are adjusted if ASE compatible and provided in the inputpipeline.
+
+    Parameters
+    ----------
+    atoms_list :
+        List of all structures. Enties are ASE atoms objects.
+
+    Returns
+    -------
+    labels :
+        Labels are trainable system properties.
+    """
+
+    labels = {
+        "forces": [],
+        "energy": [],
+        "stress": [],
+    }
+    # for key in atoms_list[0].calc.results.keys():
+    #     if key not in labels.keys():
+    #         placeholder = {key: []}
+    #         labels.update(placeholder)
+
+    for atoms in atoms_list:
         for key, val in atoms.calc.results.items():
             if key == "forces":
-                labels["ragged"][key].append(
-                    val * unit_dict[energy_unit] / unit_dict[pos_unit]
-                )
+                labels[key].append(val * unit_dict[energy_unit] / unit_dict[pos_unit])
             elif key == "energy":
-                labels["fixed"][key].append(val * unit_dict[energy_unit])
+                labels[key].append(val * unit_dict[energy_unit])
             elif key == "stress":
-                stress = (  # TODO check whether we should transpose
-                    atoms.get_stress(voigt=False)  # .T
-                    * unit_dict[energy_unit]
-                    / (unit_dict[pos_unit] ** 3)
-                    * atoms.cell.volume
-                )
-                labels["fixed"][key].append(stress)
+                factor = unit_dict[energy_unit] / (unit_dict[pos_unit] ** 3)
+                stress = atoms.get_stress(voigt=False) * factor
+                labels[key].append(stress * atoms.cell.volume)
+            # else:
+            #     labels[key].append(atoms.calc.results[key])
 
-    inputs["fixed"] = prune_dict(inputs["fixed"])
-    labels["fixed"] = prune_dict(labels["fixed"])
-    inputs["ragged"] = prune_dict(inputs["ragged"])
-    labels["ragged"] = prune_dict(labels["ragged"])
-    return inputs, labels
+    labels = prune_dict(labels)
+    return labels

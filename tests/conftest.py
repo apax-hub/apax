@@ -1,6 +1,4 @@
 import os
-import urllib
-import zipfile
 from typing import List
 
 import jax
@@ -14,6 +12,8 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from apax.config.train_config import Config
 from apax.model.builder import ModelBuilder
 from apax.train.run import run
+from apax.utils.datasets import download_md22_stachyose
+from apax.utils.helpers import mod_config
 from apax.utils.random import seed_py_np_tf
 
 
@@ -114,31 +114,8 @@ def tmp_data_path(tmp_path_factory):
 
 @pytest.fixture(scope="session")
 def get_md22_stachyose(tmp_data_path):
-    url = "http://www.quantum-machine.org/gdml/repo/static/md22_stachyose.zip"
-    file_path = tmp_data_path / "md22_stachyose.zip"
-
-    os.makedirs(tmp_data_path, exist_ok=True)
-    urllib.request.urlretrieve(url, file_path)
-
-    with zipfile.ZipFile(file_path, "r") as zip_ref:
-        zip_ref.extractall(tmp_data_path)
-
-    file_path = modify_xyz_file(
-        file_path.with_suffix(".xyz"), target_string="Energy", replacement_string="energy"
-    )
-
+    file_path = download_md22_stachyose(tmp_data_path)
     return file_path
-
-
-def modify_xyz_file(file_path, target_string, replacement_string):
-    new_file_path = file_path.with_name(file_path.stem + "_mod" + file_path.suffix)
-
-    with open(file_path, "r") as input_file, open(new_file_path, "w") as output_file:
-        for line in input_file:
-            # Replace all occurrences of the target string with the replacement string
-            modified_line = line.replace(target_string, replacement_string)
-            output_file.write(modified_line)
-    return new_file_path
 
 
 @pytest.fixture()
@@ -181,9 +158,5 @@ def load_and_dump_config(config_path, dump_path):
 
 
 def load_config_and_run_training(config_path, updated_config):
-    with open(config_path.as_posix(), "r") as stream:
-        config_dict = yaml.safe_load(stream)
-
-    for key, new_value in updated_config.items():
-        config_dict[key].update(new_value)
+    config_dict = mod_config(config_path, updated_config)
     run(config_dict)

@@ -1,116 +1,76 @@
 import collections
 import itertools
 import logging
-from typing import Callable
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from ase import Atoms
-from jax_md import partition, space
 from matscipy.neighbours import neighbour_list
-from tqdm import trange
-
-from apax.utils import jax_md_reduced
 
 log = logging.getLogger(__name__)
 
 
-def initialize_nbr_fn(atoms: Atoms, cutoff: float) -> Callable:
-    neighbor_fn = None
-    default_box = 100
-    box = jnp.asarray(atoms.cell.array)
-
-    if np.all(box < 1e-6):
-        displacement_fn, _ = space.free()
-        box = default_box
-
-        neighbor_fn = jax_md_reduced.partition.neighbor_list(
-            displacement_or_metric=displacement_fn,
-            box=box,
-            r_cutoff=cutoff,
-            format=partition.Sparse,
-            fractional_coordinates=False,
-        )
-
-    return neighbor_fn
-
-
-@jax.jit
-def extract_nl(neighbors, position):
-    neighbors = neighbors.update(position)
-    return neighbors
-
-
-def dataset_neighborlist(
-    positions: list[np.array],
-    box: list[np.array],
-    r_max: float,
-    atoms_list,
-    disable_pbar: bool = False,
-) -> list[int]:
-    """Calculates the neighbor list of all systems within positions using
-    a jax_md.partition.NeighborFn.
+def compute_nl(positions, box, r_max):
+    """
+    Computes the neighbor list for a single structure.
+    For periodic systems, positions are assumed to be in
+    fractional coordinates.
 
     Parameters
     ----------
-    neighbor_fn :
-        Neighbor list function (jax_md.partition.NeighborFn).
-    positions :
-        Cartesian coordinates of all atoms in all structures.
+    positions : np.ndarray
+        Positions of atoms.
+    box : np.ndarray
+        Simulation box dimensions.
+    r_max : float
+        Maximum interaction radius.
 
     Returns
     -------
-    idxs :
-        Neighbor list of all structures.
+    Tuple[np.ndarray, np.ndarray]
+        Tuple containing neighbor indices array and offsets array.
+
     """
-    log.info("Precomputing neighborlists")
-    # The JaxMD NL throws an error if np arrays are passed to it in the CPU version
-    idx_list = []
-    offset_list = []
+    if np.all(box < 1e-6):
+        box, box_origin = get_shrink_wrapped_cell(positions)
+        idxs_i, idxs_j = neighbour_list(
+            "ij",
+            positions=positions,
+            cutoff=r_max,
+            cell=box,
+            cell_origin=box_origin,
+            pbc=[False, False, False],
+        )
 
-    nl_pbar = trange(
-        len(positions),
-        desc="Precomputing NL",
-        ncols=100,
-        mininterval=0.25,
-        disable=disable_pbar,
-        leave=True,
-    )
-    for i, position in enumerate(positions):
-        if np.all(box[i] < 1e-6):
-            cell, cell_origin = get_shrink_wrapped_cell(position)
-            idxs_i, idxs_j = neighbour_list(
-                "ij",
-                positions=position,
-                cutoff=r_max,
-                cell=cell,
-                cell_origin=cell_origin,
-                pbc=[False, False, False],
-            )
+        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int16)
 
-            neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
+        n_neighbors = neighbor_idxs.shape[1]
+        offsets = np.full([n_neighbors, 3], 0)
 
-            n_neighbors = neighbor_idxs.shape[1]
-            offsets = np.full([n_neighbors, 3], 0)
-        else:
-            idxs_i, idxs_j, offsets = neighbour_list(
-                "ijS",
-                atoms_list[i],
-                r_max,
-            )
-            offsets = np.matmul(offsets, box[i])
-            neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
-
-        offset_list.append(offsets)
-        idx_list.append(neighbor_idxs)
-        nl_pbar.update()
-    nl_pbar.close()
-
-    return idx_list, offset_list
+    else:
+        positions = positions @ box
+        idxs_i, idxs_j, offsets = neighbour_list(
+            "ijS", positions=positions, cutoff=r_max, cell=box, pbc=[True, True, True]
+        )
+        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int16)
+        offsets = np.matmul(offsets, box)
+    return neighbor_idxs, offsets
 
 
 def get_shrink_wrapped_cell(positions):
+    """
+    Get the shrink-wrapped simulation cell based on atomic positions.
+
+    Parameters
+    ----------
+    positions : np.ndarray
+        Atomic positions.
+
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray]
+        Tuple containing the shrink-wrapped cell matrix and origin.
+    """
     rmin = np.min(positions, axis=0)
     rmax = np.max(positions, axis=0)
     cell_origin = rmin
@@ -124,7 +84,7 @@ def get_shrink_wrapped_cell(positions):
     return cell, cell_origin
 
 
-def prefetch_to_single_device(iterator, size: int):
+def prefetch_to_single_device(iterator, size: int, sharding=None, n_step_jit=False):
     """
     inspired by
     https://flax.readthedocs.io/en/latest/_modules/flax/jax_utils.html#prefetch_to_device
@@ -132,8 +92,24 @@ def prefetch_to_single_device(iterator, size: int):
     """
     queue = collections.deque()
 
-    def _prefetch(x):
-        return jnp.asarray(x)
+    if sharding:
+        n_devices = len(sharding._devices)
+        slice_start = 1
+        shape = [n_devices]
+        if n_step_jit:
+            # replicate over multi-batch axis
+            # data shape: njit x bs x ...
+            slice_start = 2
+            shape.insert(0, 1)
+
+    def _prefetch(x: jax.Array):
+        if sharding:
+            remaining_axes = [1] * len(x.shape[slice_start:])
+            final_shape = tuple(shape + remaining_axes)
+            x = jax.device_put(x, sharding.reshape(final_shape))
+        else:
+            x = jnp.asarray(x)
+        return x
 
     def enqueue(n):
         for data in itertools.islice(iterator, n):

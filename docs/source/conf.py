@@ -15,17 +15,20 @@ sys.path.insert(0, os.path.abspath("../../"))
 project = "Apax"
 copyright = "2023, Moritz Schäfer, Nico Segreto, Johannes Kästner"
 author = "Moritz Schäfer, Nico Segreto, Johannes Kästner"
-release = "0.1.0"
+release = "0.4.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx_autodoc_typehints",
     "sphinx.ext.napoleon",
     "sphinx.ext.autosummary",
     "sphinx.ext.mathjax",
+    "sphinx_copybutton",
+    "nbsphinx",
+    "nbsphinx_link",
+    "sphinx.ext.viewcode",
 ]
 
 templates_path = ["_templates"]
