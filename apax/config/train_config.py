@@ -168,7 +168,7 @@ class ModelConfig(BaseModel, extra="forbid"):
 
     calc_stress: bool = False
 
-    descriptor_dtype: Literal["fp32", "fp64"] = "fp32"
+    descriptor_dtype: Literal["fp32", "fp64"] = "fp64"
     readout_dtype: Literal["fp32", "fp64"] = "fp32"
     scale_shift_dtype: Literal["fp32", "fp64"] = "fp32"
 
