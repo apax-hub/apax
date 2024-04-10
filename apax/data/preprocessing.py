@@ -11,9 +11,25 @@ log = logging.getLogger(__name__)
 
 
 def compute_nl(positions, box, r_max):
-    """Computes the NL for a single structure.
+    """
+    Computes the neighbor list for a single structure.
     For periodic systems, positions are assumed to be in
     fractional coordinates.
+
+    Parameters
+    ----------
+    positions : np.ndarray
+        Positions of atoms.
+    box : np.ndarray
+        Simulation box dimensions.
+    r_max : float
+        Maximum interaction radius.
+
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray]
+        Tuple containing neighbor indices array and offsets array.
+
     """
     if np.all(box < 1e-6):
         box, box_origin = get_shrink_wrapped_cell(positions)
@@ -42,6 +58,19 @@ def compute_nl(positions, box, r_max):
 
 
 def get_shrink_wrapped_cell(positions):
+    """
+    Get the shrink-wrapped simulation cell based on atomic positions.
+
+    Parameters
+    ----------
+    positions : np.ndarray
+        Atomic positions.
+
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray]
+        Tuple containing the shrink-wrapped cell matrix and origin.
+    """
     rmin = np.min(positions, axis=0)
     rmax = np.max(positions, axis=0)
     cell_origin = rmin

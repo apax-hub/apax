@@ -2,11 +2,23 @@ ensemble:
   name: nvt
   dt: 0.5 # fs time step
   temperature: <T> # K
+  thermostat_chain:
+    chain_length: 3
+    chain_steps: 2
+    sy_steps: 3
+    tau: 100
 
 duration: <DURATION> # fs
-n_inner: 1 # compiled innner steps
-sampling_rate: 1  # dump interval
+n_inner: 100 # compiled innner steps
+sampling_rate: 10  # dump interval
+buffer_size: 100
 dr_threshold: 0.5 # Neighborlist skin
+extra_capacity: 0
 
 sim_dir: md
 initial_structure: <INITIAL_STRUCTURE>
+load_momenta: false
+traj_name: md.h5
+restart: true
+checkpoint_interval: 50_000
+disable_pbar: false

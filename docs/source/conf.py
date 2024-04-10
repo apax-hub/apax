@@ -22,10 +22,13 @@ release = "0.1.0"
 
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx_autodoc_typehints",
     "sphinx.ext.napoleon",
     "sphinx.ext.autosummary",
     "sphinx.ext.mathjax",
+    "sphinx_copybutton",
+    "nbsphinx",
+    "nbsphinx_link",
+    "sphinx.ext.viewcode",
 ]
 
 templates_path = ["_templates"]
