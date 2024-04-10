@@ -4,7 +4,7 @@ import os
 from typing import Literal, Union
 
 import yaml
-from pydantic import BaseModel, Field, PositiveFloat, PositiveInt
+from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, NonNegativeInt
 
 
 class NHCOptions(BaseModel, extra="forbid"):
@@ -148,7 +148,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     sampling_rate: PositiveInt = 10
     buffer_size: PositiveInt = 100
     dr_threshold: PositiveFloat = 0.5
-    extra_capacity: PositiveInt = 0
+    extra_capacity: NonNegativeInt = 0
 
     initial_structure: str
     load_momenta: bool = False
