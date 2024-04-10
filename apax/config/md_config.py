@@ -4,7 +4,7 @@ import os
 from typing import Literal, Union
 
 import yaml
-from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, NonNegativeInt
+from pydantic import BaseModel, Field, NonNegativeInt, PositiveFloat, PositiveInt
 
 
 class NHCOptions(BaseModel, extra="forbid"):
