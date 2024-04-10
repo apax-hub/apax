@@ -8,6 +8,20 @@ from pydantic import BaseModel, Field, PositiveFloat, PositiveInt
 
 
 class NHCOptions(BaseModel, extra="forbid"):
+    """
+    Options for Nose-Hoover chain thermostat.
+
+    Attributes
+    ----------
+    chain_length : PositiveInt, default = 3
+        Number of thermostats in the chain.
+    chain_steps : PositiveInt, default = 2
+        Number of steps per chain.
+    sy_steps : PositiveInt, default = 3
+        Number of steps for Suzuki-Yoshida integration.
+    tau : PositiveFloat, default = 100
+        Relaxation time parameter.
+    """
     chain_length: PositiveInt = 3
     chain_steps: PositiveInt = 2
     sy_steps: PositiveInt = 3
@@ -15,20 +29,60 @@ class NHCOptions(BaseModel, extra="forbid"):
 
 
 class Integrator(BaseModel, extra="forbid"):
+    """
+    Molecular dynamics integrator options.
+
+    Attributes
+    ----------
+    dt : PositiveFloat, default = 0.5
+        Time step size in femtoseconds (fs).
+    """
     dt: PositiveFloat = 0.5  # fs
 
 
 class NVEOptions(Integrator, extra="forbid"):
+    """
+    Options for NVE ensemble simulations.
+
+    Attributes
+    ----------
+    name : Literal["nve"]
+        Name of the ensemble.
+    """
     name: Literal["nve"]
 
 
 class NVTOptions(Integrator, extra="forbid"):
+    """
+    Options for NVT ensemble simulations.
+
+    Attributes
+    ----------
+    name : Literal["nvt"]
+        Name of the ensemble.
+    temperature : PositiveFloat, default = 298.15
+        Temperature in Kelvin (K).
+    thermostat_chain : NHCOptions, default = NHCOptions()
+        Thermostat chain options.
+    """
     name: Literal["nvt"]
     temperature: PositiveFloat = 298.15  # K
     thermostat_chain: NHCOptions = NHCOptions()
 
 
 class NPTOptions(NVTOptions, extra="forbid"):
+    """
+    Options for NPT ensemble simulations.
+
+    Attributes
+    ----------
+    name : Literal["npt"]
+        Name of the ensemble.
+    pressure : PositiveFloat, default = 1.01325
+        Pressure in bar.
+    barostat_chain : NHCOptions, default = NHCOptions(tau=1000)
+        Barostat chain options.
+    """
     name: Literal["npt"]
     pressure: PositiveFloat = 1.01325  # bar
     barostat_chain: NHCOptions = NHCOptions(tau=1000)
