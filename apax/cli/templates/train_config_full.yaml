@@ -82,7 +82,7 @@ optimizer:
   zbl_lr: 0.001
   transition_begin: 0
   sam_rho: 0.0
-  
+
 callbacks:
 - name: csv
 
