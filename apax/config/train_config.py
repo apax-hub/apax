@@ -30,8 +30,8 @@ class DataConfig(BaseModel, extra="forbid"):
     directory : str, required
         | Path to directory where training results and checkpoints are written.
     experiment : str, required
-        | Model name distinguishing from others in directory.  
-    data_path : str, required if train_ and val_data_path is not specified
+        | Model name distinguishing from others in directory.
+    data_path : str, required if train_data_path and val_data_path is not specified
         | Path to single dataset file.
     train_data_path : str, required if data_path is not specified
         | Path to training dataset.
@@ -51,8 +51,9 @@ class DataConfig(BaseModel, extra="forbid"):
         | Size of the `tf.data` shuffle buffer.
     additional_properties_info : dict, optional
         | dict of property name, shape (ragged or fixed) pairs
-    energy_regularisation : 
+    energy_regularisation :
         | Magnitude of the regularization in the per-element energy regression.
+
     """
 
     directory: str
@@ -200,7 +201,7 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     """
     Configuration of the optimizer.
     Learning rates of 0 will freeze the respective parameters.
-    
+
     Parameters
     ----------
     opt_name : str, default = "adam"
@@ -380,8 +381,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     n_models : int, default = 1
         | Number of models to be trained at once.
     n_jitted_steps : int, default = 1
-        | Number of train batches to be processed in a compiled loop.
-        Can yield singificant speedups for small structures or small batch sizes.
+        | Number of train batches to be processed in a compiled loop. Can yield singificant speedups for small structures or small batch sizes.
     data : :class:`.DataConfig`
         | Data configuration.
     model : :class:`.ModelConfig`
@@ -399,8 +399,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     checkpoints : :class:`.CheckpointConfig`
         | Checkpoint configuration.
     data_parallel : bool, default = True
-        | Automatically uses all available GPUs for data parallel training.
-        Set to false to force single device training.
+        | Automatically uses all available GPUs for data parallel training. Set to false to force single device training.
     """
 
     n_epochs: PositiveInt

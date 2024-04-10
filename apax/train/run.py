@@ -1,8 +1,7 @@
 import logging
-import sys
-from typing import List
-from typing import Union
 import os
+import sys
+from typing import List, Union
 
 import jax
 
@@ -139,9 +138,9 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
 
     Parameters
     ----------
-
     user_config : str | os.PathLike | dict
-        training config full exmaple can be finde :ref:`here <config>`:
+        training config full exmaple can be finde :ref:`here <train_config>`:
+
     """
     config = parse_config(user_config)
 

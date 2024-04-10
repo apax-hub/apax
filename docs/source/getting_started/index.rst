@@ -5,4 +5,3 @@ Getting Started
    :maxdepth: 2
 
    install
-   full_config

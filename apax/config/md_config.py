@@ -22,6 +22,7 @@ class NHCOptions(BaseModel, extra="forbid"):
     tau : PositiveFloat, default = 100
         Relaxation time parameter.
     """
+
     chain_length: PositiveInt = 3
     chain_steps: PositiveInt = 2
     sy_steps: PositiveInt = 3
@@ -37,6 +38,7 @@ class Integrator(BaseModel, extra="forbid"):
     dt : PositiveFloat, default = 0.5
         Time step size in femtoseconds (fs).
     """
+
     dt: PositiveFloat = 0.5  # fs
 
 
@@ -49,6 +51,7 @@ class NVEOptions(Integrator, extra="forbid"):
     name : Literal["nve"]
         Name of the ensemble.
     """
+
     name: Literal["nve"]
 
 
@@ -65,6 +68,7 @@ class NVTOptions(Integrator, extra="forbid"):
     thermostat_chain : NHCOptions, default = NHCOptions()
         Thermostat chain options.
     """
+
     name: Literal["nvt"]
     temperature: PositiveFloat = 298.15  # K
     thermostat_chain: NHCOptions = NHCOptions()
@@ -83,6 +87,7 @@ class NPTOptions(NVTOptions, extra="forbid"):
     barostat_chain : NHCOptions, default = NHCOptions(tau=1000)
         Barostat chain options.
     """
+
     name: Literal["npt"]
     pressure: PositiveFloat = 1.01325  # bar
     barostat_chain: NHCOptions = NHCOptions(tau=1000)
@@ -103,8 +108,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     duration : float, required
         | Total simulation time in fs.
     n_inner : int, default = 100
-        | Number of compiled simulation steps (i.e. number of iterations of the
-        `jax.lax.fori_loop` loop). Also determines atoms buffer size.
+        | Number of compiled simulation steps (i.e. number of iterations of the `jax.lax.fori_loop` loop). Also determines atoms buffer size.
     sampling_rate : int, default = 10
         | Interval between saving frames.
     buffer_size : int, default = 100
@@ -112,9 +116,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     dr_threshold : float, default = 0.5
         | Skin of the neighborlist.
     extra_capacity : int, default = 0
-        | JaxMD allocates a maximal number of neighbors.
-        This argument lets you add additional capacity to avoid recompilation.
-        The default is usually fine.
+        | JaxMD allocates a maximal number of neighbors. This argument lets you add additional capacity to avoid recompilation. The default is usually fine.
     initial_structure : str, required
         | Path to the starting structure of the simulation.
     sim_dir : str, default = "."
@@ -122,12 +124,9 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     traj_name : str, default = "md.h5"
         | Name of the trajectory file.
     restart : bool, default = True
-        | Whether the simulation should restart from the latest configuration
-        in `traj_name`.
+        | Whether the simulation should restart from the latest configuration in `traj_name`.
     checkpoint_interval : int, default = 50_000
-        | Number of time steps between saving
-        full simulation state checkpoints. These will be loaded
-        with the `restart` option.
+        | Number of time steps between saving full simulation state checkpoints. These will be loaded with the `restart` option.
     disable_pbar : bool, False
         | Disables the MD progressbar.
     """
@@ -157,6 +156,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     def dump_config(self):
         """
         Writes the current config file to the MD directory.
+
         """
         with open(os.path.join(self.sim_dir, "md_config.yaml"), "w") as conf:
             yaml.dump(self.model_dump(), conf, default_flow_style=False)

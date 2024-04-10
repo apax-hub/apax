@@ -35,7 +35,7 @@ class UncertaintyDrivenDynamics(FunctionTransformation):
     up to some maximum bias energy.
     https://doi.org/10.1038/s43588-023-00406-5
 
-        
+
     Parameters
     ----------
     height : float

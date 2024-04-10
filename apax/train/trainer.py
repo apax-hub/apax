@@ -40,7 +40,7 @@ def fit(
 
     Parameters
     ----------
-    state : 
+    state :
         The initial state of the model.
     train_ds : InMemoryDataset
         The training dataset.
@@ -48,7 +48,7 @@ def fit(
         The loss function to be minimized.
     Metrics metrics.Collection :
         Collection of metrics to evaluate during training.
-    callbacks : list 
+    callbacks : list
         List of callback functions to be executed during training.
     n_epochs : int
         Number of epochs for training.
