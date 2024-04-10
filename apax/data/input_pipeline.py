@@ -17,6 +17,23 @@ log = logging.getLogger(__name__)
 
 
 def pad_nl(idx, offsets, max_neighbors):
+    """
+    Pad the neighbor list arrays to the maximal number of neighbors occuring.
+
+    Parameters
+    ----------
+    idx : np.ndarray
+        Neighbor indices array.
+    offsets : np.ndarray
+        Offset array.
+    max_neighbors : int
+        Maximum number of neighbors.
+
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray]
+        Tuple containing padded neighbor indices array and offsets array.
+    """
     zeros_to_add = max_neighbors - idx.shape[1]
     idx = np.pad(idx, ((0, 0), (0, zeros_to_add)), "constant").astype(np.int16)
     offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
@@ -24,6 +41,21 @@ def pad_nl(idx, offsets, max_neighbors):
 
 
 def find_largest_system(inputs, r_max) -> tuple[int]:
+    """
+    Finds the maximal number of atoms and neighbors.
+
+    Parameters
+    ----------
+    inputs : dict
+        Dictionary containing input data.
+    r_max : float
+        Maximum interaction radius.
+
+    Returns
+    -------
+    Tuple[int]
+        Tuple containing the maximum number of atoms and neighbors.
+    """
     positions, boxes = inputs["positions"], inputs["box"]
     max_atoms = np.max(inputs["n_atoms"])
 

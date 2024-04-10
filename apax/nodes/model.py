@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 class Apax(zntrack.Node):
     """Class for the implementation of the apax model
 
-    Attributes
+    Parameters
     ----------
     config: str
         path to the apax config file
@@ -104,7 +104,7 @@ class Apax(zntrack.Node):
 class ApaxEnsemble(zntrack.Node):
     """Parallel apax model ensemble in ASE.
 
-    Attributes
+    Parameters
     ----------
     models: list
         List of `ApaxModel` nodes to ensemble.

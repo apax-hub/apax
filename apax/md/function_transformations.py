@@ -35,9 +35,13 @@ class UncertaintyDrivenDynamics(FunctionTransformation):
     up to some maximum bias energy.
     https://doi.org/10.1038/s43588-023-00406-5
 
-    Parameters:
-    height: Maximum bias potential that can be applied
-    width: Width of the Gaussian bias.
+        
+    Parameters
+    ----------
+    height : float
+        Maximum bias potential that can be applied
+    width : float
+        Width of the Gaussian bias.
 
     """
 
@@ -66,9 +70,12 @@ class GaussianAcceleratedMolecularDynamics(FunctionTransformation):
     Applies a boost potential to the system that pulls it towards a target energy.
     https://pubs.acs.org/doi/10.1021/acs.jctc.5b00436
 
-    Parameters:
-    energy_target: Target potential energy below which to apply the boost potential.
-    spring_constant: Spring constant of the boost potential.
+    Parameters
+    ----------
+    energy_target : float
+        Target potential energy below which to apply the boost potential.
+    spring_constant : float
+        Spring constant of the boost potential.
     """
 
     energy_target: float

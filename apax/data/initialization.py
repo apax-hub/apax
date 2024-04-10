@@ -8,6 +8,20 @@ log = logging.getLogger(__name__)
 
 
 def load_data_files(data_config):
+    """
+    Load data files for training and validation.
+
+    Parameters
+    ----------
+    data_config : object
+        Data configuration object.
+
+    Returns
+    -------
+    Tuple
+        Tuple containing list of ase.Atoms objects for training and validation.
+    """
+
     log.info("Running Input Pipeline")
     if data_config.data_path is not None:
         log.info(f"Read data file {data_config.data_path}")
