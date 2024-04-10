@@ -8,6 +8,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from clu import metrics
+from jax.experimental import mesh_utils
+from jax.sharding import PositionalSharding
 from tqdm import trange
 
 from apax.data.input_pipeline import InMemoryDataset
@@ -31,6 +33,7 @@ def fit(
     disable_pbar: bool = False,
     disable_batch_pbar: bool = True,
     is_ensemble=False,
+    data_parallel=True,
 ):
     log.info("Beginning Training")
     callbacks.on_train_begin()
@@ -51,12 +54,19 @@ def fit(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
 
+    devices = len(jax.devices())
+    if devices > 1 and data_parallel:
+        sharding = PositionalSharding(mesh_utils.create_device_mesh((devices,)))
+        state = jax.device_put(state, sharding.replicate())
+    else:
+        sharding = None
+
     train_steps_per_epoch = train_ds.steps_per_epoch()
-    batch_train_ds = train_ds.shuffle_and_batch()
+    batch_train_ds = train_ds.shuffle_and_batch(sharding)
 
     if val_ds is not None:
         val_steps_per_epoch = val_ds.steps_per_epoch()
-        batch_val_ds = val_ds.batch()
+        batch_val_ds = val_ds.batch(sharding)
 
     best_loss = np.inf
     early_stopping_counter = 0

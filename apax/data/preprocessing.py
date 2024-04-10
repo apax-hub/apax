@@ -10,31 +10,33 @@ from matscipy.neighbours import neighbour_list
 log = logging.getLogger(__name__)
 
 
-def compute_nl(position, box, r_max):
+def compute_nl(positions, box, r_max):
+    """Computes the NL for a single structure.
+    For periodic systems, positions are assumed to be in
+    fractional coordinates.
+    """
     if np.all(box < 1e-6):
-        cell, cell_origin = get_shrink_wrapped_cell(position)
+        box, box_origin = get_shrink_wrapped_cell(positions)
         idxs_i, idxs_j = neighbour_list(
             "ij",
-            positions=position,
+            positions=positions,
             cutoff=r_max,
-            cell=cell,
-            cell_origin=cell_origin,
+            cell=box,
+            cell_origin=box_origin,
             pbc=[False, False, False],
         )
 
-        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
+        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int16)
 
         n_neighbors = neighbor_idxs.shape[1]
         offsets = np.full([n_neighbors, 3], 0)
 
     else:
+        positions = positions @ box
         idxs_i, idxs_j, offsets = neighbour_list(
-            "ijS",
-            positions=position,
-            cutoff=r_max,
-            cell=box,
+            "ijS", positions=positions, cutoff=r_max, cell=box, pbc=[True, True, True]
         )
-        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
+        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int16)
         offsets = np.matmul(offsets, box)
     return neighbor_idxs, offsets
 
@@ -53,7 +55,7 @@ def get_shrink_wrapped_cell(positions):
     return cell, cell_origin
 
 
-def prefetch_to_single_device(iterator, size: int):
+def prefetch_to_single_device(iterator, size: int, sharding=None, n_step_jit=False):
     """
     inspired by
     https://flax.readthedocs.io/en/latest/_modules/flax/jax_utils.html#prefetch_to_device
@@ -61,8 +63,24 @@ def prefetch_to_single_device(iterator, size: int):
     """
     queue = collections.deque()
 
-    def _prefetch(x):
-        return jnp.asarray(x)
+    if sharding:
+        n_devices = len(sharding._devices)
+        slice_start = 1
+        shape = [n_devices]
+        if n_step_jit:
+            # replicate over multi-batch axis
+            # data shape: njit x bs x ...
+            slice_start = 2
+            shape.insert(0, 1)
+
+    def _prefetch(x: jax.Array):
+        if sharding:
+            remaining_axes = [1] * len(x.shape[slice_start:])
+            final_shape = tuple(shape + remaining_axes)
+            x = jax.device_put(x, sharding.reshape(final_shape))
+        else:
+            x = jnp.asarray(x)
+        return x
 
     def enqueue(n):
         for data in itertools.islice(iterator, n):

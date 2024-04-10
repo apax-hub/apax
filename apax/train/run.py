@@ -63,8 +63,8 @@ def initialize_datasets(config: Config):
         config.n_epochs,
         config.data.shuffle_buffer_size,
         config.n_jitted_steps,
-        config.data.pos_unit,
-        config.data.energy_unit,
+        pos_unit=config.data.pos_unit,
+        energy_unit=config.data.energy_unit,
         pre_shuffle=True,
         cache_path=config.data.model_version_path,
     )
@@ -150,5 +150,6 @@ def run(user_config, log_level="error"):
         disable_pbar=config.progress_bar.disable_epoch_pbar,
         disable_batch_pbar=config.progress_bar.disable_batch_pbar,
         is_ensemble=config.n_models > 1,
+        data_parallel=config.data_parallel,
     )
     log.info("Finished training")
