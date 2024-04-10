@@ -11,7 +11,7 @@ class NHCOptions(BaseModel, extra="forbid"):
     """
     Options for Nose-Hoover chain thermostat.
 
-    Attributes
+    Parameters
     ----------
     chain_length : PositiveInt, default = 3
         Number of thermostats in the chain.
@@ -32,7 +32,7 @@ class Integrator(BaseModel, extra="forbid"):
     """
     Molecular dynamics integrator options.
 
-    Attributes
+    Parameters
     ----------
     dt : PositiveFloat, default = 0.5
         Time step size in femtoseconds (fs).
@@ -56,7 +56,7 @@ class NVTOptions(Integrator, extra="forbid"):
     """
     Options for NVT ensemble simulations.
 
-    Attributes
+    Parameters
     ----------
     name : Literal["nvt"]
         Name of the ensemble.
@@ -74,7 +74,7 @@ class NPTOptions(NVTOptions, extra="forbid"):
     """
     Options for NPT ensemble simulations.
 
-    Attributes
+    Parameters
     ----------
     name : Literal["npt"]
         Name of the ensemble.
