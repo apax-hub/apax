@@ -29,11 +29,15 @@ class GaussianBasisT(nn.Module):
             self.n_basis
         )
 
+        self.betta = torch.tensor(self.betta)
+        self.rad_norm = torch.tensor(self.rad_norm)
+
         # shape: 1 x n_basis
         shifts = einops.repeat(shifts, "n_basis -> 1 n_basis")
         self.shifts = torch.tensor(shifts, dtype=self.dtype)
 
     def forward(self, dr: torch.Tensor) -> torch.Tensor:
+        # dr shape: neighbors
         basis = gaussian_basis_impl(
             dr.type(self.dtype), self.shifts, self.betta, self.rad_norm
         )
@@ -56,7 +60,7 @@ class RadialFunctionT(nn.Module):
         self.emb_init = emb_init
         self.dtype = dtype
 
-        self.r_max = self.basis_fn.r_max
+        self.r_max = torch.tensor(self.basis_fn.r_max)
         norm = 1.0 / np.sqrt(self.basis_fn.n_basis)
         self.embed_norm = torch.tensor(norm, dtype=self.dtype)
         self.embeddings = None

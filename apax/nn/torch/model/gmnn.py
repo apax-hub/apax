@@ -77,9 +77,9 @@ class EnergyModelT(nn.Module):
         R: torch.Tensor,
         Z: torch.Tensor,
         idx: torch.Tensor,
-        box,
-        offsets,
-        perturbation=None,
+        # box,
+        # offsets,
+        # perturbation=None,
     ):
         # Distances
         idx_i, idx_j = idx[0], idx[1]
@@ -92,9 +92,9 @@ class EnergyModelT(nn.Module):
         # dr_vec shape: neighbors x 3
         if np.all(self.init_box < 1e-6):
             dr_vec = self.displacement(Rj, Ri)
-        else:
-            dr_vec = self.displacement(Rj, Ri, perturbation, box)
-            dr_vec += offsets
+        # else:
+        #     dr_vec = self.displacement(Rj, Ri, perturbation, box)
+        #     dr_vec += offsets
 
         # Model Core
         atomic_energies = self.atomistic_model(dr_vec, Z, idx)
@@ -124,22 +124,22 @@ class EnergyDerivativeModelT(nn.Module):
         R: torch.Tensor,
         Z: torch.Tensor,
         neighbor: torch.Tensor,
-        box: torch.Tensor,
-        offsets: torch.Tensor,
+        # box: torch.Tensor,
+        # offsets: torch.Tensor,
     ):
         R.requires_grad_(True)
         requires_grad = [R]
-        if self.calc_stress:
-            eps = torch.zeros((3, 3), torch.float64)
-            eps.requires_grad_(True)
-            eps_sym = 0.5 * (eps + eps.T)
-            identity = torch.eye(3, dtype=torch.float64)
-            perturbation = identity + eps_sym
-            requires_grad.append(eps)
-        else:
-            perturbation = None
+        # if self.calc_stress:
+        #     eps = torch.zeros((3, 3), torch.float64)
+        #     eps.requires_grad_(True)
+        #     eps_sym = 0.5 * (eps + eps.T)
+        #     identity = torch.eye(3, dtype=torch.float64)
+        #     perturbation = identity + eps_sym
+        #     requires_grad.append(eps)
+        # else:
+        #     perturbation = None
 
-        energy = self.energy_model(R, Z, neighbor, box, offsets, perturbation)
+        energy = self.energy_model(R, Z, neighbor) # , box, offsets, perturbation
         # print(energy)
         # quit()
 

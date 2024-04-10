@@ -5,13 +5,13 @@ from apax import ops
 
 def gaussian_moment_impl(moments, triang_idxs_2d, triang_idxs_3d, n_contr):
     contr_0 = moments[0]
-    contr_1 = ops.einsum("ari, asi -> rsa", moments[1], moments[1])
-    contr_2 = ops.einsum("arij, asij -> rsa", moments[2], moments[2])
-    contr_3 = ops.einsum("arijk, asijk -> rsa", moments[3], moments[3])
-    contr_4 = ops.einsum("arij, asik, atjk -> rsta", moments[2], moments[2], moments[2])
-    contr_5 = ops.einsum("ari, asj, atij -> rsta", moments[1], moments[1], moments[2])
-    contr_6 = ops.einsum("arijk, asijl, atkl -> rsta", moments[3], moments[3], moments[2])
-    contr_7 = ops.einsum("arijk, asij, atk -> rsta", moments[3], moments[2], moments[1])
+    contr_1 = ops.einsum("ari, asi -> rsa", [moments[1], moments[1]])
+    contr_2 = ops.einsum("arij, asij -> rsa", [moments[2], moments[2]])
+    contr_3 = ops.einsum("arijk, asijk -> rsa", [moments[3], moments[3]])
+    contr_4 = ops.einsum("arij, asik, atjk -> rsta", [moments[2], moments[2], moments[2]])
+    contr_5 = ops.einsum("ari, asj, atij -> rsta", [moments[1], moments[1], moments[2]])
+    contr_6 = ops.einsum("arijk, asijl, atkl -> rsta", [moments[3], moments[3], moments[2]])
+    contr_7 = ops.einsum("arijk, asij, atk -> rsta", [moments[3], moments[2], moments[1]])
 
     # n_symm01_features = triang_idxs_2d.shape[0] * n_radial
     tril_2_i, tril_2_j = triang_idxs_2d[:, 0], triang_idxs_2d[:, 1]
