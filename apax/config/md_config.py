@@ -90,7 +90,7 @@ class NPTOptions(NVTOptions, extra="forbid"):
 
 class MDConfig(BaseModel, frozen=True, extra="forbid"):
     """
-    Configuration for a NHC molecular dynamics simulation.
+    Configuration for a NHC molecular dynamics simulation. Full config :ref:`here <md_config>`:
 
     Parameters
     ----------
