@@ -20,7 +20,7 @@ class AtomisticModelT(nn.Module):
     ):
         super().__init__()
         self.descriptor = descriptor
-        self.readout = readout # readout??
+        self.readout = readout  # readout??
         self.scale_shift = scale_shift
 
     def forward(
@@ -144,7 +144,12 @@ class EnergyDerivativeModelT(nn.Module):
         # quit()
 
         grads = autograd.grad(
-            energy, requires_grad, grad_outputs=torch.ones_like(energy), create_graph=False, retain_graph=False, allow_unused=True,
+            energy,
+            requires_grad,
+            grad_outputs=torch.ones_like(energy),
+            create_graph=False,
+            retain_graph=False,
+            allow_unused=True,
         )
         print(grads)
 

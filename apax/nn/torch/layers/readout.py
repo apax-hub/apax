@@ -15,8 +15,8 @@ class AtomisticReadoutT(nn.Module):
 
         units = [360] + [u for u in units] + [1]
         dense = []
-        for ii in range(len(units)-1):
-            units_in, units_out = units[ii], units[ii+1]
+        for ii in range(len(units) - 1):
+            units_in, units_out = units[ii], units[ii + 1]
             dense.append(NTKLinear(units_in, units_out))
             if ii < len(units) - 2:
                 dense.append(activation_fn())
