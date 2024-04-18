@@ -25,10 +25,10 @@ def geometric_moments(radial_function, dn, idx_i, n_atoms):
     third_moment = second_moment[..., None]  * xyz3
 
     # shape: n_atoms x n_radial x (3)^(moment_number)
-    zero_moment = ops.segment_sum(zero_moment, idx_i, n_atoms)
-    first_moment = ops.segment_sum(first_moment, idx_i, n_atoms)
-    second_moment = ops.segment_sum(second_moment, idx_i, n_atoms)
-    third_moment = ops.segment_sum(third_moment, idx_i, n_atoms)
+    zero_moment = ops.segment_sum(zero_moment, idx_i)
+    first_moment = ops.segment_sum(first_moment, idx_i)
+    second_moment = ops.segment_sum(second_moment, idx_i)
+    third_moment = ops.segment_sum(third_moment, idx_i)
 
     moments = [zero_moment, first_moment, second_moment, third_moment]
 

@@ -92,9 +92,4 @@ def einsum(pattern: str, operands: List[torch.Tensor]):
         return torch.einsum(pattern, operands)
 
 
-def segment_sum(x, segment_ids, num_segments):
-    # if isinstance(x, jax.Array):
-    #     return jax.ops.segment_sum(x, segment_ids, num_segments)
-    if isinstance(x, torch.Tensor):
-        out = torch_scatter.scatter(x, segment_ids, dim=0, reduce="sum")
-        return out
+

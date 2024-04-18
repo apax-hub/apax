@@ -78,9 +78,17 @@ class RadialFunctionT(nn.Module):
         # basis shape: neighbors x n_basis
         basis = self.basis_fn(dr)
 
-        radial_function = radial_basis_impl(
-            basis, Z_i, Z_j, self.embeddings, self.embed_norm
-        )
+        if self.embeddings is None:
+            radial_function = basis
+        else:
+            # coeffs shape: n_neighbors x n_radialx n_basis
+            # reverse convention to match original
+            species_pair_coeffs = self.embeddings[Z_j, Z_i, ...]
+            species_pair_coeffs = self.embed_norm * species_pair_coeffs
+
+            radial_function = torch.einsum(
+                "nrb, nb -> nr", species_pair_coeffs, basis, 
+            )
         cutoff = cosine_cutoff(dr, self.r_max)
         radial_function = radial_function * cutoff
 

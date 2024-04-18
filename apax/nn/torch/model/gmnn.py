@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List, Optional
 import einops
 import numpy as np
 import torch
@@ -25,10 +25,10 @@ class AtomisticModelT(nn.Module):
 
     def forward(
         self,
-        dr_vec: torch.tensor,
-        Z: torch.tensor,
-        idx: torch.tensor,
-    ) -> torch.tensor:
+        dr_vec: torch.Tensor,
+        Z: torch.Tensor,
+        idx: torch.Tensor,
+    ) -> torch.Tensor:
         gm = self.descriptor(dr_vec, Z, idx)
         # print(gm.size())
         h = self.readout(gm).squeeze()
@@ -67,7 +67,7 @@ class EnergyModelT(nn.Module):
         super().__init__()
         self.atomistic_model = atomistic_model
         # self.corrections = corrections
-        self.init_box = init_box
+        self.init_box = torch.tensor(init_box)
         self.inference_disp_fn = inference_disp_fn
 
         self.displacement = get_displacement(init_box, inference_disp_fn)
@@ -90,8 +90,10 @@ class EnergyModelT(nn.Module):
         Rj = R[idx_j]
 
         # dr_vec shape: neighbors x 3
-        if np.all(self.init_box < 1e-6):
-            dr_vec = self.displacement(Rj, Ri)
+        dr_vec = self.displacement(Rj, Ri)
+        # uncomment once pbc are implemented
+        # if torch.all(self.init_box < 1e-6):
+        #     dr_vec = self.displacement(Rj, Ri)
         # else:
         #     dr_vec = self.displacement(Rj, Ri, perturbation, box)
         #     dr_vec += offsets
@@ -140,26 +142,21 @@ class EnergyDerivativeModelT(nn.Module):
         #     perturbation = None
 
         energy = self.energy_model(R, Z, neighbor) # , box, offsets, perturbation
-        # print(energy)
-        # quit()
+        grad_outputs : List[Optional[torch.Tensor]] = [torch.ones_like(energy)]
 
-        grads = autograd.grad(
-            energy,
+        forces = autograd.grad(
+            [energy],
             requires_grad,
-            grad_outputs=torch.ones_like(energy),
-            create_graph=False,
-            retain_graph=False,
-            allow_unused=True,
-        )
-        print(grads)
-
-        neg_forces = grads[0]
-        forces = -neg_forces
+            grad_outputs=grad_outputs,
+            create_graph=True,
+        )[0]
+        assert forces is not None
+        forces = - forces
 
         prediction = {"energy": energy, "forces": forces}
 
-        if self.calc_stress:
-            stress = grads[-1]
-            prediction["stress"] = stress
+        # if self.calc_stress:
+        #     stress = grads[-1]
+        #     prediction["stress"] = stress
 
         return prediction
