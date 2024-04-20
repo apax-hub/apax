@@ -2,26 +2,18 @@ import logging
 from typing import Any, Callable
 
 import optax
+from optax import contrib
 from flax import traverse_util
 from flax.core.frozen_dict import freeze
 
 log = logging.getLogger(__name__)
 
 
-def map_nested_fn(fn: Callable[[str, Any], dict]) -> Callable[[dict], dict]:
-    """
-    Recursively apply `fn` to the key-value pairs of a nested dict
-    See
-    https://optax.readthedocs.io/en/latest/api.html?highlight=multitransform#multi-transform
-    """
-
-    def map_fn(nested_dict):
-        return {
-            k: map_fn(v) if isinstance(v, dict) else fn(k, v)
-            for k, v in nested_dict.items()
-        }
-
-    return map_fn
+def sam(lr=1e-3, b1=0.9, b2=0.999, rho=0.001, sync_period=2):
+    """A SAM optimizer using Adam for the outer optimizer."""
+    opt = optax.adam(lr, b1=b1, b2=b2)
+    adv_opt = optax.chain(contrib.normalize(), optax.sgd(rho))
+    return contrib.sam(opt, adv_opt, sync_period=sync_period)
 
 
 def get_schedule(
@@ -66,7 +58,11 @@ def get_opt(
     Several `optax` optimizers are supported.
     """
     log.info("Initializing Optimizer")
-    opt = getattr(optax, opt_name)
+    if opt_name == "sam":
+        opt = sam
+    else:
+        print("optname")
+        opt = getattr(optax, opt_name)
 
     nn_opt = make_optimizer(opt, nn_lr, transition_begin, transition_steps, opt_kwargs)
     emb_opt = make_optimizer(opt, emb_lr, transition_begin, transition_steps, opt_kwargs)
