@@ -6,8 +6,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from apax.nn.impl.basis import cosine_cutoff, gaussian_basis_impl, radial_basis_impl
-
+def cosine_cutoff(dr, r_max):
+    # shape: neighbors
+    dr_clipped = torch.clamp(dr, max=r_max)
+    cos_cutoff = 0.5 * (torch.cos(np.pi * dr_clipped / r_max) + 1.0)
+    cutoff = cos_cutoff[:, None]
+    return cutoff
 
 class GaussianBasisT(nn.Module):
     def __init__(
@@ -38,9 +42,14 @@ class GaussianBasisT(nn.Module):
 
     def forward(self, dr: torch.Tensor) -> torch.Tensor:
         # dr shape: neighbors
-        basis = gaussian_basis_impl(
-            dr.type(self.dtype), self.shifts, self.betta, self.rad_norm
-        )
+        # neighbors -> neighbors x 1
+        dr = dr[:, None].type(self.dtype)
+        # 1 x n_basis, neighbors x 1 -> neighbors x n_basis
+        distances = self.shifts - dr
+
+        # shape: neighbors x n_basis
+        basis = torch.exp(-self.betta * (distances**2))
+        basis = self.rad_norm * basis
         return basis
 
 

@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class NTKLinear(nn.Module):
+class NTKLinearT(nn.Module):
     def __init__(self, units_in, units_out) -> None:
         super().__init__()
 

@@ -7,9 +7,7 @@ import torch.nn.functional as F
 import torch_scatter
 
 from apax.nn.torch.layers.descriptor.basis import RadialFunctionT
-from apax.nn.impl.moments import geometric_moments
 from apax.nn.impl.triangular_indices import tril_2d_indices, tril_3d_indices
-from apax.utils.jax_md_reduced import space
 
 
 # def distance(dR):

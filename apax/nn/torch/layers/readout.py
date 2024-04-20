@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from typing import Any, Callable, List
 
 from apax.nn.torch.layers.activation import SwishT
-from apax.nn.torch.layers.ntk_linear import NTKLinear
+from apax.nn.torch.layers.ntk_linear import NTKLinearT
 
 
 class AtomisticReadoutT(nn.Module):
@@ -17,7 +17,7 @@ class AtomisticReadoutT(nn.Module):
         dense = []
         for ii in range(len(units) - 1):
             units_in, units_out = units[ii], units[ii + 1]
-            dense.append(NTKLinear(units_in, units_out))
+            dense.append(NTKLinearT(units_in, units_out))
             if ii < len(units) - 2:
                 dense.append(activation_fn())
         self.sequential = nn.Sequential(*dense)

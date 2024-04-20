@@ -1,5 +1,5 @@
 import torch.nn as nn
-from apax.nn.impl.activation import swish
+import torch
 
 
 class SwishT(nn.Module):
@@ -7,5 +7,5 @@ class SwishT(nn.Module):
         super().__init__()
 
     def forward(self, x):
-        h = swish(x)
+        h = 1.6765324703310907 * torch.nn.functional.silu(x)
         return h
