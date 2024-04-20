@@ -6,6 +6,7 @@ from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
+from flax.training.train_state import TrainState
 import numpy as np
 from clu import metrics
 from jax.experimental import mesh_utils
@@ -35,7 +36,7 @@ class EMAParameters:
 
 
 def fit(
-    state,
+    state: TrainState,
     train_ds: InMemoryDataset,
     loss_fn,
     Metrics: metrics.Collection,
@@ -44,7 +45,6 @@ def fit(
     ckpt_dir,
     ckpt_interval: int = 1,
     val_ds: Optional[InMemoryDataset] = None,
-    sam_rho=0.0,
     patience: Optional[int] = None,
     disable_pbar: bool = False,
     disable_batch_pbar: bool = True,
@@ -74,8 +74,6 @@ def fit(
         Interval for saving checkpoints.
     val_ds : InMemoryDataset, default = None
         Validation dataset.
-    sam_rho : float, default = 0.0
-        Rho parameter for Sharpness-Aware Minimization.
     patience : int, default = None
         Patience for early stopping.
     disable_pbar : bool, default = False
@@ -96,7 +94,7 @@ def fit(
     ckpt_manager = CheckpointManager()
 
     train_step, val_step = make_step_fns(
-        loss_fn, Metrics, model=state.apply_fn, sam_rho=sam_rho, is_ensemble=is_ensemble
+        loss_fn, Metrics, model=state.apply_fn, is_ensemble=is_ensemble
     )
     if train_ds.n_jit_steps > 1:
         train_step = jax.jit(functools.partial(jax.lax.scan, train_step))
@@ -107,7 +105,7 @@ def fit(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
     
-    ema = False
+    ema = True
     if ema:
         alpha = 0.9
         ema_handler = EMAParameters(state.params, alpha)
@@ -302,21 +300,12 @@ def make_ensemble_eval(update_fn: Callable) -> Callable:
     return ensemble_eval_fn
 
 
-def make_step_fns(loss_fn, Metrics, model, sam_rho, is_ensemble):
+def make_step_fns(loss_fn, Metrics, model, is_ensemble):
     loss_calculator = partial(calc_loss, loss_fn=loss_fn, model=model)
     grad_fn = jax.value_and_grad(loss_calculator, 0, has_aux=True)
-    rho = sam_rho
 
     def update_step(state, inputs, labels):
         (loss, predictions), grads = grad_fn(state.params, inputs, labels)
-
-        if rho > 1e-6:
-            # SAM step
-            grad_norm = global_norm(grads)
-            eps = jax.tree_map(lambda g, n: g * rho / n, grads, grad_norm)
-            params_eps = jax.tree_map(lambda p, e: p + e, state.params, eps)
-            (loss, _), grads = grad_fn(params_eps, inputs, labels)  # maybe get rid of SAM
-
         state = state.apply_gradients(grads=grads)
         return loss, predictions, state
 

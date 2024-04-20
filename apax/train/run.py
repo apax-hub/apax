@@ -198,7 +198,6 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
         ckpt_dir=config.data.model_version_path,
         ckpt_interval=config.checkpoints.ckpt_interval,
         val_ds=val_ds,
-        sam_rho=config.optimizer.sam_rho,
         patience=config.patience,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
         disable_batch_pbar=config.progress_bar.disable_batch_pbar,

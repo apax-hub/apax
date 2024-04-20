@@ -221,8 +221,6 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
         learning rate schedule.
     opt_kwargs : dict, default = {}
         Optimizer keyword arguments. Passed to the `optax` optimizer.
-    sam_rho : NonNegativeFloat, default = 0.0
-        Rho parameter for Sharpness-Aware Minimization.
     """
 
     opt_name: str = "adam"
@@ -233,7 +231,6 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     zbl_lr: NonNegativeFloat = 0.001
     transition_begin: int = 0
     opt_kwargs: dict = {}
-    sam_rho: NonNegativeFloat = 0.0
 
 
 class MetricsConfig(BaseModel, extra="forbid"):

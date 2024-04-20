@@ -110,7 +110,7 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=Fal
 
     callbacks.on_train_begin()
     _, test_step_fn = make_step_fns(
-        loss_fn, Metrics, model=model, sam_rho=0.0, is_ensemble=is_ensemble
+        loss_fn, Metrics, model=model, is_ensemble=is_ensemble
     )
 
     batch_test_ds = test_ds.batch()
