@@ -17,6 +17,22 @@ from apax.train.checkpoints import CheckpointManager, load_state
 
 log = logging.getLogger(__name__)
 
+@jax.jit
+def tree_ema(tree1, tree2, alpha):
+    ema = jax.tree_map(lambda a,b: alpha * a + (1-alpha) * b, tree1, tree2)
+    return ema
+
+
+
+class EMAParameters:
+    def __init__(self, params, alpha) -> None:
+        self.alpha = alpha
+        self.ema_params = params
+
+    def update(self, opt_params):
+        self.ema_params = tree_ema(opt_params, self.ema_params, self.alpha)
+
+
 
 def fit(
     state,
@@ -90,6 +106,11 @@ def fit(
         raise ValueError(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
+    
+    ema = False
+    if ema:
+        alpha = 0.9
+        ema_handler = EMAParameters(state.params, alpha)
 
     devices = len(jax.devices())
     if devices > 1 and data_parallel:
@@ -152,6 +173,13 @@ def fit(
             for key, val in train_batch_metrics.compute().items()
         }
 
+        if ema:
+            ema_handler.update(state.params)
+            val_params = ema_handler.ema_params
+        else:
+            val_params = state.params
+
+
         if val_ds is not None:
             epoch_loss.update({"val_loss": 0.0})
             val_batch_metrics = Metrics.empty()
@@ -168,8 +196,9 @@ def fit(
             for batch_idx in range(val_steps_per_epoch):
                 batch = next(batch_val_ds)
 
+
                 batch_loss, val_batch_metrics = val_step(
-                    state.params, batch, val_batch_metrics
+                    val_params, batch, val_batch_metrics
                 )
                 epoch_loss["val_loss"] += batch_loss
                 batch_pbar.update()
