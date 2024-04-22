@@ -80,7 +80,6 @@ optimizer:
   scale_lr: 0.001
   shift_lr: 0.05
   zbl_lr: 0.001
-  transition_begin: 0
 
 callbacks:
 - name: csv
