@@ -1,7 +1,9 @@
 import logging
-from typing import Any, Callable
 
+import jax.numpy as jnp
+import numpy as np
 import optax
+from optax._src import base
 from optax import contrib
 from flax import traverse_util
 from flax.core.frozen_dict import freeze
@@ -16,34 +18,67 @@ def sam(lr=1e-3, b1=0.9, b2=0.999, rho=0.001, sync_period=2):
     return contrib.sam(opt, adv_opt, sync_period=sync_period)
 
 
+def cyclic_cosine_decay_schedule(
+        init_value: float,
+        epochs, 
+        steps_per_epoch,
+        period: int,
+        amplitude_factor: float = 0.9,
+    ) -> base.Schedule:
+    r"""Returns a function which implements cyclic cosine learning rate decay.
+
+    Args:
+        init_value: An initial value for the learning rate.
+
+    Returns:
+        schedule
+        A function that maps step counts to values.
+    """
+    def schedule(count):
+        
+        cycle = count // (period * steps_per_epoch)
+        step_in_period = jnp.mod(count, period * steps_per_epoch)
+        lr = init_value/2 * (jnp.cos(np.pi * step_in_period / (period* steps_per_epoch)) + 1)
+        lr = lr * (amplitude_factor**cycle)
+        return lr
+
+    return schedule
+
+
+
+
 def get_schedule(
-    lr: float, transition_begin: int, transition_steps: int
+    lr: float, n_epochs: int, steps_per_epoch: int,
 ) -> optax._src.base.Schedule:
     """
     builds a linear learning rate schedule.
     """
-    lr_schedule = optax.linear_schedule(
-        init_value=lr,
-        end_value=1e-6,
-        transition_begin=transition_begin,
-        transition_steps=transition_steps,
+    # lr_schedule = optax.linear_schedule(
+    #     init_value=lr,
+    #     end_value=1e-6,
+    #     transition_begin=0,
+    #     transition_steps=n_epochs *steps_per_epoch,
+    # )
+
+    lr_schedule = cyclic_cosine_decay_schedule(
+        lr, n_epochs, steps_per_epoch, 20, 0.95,
     )
     return lr_schedule
 
 
-def make_optimizer(opt, lr, transition_begin, transition_steps, opt_kwargs):
+def make_optimizer(opt, lr, n_epochs, steps_per_epoch, opt_kwargs):
     if lr <= 1e-7:
         optimizer = optax.set_to_zero()
     else:
-        schedule = get_schedule(lr, transition_begin, transition_steps)
+        schedule = get_schedule(lr, n_epochs, steps_per_epoch)
         optimizer = opt(schedule, **opt_kwargs)
     return optimizer
 
 
 def get_opt(
     params,
-    transition_begin: int,
-    transition_steps: int,
+    n_epochs: int,
+    steps_per_epoch: int,
     emb_lr: float = 0.02,
     nn_lr: float = 0.03,
     scale_lr: float = 0.001,
@@ -57,22 +92,22 @@ def get_opt(
     Builds an optimizer with different learning rates for each parameter group.
     Several `optax` optimizers are supported.
     """
+
     log.info("Initializing Optimizer")
     if opt_name == "sam":
         opt = sam
     else:
-        print("optname")
         opt = getattr(optax, opt_name)
 
-    nn_opt = make_optimizer(opt, nn_lr, transition_begin, transition_steps, opt_kwargs)
-    emb_opt = make_optimizer(opt, emb_lr, transition_begin, transition_steps, opt_kwargs)
+    nn_opt = make_optimizer(opt, nn_lr, n_epochs, steps_per_epoch, opt_kwargs)
+    emb_opt = make_optimizer(opt, emb_lr, n_epochs, steps_per_epoch, opt_kwargs)
     scale_opt = make_optimizer(
-        opt, scale_lr, transition_begin, transition_steps, opt_kwargs
+        opt, scale_lr, n_epochs, steps_per_epoch, opt_kwargs
     )
     shift_opt = make_optimizer(
-        opt, shift_lr, transition_begin, transition_steps, opt_kwargs
+        opt, shift_lr, n_epochs, steps_per_epoch, opt_kwargs
     )
-    zbl_opt = make_optimizer(opt, zbl_lr, transition_begin, transition_steps, opt_kwargs)
+    zbl_opt = make_optimizer(opt, zbl_lr, n_epochs, steps_per_epoch, opt_kwargs)
 
     partition_optimizers = {
         "w": nn_opt,
