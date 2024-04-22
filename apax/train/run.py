@@ -15,8 +15,8 @@ from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import create_params, create_train_state
 from apax.train.loss import Loss, LossCollection
 from apax.train.metrics import initialize_metrics
-from apax.train.trainer import fit
 from apax.train.parameters import EMAParameters
+from apax.train.trainer import fit
 from apax.transfer_learning import transfer_parameters
 from apax.utils.random import seed_py_np_tf
 
@@ -189,7 +189,9 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
         state = transfer_parameters(state, config.checkpoints)
 
     if config.weight_average:
-        ema_handler = EMAParameters(config.weight_average.ema_start, config.weight_average.alpha)
+        ema_handler = EMAParameters(
+            config.weight_average.ema_start, config.weight_average.alpha
+        )
     else:
         ema_handler = None
 

@@ -6,9 +6,9 @@ from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
-from flax.training.train_state import TrainState
 import numpy as np
 from clu import metrics
+from flax.training.train_state import TrainState
 from jax.experimental import mesh_utils
 from jax.sharding import PositionalSharding
 from tqdm import trange
@@ -35,7 +35,7 @@ def fit(
     disable_batch_pbar: bool = True,
     is_ensemble=False,
     data_parallel=True,
-    ema_handler: Optional[EMAParameters]= None,
+    ema_handler: Optional[EMAParameters] = None,
 ):
     """
     Trains the model using the provided training dataset.
