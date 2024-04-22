@@ -194,7 +194,6 @@ def fit(
             )
 
         epoch_metrics.update({**epoch_loss})
-
         epoch_end_time = time.time()
         epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
 
