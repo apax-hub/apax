@@ -104,7 +104,7 @@ def fit(
         raise ValueError(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
-    
+
     ema = True
     if ema:
         alpha = 0.9
