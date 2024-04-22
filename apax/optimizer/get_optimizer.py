@@ -3,10 +3,10 @@ import logging
 import jax.numpy as jnp
 import numpy as np
 import optax
-from optax._src import base
-from optax import contrib
 from flax import traverse_util
 from flax.core.frozen_dict import freeze
+from optax import contrib
+from optax._src import base
 
 log = logging.getLogger(__name__)
 
@@ -19,12 +19,11 @@ def sam(lr=1e-3, b1=0.9, b2=0.999, rho=0.001, sync_period=2):
 
 
 def cyclic_cosine_decay_schedule(
-        init_value: float,
-        epochs, 
-        steps_per_epoch,
-        period: int,
-        amplitude_factor: float = 0.9,
-    ) -> base.Schedule:
+    init_value: float,
+    steps_per_epoch,
+    period: int,
+    decay_factor: float = 0.9,
+) -> base.Schedule:
     r"""Returns a function which implements cyclic cosine learning rate decay.
 
     Args:
@@ -34,43 +33,48 @@ def cyclic_cosine_decay_schedule(
         schedule
         A function that maps step counts to values.
     """
+
     def schedule(count):
-        
         cycle = count // (period * steps_per_epoch)
         step_in_period = jnp.mod(count, period * steps_per_epoch)
-        lr = init_value/2 * (jnp.cos(np.pi * step_in_period / (period* steps_per_epoch)) + 1)
-        lr = lr * (amplitude_factor**cycle)
+        lr = (
+            init_value
+            / 2
+            * (jnp.cos(np.pi * step_in_period / (period * steps_per_epoch)) + 1)
+        )
+        lr = lr * (decay_factor**cycle)
         return lr
 
     return schedule
 
 
-
-
 def get_schedule(
-    lr: float, n_epochs: int, steps_per_epoch: int,
+    lr: float,
+    n_epochs: int,
+    steps_per_epoch: int,
+    schedule_kwargs: dict,
 ) -> optax._src.base.Schedule:
     """
     builds a linear learning rate schedule.
     """
-    # lr_schedule = optax.linear_schedule(
-    #     init_value=lr,
-    #     end_value=1e-6,
-    #     transition_begin=0,
-    #     transition_steps=n_epochs *steps_per_epoch,
-    # )
-
-    lr_schedule = cyclic_cosine_decay_schedule(
-        lr, n_epochs, steps_per_epoch, 20, 0.95,
-    )
+    schedule_kwargs = schedule_kwargs.copy()
+    name = schedule_kwargs.pop("name")
+    if name == "linear":
+        lr_schedule = optax.linear_schedule(
+            init_value=lr, transition_steps=n_epochs * steps_per_epoch, **schedule_kwargs
+        )
+    elif name == "cyclic_cosine":
+        lr_schedule = cyclic_cosine_decay_schedule(lr, steps_per_epoch, **schedule_kwargs)
+    else:
+        raise KeyError(f"unknown learning rate schedule: {name}")
     return lr_schedule
 
 
-def make_optimizer(opt, lr, n_epochs, steps_per_epoch, opt_kwargs):
+def make_optimizer(opt, lr, n_epochs, steps_per_epoch, opt_kwargs, schedule):
     if lr <= 1e-7:
         optimizer = optax.set_to_zero()
     else:
-        schedule = get_schedule(lr, n_epochs, steps_per_epoch)
+        schedule = get_schedule(lr, n_epochs, steps_per_epoch, schedule)
         optimizer = opt(schedule, **opt_kwargs)
     return optimizer
 
@@ -86,7 +90,7 @@ def get_opt(
     zbl_lr: float = 0.001,
     opt_name: str = "adam",
     opt_kwargs: dict = {},
-    **kwargs,
+    schedule: dict = {},
 ) -> optax._src.base.GradientTransformation:
     """
     Builds an optimizer with different learning rates for each parameter group.
@@ -99,15 +103,15 @@ def get_opt(
     else:
         opt = getattr(optax, opt_name)
 
-    nn_opt = make_optimizer(opt, nn_lr, n_epochs, steps_per_epoch, opt_kwargs)
-    emb_opt = make_optimizer(opt, emb_lr, n_epochs, steps_per_epoch, opt_kwargs)
+    nn_opt = make_optimizer(opt, nn_lr, n_epochs, steps_per_epoch, opt_kwargs, schedule)
+    emb_opt = make_optimizer(opt, emb_lr, n_epochs, steps_per_epoch, opt_kwargs, schedule)
     scale_opt = make_optimizer(
-        opt, scale_lr, n_epochs, steps_per_epoch, opt_kwargs
+        opt, scale_lr, n_epochs, steps_per_epoch, opt_kwargs, schedule
     )
     shift_opt = make_optimizer(
-        opt, shift_lr, n_epochs, steps_per_epoch, opt_kwargs
+        opt, shift_lr, n_epochs, steps_per_epoch, opt_kwargs, schedule
     )
-    zbl_opt = make_optimizer(opt, zbl_lr, n_epochs, steps_per_epoch, opt_kwargs)
+    zbl_opt = make_optimizer(opt, zbl_lr, n_epochs, steps_per_epoch, opt_kwargs, schedule)
 
     partition_optimizers = {
         "w": nn_opt,

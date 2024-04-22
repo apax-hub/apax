@@ -16,6 +16,7 @@ from pydantic import (
 )
 from typing_extensions import Annotated
 
+from apax.config.lr_config import CyclicCosineLR, LinearLR
 from apax.data.statistics import scale_method_list, shift_method_list
 
 log = logging.getLogger(__name__)
@@ -216,9 +217,8 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
         Learning rate of the elemental output shifts.
     zbl_lr : NonNegativeFloat, default = 0.001
         Learning rate of the ZBL correction parameters.
-    transition_begin : int, default = 0
-        Number of training steps (not epochs) before the start of the linear
-        learning rate schedule.
+    schedule : LRSchedule = LinearLR
+        Learning rate schedule.
     opt_kwargs : dict, default = {}
         Optimizer keyword arguments. Passed to the `optax` optimizer.
     """
@@ -229,7 +229,9 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     scale_lr: NonNegativeFloat = 0.001
     shift_lr: NonNegativeFloat = 0.05
     zbl_lr: NonNegativeFloat = 0.001
-    transition_begin: int = 0
+    schedule: Union[LinearLR, CyclicCosineLR] = Field(
+        LinearLR(name="linear"), discriminator="name"
+    )
     opt_kwargs: dict = {}
 
 
@@ -355,11 +357,10 @@ class CheckpointConfig(BaseModel, extra="forbid"):
 
 
 class WeightAverage(BaseModel, extra="forbid"):
-    """
-    """
+    """ """
+
     ema_start: int
     alpha: float = 0.9
-    
 
 
 class Config(BaseModel, frozen=True, extra="forbid"):
