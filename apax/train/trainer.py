@@ -15,24 +15,9 @@ from tqdm import trange
 
 from apax.data.input_pipeline import InMemoryDataset
 from apax.train.checkpoints import CheckpointManager, load_state
+from apax.train.parameters import EMAParameters
 
 log = logging.getLogger(__name__)
-
-@jax.jit
-def tree_ema(tree1, tree2, alpha):
-    ema = jax.tree_map(lambda a,b: alpha * a + (1-alpha) * b, tree1, tree2)
-    return ema
-
-
-
-class EMAParameters:
-    def __init__(self, params, alpha) -> None:
-        self.alpha = alpha
-        self.ema_params = params
-
-    def update(self, opt_params):
-        self.ema_params = tree_ema(opt_params, self.ema_params, self.alpha)
-
 
 
 def fit(
@@ -50,6 +35,7 @@ def fit(
     disable_batch_pbar: bool = True,
     is_ensemble=False,
     data_parallel=True,
+    ema_handler: Optional[EMAParameters]= None,
 ):
     """
     Trains the model using the provided training dataset.
@@ -104,11 +90,6 @@ def fit(
         raise ValueError(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
         )
-    
-    ema = True
-    if ema:
-        alpha = 0.9
-        ema_handler = EMAParameters(state.params, alpha)
 
     devices = len(jax.devices())
     if devices > 1 and data_parallel:
@@ -133,6 +114,9 @@ def fit(
     for epoch in range(start_epoch, n_epochs):
         epoch_start_time = time.time()
         callbacks.on_epoch_begin(epoch=epoch + 1)
+
+        if ema_handler:
+            ema_handler.update(state.params, epoch)
 
         epoch_loss.update({"train_loss": 0.0})
         train_batch_metrics = Metrics.empty()
@@ -171,12 +155,11 @@ def fit(
             for key, val in train_batch_metrics.compute().items()
         }
 
-        if ema:
-            ema_handler.update(state.params)
+        if ema_handler:
+            ema_handler.update(state.params, epoch)
             val_params = ema_handler.ema_params
         else:
             val_params = state.params
-
 
         if val_ds is not None:
             epoch_loss.update({"val_loss": 0.0})
@@ -193,7 +176,6 @@ def fit(
             )
             for batch_idx in range(val_steps_per_epoch):
                 batch = next(batch_val_ds)
-
 
                 batch_loss, val_batch_metrics = val_step(
                     val_params, batch, val_batch_metrics
@@ -244,18 +226,6 @@ def fit(
     train_ds.cleanup()
     if val_ds:
         val_ds.cleanup()
-
-
-def global_norm(updates) -> jnp.ndarray:
-    """
-    Returns the l2 norm of the input.
-
-    Parameters
-    ----------
-      updates: A pytree of ndarrays representing the gradient.
-    """
-    norm = jax.tree_map(lambda u: jnp.sqrt(jnp.sum(jnp.square(u))), updates)
-    return norm
 
 
 def calc_loss(params, inputs, labels, loss_fn, model):

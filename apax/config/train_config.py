@@ -354,6 +354,14 @@ class CheckpointConfig(BaseModel, extra="forbid"):
     reset_layers: List[str] = []
 
 
+class WeightAverage(BaseModel, extra="forbid"):
+    """
+    """
+    ema_start: int
+    alpha: float = 0.9
+    
+
+
 class Config(BaseModel, frozen=True, extra="forbid"):
     """
     Main configuration of a apax training run. Parameter that are config classes will
@@ -417,6 +425,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     metrics: List[MetricsConfig] = []
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()
+    weight_average: Optional[WeightAverage] = None
     callbacks: List[CallBack] = [CSVCallback(name="csv")]
     progress_bar: TrainProgressbarConfig = TrainProgressbarConfig()
     checkpoints: CheckpointConfig = CheckpointConfig()
