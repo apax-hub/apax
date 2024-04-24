@@ -367,7 +367,7 @@ class WeightAverage(BaseModel, extra="forbid"):
         How much of the new model to use. 1.0 would mean no averaging, 0.0 no updates.
     """
 
-    ema_start: int =0
+    ema_start: int = 0
     alpha: float = 0.9
 
 
