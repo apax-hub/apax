@@ -84,5 +84,5 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
         E_ij = Z_i * Z_j / dr * f * cos_cutoff
         if self.apply_mask:
             E_ij = mask_by_neighbor(E_ij, idx)
-        E = 0.5 * rep_scale * self.ke * fp64_sum(E_ij)
+        E = 0.5 * rep_scale * fp64_sum(E_ij)
         return fp64_sum(E)
