@@ -26,8 +26,6 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
     def setup(self):
         self.distance = vmap(space.distance, 0, 0)
 
-        self.ke = 14.3996
-
         a_exp = 0.23
         a_num = 0.46850
         coeffs = jnp.array([0.18175, 0.50986, 0.28022, 0.02817])[:, None]
