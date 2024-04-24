@@ -37,7 +37,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
         a_num_isp = inverse_softplus(a_num)
         coeffs_isp = inverse_softplus(coeffs)
         exps_isp = inverse_softplus(exps)
-        rep_scale_isp = inverse_softplus(1.0 / self.ke)
+        rep_scale_isp = inverse_softplus(0.0)
 
         self.a_exp = self.param("a_exp", nn.initializers.constant(a_exp_isp), (1,))
         self.a_num = self.param("a_num", nn.initializers.constant(a_num_isp), (1,))
