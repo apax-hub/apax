@@ -357,9 +357,17 @@ class CheckpointConfig(BaseModel, extra="forbid"):
 
 
 class WeightAverage(BaseModel, extra="forbid"):
-    """ """
+    """Applies an exponential moving average to model parameters.
 
-    ema_start: int
+    Parameters
+    ----------
+    ema_start : int, default = 1
+        Epoch at which to start averaging models.
+    alpha : float, default = 0.9
+        How much of the new model to use. 1.0 would mean no averaging, 0.0 no updates.
+    """
+
+    ema_start: int =0
     alpha: float = 0.9
 
 
@@ -402,6 +410,8 @@ class Config(BaseModel, frozen=True, extra="forbid"):
         | Loss configuration.
     optimizer : :class:`.OptimizerConfig`
         | Loss optimizer configuration.
+    weight_average : :class:`.WeightAverage`, optional
+        | Options for averaging weights between epochs.
     callbacks : List of various CallBack classes
         | Possible callbacks are :class:`.CSVCallback`,
         | :class:`.TBCallback`, :class:`.MLFlowCallback`
