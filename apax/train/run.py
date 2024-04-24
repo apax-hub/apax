@@ -15,6 +15,7 @@ from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import create_params, create_train_state
 from apax.train.loss import Loss, LossCollection
 from apax.train.metrics import initialize_metrics
+from apax.train.parameters import EMAParameters
 from apax.train.trainer import fit
 from apax.transfer_learning import transfer_parameters
 from apax.utils.random import seed_py_np_tf
@@ -173,11 +174,10 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
 
     # TODO rework optimizer initialization and lr keywords
     steps_per_epoch = train_ds.steps_per_epoch()
-    n_epochs = config.n_epochs
-    transition_steps = steps_per_epoch * n_epochs - config.optimizer.transition_begin
     tx = get_opt(
         params,
-        transition_steps=transition_steps,
+        config.n_epochs,
+        steps_per_epoch,
         **config.optimizer.model_dump(),
     )
 
@@ -188,21 +188,28 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
     if do_transfer_learning:
         state = transfer_parameters(state, config.checkpoints)
 
+    if config.weight_average:
+        ema_handler = EMAParameters(
+            config.weight_average.ema_start, config.weight_average.alpha
+        )
+    else:
+        ema_handler = None
+
     fit(
         state,
         train_ds,
         loss_fn,
         Metrics,
         callbacks,
-        n_epochs,
+        config.n_epochs,
         ckpt_dir=config.data.model_version_path,
         ckpt_interval=config.checkpoints.ckpt_interval,
         val_ds=val_ds,
-        sam_rho=config.optimizer.sam_rho,
         patience=config.patience,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
         disable_batch_pbar=config.progress_bar.disable_batch_pbar,
         is_ensemble=config.n_models > 1,
         data_parallel=config.data_parallel,
+        ema_handler=ema_handler,
     )
     log.info("Finished training")

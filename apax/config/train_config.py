@@ -16,6 +16,7 @@ from pydantic import (
 )
 from typing_extensions import Annotated
 
+from apax.config.lr_config import CyclicCosineLR, LinearLR
 from apax.data.statistics import scale_method_list, shift_method_list
 
 log = logging.getLogger(__name__)
@@ -216,13 +217,10 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
         Learning rate of the elemental output shifts.
     zbl_lr : NonNegativeFloat, default = 0.001
         Learning rate of the ZBL correction parameters.
-    transition_begin : int, default = 0
-        Number of training steps (not epochs) before the start of the linear
-        learning rate schedule.
+    schedule : LRSchedule = LinearLR
+        Learning rate schedule.
     opt_kwargs : dict, default = {}
         Optimizer keyword arguments. Passed to the `optax` optimizer.
-    sam_rho : NonNegativeFloat, default = 0.0
-        Rho parameter for Sharpness-Aware Minimization.
     """
 
     opt_name: str = "adam"
@@ -231,9 +229,10 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     scale_lr: NonNegativeFloat = 0.001
     shift_lr: NonNegativeFloat = 0.05
     zbl_lr: NonNegativeFloat = 0.001
-    transition_begin: int = 0
+    schedule: Union[LinearLR, CyclicCosineLR] = Field(
+        LinearLR(name="linear"), discriminator="name"
+    )
     opt_kwargs: dict = {}
-    sam_rho: NonNegativeFloat = 0.0
 
 
 class MetricsConfig(BaseModel, extra="forbid"):
@@ -357,6 +356,21 @@ class CheckpointConfig(BaseModel, extra="forbid"):
     reset_layers: List[str] = []
 
 
+class WeightAverage(BaseModel, extra="forbid"):
+    """Applies an exponential moving average to model parameters.
+
+    Parameters
+    ----------
+    ema_start : int, default = 1
+        Epoch at which to start averaging models.
+    alpha : float, default = 0.9
+        How much of the new model to use. 1.0 would mean no averaging, 0.0 no updates.
+    """
+
+    ema_start: int = 0
+    alpha: float = 0.9
+
+
 class Config(BaseModel, frozen=True, extra="forbid"):
     """
     Main configuration of a apax training run. Parameter that are config classes will
@@ -396,6 +410,8 @@ class Config(BaseModel, frozen=True, extra="forbid"):
         | Loss configuration.
     optimizer : :class:`.OptimizerConfig`
         | Loss optimizer configuration.
+    weight_average : :class:`.WeightAverage`, optional
+        | Options for averaging weights between epochs.
     callbacks : List of various CallBack classes
         | Possible callbacks are :class:`.CSVCallback`,
         | :class:`.TBCallback`, :class:`.MLFlowCallback`
@@ -420,6 +436,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     metrics: List[MetricsConfig] = []
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()
+    weight_average: Optional[WeightAverage] = None
     callbacks: List[CallBack] = [CSVCallback(name="csv")]
     progress_bar: TrainProgressbarConfig = TrainProgressbarConfig()
     checkpoints: CheckpointConfig = CheckpointConfig()

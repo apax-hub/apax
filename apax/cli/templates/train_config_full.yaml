@@ -4,6 +4,7 @@ patience: null
 n_models: 1
 n_jitted_steps: 1
 data_parallel: True
+weight_average: null
 
 data:
   directory: models/
@@ -80,9 +81,10 @@ optimizer:
   scale_lr: 0.001
   shift_lr: 0.05
   zbl_lr: 0.001
-  transition_begin: 0
-  sam_rho: 0.0
-
+  schedule:
+    name: linear
+    transition_begin: 0
+    end_value: 1e-6
 callbacks:
 - name: csv
 
