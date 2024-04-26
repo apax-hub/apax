@@ -66,10 +66,11 @@ class ApaxJaxMD(zntrack.Node):
     def run(self):
         """Primary method to run which executes all steps of the model training"""
 
-        atoms = self.data[self.data_id]
-        if self.repeat is not None:
-            atoms = atoms.repeat(self.repeat)
-        ase.io.write(self.init_struc_dir.as_posix(), atoms)
+        if not self.state.restarted:
+            atoms = self.data[self.data_id]
+            if self.repeat is not None:
+                atoms = atoms.repeat(self.repeat)
+            ase.io.write(self.init_struc_dir.as_posix(), atoms)
 
         run_md(self.model._parameter, self._parameter)
 
