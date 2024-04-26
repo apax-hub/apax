@@ -60,6 +60,7 @@ class RadialFunctionT(nn.Module):
         basis_fn: nn.Module = GaussianBasisT(),
         emb_init: str = "uniform",
         n_species: int = 119,
+        params = None,
         dtype: Any = torch.float32,
     ) -> None:
         super().__init__()
@@ -73,7 +74,12 @@ class RadialFunctionT(nn.Module):
         norm = 1.0 / np.sqrt(self.basis_fn.n_basis)
         self.embed_norm = torch.tensor(norm, dtype=self.dtype)
         self.embeddings = None
-        if self.emb_init is not None:
+
+        if params:
+            emb = params["atomic_type_embedding"]
+            emb = torch.from_numpy(np.array(emb))
+            self.embeddings = nn.Parameter(emb)
+        elif self.emb_init is not None:
             self.n_radial = n_radial
             emb = torch.rand(
                 (self.n_species, self.n_species, self.n_radial, self.basis_fn.n_basis)

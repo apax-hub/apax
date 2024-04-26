@@ -23,6 +23,10 @@ def geometric_moments(radial_function, dn, idx_i, n_atoms):
     xyz = dn[:, None, :]
     xyz2 = xyz[..., None, :]
     xyz3 = xyz2[..., None, :]
+    # print(dn.shape)
+    # print(xyz.shape)
+    # print(xyz3.shape)
+    # quit()
 
     # shape: n_neighbors x n_radial x (3)^(moment_number)
     zero_moment = radial_function
@@ -47,9 +51,14 @@ class GaussianMomentDescriptorT(nn.Module):
         radial_fn: nn.Module = RadialFunctionT(),
         n_contr: int = 8,
         dtype: Any = torch.float32,
+        params = None
     ):
         super().__init__()
-        self.radial_fn = radial_fn
+
+        if params:
+            self.radial_fn = RadialFunctionT(params=params["radial_fn"])
+        else:
+            self.radial_fn = radial_fn
         self.n_contr = n_contr
         self.dtype = dtype
 
@@ -67,15 +76,12 @@ class GaussianMomentDescriptorT(nn.Module):
     ) -> torch.Tensor:
         dr_vec = dr_vec.type(self.dtype)
         # Z shape n_atoms
-        # n_atoms = Z.size(0)
-
         idx_i, idx_j = neighbor_idxs[0], neighbor_idxs[1]
 
         # shape: neighbors
         Z_i, Z_j = Z[idx_i, ...], Z[idx_j, ...]
 
         # dr shape: neighbors
-        # dr = self.distance(dr_vec)
         dr = torch.linalg.norm(dr_vec, dim=-1)
 
         # dr_repeated = einops.repeat(dr + 1e-5, "neighbors -> neighbors 1")
@@ -84,11 +90,7 @@ class GaussianMomentDescriptorT(nn.Module):
         dn = dr_vec / dr_repeated
 
         radial_function = self.radial_fn(dr, Z_i, Z_j)
-
         moments = geometric_moments(radial_function, dn, idx_j, self.dummy_n_atoms)
-        # gaussian_moments = gaussian_moment_impl(
-        #     moments, self.triang_idxs_2d, self.triang_idxs_3d, self.n_contr
-        # )
 
         contr_0 = moments[0]
         contr_1 = torch.einsum("ari, asi -> rsa", [moments[1], moments[1]])
@@ -114,14 +116,19 @@ class GaussianMomentDescriptorT(nn.Module):
         contr_5 = contr_5[tril_2_i, tril_2_j]
         contr_6 = contr_6[tril_2_i, tril_2_j]
 
-        n_atoms = contr_0.size(0)
-        contr_1 = torch.reshape(contr_1, (n_atoms, -1))
-        contr_2 = torch.reshape(contr_2, (n_atoms, -1))
-        contr_3 = torch.reshape(contr_3, (n_atoms, -1))
-        contr_4 = torch.reshape(contr_4, (n_atoms, -1))
-        contr_5 = torch.reshape(contr_5, (n_atoms, -1))
-        contr_6 = torch.reshape(contr_6, (n_atoms, -1))
-        contr_7 = torch.reshape(contr_7, (n_atoms, -1))
+        n_symm01_features = self.triang_idxs_2d.shape[0] * self.n_radial
+
+        contr_5 = torch.reshape(contr_5, [n_symm01_features, -1])
+        contr_6 = torch.reshape(contr_6, [n_symm01_features, -1])
+        contr_7 = torch.reshape(contr_7, [self.n_radial**3, -1])
+
+        contr_1 = torch.transpose(contr_1, 0, 1)
+        contr_2 = torch.transpose(contr_2, 0, 1)
+        contr_3 = torch.transpose(contr_3, 0, 1)
+        contr_4 = torch.transpose(contr_4, 0, 1)
+        contr_5 = torch.transpose(contr_5, 0, 1)
+        contr_6 = torch.transpose(contr_6, 0, 1)
+        contr_7 = torch.transpose(contr_7, 0, 1)
 
         gaussian_moments = [
             contr_0,

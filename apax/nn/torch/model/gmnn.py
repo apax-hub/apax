@@ -17,11 +17,18 @@ class AtomisticModelT(nn.Module):
         descriptor: nn.Module = GaussianMomentDescriptorT(),
         readout: nn.Module = AtomisticReadoutT(),
         scale_shift: nn.Module = PerElementScaleShiftT(),
+        params = None
     ):
         super().__init__()
-        self.descriptor = descriptor
-        self.readout = readout  # readout??
-        self.scale_shift = scale_shift
+
+        if params:
+            self.descriptor = GaussianMomentDescriptorT(params["descriptor"])
+            self.readout = AtomisticReadoutT(params["readout"])
+            self.scale_shift = PerElementScaleShiftT(params["scale_shift"])
+        else:
+            self.descriptor = descriptor
+            self.readout = readout
+            self.scale_shift = scale_shift
 
     def forward(
         self,
@@ -61,11 +68,15 @@ class EnergyModelT(nn.Module):
         self,
         atomistic_model: AtomisticModelT = AtomisticModelT(),
         # corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: []),
+        params = None,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn: Any = None,
     ):
         super().__init__()
-        self.atomistic_model = atomistic_model
+        if params:
+            self.atomistic_model = AtomisticModelT(params=params)
+        else:
+            self.atomistic_model = atomistic_model
         # self.corrections = corrections
         self.init_box = torch.tensor(init_box)
         self.inference_disp_fn = inference_disp_fn
