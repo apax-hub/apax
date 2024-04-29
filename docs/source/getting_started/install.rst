@@ -1,7 +1,32 @@
+============
 Installation
 ============
 
-If you do not have Poetry_ installed already, you can obtain it by running
+From PyPI (soon)
+
+.. highlight:: bash
+.. code-block:: bash
+
+    pip install apax
+
+
+From GitHub
+-----------
+
+If you would like to have a pre-release version,
+you can install Apax from GitHub directly
+
+.. highlight:: bash
+.. code-block:: bash
+
+    pip install git+https://github.com/apax-hub/apax.git
+
+
+For Developers
+--------------
+
+As a developer, you first need to install Poetry_.
+You can obtain it by running
 
 .. highlight:: bash
 .. code-block:: bash
@@ -9,14 +34,7 @@ If you do not have Poetry_ installed already, you can obtain it by running
     curl -sSL https://install.python-poetry.org | python3 -
 
 
-Now you can add apax to your project by running
-
-.. highlight:: bash
-.. code-block:: bash
-
-    poetry add git+https://github.com/apax-hub/apax.git
-
-As a developer, you first need to clone the repository and install it via
+You can then clone and install the project.
 
 .. highlight:: bash
 .. code-block:: bash
@@ -25,22 +43,26 @@ As a developer, you first need to clone the repository and install it via
     cd <dest_dir>
     poetry install
 
-CUDA Support
-============
-Note that the above only installs the CPU version.
+
+=========================
+CUDA Support (Linux only)
+=========================
+
+Note that all of the above only install the CPU version.
 If you want to enable GPU support, please overwrite the jaxlib version:
+
+CUDA 12:
 
 .. highlight:: bash
 .. code-block:: bash
 
-    pip install --upgrade pip
-
-    # CUDA 12 installation
-    # Note: wheels only available on linux.
     pip install --upgrade "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
-    # CUDA 11 installation
-    # Note: wheels only available on linux.
+CUDA 11:
+
+.. highlight:: bash
+.. code-block:: bash
+
     pip install --upgrade "jax[cuda11_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 
 

@@ -160,7 +160,7 @@ def bond(
         an ndarray of distances or displacements of shape `[]` or `[d_in]`
         respectively. The metric can optionally take a floating point time as a
         third argument.
-      static_bonds: An ndarray of integer pairs wth shape `[b, 2]` where each
+      static_bonds: An ndarray of integer pairs with shape `[b, 2]` where each
         pair specifies a bond. `static_bonds` are baked into the returned compute
         function statically and cannot be changed after the fact.
       static_bond_types: An ndarray of integers of shape `[b]` specifying the

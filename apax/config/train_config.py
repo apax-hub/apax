@@ -16,6 +16,7 @@ from pydantic import (
 )
 from typing_extensions import Annotated
 
+from apax.config.lr_config import CyclicCosineLR, LinearLR
 from apax.data.statistics import scale_method_list, shift_method_list
 
 log = logging.getLogger(__name__)
@@ -27,27 +28,33 @@ class DataConfig(BaseModel, extra="forbid"):
 
     Parameters
     ----------
-    directory: Path to the directory where the training results and
-        checkpoints will be written.
-    experiment: Name of  the model. Distinguishes it from the other models
-        trained in the same `directory`.
-    data_path: Path to a single dataset file. Set either this or `val_data_path` and
-        `train_data_path`.
-    train_data_path: Path to a training dataset. Set this and `val_data_path`
-        if your data comes pre-split.
-    val_data_path: Path to a validation dataset. Set this and `train_data_path`
-        if your data comes pre-split.
-    test_data_path: Path to a test dataset. Set this, `train_data_path` and
-        `val_data_path` if your data comes pre-split.
-    n_train: Number of training datapoints from `data_path`.
-    n_valid: Number of validation datapoints from `data_path`.
-    batch_size: Number of training examples to be evaluated at once.
-    valid_batch_size: Number of validation examples to be evaluated at once.
-    shuffle_buffer_size: Size of the `tf.data` shuffle buffer.
-    additional_properties_info:
-        dict of property name, shape (ragged or fixed) pairs
-    energy_regularisation: Magnitude of the regularization in the per-element
-        energy regression.
+    directory : str, required
+        | Path to directory where training results and checkpoints are written.
+    experiment : str, required
+        | Model name distinguishing from others in directory.
+    data_path : str, required if train_data_path and val_data_path is not specified
+        | Path to single dataset file.
+    train_data_path : str, required if data_path is not specified
+        | Path to training dataset.
+    val_data_path : str, required if data_path is not specified
+        | Path to validation dataset.
+    test_data_path : str, optional
+        | Path to test dataset.
+    n_train : int, default = 1000
+        | Number of training datapoints from `data_path`.
+    n_valid : int, default = 100
+        | Number of validation datapoints from `data_path`.
+    batch_size : int, default = 32
+        | Number of training examples to be evaluated at once.
+    valid_batch_size : int, default = 100
+        | Number of validation examples to be evaluated at once.
+    shuffle_buffer_size : int, default = 1000
+        | Size of the `tf.data` shuffle buffer.
+    additional_properties_info : dict, optional
+        | dict of property name, shape (ragged or fixed) pairs
+    energy_regularisation :
+        | Magnitude of the regularization in the per-element energy regression.
+
     """
 
     directory: str
@@ -134,13 +141,30 @@ class ModelConfig(BaseModel, extra="forbid"):
 
     Parameters
     ----------
-    n_basis: Number of uncontracted gaussian basis functions.
-    n_radial: Number of contracted basis functions.
-    r_min: Position of the first uncontracted basis function's mean.
-    r_max: Cutoff radius of the descriptor.
-    nn: Number of hidden layers and units in those layers.
-    b_init: Initialization scheme for the neural network biases.
-        Either `normal` or `zeros`.
+    n_basis : PositiveInt, default = 7
+        Number of uncontracted gaussian basis functions.
+    n_radial : PositiveInt, default = 5
+        Number of contracted basis functions.
+    r_min : NonNegativeFloat, default = 0.5
+        Position of the first uncontracted basis function's mean.
+    r_max : PositiveFloat, default = 6.0
+        Cutoff radius of the descriptor.
+    nn : List[PositiveInt], default = [512, 512]
+        Number of hidden layers and units in those layers.
+    b_init : Literal["normal", "zeros"], default = "normal"
+        Initialization scheme for the neural network biases.
+    emb_init : Optional[str], default = "uniform"
+        Initialization scheme for embedding layer weights.
+    use_zbl : bool, default = False
+        Whether to include the ZBL correction.
+    calc_stress : bool, default = False
+        Whether to calculate stress during model evaluation.
+    descriptor_dtype : Literal["fp32", "fp64"], default = "fp64"
+        Data type for descriptor calculations.
+    readout_dtype : Literal["fp32", "fp64"], default = "fp32"
+        Data type for readout calculations.
+    scale_shift_dtype : Literal["fp32", "fp64"], default = "fp32"
+        Data type for scale and shift parameters.
     """
 
     n_basis: PositiveInt = 7
@@ -158,7 +182,7 @@ class ModelConfig(BaseModel, extra="forbid"):
 
     calc_stress: bool = False
 
-    descriptor_dtype: Literal["fp32", "fp64"] = "fp32"
+    descriptor_dtype: Literal["fp32", "fp64"] = "fp64"
     readout_dtype: Literal["fp32", "fp64"] = "fp32"
     scale_shift_dtype: Literal["fp32", "fp64"] = "fp32"
 
@@ -181,14 +205,22 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
 
     Parameters
     ----------
-    opt_name: Name of the optimizer. Can be any `optax` optimizer.
-    emb_lr: Learning rate of the elemental embedding contraction coefficients.
-    nn_lr: Learning rate of the neural network parameters.
-    scale_lr: Learning rate of the elemental output scaling factors.
-    shift_lr: Learning rate of the elemental output shifts.
-    transition_begin: Number of training steps (not epochs) before the start of the
-        linear learning rate schedule.
-    opt_kwargs: Optimizer keyword arguments. Passed to the `optax` optimizer.
+    opt_name : str, default = "adam"
+        Name of the optimizer. Can be any `optax` optimizer.
+    emb_lr : NonNegativeFloat, default = 0.02
+        Learning rate of the elemental embedding contraction coefficients.
+    nn_lr : NonNegativeFloat, default = 0.03
+        Learning rate of the neural network parameters.
+    scale_lr : NonNegativeFloat, default = 0.001
+        Learning rate of the elemental output scaling factors.
+    shift_lr : NonNegativeFloat, default = 0.05
+        Learning rate of the elemental output shifts.
+    zbl_lr : NonNegativeFloat, default = 0.001
+        Learning rate of the ZBL correction parameters.
+    schedule : LRSchedule = LinearLR
+        Learning rate schedule.
+    opt_kwargs : dict, default = {}
+        Optimizer keyword arguments. Passed to the `optax` optimizer.
     """
 
     opt_name: str = "adam"
@@ -197,9 +229,10 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     scale_lr: NonNegativeFloat = 0.001
     shift_lr: NonNegativeFloat = 0.05
     zbl_lr: NonNegativeFloat = 0.001
-    transition_begin: int = 0
+    schedule: Union[LinearLR, CyclicCosineLR] = Field(
+        LinearLR(name="linear"), discriminator="name"
+    )
     opt_kwargs: dict = {}
-    sam_rho: NonNegativeFloat = 0.0
 
 
 class MetricsConfig(BaseModel, extra="forbid"):
@@ -208,10 +241,12 @@ class MetricsConfig(BaseModel, extra="forbid"):
 
     Parameters
     ----------
-    name: Keyword of the quantity e.g `energy`.
-    reductions: List of reductions performed on the difference between
-        target and predictions. Can be mae, mse, rmse for energies and forces.
-        For forces it is also possible to use `angle`.
+    name : str
+        Keyword of the quantity, e.g., 'energy'.
+    reductions : List[str]
+        List of reductions performed on the difference between target and predictions.
+        Can be 'mae', 'mse', 'rmse' for energies and forces.
+        For forces, 'angle' can also be used.
     """
 
     name: str
@@ -224,10 +259,21 @@ class LossConfig(BaseModel, extra="forbid"):
 
     Parameters
     ----------
-    name: Keyword of the quantity e.g `energy`.
-    loss_type: Weighting scheme for atomic contributions. See the MLIP package
-        for reference 10.1088/2632-2153/abc9fe for details
-    weight: Weighting factor in the overall loss function.
+    name : str
+        Keyword of the quantity, e.g., 'energy'.
+    loss_type : str, optional
+        Weighting scheme for atomic contributions. See the MLIP package
+        for reference 10.1088/2632-2153/abc9fe for details, by default "mse".
+    weight : NonNegativeFloat, optional
+        Weighting factor in the overall loss function, by default 1.0.
+    atoms_exponent : NonNegativeFloat, optional
+        Exponent for atomic contributions weighting, by default 1.
+    parameters : dict, optional
+        Additional parameters for configuring the loss function, by default {}.
+
+    Notes
+    -----
+    This class specifies the configuration of the loss functions used during training.
     """
 
     name: str
@@ -310,29 +356,72 @@ class CheckpointConfig(BaseModel, extra="forbid"):
     reset_layers: List[str] = []
 
 
-class Config(BaseModel, frozen=True, extra="forbid"):
-    """
-    Main configuration of a apax training run.
+class WeightAverage(BaseModel, extra="forbid"):
+    """Applies an exponential moving average to model parameters.
 
     Parameters
     ----------
+    ema_start : int, default = 1
+        Epoch at which to start averaging models.
+    alpha : float, default = 0.9
+        How much of the new model to use. 1.0 would mean no averaging, 0.0 no updates.
+    """
 
-    n_epochs: Number of training epochs.
-    patience: Number of epochs without improvement before trainings gets terminated.
-    seed: Random seed.
-    n_models: Number of models to be trained at once.
-    n_jitted_steps: Number of train batches to be processed in a compiled loop.
-        Can yield singificant speedups for small structures or small batch sizes.
-    data: :class: `Data` <config.DataConfig> configuration.
-    model: :class: `Model` <config.ModelConfig> configuration.
-    metrics: List of :class: `metric` <config.MetricsConfig> configurations.
-    loss: List of :class: `loss` <config.LossConfig> function configurations.
-    optimizer: :class: `Optimizer` <config.OptimizerConfig> configuration.
-    callbacks: List of :class: `callback` <config.CallbackConfig> configurations.
-    progress_bar: Progressbar configuration.
-    checkpoints: Checkpoint configuration.
-    data_parallel: Automatically uses all available GPUs for data parallel training.
-        Set to false to force single device training.
+    ema_start: int = 0
+    alpha: float = 0.9
+
+
+class Config(BaseModel, frozen=True, extra="forbid"):
+    """
+    Main configuration of a apax training run. Parameter that are config classes will
+    be generated by parsing the config.yaml file and are specified
+    as shown :ref:`here <train_config>`:
+
+    Example
+    -------
+    .. code-block:: yaml
+
+        data:
+            directory: models/
+            experiment: apax
+                .
+                .
+
+    Parameters
+    ----------
+    n_epochs : int, required
+        | Number of training epochs.
+    patience : int, optional
+        | Number of epochs without improvement before trainings gets terminated.
+    seed : int, default = 1
+        | Random seed.
+    n_models : int, default = 1
+        | Number of models to be trained at once.
+    n_jitted_steps : int, default = 1
+        | Number of train batches to be processed in a compiled loop.
+        | Can yield significant speedups for small structures or small batch sizes.
+    data : :class:`.DataConfig`
+        | Data configuration.
+    model : :class:`.ModelConfig`
+        | Model configuration.
+    metrics : List of :class:`.MetricsConfig`
+        | Metrics configuration.
+    loss : List of :class:`.LossConfig`
+        | Loss configuration.
+    optimizer : :class:`.OptimizerConfig`
+        | Loss optimizer configuration.
+    weight_average : :class:`.WeightAverage`, optional
+        | Options for averaging weights between epochs.
+    callbacks : List of various CallBack classes
+        | Possible callbacks are :class:`.CSVCallback`,
+        | :class:`.TBCallback`, :class:`.MLFlowCallback`
+    progress_bar : :class:`.TrainProgressbarConfig`
+        | Progressbar configuration.
+    checkpoints : :class:`.CheckpointConfig`
+        | Checkpoint configuration.
+    data_parallel : bool, default = True
+        | Automatically uses all available GPUs for data parallel training.
+        | Set to false to force single device training.
     """
 
     n_epochs: PositiveInt
@@ -340,13 +429,14 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     seed: int = 1
     n_models: int = 1
     n_jitted_steps: int = 1
-    data_parallel: int = True
+    data_parallel: bool = True
 
     data: DataConfig
     model: ModelConfig = ModelConfig()
     metrics: List[MetricsConfig] = []
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()
+    weight_average: Optional[WeightAverage] = None
     callbacks: List[CallBack] = [CSVCallback(name="csv")]
     progress_bar: TrainProgressbarConfig = TrainProgressbarConfig()
     checkpoints: CheckpointConfig = CheckpointConfig()

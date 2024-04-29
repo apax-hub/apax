@@ -8,18 +8,20 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from clu import metrics
+from flax.training.train_state import TrainState
 from jax.experimental import mesh_utils
 from jax.sharding import PositionalSharding
 from tqdm import trange
 
 from apax.data.input_pipeline import InMemoryDataset
 from apax.train.checkpoints import CheckpointManager, load_state
+from apax.train.parameters import EMAParameters
 
 log = logging.getLogger(__name__)
 
 
 def fit(
-    state,
+    state: TrainState,
     train_ds: InMemoryDataset,
     loss_fn,
     Metrics: metrics.Collection,
@@ -28,13 +30,48 @@ def fit(
     ckpt_dir,
     ckpt_interval: int = 1,
     val_ds: Optional[InMemoryDataset] = None,
-    sam_rho=0.0,
     patience: Optional[int] = None,
     disable_pbar: bool = False,
     disable_batch_pbar: bool = True,
     is_ensemble=False,
     data_parallel=True,
+    ema_handler: Optional[EMAParameters] = None,
 ):
+    """
+    Trains the model using the provided training dataset.
+
+    Parameters
+    ----------
+    state :
+        The initial state of the model.
+    train_ds : InMemoryDataset
+        The training dataset.
+    loss_fn :
+        The loss function to be minimized.
+    Metrics metrics.Collection :
+        Collection of metrics to evaluate during training.
+    callbacks : list
+        List of callback functions to be executed during training.
+    n_epochs : int
+        Number of epochs for training.
+    ckpt_dir:
+        Directory to save checkpoints.
+    ckpt_interval : int, default = 1
+        Interval for saving checkpoints.
+    val_ds : InMemoryDataset, default = None
+        Validation dataset.
+    patience : int, default = None
+        Patience for early stopping.
+    disable_pbar : bool, default = False
+        Whether to disable progress bar for epochs..
+    disable_batch_pbar : bool, default = True
+        Whether to disable progress bar for batches.
+    is_ensemble : bool, default = False
+        Whether the model is an ensemble.
+    data_parallel : bool, default = True
+        Whether to use data parallelism.
+    """
+
     log.info("Beginning Training")
     callbacks.on_train_begin()
 
@@ -43,7 +80,7 @@ def fit(
     ckpt_manager = CheckpointManager()
 
     train_step, val_step = make_step_fns(
-        loss_fn, Metrics, model=state.apply_fn, sam_rho=sam_rho, is_ensemble=is_ensemble
+        loss_fn, Metrics, model=state.apply_fn, is_ensemble=is_ensemble
     )
     if train_ds.n_jit_steps > 1:
         train_step = jax.jit(functools.partial(jax.lax.scan, train_step))
@@ -77,6 +114,9 @@ def fit(
     for epoch in range(start_epoch, n_epochs):
         epoch_start_time = time.time()
         callbacks.on_epoch_begin(epoch=epoch + 1)
+
+        if ema_handler:
+            ema_handler.update(state.params, epoch)
 
         epoch_loss.update({"train_loss": 0.0})
         train_batch_metrics = Metrics.empty()
@@ -115,6 +155,12 @@ def fit(
             for key, val in train_batch_metrics.compute().items()
         }
 
+        if ema_handler:
+            ema_handler.update(state.params, epoch)
+            val_params = ema_handler.ema_params
+        else:
+            val_params = state.params
+
         if val_ds is not None:
             epoch_loss.update({"val_loss": 0.0})
             val_batch_metrics = Metrics.empty()
@@ -132,7 +178,7 @@ def fit(
                 batch = next(batch_val_ds)
 
                 batch_loss, val_batch_metrics = val_step(
-                    state.params, batch, val_batch_metrics
+                    val_params, batch, val_batch_metrics
                 )
                 epoch_loss["val_loss"] += batch_loss
                 batch_pbar.update()
@@ -148,7 +194,6 @@ def fit(
             )
 
         epoch_metrics.update({**epoch_loss})
-
         epoch_end_time = time.time()
         epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
 
@@ -180,15 +225,6 @@ def fit(
     train_ds.cleanup()
     if val_ds:
         val_ds.cleanup()
-
-
-def global_norm(updates) -> jnp.ndarray:
-    """Returns the l2 norm of the input.
-    Args:
-      updates: A pytree of ndarrays representing the gradient.
-    """
-    norm = jax.tree_map(lambda u: jnp.sqrt(jnp.sum(jnp.square(u))), updates)
-    return norm
 
 
 def calc_loss(params, inputs, labels, loss_fn, model):
@@ -233,21 +269,12 @@ def make_ensemble_eval(update_fn: Callable) -> Callable:
     return ensemble_eval_fn
 
 
-def make_step_fns(loss_fn, Metrics, model, sam_rho, is_ensemble):
+def make_step_fns(loss_fn, Metrics, model, is_ensemble):
     loss_calculator = partial(calc_loss, loss_fn=loss_fn, model=model)
     grad_fn = jax.value_and_grad(loss_calculator, 0, has_aux=True)
-    rho = sam_rho
 
     def update_step(state, inputs, labels):
         (loss, predictions), grads = grad_fn(state.params, inputs, labels)
-
-        if rho > 1e-6:
-            # SAM step
-            grad_norm = global_norm(grads)
-            eps = jax.tree_map(lambda g, n: g * rho / n, grads, grad_norm)
-            params_eps = jax.tree_map(lambda p, e: p + e, state.params, eps)
-            (loss, _), grads = grad_fn(params_eps, inputs, labels)  # maybe get rid of SAM
-
         state = state.apply_gradients(grads=grads)
         return loss, predictions, state
 

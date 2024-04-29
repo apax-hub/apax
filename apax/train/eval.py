@@ -34,9 +34,35 @@ def get_test_idxs(atoms_list, used_idxs, n_test=-1):
 def load_test_data(
     config, model_version_path, eval_path, n_test=-1
 ):  # TODO double code run.py in progress
+    """
+    Load test data for evaluation.
+
+    Parameters
+    ----------
+    config : object
+        Configuration object.
+    model_version_path : str
+        Path to the model version.
+    eval_path : str
+        Path to evaluation directory.
+    n_test : int, default = -1
+        Number of test samples to load, by default -1 (load all).
+
+    Returns
+    -------
+    atoms_list
+        List of ase.Atoms containing the test data.
+    """
+
     log.info("Running Input Pipeline")
     os.makedirs(eval_path, exist_ok=True)
-    if config.data.data_path is not None:
+
+    if config.data.test_data_path is not None:
+        log.info(f"Read test data file {config.data.test_data_path}")
+        atoms_list = load_data(config.data.test_data_path)
+        atoms_list = atoms_list[:n_test]
+
+    elif config.data.data_path is not None:
         log.info(f"Read data file {config.data.data_path}")
         atoms_list = load_data(config.data.data_path)
 
@@ -54,12 +80,6 @@ def load_test_data(
 
         atoms_list, _ = split_atoms(atoms_list, test_idxs)
 
-    elif config.data.test_data_path is not None:
-        log.info(f"Read test data file {config.data.test_data_path}")
-        atoms_list, label_dict = load_data(config.data.test_data_path)
-        atoms_list = atoms_list[:n_test]
-        for key, val in label_dict.items():
-            label_dict[key] = val[:n_test]
     else:
         raise ValueError("input data path/paths not defined")
 
@@ -67,47 +87,76 @@ def load_test_data(
 
 
 def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=False):
+    """
+    Perform predictions on the test dataset.
+
+    Parameters
+    ----------
+    model :
+        Trained model.
+    params :
+        Model parameters.
+    Metrics :
+        Collection of metrics.
+    loss_fn :
+        Loss function.
+    test_ds :
+        Test dataset.
+    callbacks :
+        Callback functions.
+    is_ensemble : bool, default = False
+        Whether the model is an ensemble.
+    """
+
     callbacks.on_train_begin()
     _, test_step_fn = make_step_fns(
-        loss_fn, Metrics, model=model, sam_rho=0.0, is_ensemble=is_ensemble
+        loss_fn, Metrics, model=model, is_ensemble=is_ensemble
     )
 
-    test_steps_per_epoch = test_ds.steps_per_epoch()
-    batch_test_ds = test_ds.shuffle_and_batch()
+    batch_test_ds = test_ds.batch()
 
-    epoch_loss = {}
-    epoch_start_time = time.time()
-
-    epoch_loss.update({"test_loss": 0.0})
     test_metrics = Metrics.empty()
 
     batch_pbar = trange(
-        0, test_steps_per_epoch, desc="Batches", ncols=100, disable=False, leave=True
+        0, test_ds.n_data, desc="Structure", ncols=100, disable=False, leave=True
     )
-    for batch_idx in range(test_steps_per_epoch):
-        inputs, labels = next(batch_test_ds)
+    for batch_idx in range(test_ds.n_data):
+        callbacks.on_test_batch_begin(batch_idx)
+        batch = next(batch_test_ds)
+        batch_start_time = time.time()
 
-        batch_loss, test_metrics = test_step_fn(params, inputs, labels, test_metrics)
+        batch_loss, test_metrics = test_step_fn(params, batch, test_metrics)
+        batch_metrics = {"test_loss": float(batch_loss)}
+        batch_metrics.update(
+            {f"test_{key}": float(val) for key, val in test_metrics.compute().items()}
+        )
+        batch_end_time = time.time()
+        batch_metrics.update({"time": batch_end_time - batch_start_time})
 
-        epoch_loss["test_loss"] += batch_loss
-        batch_pbar.set_postfix(test_loss=epoch_loss["test_loss"] / batch_idx)
+        callbacks.on_test_batch_end(batch=batch_idx, logs=batch_metrics)
+
+        batch_pbar.set_postfix(test_loss=batch_metrics["test_loss"])
         batch_pbar.update()
     batch_pbar.close()
-
-    epoch_loss["test_loss"] /= test_steps_per_epoch
-    epoch_loss["test_loss"] = float(epoch_loss["test_loss"])
-    epoch_metrics = {
-        f"test_{key}": float(val) for key, val in test_metrics.compute().items()
-    }
-    epoch_metrics.update({**epoch_loss})
-    epoch_end_time = time.time()
-    epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
-    callbacks.on_epoch_end(epoch=1, logs=epoch_metrics)
     callbacks.on_train_end()
-    # TODO currently this has no informative output
 
 
 def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
+    """
+    Evaluate the model using the provided configuration.
+
+    Parameters
+    ----------
+    config_path : str
+        Path to the configuration file.
+    n_test : int, default = -1
+        Number of test samples to evaluate, by default -1 (evaluate all).
+    log_file : str, default = "eval.log"
+        Path to the log file.
+    log_level : str, default = "error"
+        Logging level.
+    """
+
     setup_logging(log_file, log_level)
     log.info("Starting model evaluation")
     config = parse_config(config_path)
@@ -117,7 +166,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     model_version_path = Path(config.data.directory) / config.data.experiment
     eval_path = model_version_path / "eval"
 
-    callbacks = initialize_callbacks(config.callbacks, eval_path)
+    callbacks = initialize_callbacks(config, eval_path)
     loss_fn = initialize_loss_fn(config.loss)
     Metrics = initialize_metrics(config.metrics)
 
@@ -125,6 +174,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     test_ds = OTFInMemoryDataset(
         atoms_list,
         config.model.r_max,
+        1,
         config.data.valid_batch_size,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,

@@ -22,31 +22,35 @@ def make_minimal_input():
 def load_data(data_path):
     """Non ASE compatible parameters have to be saved in an exta file that has the same
     name as the datapath but with the extension `_labels.npz`.
-    example for the npz-file:
 
-    dipole = np.random.rand(3, 1)
-    charge = np.random.rand(3, 2)
-    mat = np.random.rand(3, 1)
-    shape = ['ragged', 'ragged', 'fixed']
+    Example
+    -------
+    example for the npz-file::
 
-    np.savez(
-        "data_path_labels.npz",
-        dipole=dipole,
-        charge=charge,
-        mat=mat,
-        shape=shape,
-    )
+
+        dipole = np.random.rand(3, 1)
+        charge = np.random.rand(3, 2)
+        mat = np.random.rand(3, 1)
+        shape = ['ragged', 'ragged', 'fixed']
+
+        np.savez(
+            "data_path_labels.npz",
+            dipole=dipole,
+            charge=charge,
+            mat=mat,
+            shape=shape,
+        )
 
     shape has to be in the same order than the parameters
 
     Parameters
     ----------
-    data_path :
+    data_path:
         Path to the ASE readable file that includes all structures.
 
     Returns
     -------
-    atoms_list
+    list
         List of all structures where entries are ASE atoms objects.
 
     """
@@ -85,24 +89,22 @@ def split_idxs(atoms_list, n_train, n_valid):
 
 
 def split_atoms(atoms_list, train_idxs, val_idxs=None):
-    """Shuffles and splits a list in two resulting lists
-    of the length length1 and length2.
+    """
+    Split the list of atoms into training and validation sets (validation is optional).
 
     Parameters
     ----------
-    data_list :
-        A list.
-    length1 :
-        Length of the first resulting list.
-    length2 :
-        Length of the second resulting list.
+    atoms_list : list[ase.Atoms]
+        List of atoms.
+    train_idxs : list[int]
+        List of indices for the training set.
+    val_idxs : list[int], optional
+        List of indices for the validation set.
 
     Returns
     -------
-    splitted_list1
-        List of random structures from atoms_list of the length length1.
-    splitted_list2
-        List of random structures from atoms_list of the length length2.
+    Tuple[list, list]
+        Tuple containing lists of atoms for training and validation sets.
     """
     train_atoms_list = [atoms_list[i] for i in train_idxs]
 

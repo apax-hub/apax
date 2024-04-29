@@ -1,6 +1,7 @@
 import logging
+import os
 import sys
-from typing import List
+from typing import List, Union
 
 import jax
 
@@ -14,6 +15,7 @@ from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import create_params, create_train_state
 from apax.train.loss import Loss, LossCollection
 from apax.train.metrics import initialize_metrics
+from apax.train.parameters import EMAParameters
 from apax.train.trainer import fit
 from apax.transfer_learning import transfer_parameters
 from apax.utils.random import seed_py_np_tf
@@ -22,6 +24,17 @@ log = logging.getLogger(__name__)
 
 
 def setup_logging(log_file, log_level):
+    """
+    Setup logging configuration.
+
+    Parameters
+    ----------
+    log_file : str
+        Path to the log file.
+    log_level : str
+        Logging level. Options: {'debug', 'info', 'warning', 'error', 'critical'}.
+    """
+
     log_levels = {
         "debug": logging.DEBUG,
         "info": logging.INFO,
@@ -44,6 +57,20 @@ def setup_logging(log_file, log_level):
 
 
 def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
+    """
+    Initialize loss functions based on configuration.
+
+    Parameters
+    ----------
+    loss_config_list : List[LossConfig]
+        List of loss configurations.
+
+    Returns
+    -------
+    LossCollection
+        Collection of initialized loss functions.
+    """
+
     log.info("Initializing Loss Function")
     loss_funcs = []
     for loss in loss_config_list:
@@ -52,6 +79,24 @@ def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
 
 
 def initialize_datasets(config: Config):
+    """
+    Initialize training and validation datasets based on the provided configuration.
+
+    Parameters
+    ----------
+    config : Config
+        Configuration object all parameters.
+
+    Returns
+    -------
+    train_ds : Dataset
+        Training dataset.
+    val_ds : Dataset
+        Validation dataset.
+    ds_stats : Dict[str, Tuple[float, float]]
+        Dictionary containing scale and shift parameters for normalization.
+    """
+
     train_raw_ds, val_raw_ds = load_data_files(config.data)
 
     Dataset = dataset_dict[config.data.ds_type]
@@ -88,7 +133,16 @@ def initialize_datasets(config: Config):
     return train_ds, val_ds, ds_stats
 
 
-def run(user_config, log_level="error"):
+def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
+    """
+    Starts the training of a model with parameters provided by a the config.
+
+    Parameters
+    ----------
+    user_config : str | os.PathLike | dict
+        training config full example can be find :ref:`here <train_config>`:
+
+    """
     config = parse_config(user_config)
 
     seed_py_np_tf(config.seed)
@@ -120,11 +174,10 @@ def run(user_config, log_level="error"):
 
     # TODO rework optimizer initialization and lr keywords
     steps_per_epoch = train_ds.steps_per_epoch()
-    n_epochs = config.n_epochs
-    transition_steps = steps_per_epoch * n_epochs - config.optimizer.transition_begin
     tx = get_opt(
         params,
-        transition_steps=transition_steps,
+        config.n_epochs,
+        steps_per_epoch,
         **config.optimizer.model_dump(),
     )
 
@@ -135,21 +188,28 @@ def run(user_config, log_level="error"):
     if do_transfer_learning:
         state = transfer_parameters(state, config.checkpoints)
 
+    if config.weight_average:
+        ema_handler = EMAParameters(
+            config.weight_average.ema_start, config.weight_average.alpha
+        )
+    else:
+        ema_handler = None
+
     fit(
         state,
         train_ds,
         loss_fn,
         Metrics,
         callbacks,
-        n_epochs,
+        config.n_epochs,
         ckpt_dir=config.data.model_version_path,
         ckpt_interval=config.checkpoints.ckpt_interval,
         val_ds=val_ds,
-        sam_rho=config.optimizer.sam_rho,
         patience=config.patience,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
         disable_batch_pbar=config.progress_bar.disable_batch_pbar,
         is_ensemble=config.n_models > 1,
         data_parallel=config.data_parallel,
+        ema_handler=ema_handler,
     )
     log.info("Finished training")
