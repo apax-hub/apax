@@ -81,19 +81,17 @@ def test_i_torch_descriptor(example_atoms):
     dr_vec = R[idxs[0]] - R[idxs[1]]
 
     inputj = dr_vec, Z, idxs
+    inputt = (
+        torch.from_numpy(np.asarray(dr_vec, dtype=np.float64)),
+        torch.from_numpy(np.asarray(Z, dtype=np.int64)),
+        torch.from_numpy(np.asarray(idxs, dtype=np.int64)),
+    )
 
     linj = GaussianMomentDescriptor(
         dtype=jnp.float64,
         )
-
     rng_key = jax.random.PRNGKey(0)
     params = linj.init(rng_key, *inputj)
-
-    inputt = (
-            torch.from_numpy(np.asarray(dr_vec, dtype=np.float64)),
-            torch.from_numpy(np.asarray(Z, dtype=np.int64)),
-            torch.from_numpy(np.asarray(idxs, dtype=np.int64)),
-        )
 
     lint = GaussianMomentDescriptorT(
         params=params["params"],
@@ -136,8 +134,6 @@ def test_i_torch_readout():
     linj = AtomisticReadout([16,16])
 
     inputj = jnp.array(np.random.randn(8))
-
-
     rng_key = jax.random.PRNGKey(0)
     params = linj.init(rng_key, inputj)
 

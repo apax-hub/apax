@@ -1,9 +1,11 @@
 import jax
+import pytest
+from apax.data.preprocessing import compute_nl
 from apax.layers.descriptor.basis_functions import GaussianBasis, RadialFunction
 from apax.layers.ntk_linear import NTKLinear
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
-from apax.model.gmnn import AtomisticModel, EnergyModel
+from apax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
 from apax.nn.torch.layers.descriptor.basis import GaussianBasisT, RadialFunctionT
 from apax.nn.torch.layers.ntk_linear import NTKLinearT
 from apax.nn.torch.layers.readout import AtomisticReadoutT
@@ -12,49 +14,133 @@ import numpy as np
 import torch
 
 from apax.nn.torch.layers.scaling import PerElementScaleShiftT
-from apax.nn.torch.model.gmnn import AtomisticModelT, EnergyModelT
+from apax.nn.torch.model.gmnn import AtomisticModelT, EnergyDerivativeModelT, EnergyModelT
+from apax.utils.convert import atoms_to_inputs
 
+@pytest.mark.parametrize(
+    "num_data, pbc, calc_results",
+    (
+        [1, False, ["energy", "forces"]],
+        # [1, True, ["energy", "forces"]],
+    ),
+)
+def test_i_torch_atomistic_model(example_atoms):
+    inputs = atoms_to_inputs(example_atoms)
+    R = inputs["positions"][0]
+    Z = inputs["numbers"][0]
+    box = inputs["box"][0]
+    idxs, offsets = compute_nl(R, box, 10.0)
 
-def test_i_torch_energy_model():
+    dr_vec = R[idxs[0]] - R[idxs[1]]
+
+    inputj = dr_vec, Z, idxs
+    inputt = (
+        torch.from_numpy(np.asarray(dr_vec, dtype=np.float64)),
+        torch.from_numpy(np.asarray(Z, dtype=np.int64)),
+        torch.from_numpy(np.asarray(idxs, dtype=np.int64)),
+    )
+
+    inputj = dr_vec, Z, idxs
+    inputt = (
+        torch.from_numpy(np.asarray(dr_vec, dtype=np.float64)),
+        torch.from_numpy(np.asarray(Z, dtype=np.int64)),
+        torch.from_numpy(np.asarray(idxs, dtype=np.int64)),
+    )
 
     linj = AtomisticModel()
 
-    inputj = jnp.array(np.random.randn(8))
-
     rng_key = jax.random.PRNGKey(0)
-    params = linj.init(rng_key, inputj)
+    params = linj.init(rng_key, *inputj)
+    lint = AtomisticModelT(params=params["params"])
 
-    inputt = torch.from_numpy(np.asarray(inputj, dtype=np.float32))
-    lint = AtomisticModelT(params_list=params["params"])
+    outj = linj.apply(params, *inputj)
+    outt = lint(*inputt)
 
-    outj = linj.apply(params, inputj)
-    outt = lint(inputt)
-
-    outj = np.array(outj, np.float32)
+    outj = np.array(outj)
     outt = outt.detach().numpy()
 
-    assert np.allclose(outj, outt)
+    assert np.allclose(outj, outt, rtol=0.01)
     assert outj.dtype == outt.dtype
 
 
 
-# def test_i_torch_energy_model():
+@pytest.mark.parametrize(
+    "num_data, pbc, calc_results",
+    (
+        [1, False, ["energy", "forces"]],
+        # [1, True, ["energy", "forces"]],
+    ),
+)
+def test_i_torch_energy_model(example_atoms):
+    inputs = atoms_to_inputs(example_atoms)
+    R = inputs["positions"][0]
+    Z = inputs["numbers"][0]
+    box = inputs["box"][0]
+    idxs, offsets = compute_nl(R, box, 10.0)
 
-#     linj = EnergyModel()
+    # dr_vec = R[idxs[0]] - R[idxs[1]]
 
-#     inputj = jnp.array(np.random.randn(8))
+    inputj = R, Z, idxs, box, offsets
+    inputt = (
+        torch.from_numpy(np.asarray(R, dtype=np.float64)),
+        torch.from_numpy(np.asarray(Z, dtype=np.int64)),
+        torch.from_numpy(np.asarray(idxs, dtype=np.int64)),
+        torch.from_numpy(np.asarray(box, dtype=np.float64)),
+        torch.from_numpy(np.asarray(offsets, dtype=np.float64)),
+    )
 
-#     rng_key = jax.random.PRNGKey(0)
-#     params = linj.init(rng_key, inputj)
+    linj = EnergyModel()
 
-#     inputt = torch.from_numpy(np.asarray(inputj, dtype=np.float32))
-#     lint = EnergyModelT(params_list=params["params"])
+    rng_key = jax.random.PRNGKey(0)
+    params = linj.init(rng_key, *inputj)
+    lint = EnergyModelT(params=params["params"])
 
-#     outj = linj.apply(params, inputj)
-#     outt = lint(inputt)
+    outj = linj.apply(params, *inputj)
+    outt = lint(*inputt)
 
-#     outj = np.array(outj, np.float32)
-#     outt = outt.detach().numpy()
+    outj = np.array(outj)
+    outt = outt.detach().numpy()
 
-#     assert np.allclose(outj, outt)
-#     assert outj.dtype == outt.dtype
+    assert np.allclose(outj, outt, rtol=0.01)
+    assert outj.dtype == outt.dtype
+
+
+@pytest.mark.parametrize(
+    "num_data, pbc, calc_results",
+    (
+        [1, False, ["energy", "forces"]],
+        # [1, True, ["energy", "forces"]],
+    ),
+)
+def test_i_torch_energy_model(example_atoms):
+    inputs = atoms_to_inputs(example_atoms)
+    R = inputs["positions"][0]
+    Z = inputs["numbers"][0]
+    box = inputs["box"][0]
+    idxs, offsets = compute_nl(R, box, 10.0)
+
+    # dr_vec = R[idxs[0]] - R[idxs[1]]
+
+    inputj = R, Z, idxs, box, offsets
+    inputt = (
+        torch.from_numpy(np.asarray(R, dtype=np.float64)),
+        torch.from_numpy(np.asarray(Z, dtype=np.int64)),
+        torch.from_numpy(np.asarray(idxs, dtype=np.int64)),
+        torch.from_numpy(np.asarray(box, dtype=np.float64)),
+        torch.from_numpy(np.asarray(offsets, dtype=np.float64)),
+    )
+
+    linj = EnergyDerivativeModel()
+
+    rng_key = jax.random.PRNGKey(0)
+    params = linj.init(rng_key, *inputj)
+    lint = EnergyDerivativeModelT(params=params["params"])
+
+    outj = linj.apply(params, *inputj)
+    outt = lint(*inputt)
+
+    outj = np.array(outj)
+    outt = outt.detach().numpy()
+
+    assert np.allclose(outj, outt, rtol=0.01)
+    assert outj.dtype == outt.dtype

@@ -63,7 +63,7 @@ class GaussianMomentDescriptorT(nn.Module):
         self.dtype = dtype
 
         self.r_max = self.radial_fn.r_max
-        self.n_radial = self.radial_fn.n_radial
+        self.n_radial: int = self.radial_fn.n_radial
 
         # self.distance = distance
 
@@ -116,11 +116,12 @@ class GaussianMomentDescriptorT(nn.Module):
         contr_5 = contr_5[tril_2_i, tril_2_j]
         contr_6 = contr_6[tril_2_i, tril_2_j]
 
-        n_symm01_features = self.triang_idxs_2d.shape[0] * self.n_radial
+        n_symm01_features: int = self.triang_idxs_2d.shape[0] * self.n_radial
+        radial_cubed: int = int(self.n_radial**3)
 
         contr_5 = torch.reshape(contr_5, [n_symm01_features, -1])
         contr_6 = torch.reshape(contr_6, [n_symm01_features, -1])
-        contr_7 = torch.reshape(contr_7, [self.n_radial**3, -1])
+        contr_7 = torch.reshape(contr_7, [radial_cubed, -1])
 
         contr_1 = torch.transpose(contr_1, 0, 1)
         contr_2 = torch.transpose(contr_2, 0, 1)

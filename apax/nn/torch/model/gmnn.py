@@ -22,9 +22,14 @@ class AtomisticModelT(nn.Module):
         super().__init__()
 
         if params:
-            self.descriptor = GaussianMomentDescriptorT(params["descriptor"])
-            self.readout = AtomisticReadoutT(params["readout"])
-            self.scale_shift = PerElementScaleShiftT(params["scale_shift"])
+            self.descriptor = GaussianMomentDescriptorT(params=params["descriptor"])
+            readout = AtomisticReadoutT(params_list=params["readout"])
+
+            def readout_fn(x):
+                return readout(x)
+
+            self.readout = readout#torch.vmap(readout_fn)
+            self.scale_shift = PerElementScaleShiftT(params=params["scale_shift"])
         else:
             self.descriptor = descriptor
             self.readout = readout
@@ -37,11 +42,14 @@ class AtomisticModelT(nn.Module):
         idx: torch.Tensor,
     ) -> torch.Tensor:
         gm = self.descriptor(dr_vec, Z, idx)
-        # print(gm.size())
-        h = self.readout(gm).squeeze()
-        # print(h.size())
+        
+        h = []
+        for g in gm:
+            hi = self.readout(g)
+            # print(hi)
+            h.append(hi)
+        h = torch.concat(h, dim=0)
         output = self.scale_shift(h, Z)
-
         return output
 
 
@@ -74,7 +82,7 @@ class EnergyModelT(nn.Module):
     ):
         super().__init__()
         if params:
-            self.atomistic_model = AtomisticModelT(params=params)
+            self.atomistic_model = AtomisticModelT(params=params["atomistic_model"])
         else:
             self.atomistic_model = atomistic_model
         # self.corrections = corrections
@@ -88,8 +96,8 @@ class EnergyModelT(nn.Module):
         R: torch.Tensor,
         Z: torch.Tensor,
         idx: torch.Tensor,
-        # box,
-        # offsets,
+        box,
+        offsets,
         # perturbation=None,
     ):
         # Distances
@@ -126,10 +134,14 @@ class EnergyDerivativeModelT(nn.Module):
         self,
         energy_model: EnergyModelT = EnergyModelT(),
         calc_stress: bool = False,
+        params=None,
     ):
         super().__init__()
 
-        self.energy_model = energy_model
+        if params:
+            self.energy_model = EnergyModelT(params=params["energy_model"])
+        else:
+            self.energy_model = energy_model
         self.calc_stress = False  # calc_stress
 
     def forward(
@@ -137,22 +149,13 @@ class EnergyDerivativeModelT(nn.Module):
         R: torch.Tensor,
         Z: torch.Tensor,
         neighbor: torch.Tensor,
-        # box: torch.Tensor,
-        # offsets: torch.Tensor,
+        box: torch.Tensor,
+        offsets: torch.Tensor,
     ):
         R.requires_grad_(True)
         requires_grad = [R]
-        # if self.calc_stress:
-        #     eps = torch.zeros((3, 3), torch.float64)
-        #     eps.requires_grad_(True)
-        #     eps_sym = 0.5 * (eps + eps.T)
-        #     identity = torch.eye(3, dtype=torch.float64)
-        #     perturbation = identity + eps_sym
-        #     requires_grad.append(eps)
-        # else:
-        #     perturbation = None
 
-        energy = self.energy_model(R, Z, neighbor) # , box, offsets, perturbation
+        energy = self.energy_model(R, Z, neighbor, box, offsets)
         grad_outputs : List[Optional[torch.Tensor]] = [torch.ones_like(energy)]
 
         forces = autograd.grad(
@@ -165,9 +168,5 @@ class EnergyDerivativeModelT(nn.Module):
         forces = - forces
 
         prediction = {"energy": energy, "forces": forces}
-
-        # if self.calc_stress:
-        #     stress = grads[-1]
-        #     prediction["stress"] = stress
 
         return prediction

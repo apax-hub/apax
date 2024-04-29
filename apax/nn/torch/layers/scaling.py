@@ -18,7 +18,6 @@ class PerElementScaleShiftT(nn.Module):
         self.n_species = n_species
 
         if params:
-
             scale = params["scale_per_element"]
             shift = params["shift_per_element"]
             scale = torch.from_numpy(np.array(scale))
@@ -40,6 +39,5 @@ class PerElementScaleShiftT(nn.Module):
         # Z shape: n_atoms
         # scale[Z] shape: n_atoms x 1
         x = x.type(self.dtype)
-
-        out = self.scale_param[Z] * x + self.shift_param[Z]
+        out = self.scale_param[Z] * x.unsqueeze(1) + self.shift_param[Z]
         return out
