@@ -73,7 +73,3 @@ class TorchASECalculator(Calculator):
 
         self.results = {k: np.array(v.detach().numpy(), dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
-
-
-
-

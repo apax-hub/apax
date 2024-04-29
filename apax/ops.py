@@ -90,6 +90,3 @@ def einsum(pattern: str, operands: List[torch.Tensor]):
     #     return jax.numpy.einsum(pattern, *operands, **kwargs)
     if isinstance(operands[0], torch.Tensor):
         return torch.einsum(pattern, operands)
-
-
-

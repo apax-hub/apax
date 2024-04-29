@@ -173,4 +173,3 @@ def test_i_torch_scaling():
 
     assert np.allclose(outj, outt)
     assert outj.dtype == outt.dtype
-
