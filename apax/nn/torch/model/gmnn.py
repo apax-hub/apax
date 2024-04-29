@@ -46,7 +46,6 @@ class AtomisticModelT(nn.Module):
         h = []
         for g in gm:
             hi = self.readout(g)
-            # print(hi)
             h.append(hi)
         h = torch.concat(h, dim=0)
         output = self.scale_shift(h, Z)

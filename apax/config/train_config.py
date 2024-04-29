@@ -147,7 +147,7 @@ class ModelConfig(BaseModel, extra="forbid"):
     n_radial: PositiveInt = 5
     r_min: NonNegativeFloat = 0.5
     r_max: PositiveFloat = 6.0
-    n_contr: int = -1
+    n_contr: int = 8
     emb_init: Optional[str] = "uniform"
 
     nn: List[PositiveInt] = [512, 512]
