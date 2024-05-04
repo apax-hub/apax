@@ -126,7 +126,7 @@ class ModelBuilder:
             init_box=init_box,
             inference_disp_fn=inference_disp_fn,
         )
-        if self.config.n_shallow_ensemble > 0:
+        if self.config["n_shallow_ensemble"] > 0:
             model = ShallowEnsembleModel(
                 energy_model,
                 calc_stress=False,  # self.config["calc_stress"],

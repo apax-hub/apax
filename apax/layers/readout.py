@@ -17,10 +17,11 @@ class AtomisticReadout(nn.Module):
 
     def setup(self):
         readout_unit = [1]
+        print(self.n_shallow_ensemble)
         if self.n_shallow_ensemble > 0:
             readout_unit = [self.n_shallow_ensemble]
-            self._n_shallow_ensemble = self.n_shallow_ensemble
-
+            # self._n_shallow_ensemble = self.n_shallow_ensemble
+        print(readout_unit)
         units = [u for u in self.units] + readout_unit
         dense = []
         for ii, n_hidden in enumerate(units):

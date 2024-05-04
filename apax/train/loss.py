@@ -79,8 +79,7 @@ def nll_loss(
     divisor: float = 1.0,
     parameters: dict = {},
 ) -> jax.Array:
-    """Computes the gaussian NLL loss means, targets and vars (uncertainty estimate)
-    """
+    """Computes the gaussian NLL loss means, targets and vars (uncertainty estimate)"""
     label, means, vars = label[name], prediction[name], prediction[name + "_uncertainty"]
     eps = 1e-4
     sigma = jnp.sqrt(vars)

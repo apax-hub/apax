@@ -122,15 +122,15 @@ class EnergyModel(nn.Module):
             dr_vec = self.displacement(Rj, Ri, perturbation, box)
             dr_vec += offsets
 
-        aux_prediction = {}
-
         # Model Core
         # shape Natoms
         # shape shallow ens: Natoms x Nensemble
         atomic_energies = self.atomistic_model(dr_vec, Z, idx)
+        print(atomic_energies.shape)
 
         # check for shallow ensemble
-        is_shallow_ensemble = len(atomic_energies.shape) > 1
+        is_shallow_ensemble = atomic_energies.shape[1] > 1
+        print(is_shallow_ensemble)
         if is_shallow_ensemble:
             total_energies_ensemble = fp64_sum(atomic_energies, axis=0)
             # shape Nensemble
@@ -138,6 +138,7 @@ class EnergyModel(nn.Module):
         else:
             # shape ()
             result = fp64_sum(atomic_energies)
+        print(result.shape)
 
         # Corrections
         for correction in self.corrections:
