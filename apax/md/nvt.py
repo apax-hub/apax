@@ -345,13 +345,13 @@ def md_setup(model_config: Config, md_config: MDConfig):
         if np.any(atoms.cell.lengths() / 2 < r_max):
             log.error(
                 "cutoff is larger than box/2 in at least",
-                f"one cell vector direction {atoms.cell.lengths()/2} < {r_max}",
+                f"one cell vector direction {atoms.cell.lengths() / 2} < {r_max}",
                 "can not calculate the correct neighbors",
             )
         if np.any(heights / 2 < r_max):
             log.error(
                 "cutoff is larger than box/2 in at least",
-                f"one cell vector direction {heights/2} < {r_max}",
+                f"one cell vector direction {heights / 2} < {r_max}",
                 "can not calculate the correct neighbors",
             )
         displacement_fn, shift_fn = space.periodic_general(
