@@ -34,7 +34,7 @@ class CyclicCosineLR(LRSchedule, frozen=True, extra="forbid"):
     Parameters
     ----------
     period: int = 20
-        Length of a cycle.
+        Length of a cycle in epochs.
     decay_factor: NonNegativeFloat = 1.0
         Factor by which to decrease the LR after each cycle.
         1.0 means no decrease.
