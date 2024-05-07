@@ -56,6 +56,7 @@ class ModelBuilder:
         readout = AtomisticReadout(
             units=self.config["nn"],
             b_init=self.config["b_init"],
+            n_shallow_ensemble=self.config["n_shallow_ensemble"],
             dtype=self.config["readout_dtype"],
         )
         return readout
