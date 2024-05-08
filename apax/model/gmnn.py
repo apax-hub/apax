@@ -195,12 +195,12 @@ class ShallowEnsembleModel(nn.Module):
         offsets,
     ):
         energy_ens = self.energy_model(R, Z, neighbor, box, offsets)
-        # forces_ens = - jax.jacrev(self.energy_model)(
-        #     R, Z, neighbor, box, offsets
-        # )
-        forces_mean = -jax.grad(lambda *args: jnp.mean(self.energy_model(*args)))(
+        forces_ens = - jax.jacfwd(self.energy_model)(
             R, Z, neighbor, box, offsets
         )
+        # forces_mean = -jax.grad(lambda *args: jnp.mean(self.energy_model(*args)))(
+        #     R, Z, neighbor, box, offsets
+        # )
 
         n_ens = energy_ens.shape[0]
         divisor = 1 / (n_ens - 1)
@@ -208,14 +208,16 @@ class ShallowEnsembleModel(nn.Module):
         energy_mean = jnp.mean(energy_ens)
         energy_variance = divisor * fp64_sum((energy_ens - energy_mean) ** 2)
 
-        # forces_mean = jnp.mean(forces_ens, axis=0)
-        # forces_variance = divisor * fp64_sum((forces_ens - forces_mean)**2, axis=0)
+        forces_mean = jnp.mean(forces_ens, axis=0)
+        forces_variance = divisor * fp64_sum((forces_ens - forces_mean)**2, axis=0)
 
         prediction = {
             "energy": energy_mean,
             "forces": forces_mean,
             "energy_uncertainty": energy_variance,
-            # "forces_uncertainty": forces_variance,
+            "forces_uncertainty": forces_variance,
+            "energy_ensemble": energy_ens,
+            "forces_ensemble": forces_ens,
         }
 
         return prediction
