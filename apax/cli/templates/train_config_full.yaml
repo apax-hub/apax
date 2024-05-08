@@ -39,7 +39,7 @@ data:
 model:
   n_basis: 7
   n_radial: 5
-  n_contr: -1
+  n_contr: 8
   nn: [512, 512]
 
   r_max: 6.0
