@@ -53,6 +53,7 @@ class NVEOptions(Integrator, extra="forbid"):
     """
 
     name: Literal["nve"]
+    temperature: PositiveFloat = 298.15  # K
 
 
 class NVTOptions(Integrator, extra="forbid"):
