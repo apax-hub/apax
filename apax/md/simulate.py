@@ -81,7 +81,8 @@ def get_ensemble(ensemble, sim_fns):
     nbr_options = nbr_update_options_default
 
     if ensemble.name == "nve":
-        init_fn, apply_fn = simulate.nve(energy, shift, dt)
+        kT = units.kB * ensemble.temperature
+        init_fn, apply_fn = simulate.nve(energy, shift, kT, dt)
     elif ensemble.name == "nvt":
         kT = units.kB * ensemble.temperature
         thermostat_chain = dict(ensemble.thermostat_chain)
@@ -125,7 +126,7 @@ def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_
     return state, step
 
 
-def run_nvt(
+def run_sim(
     system: System,
     sim_fns,
     ensemble,
@@ -415,7 +416,7 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
     )
     # TODO implement correct chunking
 
-    run_nvt(
+    run_sim(
         system,
         sim_fns,
         md_config.ensemble,
