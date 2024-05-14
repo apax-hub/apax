@@ -50,10 +50,13 @@ class NVEOptions(Integrator, extra="forbid"):
     ----------
     name : Literal["nve"]
         Name of the ensemble.
+    init_temperature : PositiveFloat, default = 298.15
+        Initialisation temperature in Kelvin (K).
+
     """
 
     name: Literal["nve"]
-    temperature: PositiveFloat = 298.15  # K
+    init_temperature: PositiveFloat = 298.15  # K
 
 
 class NVTOptions(Integrator, extra="forbid"):
