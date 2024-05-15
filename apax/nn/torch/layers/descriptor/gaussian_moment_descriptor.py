@@ -5,7 +5,7 @@ import torch.nn as nn
 
 from apax.nn.impl.triangular_indices import tril_2d_indices, tril_3d_indices
 from apax.nn.torch.layers.descriptor.basis import RadialFunctionT
-from apax.nn.torch.layers.descriptor.math import segment_sum
+from apax.nn.torch.layers.descriptor.scatter import segment_sum
 
 
 def geometric_moments(radial_function, dn, idx_i, n_atoms):
