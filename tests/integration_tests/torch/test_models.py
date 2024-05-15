@@ -1,12 +1,15 @@
 import jax
-import pytest
-from apax.data.preprocessing import compute_nl
-from apax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
-
 import numpy as np
+import pytest
 import torch
 
-from apax.nn.torch.model.gmnn import AtomisticModelT, EnergyDerivativeModelT, EnergyModelT
+from apax.data.preprocessing import compute_nl
+from apax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
+from apax.nn.torch.model.gmnn import (
+    AtomisticModelT,
+    EnergyDerivativeModelT,
+    EnergyModelT,
+)
 from apax.utils.convert import atoms_to_inputs
 
 
@@ -56,13 +59,9 @@ def test_i_torch_atomistic_model(example_atoms):
     assert outj.dtype == outt.dtype
 
 
-
 @pytest.mark.parametrize(
     "num_data, pbc, calc_results",
-    (
-        [1, False, ["energy", "forces"]],
-        # [1, True, ["energy", "forces"]],
-    ),
+    ([1, False, ["energy", "forces"]],),
 )
 def test_i_torch_energy_model(example_atoms):
     inputs = atoms_to_inputs(example_atoms)
@@ -70,8 +69,6 @@ def test_i_torch_energy_model(example_atoms):
     Z = inputs["numbers"][0]
     box = inputs["box"][0]
     idxs, offsets = compute_nl(R, box, 10.0)
-
-    # dr_vec = R[idxs[0]] - R[idxs[1]]
 
     inputj = R, Z, idxs, box, offsets
     inputt = (
@@ -101,7 +98,7 @@ def test_i_torch_energy_model(example_atoms):
 @pytest.mark.parametrize(
     "num_data, pbc, calc_results",
     (
-        # [1, False, ["energy"]],
+        [1, False, ["energy"]],
         [1, True, ["energy"]],
     ),
 )
@@ -150,7 +147,7 @@ def test_i_torch_energy_derivative_model(example_atoms):
     # test jit script
     traced = torch.jit.script(lint)
 
-    traced.save('torchmodel.pt')
-    loaded = torch.jit.load('torchmodel.pt')
+    traced.save("torchmodel.pt")
+    loaded = torch.jit.load("torchmodel.pt")
 
     print(loaded(*inputt))

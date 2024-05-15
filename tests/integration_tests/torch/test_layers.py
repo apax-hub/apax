@@ -1,5 +1,9 @@
 import jax
+import jax.numpy as jnp
+import numpy as np
 import pytest
+import torch
+
 from apax.data.preprocessing import compute_nl
 from apax.layers.descriptor.basis_functions import GaussianBasis, RadialFunction
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
@@ -7,13 +11,11 @@ from apax.layers.ntk_linear import NTKLinear
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.nn.torch.layers.descriptor.basis import GaussianBasisT, RadialFunctionT
-from apax.nn.torch.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptorT
+from apax.nn.torch.layers.descriptor.gaussian_moment_descriptor import (
+    GaussianMomentDescriptorT,
+)
 from apax.nn.torch.layers.ntk_linear import NTKLinearT
 from apax.nn.torch.layers.readout import AtomisticReadoutT
-import jax.numpy as jnp
-import numpy as np
-import torch
-
 from apax.nn.torch.layers.scaling import PerElementScaleShiftT
 from apax.utils.convert import atoms_to_inputs
 
@@ -42,7 +44,13 @@ def test_i_torch_gaussian_basis():
 def test_i_torch_radial_basis():
     linj = RadialFunction(16)
 
-    inputj = (np.random.rand(9,), np.random.randint(0,119, (9,)), np.random.randint(0,119, (9,)))
+    inputj = (
+        np.random.rand(
+            9,
+        ),
+        np.random.randint(0, 119, (9,)),
+        np.random.randint(0, 119, (9,)),
+    )
 
     rng_key = jax.random.PRNGKey(0)
     params = linj.init(rng_key, *inputj)
@@ -56,7 +64,7 @@ def test_i_torch_radial_basis():
 
     outj = linj.apply(params, *inputj)
     outt = lint(*inputt)
-    
+
     outj = np.array(outj, np.float32)
     outt = outt.detach().numpy()
 
@@ -89,7 +97,7 @@ def test_i_torch_descriptor(example_atoms):
 
     linj = GaussianMomentDescriptor(
         dtype=jnp.float64,
-        )
+    )
     rng_key = jax.random.PRNGKey(0)
     params = linj.init(rng_key, *inputj)
 
@@ -130,8 +138,7 @@ def test_i_torch_ntk_linear():
 
 
 def test_i_torch_readout():
-
-    linj = AtomisticReadout([16,16])
+    linj = AtomisticReadout([16, 16])
 
     inputj = jnp.array(np.random.randn(8))
     rng_key = jax.random.PRNGKey(0)
@@ -152,11 +159,15 @@ def test_i_torch_readout():
 
 
 def test_i_torch_scaling():
-
     linj = PerElementScaleShift()
 
-    input = (np.random.rand(9,), np.random.randint(0,119, (9,)))
-    inputj = (jnp.asarray(input[0])[:,None], jnp.asarray(input[1]))
+    input = (
+        np.random.rand(
+            9,
+        ),
+        np.random.randint(0, 119, (9,)),
+    )
+    inputj = (jnp.asarray(input[0])[:, None], jnp.asarray(input[1]))
 
     rng_key = jax.random.PRNGKey(0)
     params = linj.init(rng_key, *inputj)
