@@ -67,7 +67,7 @@ class TorchASECalculator(Calculator):
 
         # predict
         self.set_neighbours_and_offsets(atoms, box)
-        
+
         inputt = (
             torch.from_numpy(positions),
             torch.from_numpy(atoms.numbers),
