@@ -1,21 +1,10 @@
-from functools import partial
 from pathlib import Path
 from typing import Callable, Union
 
-import ase
-import jax
-import jax.numpy as jnp
 import numpy as np
-from ase.calculators.calculator import Calculator, all_changes
-from ase.calculators.singlepoint import SinglePointCalculator
-from matscipy.neighbours import neighbour_list
 import torch
-from tqdm import trange
-
-from apax.data.input_pipeline import OTFInMemoryDataset
-from apax.model import ModelBuilder
-from apax.train.checkpoints import check_for_ensemble, restore_parameters
-from apax.utils.jax_md_reduced import partition, quantity, space
+from ase.calculators.calculator import Calculator, all_changes
+from matscipy.neighbours import neighbour_list
 
 
 class TorchASECalculator(Calculator):
@@ -36,31 +25,49 @@ class TorchASECalculator(Calculator):
         **kwargs
     ):
         Calculator.__init__(self, **kwargs)
-        self.dr_threshold = dr_threshold
+        self.skin = dr_threshold
 
-        self.model = model_path#torch.jit.load(model_path)
-        print(self.model)
-        self.r_max = 5.0
+        self.model = torch.jit.load(model_path)
+        self.r_max = (
+            self.model.energy_model.atomistic_model.descriptor.radial_fn.basis_fn.r_max
+        )
 
         self.step = None
         self.neighbor_fn = None
         self.neighbors = None
         self.offsets = None
+        self.pos0 = 0
+        self.Z = [0, 0]
+        self.pbc = False
 
     def set_neighbours_and_offsets(self, atoms, box):
-        idxs_i, idxs_j, offsets = neighbour_list("ijS", positions=atoms.positions, pbc=[False, False, False], cutoff=self.r_max)
+        condition = (
+            np.any(self.pbc != atoms.pbc)
+            or len(self.Z) != len(atoms.numbers)
+            or np.max(np.sum(((self.pos0 - atoms.positions) ** 2), axis=1))
+            > self.skin**2 / 4.0
+        )
+        if condition:
+            idxs_i, idxs_j, offsets = neighbour_list(
+                "ijS", positions=atoms.positions, pbc=atoms.pbc, cutoff=self.r_max
+            )
 
-        self.neighbors = np.array([idxs_i, idxs_j], dtype=np.int32)
-        self.offsets = np.zeros_like(self.neighbors) #np.matmul(offsets, box)
+            self.neighbors = np.array([idxs_i, idxs_j], dtype=np.int32)
+            self.offsets = np.matmul(offsets, box)  # np.zeros_like(self.neighbors) #
+            self.pos0 = atoms.positions
+            self.Z = atoms.numbers
+            self.pbc = atoms.pbc
 
     def calculate(self, atoms, properties=["energy"], system_changes=all_changes):
         Calculator.calculate(self, atoms, properties, system_changes)
         positions = atoms.positions
         box = atoms.cell.array
+        if np.any(atoms.pbc):
+            positions = atoms.positions @ np.linalg.inv(box)
 
         # predict
         self.set_neighbours_and_offsets(atoms, box)
-        # positions = np.array(space.transform(np.linalg.inv(box), atoms.positions))
+        
         inputt = (
             torch.from_numpy(positions),
             torch.from_numpy(atoms.numbers),
@@ -71,5 +78,7 @@ class TorchASECalculator(Calculator):
 
         results = self.model(*inputt)
 
-        self.results = {k: np.array(v.detach().numpy(), dtype=np.float64) for k, v in results.items()}
+        self.results = {
+            k: np.array(v.detach().numpy(), dtype=np.float64) for k, v in results.items()
+        }
         self.results["energy"] = self.results["energy"].item()
