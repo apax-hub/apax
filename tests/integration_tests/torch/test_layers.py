@@ -116,7 +116,7 @@ def test_i_torch_ntk_linear():
     rng_key = jax.random.PRNGKey(0)
     params = linj.init(rng_key, inputj)
 
-    inputt = torch.from_numpy(np.asarray(inputj, dtype=np.float32))
+    inputt = torch.from_numpy(np.asarray(inputj, dtype=np.float32)).unsqueeze(0)
     lint = NTKLinearT(params=params["params"])
 
     outj = linj.apply(params, inputj)
@@ -138,6 +138,7 @@ def test_i_torch_readout():
     params = linj.init(rng_key, inputj)
 
     inputt = torch.from_numpy(np.asarray(inputj, dtype=np.float32))
+    inputt = inputt.unsqueeze(0)
     lint = AtomisticReadoutT(params_list=params["params"])
 
     outj = linj.apply(params, inputj)
@@ -154,14 +155,15 @@ def test_i_torch_scaling():
 
     linj = PerElementScaleShift()
 
-    inputj = (np.random.rand(9,), np.random.randint(0,119, (9,)))
+    input = (np.random.rand(9,), np.random.randint(0,119, (9,)))
+    inputj = (jnp.asarray(input[0])[:,None], jnp.asarray(input[1]))
 
     rng_key = jax.random.PRNGKey(0)
     params = linj.init(rng_key, *inputj)
 
     inputt = (
-        torch.from_numpy(np.asarray(inputj[0], dtype=np.float32)),
-        torch.from_numpy(np.asarray(inputj[1], dtype=np.int64)),
+        torch.from_numpy(np.asarray(input[0], dtype=np.float32)),
+        torch.from_numpy(np.asarray(input[1], dtype=np.int64)),
     )
     lint = PerElementScaleShiftT(params=params["params"])
 

@@ -1,21 +1,14 @@
 import jax
 import pytest
 from apax.data.preprocessing import compute_nl
-from apax.layers.descriptor.basis_functions import GaussianBasis, RadialFunction
-from apax.layers.ntk_linear import NTKLinear
-from apax.layers.readout import AtomisticReadout
-from apax.layers.scaling import PerElementScaleShift
 from apax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
-from apax.nn.torch.layers.descriptor.basis import GaussianBasisT, RadialFunctionT
-from apax.nn.torch.layers.ntk_linear import NTKLinearT
-from apax.nn.torch.layers.readout import AtomisticReadoutT
-import jax.numpy as jnp
+
 import numpy as np
 import torch
 
-from apax.nn.torch.layers.scaling import PerElementScaleShiftT
 from apax.nn.torch.model.gmnn import AtomisticModelT, EnergyDerivativeModelT, EnergyModelT
 from apax.utils.convert import atoms_to_inputs
+
 
 @pytest.mark.parametrize(
     "num_data, pbc, calc_results",
@@ -108,50 +101,8 @@ def test_i_torch_energy_model(example_atoms):
 @pytest.mark.parametrize(
     "num_data, pbc, calc_results",
     (
-        [1, False, ["energy", "forces"]],
-        # [1, True, ["energy", "forces"]],
-    ),
-)
-def test_i_torch_energy_model(example_atoms):
-    inputs = atoms_to_inputs(example_atoms)
-    R = inputs["positions"][0]
-    Z = inputs["numbers"][0]
-    box = inputs["box"][0]
-    idxs, offsets = compute_nl(R, box, 10.0)
-
-    # dr_vec = R[idxs[0]] - R[idxs[1]]
-
-    inputj = R, Z, idxs, box, offsets
-    inputt = (
-        torch.from_numpy(np.asarray(R, dtype=np.float64)),
-        torch.from_numpy(np.asarray(Z, dtype=np.int64)),
-        torch.from_numpy(np.asarray(idxs, dtype=np.int64)),
-        torch.from_numpy(np.asarray(box, dtype=np.float64)),
-        torch.from_numpy(np.asarray(offsets, dtype=np.float64)),
-    )
-
-    linj = EnergyDerivativeModel()
-
-    rng_key = jax.random.PRNGKey(0)
-    params = linj.init(rng_key, *inputj)
-    lint = EnergyDerivativeModelT(params=params["params"])
-
-    outj = linj.apply(params, *inputj)
-    outt = lint(*inputt)
-
-    outj = np.array(outj)
-    outt = outt.detach().numpy()
-
-    assert np.allclose(outj, outt, rtol=0.01)
-    assert outj.dtype == outt.dtype
-
-
-
-@pytest.mark.parametrize(
-    "num_data, pbc, calc_results",
-    (
-        [1, False, ["energy", "forces"]],
-        # [1, True, ["energy", "forces"]],
+        # [1, False, ["energy"]],
+        [1, True, ["energy"]],
     ),
 )
 def test_i_torch_energy_derivative_model(example_atoms):
@@ -159,9 +110,14 @@ def test_i_torch_energy_derivative_model(example_atoms):
     R = inputs["positions"][0]
     Z = inputs["numbers"][0]
     box = inputs["box"][0]
-    idxs, offsets = compute_nl(R, box, 10.0)
+    idxs, offsets = compute_nl(R, box, 6.0)
 
-    inputj = R, Z, idxs, box, offsets
+    if np.any(box) > 1e-6:
+        Rjax = R @ np.linalg.inv(box)
+    else:
+        Rjax = R
+
+    inputj = Rjax, Z, idxs, box, offsets
     inputt = (
         torch.from_numpy(np.asarray(R, dtype=np.float64)),
         torch.from_numpy(np.asarray(Z, dtype=np.int64)),
@@ -170,31 +126,27 @@ def test_i_torch_energy_derivative_model(example_atoms):
         torch.from_numpy(np.asarray(offsets, dtype=np.float64)),
     )
 
-    linj = EnergyDerivativeModel()
+    linj = EnergyDerivativeModel(energy_model=EnergyModel(init_box=box))
+
     rng_key = jax.random.PRNGKey(0)
     params = linj.init(rng_key, *inputj)
     lint = EnergyDerivativeModelT(params=params["params"])
+
     outj = linj.apply(params, *inputj)
     outt = lint(*inputt)
 
-    energyj = outj["energy"]
-    forcesj = outj["forces"]
+    # print(outj)
+    # print(outt)
 
-    energyt = outt["energy"]
-    forcest = outt["forces"]
+    for kj, kt in zip(outj.keys(), outt.keys()):
+        vj = np.array(outj[kj])
+        vt = outt[kt].detach().numpy()
+        print(vj)
+        print(vt)
 
-    energyj = np.array(energyj)
-    energyt = energyt.detach().numpy()
+        assert np.allclose(vj, vt, atol=0.01)
+        assert vj.dtype == vt.dtype
 
-    forcesj = np.array(forcesj)
-    forcest = forcest.detach().numpy()
-
-    assert np.allclose(energyj, energyt, rtol=0.01)
-    assert energyj.dtype == energyt.dtype
-
-    assert np.allclose(energyj, energyt, rtol=0.01)
-    assert energyj.dtype == energyt.dtype
-    
     # test jit script
     traced = torch.jit.script(lint)
 

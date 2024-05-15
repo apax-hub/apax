@@ -62,8 +62,8 @@ class TorchASECalculator(Calculator):
         Calculator.calculate(self, atoms, properties, system_changes)
         positions = atoms.positions
         box = atoms.cell.array
-        if np.any(atoms.pbc):
-            positions = atoms.positions @ np.linalg.inv(box)
+        # if np.any(atoms.pbc):
+        #     positions = atoms.positions @ np.linalg.inv(box)
 
         # predict
         self.set_neighbours_and_offsets(atoms, box)

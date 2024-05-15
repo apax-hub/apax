@@ -1,6 +1,5 @@
-from typing import Any, List, Optional
+from typing import List, Optional
 
-import numpy as np
 import torch
 import torch.nn as nn
 from torch import autograd
@@ -47,20 +46,12 @@ def free_displacement(Ri, Rj):
     return Ri - Rj
 
 
-def periodic_displacement(Ri, Rj, box):
-    dr = free_displacement(Ri, Rj)
-    dr = torch.matmul(dr, box)
-    return dr
-
-
 class EnergyModelT(nn.Module):
     def __init__(
         self,
         atomistic_model: AtomisticModelT = AtomisticModelT(),
         # corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: []),
         params=None,
-        init_box: np.array = np.array([0.0, 0.0, 0.0]),
-        inference_disp_fn: Any = None,
     ):
         super().__init__()
         if params:
@@ -68,7 +59,6 @@ class EnergyModelT(nn.Module):
         else:
             self.atomistic_model = atomistic_model
         # self.corrections = corrections
-        self.init_box = torch.tensor(init_box)
 
     def forward(
         self,
@@ -92,7 +82,7 @@ class EnergyModelT(nn.Module):
         if torch.all(box < 1e-6):
             dr_vec = free_displacement(Rj, Ri)
         else:
-            dr_vec = periodic_displacement(Rj, Ri, box)
+            dr_vec = free_displacement(Rj, Ri)
             dr_vec += offsets
 
         # Model Core
