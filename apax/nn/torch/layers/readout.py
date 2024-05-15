@@ -1,7 +1,6 @@
-import torch
+from typing import Callable, List, Optional
+
 import torch.nn as nn
-import torch.nn.functional as F
-from typing import Any, Callable, List, Optional
 
 from apax.nn.torch.layers.activation import SwishT
 from apax.nn.torch.layers.ntk_linear import NTKLinearT
@@ -9,12 +8,15 @@ from apax.nn.torch.layers.ntk_linear import NTKLinearT
 
 class AtomisticReadoutT(nn.Module):
     def __init__(
-        self, units: Optional[List[int]] = [512, 512], params_list = None, activation_fn: Callable = SwishT
+        self,
+        units: Optional[List[int]] = [512, 512],
+        params_list=None,
+        activation_fn: Callable = SwishT,
     ) -> None:
         super().__init__()
         dense = []
         if params_list:
-            param_list = (params_list.values())
+            param_list = params_list.values()
             for ii, params in enumerate(param_list):
                 dense.append(NTKLinearT(params=params))
                 if ii < len(param_list) - 1:

@@ -1,8 +1,8 @@
+from typing import Union
+
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-
-from typing import Any, Union
 
 
 class PerElementScaleShiftT(nn.Module):
@@ -10,7 +10,7 @@ class PerElementScaleShiftT(nn.Module):
         self,
         scale: Union[torch.Tensor, float] = 1.0,
         shift: Union[torch.Tensor, float] = 0.0,
-        params = None,
+        params=None,
         n_species: int = 119,
         dtype=torch.float32,
     ) -> None:
@@ -22,7 +22,7 @@ class PerElementScaleShiftT(nn.Module):
             shift = params["shift_per_element"]
             scale = torch.from_numpy(np.array(scale))
             shift = torch.from_numpy(np.array(shift))
-        
+
         else:
             scale = np.repeat(scale, n_species)
             shift = np.repeat(shift, n_species)

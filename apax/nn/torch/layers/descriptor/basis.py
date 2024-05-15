@@ -1,10 +1,10 @@
 from typing import Any
 
 import einops
+import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import numpy as np
+
 
 def cosine_cutoff(dr, r_max):
     # shape: neighbors
@@ -12,6 +12,7 @@ def cosine_cutoff(dr, r_max):
     cos_cutoff = 0.5 * (torch.cos(np.pi * dr_clipped / r_max) + 1.0)
     cutoff = cos_cutoff[:, None]
     return cutoff
+
 
 class GaussianBasisT(nn.Module):
     def __init__(
@@ -60,7 +61,7 @@ class RadialFunctionT(nn.Module):
         basis_fn: nn.Module = GaussianBasisT(),
         emb_init: str = "uniform",
         n_species: int = 119,
-        params = None,
+        params=None,
         dtype: Any = torch.float32,
     ) -> None:
         super().__init__()
@@ -102,7 +103,9 @@ class RadialFunctionT(nn.Module):
             species_pair_coeffs = self.embed_norm * species_pair_coeffs
 
             radial_function = torch.einsum(
-                "nrb, nb -> nr", species_pair_coeffs, basis, 
+                "nrb, nb -> nr",
+                species_pair_coeffs,
+                basis,
             )
         cutoff = cosine_cutoff(dr, self.r_max)
         radial_function = radial_function * cutoff

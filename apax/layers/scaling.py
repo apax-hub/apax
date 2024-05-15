@@ -33,7 +33,7 @@ class PerElementScaleShift(nn.Module):
         self.shift_param = self.param(
             "shift_per_element", shift_init, (n_species, 1), self.dtype
         )
-    
+
     def __call__(self, x, Z):
         # x shape: n_atoms x 1
         # Z shape: n_atoms
