@@ -1,9 +1,8 @@
 from typing import Any, List, Optional
-import einops
+
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import autograd
 
 from apax.nn.torch.layers.descriptor import GaussianMomentDescriptorT
@@ -17,7 +16,7 @@ class AtomisticModelT(nn.Module):
         descriptor: nn.Module = GaussianMomentDescriptorT(),
         readout: nn.Module = AtomisticReadoutT(),
         scale_shift: nn.Module = PerElementScaleShiftT(),
-        params = None
+        params=None,
     ):
         super().__init__()
 
@@ -25,10 +24,7 @@ class AtomisticModelT(nn.Module):
             self.descriptor = GaussianMomentDescriptorT(params=params["descriptor"])
             readout = AtomisticReadoutT(params_list=params["readout"])
 
-            def readout_fn(x):
-                return readout(x)
-
-            self.readout = readout#torch.vmap(readout_fn)
+            self.readout = readout
             self.scale_shift = PerElementScaleShiftT(params=params["scale_shift"])
         else:
             self.descriptor = descriptor
@@ -42,12 +38,7 @@ class AtomisticModelT(nn.Module):
         idx: torch.Tensor,
     ) -> torch.Tensor:
         gm = self.descriptor(dr_vec, Z, idx)
-        
-        h = []
-        for g in gm:
-            hi = self.readout(g)
-            h.append(hi)
-        h = torch.concat(h, dim=0)
+        h = self.readout(gm).squeeze()
         output = self.scale_shift(h, Z)
         return output
 
@@ -56,18 +47,10 @@ def free_displacement(Ri, Rj):
     return Ri - Rj
 
 
-def get_displacement(init_box, inference_disp_fn):
-    if np.all(init_box < 1e-6):
-        # gas phase training and predicting
-        displacement = free_displacement
-    # elif inference_disp_fn is None:
-    #     # for training on periodic systems
-    #     displacement = vmap(disp_fn, (0, 0, None, None), 0)
-    # else:
-    #     mappable_displacement_fn = get_disp_fn(self.inference_disp_fn)
-    #     displacement = vmap(mappable_displacement_fn, (0, 0, None, None), 0)
-
-    return displacement
+def periodic_displacement(Ri, Rj, box):
+    dr = free_displacement(Ri, Rj)
+    dr = torch.matmul(dr, box)
+    return dr
 
 
 class EnergyModelT(nn.Module):
@@ -75,7 +58,7 @@ class EnergyModelT(nn.Module):
         self,
         atomistic_model: AtomisticModelT = AtomisticModelT(),
         # corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: []),
-        params = None,
+        params=None,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn: Any = None,
     ):
@@ -86,9 +69,6 @@ class EnergyModelT(nn.Module):
             self.atomistic_model = atomistic_model
         # self.corrections = corrections
         self.init_box = torch.tensor(init_box)
-        self.inference_disp_fn = inference_disp_fn
-
-        self.displacement = get_displacement(init_box, inference_disp_fn)
 
     def forward(
         self,
@@ -108,13 +88,12 @@ class EnergyModelT(nn.Module):
         Rj = R[idx_j]
 
         # dr_vec shape: neighbors x 3
-        dr_vec = self.displacement(Rj, Ri)
         # uncomment once pbc are implemented
-        # if torch.all(self.init_box < 1e-6):
-        #     dr_vec = self.displacement(Rj, Ri)
-        # else:
-        #     dr_vec = self.displacement(Rj, Ri, perturbation, box)
-        #     dr_vec += offsets
+        if torch.all(box < 1e-6):
+            dr_vec = free_displacement(Rj, Ri)
+        else:
+            dr_vec = periodic_displacement(Rj, Ri, box)
+            dr_vec += offsets
 
         # Model Core
         atomic_energies = self.atomistic_model(dr_vec, Z, idx)
@@ -155,7 +134,7 @@ class EnergyDerivativeModelT(nn.Module):
         requires_grad = [R]
 
         energy = self.energy_model(R, Z, neighbor, box, offsets)
-        grad_outputs : List[Optional[torch.Tensor]] = [torch.ones_like(energy)]
+        grad_outputs: List[Optional[torch.Tensor]] = [torch.ones_like(energy)]
 
         forces = autograd.grad(
             [energy],
@@ -164,7 +143,7 @@ class EnergyDerivativeModelT(nn.Module):
             create_graph=True,
         )[0]
         assert forces is not None
-        forces = - forces
+        forces = -forces
 
         prediction = {"energy": energy, "forces": forces}
 

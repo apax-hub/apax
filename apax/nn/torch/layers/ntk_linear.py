@@ -1,7 +1,7 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 
 
 class NTKLinearT(nn.Module):
@@ -22,6 +22,6 @@ class NTKLinearT(nn.Module):
         self.one = torch.tensor(1.0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        weight_factor = torch.sqrt(self.one / x.size(0))
+        weight_factor = torch.sqrt(self.one / x.size(1))
         out = F.linear(x, weight_factor * self.w, self.bias_factor * self.b)
         return out

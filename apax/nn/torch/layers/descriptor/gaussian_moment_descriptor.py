@@ -1,21 +1,12 @@
 from typing import Any
 
-import einops
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch_scatter
 
-from apax.nn.torch.layers.descriptor.basis import RadialFunctionT
 from apax.nn.impl.triangular_indices import tril_2d_indices, tril_3d_indices
+from apax.nn.torch.layers.descriptor.basis import RadialFunctionT
+from apax.nn.torch.layers.descriptor.math import segment_sum
 
-
-# def distance(dR):
-#     return torch.sqrt(torch.sum(dR**2, axis=-1))
-
-def segment_sum(x, segment_ids):
-    out = torch_scatter.scatter(x, segment_ids, dim=0, reduce="sum")
-    return out
 
 def geometric_moments(radial_function, dn, idx_i, n_atoms):
     # dn shape: neighbors x 3
@@ -23,22 +14,18 @@ def geometric_moments(radial_function, dn, idx_i, n_atoms):
     xyz = dn[:, None, :]
     xyz2 = xyz[..., None, :]
     xyz3 = xyz2[..., None, :]
-    # print(dn.shape)
-    # print(xyz.shape)
-    # print(xyz3.shape)
-    # quit()
 
     # shape: n_neighbors x n_radial x (3)^(moment_number)
     zero_moment = radial_function
-    first_moment = zero_moment[..., None]  * xyz
+    first_moment = zero_moment[..., None] * xyz
     second_moment = first_moment[..., None] * xyz2
-    third_moment = second_moment[..., None]  * xyz3
+    third_moment = second_moment[..., None] * xyz3
 
     # shape: n_atoms x n_radial x (3)^(moment_number)
-    zero_moment = segment_sum(zero_moment, idx_i)
-    first_moment = segment_sum(first_moment, idx_i)
-    second_moment = segment_sum(second_moment, idx_i)
-    third_moment = segment_sum(third_moment, idx_i)
+    zero_moment = segment_sum(zero_moment, idx_i, dim_size=n_atoms)
+    first_moment = segment_sum(first_moment, idx_i, dim_size=n_atoms)
+    second_moment = segment_sum(second_moment, idx_i, dim_size=n_atoms)
+    third_moment = segment_sum(third_moment, idx_i, dim_size=n_atoms)
 
     moments = [zero_moment, first_moment, second_moment, third_moment]
 
@@ -51,7 +38,7 @@ class GaussianMomentDescriptorT(nn.Module):
         radial_fn: nn.Module = RadialFunctionT(),
         n_contr: int = 8,
         dtype: Any = torch.float32,
-        params = None
+        params=None,
     ):
         super().__init__()
 
@@ -64,8 +51,6 @@ class GaussianMomentDescriptorT(nn.Module):
 
         self.r_max = self.radial_fn.r_max
         self.n_radial: int = self.radial_fn.n_radial
-
-        # self.distance = distance
 
         self.triang_idxs_2d = torch.tensor(tril_2d_indices(self.n_radial))
         self.triang_idxs_3d = torch.tensor(tril_3d_indices(self.n_radial))
@@ -90,16 +75,25 @@ class GaussianMomentDescriptorT(nn.Module):
         dn = dr_vec / dr_repeated
 
         radial_function = self.radial_fn(dr, Z_i, Z_j)
-        moments = geometric_moments(radial_function, dn, idx_j, self.dummy_n_atoms)
+        n_atoms: torch.Tensor = torch.tensor(Z.shape[0])
+        moments = geometric_moments(radial_function, dn, idx_j, n_atoms)
 
         contr_0 = moments[0]
         contr_1 = torch.einsum("ari, asi -> rsa", [moments[1], moments[1]])
         contr_2 = torch.einsum("arij, asij -> rsa", [moments[2], moments[2]])
         contr_3 = torch.einsum("arijk, asijk -> rsa", [moments[3], moments[3]])
-        contr_4 = torch.einsum("arij, asik, atjk -> rsta", [moments[2], moments[2], moments[2]])
-        contr_5 = torch.einsum("ari, asj, atij -> rsta", [moments[1], moments[1], moments[2]])
-        contr_6 = torch.einsum("arijk, asijl, atkl -> rsta", [moments[3], moments[3], moments[2]])
-        contr_7 = torch.einsum("arijk, asij, atk -> rsta", [moments[3], moments[2], moments[1]])
+        contr_4 = torch.einsum(
+            "arij, asik, atjk -> rsta", [moments[2], moments[2], moments[2]]
+        )
+        contr_5 = torch.einsum(
+            "ari, asj, atij -> rsta", [moments[1], moments[1], moments[2]]
+        )
+        contr_6 = torch.einsum(
+            "arijk, asijl, atkl -> rsta", [moments[3], moments[3], moments[2]]
+        )
+        contr_7 = torch.einsum(
+            "arijk, asij, atk -> rsta", [moments[3], moments[2], moments[1]]
+        )
 
         # n_symm01_features = triang_idxs_2d.shape[0] * n_radial
         tril_2_i, tril_2_j = self.triang_idxs_2d[:, 0], self.triang_idxs_2d[:, 1]
@@ -143,6 +137,6 @@ class GaussianMomentDescriptorT(nn.Module):
         ]
 
         # gaussian_moments shape: n_atoms x n_features
-        gaussian_moments = torch.concatenate(gaussian_moments[:self.n_contr], dim=-1)
+        gaussian_moments = torch.concatenate(gaussian_moments[: self.n_contr], dim=-1)
         assert gaussian_moments.dtype == self.dtype
         return gaussian_moments
