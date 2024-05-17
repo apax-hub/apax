@@ -130,7 +130,7 @@ class ModelBuilder:
         if self.config["n_shallow_ensemble"] > 0:
             model = ShallowEnsembleModel(
                 energy_model,
-                calc_stress=False,  # self.config["calc_stress"],
+                calc_stress=self.config["calc_stress"],
             )
         else:
             model = EnergyDerivativeModel(

@@ -178,6 +178,22 @@ class EnergyDerivativeModel(nn.Module):
         return prediction
 
 
+def make_mean_energy_fn(energy_fn):
+    def mean_energy_fn(
+        R: Array,
+        Z: Array,
+        neighbor: Union[partition.NeighborList, Array],
+        box,
+        offsets,
+        perturbation=None,
+    ):
+        e_ens = energy_fn(R, Z, neighbor, box, offsets, perturbation)
+        E_mean = jnp.mean(e_ens)
+        return E_mean
+
+    return mean_energy_fn
+
+
 class ShallowEnsembleModel(nn.Module):
     """Transforms an EnergyModel into one that also predicts derivatives the total energy.
     Can calculate forces and stress tensors.
@@ -196,6 +212,7 @@ class ShallowEnsembleModel(nn.Module):
         offsets,
     ):
         energy_ens = self.energy_model(R, Z, neighbor, box, offsets)
+        mean_energy_fn = make_mean_energy_fn(self.energy_model)
 
         n_ens = energy_ens.shape[0]
         divisor = 1 / (n_ens - 1)
@@ -214,13 +231,17 @@ class ShallowEnsembleModel(nn.Module):
             forces_mean = jnp.mean(forces_ens, axis=0)
             forces_variance = divisor * fp64_sum((forces_ens - forces_mean) ** 2, axis=0)
 
-            prediction["forces"] = (forces_mean,)
-            prediction["forces_uncertainty"] = (forces_variance,)
-            prediction["forces_ensemble"] = (forces_ens,)
+            prediction["forces"] = forces_mean
+            prediction["forces_uncertainty"] = forces_variance
+            prediction["forces_ensemble"] = forces_ens
         else:
-            forces_mean = -jax.grad(lambda *args: jnp.mean(self.energy_model(*args)))(
-                R, Z, neighbor, box, offsets
+            forces_mean = -jax.grad(mean_energy_fn)(R, Z, neighbor, box, offsets)
+            prediction["forces"] = forces_mean
+
+        if self.calc_stress:
+            stress = stress_times_vol(
+                mean_energy_fn, R, box, Z=Z, neighbor=neighbor, offsets=offsets
             )
-            prediction["forces"] = (forces_mean,)
+            prediction["stress"] = stress
 
         return prediction
