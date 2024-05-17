@@ -69,7 +69,7 @@ def crps_loss(
 
     crps = sigma * (norm_x * (2 * cdf - 1) + 2 * pdf - 1 / jnp.sqrt(np.pi))
 
-    return crps  # / divisor # TODO how to account for differently sized systems?
+    return crps / divisor
 
 
 def nll_loss(
