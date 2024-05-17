@@ -6854,24 +6854,24 @@ dask = ["bokeh (>=2.4.2,<3.0.0)", "dask (>=2022.12.1,<2023.0.0)", "dask-jobqueue
 
 [[package]]
 name = "znh5md"
-version = "0.1.9"
+version = "0.2.0"
 description = "High Performance Interface for H5MD Trajectories"
 optional = false
-python-versions = ">=3.9,<4.0"
+python-versions = "<4.0,>=3.9"
 files = [
-    {file = "znh5md-0.1.9-py3-none-any.whl", hash = "sha256:38478627e22bd5e91ccef356275ad25d030c307ddad9c24adf8b8a2b2ebded43"},
-    {file = "znh5md-0.1.9.tar.gz", hash = "sha256:d2aa6a48206f26f50595427ea2004e8000d448651415db6c30e2087c2d58772c"},
+    {file = "znh5md-0.2.0-py3-none-any.whl", hash = "sha256:563e5c9b6a1e29864d31c4731416eb4b79f7acfee23cbe8cc53730b247d1125b"},
+    {file = "znh5md-0.2.0.tar.gz", hash = "sha256:da60ca2e53f2d74cdc3a5954dbadae912973e4a29456329d2e6406f8d5e794bf"},
 ]
 
 [package.dependencies]
 ase = ">=3.22.1,<4.0.0"
-chemfiles = ">=0.10.3,<0.11.0"
-h5py = ">=3.7.0,<4.0.0"
-tqdm = ">=4.65.0,<5.0.0"
-typer = {version = ">=0.7.0,<0.8.0", extras = ["all"]}
+chemfiles = ">=0.10,<0.11"
+h5py = ">=3,<4"
+tqdm = ">=4,<5"
+typer = {version = ">=0,<1", extras = ["all"]}
 
 [package.extras]
-dask = ["dask[array] (>=2022.11.1,<2023.0.0)"]
+dask = ["dask[array] (>=2022,<2023)"]
 
 [[package]]
 name = "zninit"
@@ -6928,4 +6928,4 @@ zntrack = ["zntrack"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "da39979b59143f6548967c1f1afe67c28d509b7a951369fda456c9a54cdd2e1a"
+content-hash = "eecd396454b8a5c32273572e9bb5bcff35ba0fe48696205ae14ea637dba7be9d"
