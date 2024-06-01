@@ -169,9 +169,9 @@ class ApaxImport(zntrack.Node):
     _parameter: dict = None
 
     def _post_load_(self) -> None:
-        self.adapt_parameter_file()
+        self._handle_parameter_file()
 
-    def adapt_parameter_file(self):
+    def _handle_parameter_file(self):
         with self.state.use_tmp_path():
             self._parameter = yaml.safe_load(pathlib.Path(self.config).read_text())
 
