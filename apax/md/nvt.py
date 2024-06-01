@@ -10,6 +10,8 @@ from ase import units
 from ase.io import read
 from flax.training import checkpoints
 from jax.experimental.host_callback import barrier_wait, id_tap
+from jax.experimental import io_callback
+# from jax import pure_callback
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -217,7 +219,7 @@ def run_nvt(
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
-            id_tap(traj_handler.step, (state, current_energy, nbr_kwargs))
+            io_callback(traj_handler.step, None, (state, current_energy, nbr_kwargs))
             return state, neighbor
 
         state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
