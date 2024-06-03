@@ -332,6 +332,99 @@ class OTFInMemoryDataset(InMemoryDataset):
         return ds
 
 
+
+
+class PerBatchPaddedDataset(InMemoryDataset):
+    def __init__(
+        self,
+        atoms_list,
+        cutoff,
+        bs,
+        n_epochs,
+        buffer_size=1000,
+        n_jit_steps=1,
+        pos_unit: str = "Ang",
+        energy_unit: str = "eV",
+        pre_shuffle=False,
+        ignore_labels=False,
+        cache_path=".",
+    ) -> None:
+        self.n_epochs = n_epochs
+        self.cutoff = cutoff
+        self.n_jit_steps = n_jit_steps
+        self.buffer_size = buffer_size
+        self.n_data = len(atoms_list)
+        self.batch_size = self.validate_batch_size(bs)
+        self.pos_unit = pos_unit
+
+        if pre_shuffle:
+            shuffle(atoms_list)
+        self.sample_atoms = atoms_list[0]
+        self.inputs = atoms_to_inputs(atoms_list, pos_unit)
+
+        # max_atoms, max_nbrs = find_largest_system(self.inputs, self.cutoff)
+        # self.max_atoms = max_atoms
+        # self.max_nbrs = max_nbrs
+        if atoms_list[0].calc and not ignore_labels:
+            self.labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
+        else:
+            self.labels = None
+
+        self.count = 0
+        self.buffer = deque()
+        self.file = Path(cache_path) / str(uuid.uuid4())
+
+        self.enqueue(min(self.buffer_size, self.n_data))
+
+
+    def prepare_data(self, i):
+        inputs = {k: v[i] for k, v in self.inputs.items()}
+        idx, offsets = compute_nl(inputs["positions"], inputs["box"], self.cutoff)
+        inputs["idx"], inputs["offsets"] = pad_nl(idx, offsets, self.max_nbrs)
+
+        zeros_to_add = self.max_atoms - inputs["numbers"].shape[0]
+        inputs["positions"] = np.pad(
+            inputs["positions"], ((0, zeros_to_add), (0, 0)), "constant"
+        )
+        inputs["numbers"] = np.pad(
+            inputs["numbers"], (0, zeros_to_add), "constant"
+        ).astype(np.int16)
+
+        if not self.labels:
+            return inputs
+
+        labels = {k: v[i] for k, v in self.labels.items()}
+        if "forces" in labels:
+            labels["forces"] = np.pad(
+                labels["forces"], ((0, zeros_to_add), (0, 0)), "constant"
+            )
+        inputs = {k: tf.constant(v) for k, v in inputs.items()}
+        labels = {k: tf.constant(v) for k, v in labels.items()}
+        return (inputs, labels)
+
+    def enqueue(self, num_elements):
+        for _ in range(num_elements):
+            data = self.prepare_data(self.count)
+            self.buffer.append(data)
+            self.count += 1
+
+    def make_signature(self) -> None:
+        pass
+
+    def __iter__(self):
+        raise NotImplementedError
+
+    def shuffle_and_batch(self):
+        raise NotImplementedError
+
+    def batch(self) -> Iterator[jax.Array]:
+        raise NotImplementedError
+
+
+
+
+
+
 dataset_dict = {
     "cached": CachedInMemoryDataset,
     "otf": OTFInMemoryDataset,
