@@ -22,6 +22,26 @@ from apax.data.statistics import scale_method_list, shift_method_list
 log = logging.getLogger(__name__)
 
 
+class DatasetConfig(BaseModel, extra="forbid"):
+    name: str
+
+
+class CachedDataset(DatasetConfig, extra="forbid"):
+    name: Literal["cached"] = "cached"
+    shuffle_buffer_size: PositiveInt = 1000
+    cache_path: str = "."
+
+
+class OTFDataset(DatasetConfig, extra="forbid"):
+    name: Literal["otf"] = "otf"
+    shuffle_buffer_size: PositiveInt = 1000
+
+
+class PBPDatset(DatasetConfig, extra="forbid"):
+    name: Literal["pbp"] = "pbp"
+    num_workers: PositiveInt = 10
+
+
 class DataConfig(BaseModel, extra="forbid"):
     """
     Configuration for data loading, preprocessing and training.
@@ -59,7 +79,10 @@ class DataConfig(BaseModel, extra="forbid"):
 
     directory: str
     experiment: str
-    ds_type: Literal["cached", "otf", "pbp"] = "cached"
+    dataset: Union[CachedDataset, OTFDataset, PBPDatset] = Field(
+        CachedDataset(name="cached"), discriminator="name"
+    )
+
     data_path: Optional[str] = None
     train_data_path: Optional[str] = None
     val_data_path: Optional[str] = None
@@ -69,7 +92,6 @@ class DataConfig(BaseModel, extra="forbid"):
     n_valid: PositiveInt = 100
     batch_size: PositiveInt = 32
     valid_batch_size: PositiveInt = 100
-    shuffle_buffer_size: PositiveInt = 1000
     additional_properties_info: dict[str, str] = {}
 
     shift_method: str = "per_element_regression_shift"

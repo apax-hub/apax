@@ -81,18 +81,18 @@ class InMemoryDataset:
         cutoff,
         bs,
         n_epochs,
-        buffer_size=1000,
         n_jit_steps=1,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
         pre_shuffle=False,
+        shuffle_buffer_size=1000,
         ignore_labels=False,
         cache_path=".",
     ) -> None:
         self.n_epochs = n_epochs
         self.cutoff = cutoff
         self.n_jit_steps = n_jit_steps
-        self.buffer_size = buffer_size
+        self.buffer_size = shuffle_buffer_size
         self.n_data = len(atoms_list)
         self.batch_size = self.validate_batch_size(bs)
         self.pos_unit = pos_unit
@@ -420,15 +420,17 @@ class PerBatchPaddedDataset(InMemoryDataset):
         cutoff,
         bs,
         n_epochs,
-        buffer_size=20,
         n_jit_steps=1,
+        buffer_size=20,
+        num_workers=10,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
         pre_shuffle=False,
-        ignore_labels=False,
-        cache_path=".",
     ) -> None:
         self.cutoff = cutoff
+
+        if n_jit_steps > 1:
+            raise "PerBatchPaddedDataset is not yet compatible with multi step jit"
 
         self.n_jit_steps = n_jit_steps
         self.n_epochs = n_epochs
@@ -442,19 +444,8 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.sample_atoms = atoms_list[0]
         self.inputs = atoms_to_inputs(atoms_list, pos_unit)
 
-        if atoms_list[0].calc and not ignore_labels:
-            self.labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
-        else:
-            self.labels = None
-
+        self.labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
         label_keys = self.labels.keys()
-        forces = False
-        stress = False
-        if "forces" in label_keys:
-            forces = True
-        if "stress" in label_keys:
-            stress = True
-        self.prepare_batch = BatchProcessor(cutoff, forces, stress)
 
         self.data = list(
             zip(
@@ -462,11 +453,15 @@ class PerBatchPaddedDataset(InMemoryDataset):
             )
         )
 
+        forces = "forces" in label_keys
+        stress = "stress" in label_keys
+        self.prepare_batch = BatchProcessor(cutoff, forces, stress)
+
         self.count = 0
         self.max_count = self.n_epochs * self.steps_per_epoch()
         self.buffer = deque()
-        self.n_workers = 10
-        self.process_pool = ProcessPoolExecutor(self.n_workers)
+        self.num_workers = num_workers
+        self.process_pool = ProcessPoolExecutor(self.num_workers)
 
     def enqueue(self, num_batches):
         start = self.count * self.batch_size
@@ -483,9 +478,11 @@ class PerBatchPaddedDataset(InMemoryDataset):
     def __iter__(self):
         for n in range(self.n_epochs):
             self.count = 0
+            self.buffer = deque()
+
             if self.should_shuffle:
                 shuffle(self.data)
-            self.buffer = deque()
+
             self.enqueue(min(self.buffer_size, self.n_data // self.batch_size))
 
             for i in range(self.steps_per_epoch()):
@@ -495,7 +492,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
                 current_buffer_len = len(self.buffer)
                 space = self.buffer_size - current_buffer_len
 
-                if space >= self.n_workers:
+                if space >= self.num_workers:
                     more_data = min(space, self.steps_per_epoch() - self.count)
                     more_data = max(more_data, 0)
                     if more_data > 0:
@@ -511,6 +508,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         return ds
 
     def batch(self, sharding) -> Iterator[jax.Array]:
+        self.should_shuffle = False
         ds = prefetch_to_single_device(
             iter(self), 2, sharding, n_step_jit=self.n_jit_steps > 1
         )
