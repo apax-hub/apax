@@ -11,7 +11,6 @@ from ase.io import read
 from flax.training import checkpoints
 from jax.experimental.host_callback import barrier_wait, id_tap
 from jax.experimental import io_callback
-# from jax import pure_callback
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
