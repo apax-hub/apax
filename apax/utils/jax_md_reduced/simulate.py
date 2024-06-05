@@ -262,7 +262,7 @@ class NVEState:
 
 
 # pylint: disable=invalid-name
-def nve(energy_or_force_fn, shift_fn, dt=1e-3, **sim_kwargs):
+def nve(energy_or_force_fn, shift_fn, kT, dt=1e-3, **sim_kwargs):
     """Simulates a system in the NVE ensemble.
 
     Samples from the microcanonical ensemble in which the number of particles
@@ -283,7 +283,7 @@ def nve(energy_or_force_fn, shift_fn, dt=1e-3, **sim_kwargs):
     force_fn = quantity.canonicalize_force(energy_or_force_fn)
 
     @jit
-    def init_fn(key, R, kT, mass=f32(1.0), **kwargs):
+    def init_fn(key, R, mass=f32(1.0), **kwargs):
         force = force_fn(R, **kwargs)
         state = NVEState(R, None, force, mass)
         state = canonicalize_mass(state)
