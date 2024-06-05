@@ -9,7 +9,7 @@ import numpy as np
 from ase import units
 from ase.io import read
 from flax.training import checkpoints
-from jax.experimental.host_callback import barrier_wait, id_tap
+from jax.experimental.host_callback import barrier_wait
 from jax.experimental import io_callback
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
