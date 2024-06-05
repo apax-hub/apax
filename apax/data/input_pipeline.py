@@ -1,6 +1,7 @@
 import logging
 import uuid
 from collections import deque
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from random import shuffle
 from typing import Dict, Iterator
@@ -11,7 +12,12 @@ import numpy as np
 import tensorflow as tf
 
 from apax.data.preprocessing import compute_nl, prefetch_to_single_device
-from apax.utils.convert import atoms_to_inputs, atoms_to_labels, unit_dict
+from apax.utils.convert import (
+    atoms_to_inputs,
+    atoms_to_labels,
+    transpose_dict_of_lists,
+    unit_dict,
+)
 
 log = logging.getLogger(__name__)
 
@@ -332,6 +338,79 @@ class OTFInMemoryDataset(InMemoryDataset):
         return ds
 
 
+def next_power_of_two(x):
+    return 1 << (int(x) - 1).bit_length()
+
+
+class BatchProcessor:
+    def __init__(self, cutoff, forces=True, stress=False) -> None:
+        self.cutoff = cutoff
+        self.forces = forces
+        self.stress = stress
+
+    def __call__(self, samples: list[dict]):
+        inputs = {
+            "numbers": [],
+            "n_atoms": [],
+            "positions": [],
+            "box": [],
+            "idx": [],
+            "offsets": [],
+        }
+
+        labels = {
+            "energy": [],
+        }
+
+        if self.forces:
+            labels["forces"] = []
+        if self.stress:
+            labels["stress"] = []
+
+        for sample in samples:
+            inp, lab = sample
+
+            inputs["numbers"].append(inp["numbers"])
+            inputs["n_atoms"].append(inp["n_atoms"])
+            inputs["positions"].append(inp["positions"])
+            inputs["box"].append(inp["box"])
+            idx, offsets = compute_nl(inp["positions"], inp["box"], self.cutoff)
+            inputs["idx"].append(idx)
+            inputs["offsets"].append(offsets)
+
+            labels["energy"].append(lab["energy"])
+            if self.forces:
+                labels["forces"].append(lab["forces"])
+            if self.stress:
+                labels["stress"].append(lab["stress"])
+
+        max_atoms = np.max(inputs["n_atoms"])
+        max_nbrs = np.max([idx.shape[1] for idx in inputs["idx"]])
+
+        max_atoms = next_power_of_two(max_atoms)
+        max_nbrs = next_power_of_two(max_nbrs)
+
+        for i in range(len(inputs["n_atoms"])):
+            inputs["idx"][i], inputs["offsets"][i] = pad_nl(
+                inputs["idx"][i], inputs["offsets"][i], max_nbrs
+            )
+
+            zeros_to_add = max_atoms - inputs["numbers"][i].shape[0]
+            inputs["positions"][i] = np.pad(
+                inputs["positions"][i], ((0, zeros_to_add), (0, 0)), "constant"
+            )
+            inputs["numbers"][i] = np.pad(
+                inputs["numbers"][i], (0, zeros_to_add), "constant"
+            ).astype(np.int16)
+
+            if "forces" in labels:
+                labels["forces"][i] = np.pad(
+                    labels["forces"][i], ((0, zeros_to_add), (0, 0)), "constant"
+                )
+
+        inputs = {k: np.array(v) for k, v in inputs.items()}
+        labels = {k: np.array(v) for k, v in labels.items()}
+        return inputs, labels
 
 
 class PerBatchPaddedDataset(InMemoryDataset):
@@ -341,7 +420,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         cutoff,
         bs,
         n_epochs,
-        buffer_size=1000,
+        buffer_size=20,
         n_jit_steps=1,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
@@ -349,83 +428,100 @@ class PerBatchPaddedDataset(InMemoryDataset):
         ignore_labels=False,
         cache_path=".",
     ) -> None:
-        self.n_epochs = n_epochs
         self.cutoff = cutoff
+
         self.n_jit_steps = n_jit_steps
-        self.buffer_size = buffer_size
+        self.n_epochs = n_epochs
         self.n_data = len(atoms_list)
         self.batch_size = self.validate_batch_size(bs)
         self.pos_unit = pos_unit
 
-        if pre_shuffle:
-            shuffle(atoms_list)
+        self.buffer_size = buffer_size
+        self.batch_size = bs
+
         self.sample_atoms = atoms_list[0]
         self.inputs = atoms_to_inputs(atoms_list, pos_unit)
 
-        # max_atoms, max_nbrs = find_largest_system(self.inputs, self.cutoff)
-        # self.max_atoms = max_atoms
-        # self.max_nbrs = max_nbrs
         if atoms_list[0].calc and not ignore_labels:
             self.labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
         else:
             self.labels = None
 
-        self.count = 0
-        self.buffer = deque()
-        self.file = Path(cache_path) / str(uuid.uuid4())
+        label_keys = self.labels.keys()
+        forces = False
+        stress = False
+        if "forces" in label_keys:
+            forces = True
+        if "stress" in label_keys:
+            stress = True
+        self.prepare_batch = BatchProcessor(cutoff, forces, stress)
 
-        self.enqueue(min(self.buffer_size, self.n_data))
-
-
-    def prepare_data(self, i):
-        inputs = {k: v[i] for k, v in self.inputs.items()}
-        idx, offsets = compute_nl(inputs["positions"], inputs["box"], self.cutoff)
-        inputs["idx"], inputs["offsets"] = pad_nl(idx, offsets, self.max_nbrs)
-
-        zeros_to_add = self.max_atoms - inputs["numbers"].shape[0]
-        inputs["positions"] = np.pad(
-            inputs["positions"], ((0, zeros_to_add), (0, 0)), "constant"
-        )
-        inputs["numbers"] = np.pad(
-            inputs["numbers"], (0, zeros_to_add), "constant"
-        ).astype(np.int16)
-
-        if not self.labels:
-            return inputs
-
-        labels = {k: v[i] for k, v in self.labels.items()}
-        if "forces" in labels:
-            labels["forces"] = np.pad(
-                labels["forces"], ((0, zeros_to_add), (0, 0)), "constant"
+        self.data = list(
+            zip(
+                transpose_dict_of_lists(self.inputs), transpose_dict_of_lists(self.labels)
             )
-        inputs = {k: tf.constant(v) for k, v in inputs.items()}
-        labels = {k: tf.constant(v) for k, v in labels.items()}
-        return (inputs, labels)
+        )
 
-    def enqueue(self, num_elements):
-        for _ in range(num_elements):
-            data = self.prepare_data(self.count)
-            self.buffer.append(data)
-            self.count += 1
+        self.count = 0
+        self.max_count = self.n_epochs * self.steps_per_epoch()
+        self.buffer = deque()
+        self.n_workers = 10
+        self.process_pool = ProcessPoolExecutor(self.n_workers)
+
+    def enqueue(self, num_batches):
+        start = self.count * self.batch_size
+
+        dataset_chunks = [
+            self.data[start + self.batch_size * i : start + self.batch_size * (i + 1)]
+            for i in range(0, num_batches)
+        ]
+        for batch in self.process_pool.map(self.prepare_batch, dataset_chunks):
+            self.buffer.append(batch)
+
+        self.count += num_batches
+
+    def __iter__(self):
+        for n in range(self.n_epochs):
+            self.count = 0
+            if self.should_shuffle:
+                shuffle(self.data)
+            self.buffer = deque()
+            self.enqueue(min(self.buffer_size, self.n_data // self.batch_size))
+
+            for i in range(self.steps_per_epoch()):
+                batch = self.buffer.popleft()
+                yield batch
+
+                current_buffer_len = len(self.buffer)
+                space = self.buffer_size - current_buffer_len
+
+                if space >= self.n_workers:
+                    more_data = min(space, self.steps_per_epoch() - self.count)
+                    more_data = max(more_data, 0)
+                    if more_data > 0:
+                        self.enqueue(more_data)
+
+    def shuffle_and_batch(self, sharding):
+        self.should_shuffle = True
+
+        ds = prefetch_to_single_device(
+            iter(self), 2, sharding, n_step_jit=self.n_jit_steps > 1
+        )
+
+        return ds
+
+    def batch(self, sharding) -> Iterator[jax.Array]:
+        ds = prefetch_to_single_device(
+            iter(self), 2, sharding, n_step_jit=self.n_jit_steps > 1
+        )
+        return ds
 
     def make_signature(self) -> None:
         pass
-
-    def __iter__(self):
-        raise NotImplementedError
-
-    def shuffle_and_batch(self):
-        raise NotImplementedError
-
-    def batch(self) -> Iterator[jax.Array]:
-        raise NotImplementedError
-
-
-
-
 
 
 dataset_dict = {
     "cached": CachedInMemoryDataset,
     "otf": OTFInMemoryDataset,
+    "pbp": PerBatchPaddedDataset,
 }
