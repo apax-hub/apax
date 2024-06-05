@@ -384,6 +384,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     _, params = restore_parameters(model_config.data.model_version_path)
     params = canonicalize_energy_model_parameters(params)
 
+    n_models = 1
     if model_config.n_models > 1:
         n_models = model_config.n_models
         shallow = False
