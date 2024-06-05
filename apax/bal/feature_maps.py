@@ -41,7 +41,7 @@ class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
 
     name: Literal["ll_grad"]
     layer_name: str = "dense_2"
-    is_ntk = True
+    is_ntk: bool = True
 
     def apply(self, model: EnergyModel) -> FeatureMap:
         def ll_grad(params, inputs):
