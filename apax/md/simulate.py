@@ -385,9 +385,9 @@ def md_setup(model_config: Config, md_config: MDConfig):
     params = canonicalize_energy_model_parameters(params)
 
     n_models = 1
+    shallow = False
     if model_config.n_models > 1:
         n_models = model_config.n_models
-        shallow = False
     elif model_config.model.n_shallow_ensemble > 1:
         n_models = model_config.model.n_shallow_ensemble
         shallow = True
