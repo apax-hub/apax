@@ -27,17 +27,58 @@ class DatasetConfig(BaseModel, extra="forbid"):
 
 
 class CachedDataset(DatasetConfig, extra="forbid"):
+    """Dataset which pads everything (atoms, neighbors)
+    to the largest system in the dataset.
+    The NL is computed on the fly during the first epoch and stored to disk using
+    tf.data's cache.
+    Most performant option for datasets with samples of very similar size.
+
+    Parameters
+    ----------
+    shuffle_buffer_size : int
+        | Size of the buffer that is shuffled by tf.data.
+        | Larger values require more RAM.
+    """
+
     name: Literal["cached"] = "cached"
     shuffle_buffer_size: PositiveInt = 1000
     cache_path: str = "."
 
 
 class OTFDataset(DatasetConfig, extra="forbid"):
+    """Dataset which pads everything (atoms, neighbors)
+    to the largest system in the dataset.
+    The NL is computed on the fly and fed into a tf.data generator.
+    Mostly for internal purposes.
+
+    Parameters
+    ----------
+    shuffle_buffer_size : int
+        | Size of the buffer that is shuffled by tf.data.
+        | Larger values require more RAM.
+    """
+
     name: Literal["otf"] = "otf"
     shuffle_buffer_size: PositiveInt = 1000
 
 
 class PBPDatset(DatasetConfig, extra="forbid"):
+    """Dataset which pads everything (atoms, neighbors)
+    to the next larges power of two.
+    This limits the compute wasted due to padding at the (negligible)
+    cost of some recompilations.
+    The NL is computed on-the-fly in parallel for `num_workers` of batches.
+    Does not use tf.data.
+
+    Most performant option for datasets with significantly differently sized systems
+    (e.g. MP, SPICE).
+
+    Parameters
+    ----------
+    num_workers : int
+        | Number of batches to be processed in parallel.
+    """
+
     name: Literal["pbp"] = "pbp"
     num_workers: PositiveInt = 10
 

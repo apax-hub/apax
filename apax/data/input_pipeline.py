@@ -75,6 +75,8 @@ def find_largest_system(inputs, r_max) -> tuple[int]:
 
 
 class InMemoryDataset:
+    """Baseclass for all datasets which store data in memory."""
+
     def __init__(
         self,
         atoms_list,
@@ -230,6 +232,13 @@ class InMemoryDataset:
 
 
 class CachedInMemoryDataset(InMemoryDataset):
+    """Dataset which pads everything (atoms, neighbors)
+    to the largest system in the dataset.
+    The NL is computed on the fly during the first epoch and stored to disk using
+    tf.data's cache.
+    Most performant option for datasets with samples of very similar size.
+    """
+
     def __iter__(self):
         while self.count < self.n_data or len(self.buffer) > 0:
             yield self.buffer.popleft()
@@ -289,6 +298,12 @@ class CachedInMemoryDataset(InMemoryDataset):
 
 
 class OTFInMemoryDataset(InMemoryDataset):
+    """Dataset which pads everything (atoms, neighbors)
+    to the largest system in the dataset.
+    The NL is computed on the fly and fed into a tf.data generator.
+    Mostly for internal purposes.
+    """
+
     def __iter__(self):
         outer_count = 0
         max_iter = self.n_data * self.n_epochs
@@ -414,6 +429,17 @@ class BatchProcessor:
 
 
 class PerBatchPaddedDataset(InMemoryDataset):
+    """Dataset which pads everything (atoms, neighbors)
+    to the next larges power of two.
+    This limits the compute wasted due to padding at the (negligible)
+    cost of some recompilations.
+    The NL is computed on-the-fly in parallel for `num_workers` of batches.
+    Does not use tf.data.
+
+    Most performant option for datasets with significantly differently sized systems
+    (e.g. MP, SPICE).
+    """
+
     def __init__(
         self,
         atoms_list,
