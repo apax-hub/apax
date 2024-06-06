@@ -11,7 +11,7 @@ import zntrack.utils
 
 from apax.md.simulate import run_md
 
-from .model import Apax
+from .model import ApaxBase
 from .utils import check_duplicate_keys
 
 log = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ class ApaxJaxMD(zntrack.Node):
     data: list[ase.Atoms] = zntrack.deps()
     data_id: int = zntrack.params(-1)
 
-    model: Apax = zntrack.deps()
+    model: ApaxBase = zntrack.deps()
     repeat = zntrack.params(None)
 
     config: str = zntrack.params_path(None)
