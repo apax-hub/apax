@@ -19,7 +19,6 @@ data:
   dataset:
     name: cached
     shuffle_buffer_size: 1000
-    cache_path: "."
 
   additional_properties_info: {}
 
