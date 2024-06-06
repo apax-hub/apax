@@ -13,3 +13,14 @@ def mask_by_neighbor(arr, idx):
     if len(arr.shape) == 2:
         mask = mask[..., None]
     return arr * mask
+
+import jax.numpy as jnp
+
+def get_node_mask(Z):
+    mask = (Z != 0).astype(jnp.int16)
+    return mask
+
+
+def get_neighbor_mask(idx):
+    mask = ((idx[0] - idx[1]) != 0).astype(jnp.int16)
+    return mask

@@ -6,7 +6,7 @@ from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDesc
 from apax.layers.empirical import ZBLRepulsion
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
-from apax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
+from apax.model.gmnn import AtomicSo3krates, AtomisticModel, EnergyDerivativeModel, EnergyModel
 
 
 class ModelBuilder:
@@ -70,11 +70,12 @@ class ModelBuilder:
         shift,
         apply_mask,
     ):
-        descriptor = self.build_descriptor(apply_mask)
-        readout = self.build_readout()
+        # descriptor = self.build_descriptor(apply_mask)
+        # readout = self.build_readout()
         scale_shift = self.build_scale_shift(scale, shift)
 
-        atomistic_model = AtomisticModel(descriptor, readout, scale_shift)
+        # atomistic_model = AtomisticModel(descriptor, readout, scale_shift)
+        atomistic_model = AtomicSo3krates(scale_shift=scale_shift)
         return atomistic_model
 
     def build_energy_model(

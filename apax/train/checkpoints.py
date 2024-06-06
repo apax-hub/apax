@@ -18,9 +18,10 @@ def check_for_ensemble(params: FrozenDict) -> int:
     """Checks if a set of parameters belongs to an ensemble model.
     This is the case if all parameters share the same first dimension (parameter batch)
     """
-    flat_params = flatten_dict(params)
-    shapes = [v.shape[0] for v in flat_params.values()]
-    is_ensemble = len(set(shapes)) == 1
+    # flat_params = flatten_dict(params)
+    # shapes = [v.shape[0] for v in flat_params.values()]
+    # is_ensemble = len(set(shapes)) == 1
+    is_ensemble = False
 
     if is_ensemble:
         return shapes[0]

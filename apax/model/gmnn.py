@@ -10,10 +10,11 @@ from jax import Array, vmap
 
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.empirical import EmpiricalEnergyTerm
-from apax.layers.masking import mask_by_atom
+from apax.layers.masking import get_neighbor_mask, get_node_mask, mask_by_atom
 from apax.layers.properties import stress_times_vol
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
+from apax.model.myrto.so3krates.so3krates import So3krates
 from apax.utils.jax_md_reduced import partition, space
 from apax.utils.math import fp64_sum
 
@@ -69,6 +70,62 @@ class AtomisticModel(nn.Module):
 
         if self.mask_atoms:
             output = mask_by_atom(output, Z)
+        return output
+    
+
+class AtomicSo3krates(nn.Module):
+    cutoff: float = 5.0
+    num_layers: int = 1
+    max_degree: int = 3
+    num_features: int = 128
+    num_radial_features: int = 32
+    num_heads: int = 4
+    use_layer_norm_1: bool = False
+    use_layer_norm_2: bool = False
+    use_layer_norm_final: bool = False
+    activation: str = "silu"
+    cutoff_fn: str = "cosine_cutoff"
+    transform_input_features: bool = False
+    scale_shift: nn.Module = PerElementScaleShift()
+
+    @nn.compact
+    def __call__(self,
+        dr_vec: Array,
+        Z: Array,
+        idx: Array,
+        ):
+
+        model = So3krates(
+            cutoff=self.cutoff,
+            num_layers=self.num_layers,
+            max_degree=self.max_degree,
+            num_features=self.num_features,
+            num_radial_features=self.num_radial_features,
+            num_heads=self.num_heads,
+            use_layer_norm_1=self.use_layer_norm_1,
+            use_layer_norm_2=self.use_layer_norm_2,
+            use_layer_norm_final=self.use_layer_norm_final,
+            activation=self.activation,
+            cutoff_fn=self.cutoff_fn,
+            transform_input_features=self.transform_input_features,
+        )
+
+        R_ij = dr_vec
+        i,j = idx[0], idx[1]
+        Z_i = Z
+
+        pair_mask = get_neighbor_mask(idx)
+        node_mask = get_node_mask(Z)
+
+        h = model(
+            R_ij,
+            i,
+            j,
+            Z_i,
+            pair_mask,
+            node_mask,
+        )
+        output = self.scale_shift(h, Z)
         return output
 
 
