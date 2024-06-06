@@ -102,7 +102,10 @@ def initialize_datasets(config: Config):
     Dataset = dataset_dict[config.data.dataset.name]
 
     dataset_kwargs = dict(config.data.dataset)
-    dataset_kwargs.pop("name")
+    name = dataset_kwargs.pop("name")
+
+    if name == "cached":
+        dataset_kwargs["cache_path"] = config.data.model_version_path
 
     train_ds = Dataset(
         train_raw_ds,

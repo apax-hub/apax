@@ -42,7 +42,6 @@ class CachedDataset(DatasetConfig, extra="forbid"):
 
     name: Literal["cached"] = "cached"
     shuffle_buffer_size: PositiveInt = 1000
-    cache_path: str = "."
 
 
 class OTFDataset(DatasetConfig, extra="forbid"):
