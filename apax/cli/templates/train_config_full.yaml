@@ -16,8 +16,11 @@ data:
   #train_data_path: <PATH>
   #val_data_path: <PATH>
   #test_data_path: <PATH>
+  dataset:
+    processing: cached
+    shuffle_buffer_size: 1000
+
   additional_properties_info: {}
-  ds_type: cached
 
   n_train: 1000
   n_valid: 100
@@ -30,8 +33,6 @@ data:
 
   scale_method: "per_element_force_rms_scale"
   scale_options: {}
-
-  shuffle_buffer_size: 1000
 
   pos_unit: Ang
   energy_unit: eV

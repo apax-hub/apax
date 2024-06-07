@@ -153,3 +153,14 @@ def atoms_to_labels(
 
     labels = prune_dict(labels)
     return labels
+
+
+def transpose_dict_of_lists(dict_of_lists: dict):
+    list_of_dicts = []
+    keys = list(dict_of_lists.keys())
+
+    for i in range(len(dict_of_lists[keys[0]])):
+        data = {k: dict_of_lists[k][i] for k in keys}
+        list_of_dicts.append(data)
+
+    return list_of_dicts
