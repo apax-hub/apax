@@ -16,7 +16,11 @@ from .utils import check_duplicate_keys
 log = logging.getLogger(__name__)
 
 
-class Apax(zntrack.Node):
+class ApaxBase(zntrack.Node):
+    pass
+
+
+class Apax(ApaxBase):
     """Class for the implementation of the apax model
 
     Parameters
@@ -101,7 +105,7 @@ class Apax(zntrack.Node):
             return ASECalculator(model_dir=self.model_directory)
 
 
-class ApaxEnsemble(zntrack.Node):
+class ApaxEnsemble(ApaxBase):
     """Parallel apax model ensemble in ASE.
 
     Parameters

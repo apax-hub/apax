@@ -111,7 +111,7 @@ class DataConfig(BaseModel, extra="forbid"):
     shuffle_buffer_size : int, default = 1000
         | Size of the `tf.data` shuffle buffer.
     additional_properties_info : dict, optional
-        | dict of property name, shape (ragged or fixed) pairs
+        | dict of property name, shape (ragged or fixed) pairs. Currently unused.
     energy_regularisation :
         | Magnitude of the regularization in the per-element energy regression.
 
