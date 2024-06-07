@@ -99,12 +99,12 @@ def initialize_datasets(config: Config):
 
     train_raw_ds, val_raw_ds = load_data_files(config.data)
 
-    Dataset = dataset_dict[config.data.dataset.name]
+    Dataset = dataset_dict[config.data.dataset.processing]
 
     dataset_kwargs = dict(config.data.dataset)
-    name = dataset_kwargs.pop("name")
+    processing = dataset_kwargs.pop("processing")
 
-    if name == "cached":
+    if processing == "cached":
         dataset_kwargs["cache_path"] = config.data.model_version_path
 
     train_ds = Dataset(
