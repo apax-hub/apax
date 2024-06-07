@@ -2,9 +2,10 @@ import logging
 import uuid
 from collections import deque
 from concurrent.futures import ProcessPoolExecutor
+import multiprocessing
 from pathlib import Path
 from random import shuffle
-from typing import Dict, Iterator
+from typing import Dict, Iterator, Optional
 
 import jax
 import jax.numpy as jnp
@@ -437,7 +438,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
     Does not use tf.data.
 
     Most performant option for datasets with significantly differently sized systems
-    (e.g. MP, SPICE).
+    (e.g. MaterialsProject, SPICE).
     """
 
     def __init__(
@@ -447,8 +448,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         bs,
         n_epochs,
         n_jit_steps=1,
-        buffer_size=20,
-        num_workers=10,
+        num_workers: Optional[int]=None,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
         pre_shuffle=False,
@@ -464,7 +464,11 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.batch_size = self.validate_batch_size(bs)
         self.pos_unit = pos_unit
 
-        self.buffer_size = buffer_size
+        if num_workers:
+            self.num_workers = num_workers
+        else:
+            self.num_workers = multiprocessing.cpu_count()
+        self.buffer_size = num_workers * 2
         self.batch_size = bs
 
         self.sample_atoms = atoms_list[0]
@@ -486,7 +490,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.count = 0
         self.max_count = self.n_epochs * self.steps_per_epoch()
         self.buffer = deque()
-        self.num_workers = num_workers
+        
         self.process_pool = ProcessPoolExecutor(self.num_workers)
 
     def enqueue(self, num_batches):
