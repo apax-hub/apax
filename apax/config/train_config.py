@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 
 class DatasetConfig(BaseModel, extra="forbid"):
-    name: str
+    processing: str
 
 
 class CachedDataset(DatasetConfig, extra="forbid"):
@@ -40,7 +40,7 @@ class CachedDataset(DatasetConfig, extra="forbid"):
         | Larger values require more RAM.
     """
 
-    name: Literal["cached"] = "cached"
+    processing: Literal["cached"] = "cached"
     shuffle_buffer_size: PositiveInt = 1000
 
 
@@ -57,7 +57,7 @@ class OTFDataset(DatasetConfig, extra="forbid"):
         | Larger values require more RAM.
     """
 
-    name: Literal["otf"] = "otf"
+    processing: Literal["otf"] = "otf"
     shuffle_buffer_size: PositiveInt = 1000
 
 
@@ -78,7 +78,7 @@ class PBPDatset(DatasetConfig, extra="forbid"):
         | Number of batches to be processed in parallel.
     """
 
-    name: Literal["pbp"] = "pbp"
+    processing: Literal["pbp"] = "pbp"
     num_workers: PositiveInt = 10
 
 
@@ -120,7 +120,7 @@ class DataConfig(BaseModel, extra="forbid"):
     directory: str
     experiment: str
     dataset: Union[CachedDataset, OTFDataset, PBPDatset] = Field(
-        CachedDataset(name="cached"), discriminator="name"
+        CachedDataset(processing="cached"), discriminator="processing"
     )
 
     data_path: Optional[str] = None
