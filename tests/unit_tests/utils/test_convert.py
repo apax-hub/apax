@@ -3,7 +3,7 @@ import numpy as np
 from apax.utils.convert import transpose_dict_of_lists
 
 def test_transpose_dict_of_lists():
-    
+
     b = np.arange(8).reshape((4,2))
     a = [0,1,2,3]
     inputs = {
