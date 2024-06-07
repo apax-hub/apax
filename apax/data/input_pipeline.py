@@ -1,8 +1,8 @@
 import logging
+import multiprocessing
 import uuid
 from collections import deque
 from concurrent.futures import ProcessPoolExecutor
-import multiprocessing
 from pathlib import Path
 from random import shuffle
 from typing import Dict, Iterator, Optional
@@ -448,7 +448,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         bs,
         n_epochs,
         n_jit_steps=1,
-        num_workers: Optional[int]=None,
+        num_workers: Optional[int] = None,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
         pre_shuffle=False,
@@ -456,7 +456,9 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.cutoff = cutoff
 
         if n_jit_steps > 1:
-            raise "PerBatchPaddedDataset is not yet compatible with multi step jit"
+            raise NotImplementedError(
+                "PerBatchPaddedDataset is not yet compatible with multi step jit"
+            )
 
         self.n_jit_steps = n_jit_steps
         self.n_epochs = n_epochs
@@ -490,7 +492,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.count = 0
         self.max_count = self.n_epochs * self.steps_per_epoch()
         self.buffer = deque()
-        
+
         self.process_pool = ProcessPoolExecutor(self.num_workers)
 
     def enqueue(self, num_batches):
