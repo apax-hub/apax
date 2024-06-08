@@ -99,19 +99,24 @@ def initialize_datasets(config: Config):
 
     train_raw_ds, val_raw_ds = load_data_files(config.data)
 
-    Dataset = dataset_dict[config.data.ds_type]
+    Dataset = dataset_dict[config.data.dataset.processing]
+
+    dataset_kwargs = dict(config.data.dataset)
+    processing = dataset_kwargs.pop("processing")
+
+    if processing == "cached":
+        dataset_kwargs["cache_path"] = config.data.model_version_path
 
     train_ds = Dataset(
         train_raw_ds,
         config.model.r_max,
         config.data.batch_size,
         config.n_epochs,
-        config.data.shuffle_buffer_size,
         config.n_jitted_steps,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
         pre_shuffle=True,
-        cache_path=config.data.model_version_path,
+        **dataset_kwargs,
     )
     val_ds = Dataset(
         val_raw_ds,
@@ -120,7 +125,7 @@ def initialize_datasets(config: Config):
         config.n_epochs,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
-        cache_path=config.data.model_version_path,
+        **dataset_kwargs,
     )
     ds_stats = compute_scale_shift_parameters(
         train_ds.inputs,
