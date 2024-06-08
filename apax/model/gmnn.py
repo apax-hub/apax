@@ -66,7 +66,6 @@ class AtomisticModel(nn.Module):
         gm = self.descriptor(dr_vec, Z, idx)
         h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
-
         if self.mask_atoms:
             output = mask_by_atom(output, Z)
         return output

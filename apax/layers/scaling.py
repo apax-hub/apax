@@ -24,6 +24,7 @@ class PerElementScaleShift(nn.Module):
             scale = einops.repeat(scale, "species -> species 1")
         if len(shift.shape) == 1:
             shift = einops.repeat(shift, "species -> species 1")
+
         scale_init = nn.initializers.constant(scale)
         shift_init = nn.initializers.constant(shift)
 
