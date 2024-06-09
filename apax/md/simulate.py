@@ -334,7 +334,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     atoms = read(md_config.initial_structure)
     system = System.from_atoms(atoms)
 
-    r_max = model_config.model.r_max
+    r_max = model_config.model.basis.r_max
     log.info("initializing model")
     if np.all(system.box < 1e-6):
         frac_coords = False

@@ -121,7 +121,7 @@ class ModelBuilder:
         if self.config["use_zbl"]:
             repulsion = ZBLRepulsion(
                 apply_mask=apply_mask,
-                r_max=self.config["r_max"],
+                r_max=self.config["basis"]["r_max"],
             )
             corrections.append(repulsion)
 
