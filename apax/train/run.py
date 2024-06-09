@@ -15,7 +15,7 @@ from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import create_params, create_train_state
 from apax.train.loss import Loss, LossCollection
 from apax.train.metrics import initialize_metrics
-from apax.train.parameters import EMAParameters
+from apax.train.parameters import EMAParameters, SWAParameters
 from apax.train.trainer import fit
 from apax.transfer_learning import transfer_parameters
 from apax.utils.random import seed_py_np_tf
@@ -200,6 +200,8 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
     else:
         ema_handler = None
 
+    swa_handler = SWAParameters(2000, 20)
+
     fit(
         state,
         train_ds,
@@ -216,5 +218,6 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
         is_ensemble=config.n_models > 1,
         data_parallel=config.data_parallel,
         ema_handler=ema_handler,
+        swa_handler=swa_handler,
     )
     log.info("Finished training")

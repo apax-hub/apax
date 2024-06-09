@@ -15,7 +15,7 @@ from tqdm import trange
 
 from apax.data.input_pipeline import InMemoryDataset
 from apax.train.checkpoints import CheckpointManager, load_state
-from apax.train.parameters import EMAParameters
+from apax.train.parameters import EMAParameters, SWAParameters
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +36,7 @@ def fit(
     is_ensemble=False,
     data_parallel=True,
     ema_handler: Optional[EMAParameters] = None,
+    swa_handler: Optional[SWAParameters] = None,
 ):
     """
     Trains the model using the provided training dataset.
@@ -161,6 +162,9 @@ def fit(
         else:
             val_params = state.params
 
+        if swa_handler:
+            swa_handler.update(state.params, epoch)
+
         if val_ds is not None:
             epoch_loss.update({"val_loss": 0.0})
             val_batch_metrics = Metrics.empty()
@@ -219,6 +223,44 @@ def fit(
                 f" {epoch} epochs."
             )
             break
+
+    if swa_handler:
+        log.info("evaluating SWA parameters.")
+        swa_params = swa_handler.average_weights()
+        batch_val_ds = val_ds.batch()
+        epoch_loss.update({"val_loss": 0.0})
+        val_batch_metrics = Metrics.empty()
+
+        for batch_idx in range(val_steps_per_epoch):
+            batch = next(batch_val_ds)
+
+            batch_loss, val_batch_metrics = val_step(
+                swa_params, batch, val_batch_metrics
+            )
+            epoch_loss["val_loss"] += batch_loss
+            batch_pbar.update()
+        
+        epoch_loss["val_loss"] /= val_steps_per_epoch
+        epoch_loss["val_loss"] = float(epoch_loss["val_loss"])
+
+        epoch_metrics.update(
+            {
+                f"val_{key}": float(val)
+                for key, val in val_batch_metrics.compute().items()
+            }
+        )
+        epoch_metrics.update({**epoch_loss})
+
+        ckpt_manager.save_checkpoint(ckpt, epoch, latest_dir)
+        swa_loss = epoch_metrics["val_loss"]
+        # print(epoch_metrics)
+        log.info(f"Best loss: {best_loss:.3f} SWA loss: {swa_loss:.3f}")
+        if swa_loss < best_loss:
+            log.info("Saving SWA parameters")
+            ckpt_manager.save_checkpoint(ckpt, epoch, best_dir)
+
+        callbacks.on_epoch_end(epoch=n_epochs+1, logs=epoch_metrics)
+
     epoch_pbar.close()
     callbacks.on_train_end()
 
