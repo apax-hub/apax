@@ -26,30 +26,19 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
     def setup(self):
         self.distance = vmap(space.distance, 0, 0)
 
-        a_exp = 0.23
-        a_num = 0.46850
         coeffs = jnp.array([0.18175, 0.50986, 0.28022, 0.02817])[:, None]
-        exps = jnp.array([3.19980, 0.94229, 0.4029, 0.20162])[:, None]
-
-        a_exp_isp = inverse_softplus(a_exp)
-        a_num_isp = inverse_softplus(a_num)
         coeffs_isp = inverse_softplus(coeffs)
-        exps_isp = inverse_softplus(exps)
-        rep_scale_isp = inverse_softplus(0.0)
+        rep_scale_isp = inverse_softplus(0.1)
 
-        self.a_exp = self.param("a_exp", nn.initializers.constant(a_exp_isp), (1,))
-        self.a_num = self.param("a_num", nn.initializers.constant(a_num_isp), (1,))
+        self.a_exp = 0.23
+        self.a_num = 0.46850
         self.coefficients = self.param(
             "coefficients",
             nn.initializers.constant(coeffs_isp),
             (4, 1),
         )
 
-        self.exponents = self.param(
-            "exponents",
-            nn.initializers.constant(exps_isp),
-            (4, 1),
-        )
+        self.exponents = jnp.array([3.19980, 0.94229, 0.4029, 0.20162])[:, None]
 
         self.rep_scale = self.param(
             "rep_scale", nn.initializers.constant(rep_scale_isp), (1,)
@@ -70,10 +59,10 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
 
         # Ensure positive parameters
-        a_exp = jax.nn.softplus(self.a_exp)
-        a_num = jax.nn.softplus(self.a_num)
+        a_exp = self.a_exp
+        a_num = self.a_num
         coefficients = jax.nn.softplus(self.coefficients)
-        exponents = jax.nn.softplus(self.exponents)
+        exponents = self.exponents
         rep_scale = jax.nn.softplus(self.rep_scale)
 
         a_divisor = Z_i**a_exp + Z_j**a_exp
