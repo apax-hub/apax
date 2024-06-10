@@ -6,7 +6,8 @@ from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDesc
 from apax.layers.empirical import ZBLRepulsion
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
-from apax.model.gmnn import AtomicSo3krates, (
+from apax.model.gmnn import (
+    AtomicSo3krates,
     AtomisticModel,
     EnergyDerivativeModel,
     EnergyModel,
@@ -132,6 +133,7 @@ class ModelBuilder:
             model = ShallowEnsembleModel(
                 energy_model,
                 calc_stress=self.config["calc_stress"],
+                force_variance=False,
             )
         else:
             model = EnergyDerivativeModel(

@@ -14,7 +14,7 @@ from apax.layers.masking import get_neighbor_mask, get_node_mask, mask_by_atom
 from apax.layers.properties import stress_times_vol
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
-from apax.model.myrto.so3krates.so3krates import So3krates
+from apax.model.myrto.so3krates.so3krates import So3krates, So3kratese
 from apax.utils.jax_md_reduced import partition, space
 from apax.utils.math import fp64_sum
 
@@ -94,8 +94,24 @@ class AtomicSo3krates(nn.Module):
         Z: Array,
         idx: Array,
         ):
+        print("using so3krates")
 
-        model = So3krates(
+        # model = So3krates(
+        #     cutoff=self.cutoff,
+        #     num_layers=self.num_layers,
+        #     max_degree=self.max_degree,
+        #     num_features=self.num_features,
+        #     num_radial_features=self.num_radial_features,
+        #     num_heads=self.num_heads,
+        #     use_layer_norm_1=self.use_layer_norm_1,
+        #     use_layer_norm_2=self.use_layer_norm_2,
+        #     use_layer_norm_final=self.use_layer_norm_final,
+        #     activation=self.activation,
+        #     cutoff_fn=self.cutoff_fn,
+        #     transform_input_features=self.transform_input_features,
+        # )
+
+        model=So3kratese(
             cutoff=self.cutoff,
             num_layers=self.num_layers,
             max_degree=self.max_degree,
@@ -108,6 +124,7 @@ class AtomicSo3krates(nn.Module):
             activation=self.activation,
             cutoff_fn=self.cutoff_fn,
             transform_input_features=self.transform_input_features,
+            ensemble_size=4,
         )
 
         R_ij = dr_vec
