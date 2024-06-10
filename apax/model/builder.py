@@ -6,7 +6,12 @@ from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDesc
 from apax.layers.empirical import ZBLRepulsion
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
-from apax.model.gmnn import AtomicSo3krates, AtomisticModel, EnergyDerivativeModel, EnergyModel
+from apax.model.gmnn import AtomicSo3krates, (
+    AtomisticModel,
+    EnergyDerivativeModel,
+    EnergyModel,
+    ShallowEnsembleModel,
+)
 
 
 class ModelBuilder:
@@ -51,6 +56,7 @@ class ModelBuilder:
         readout = AtomisticReadout(
             units=self.config["nn"],
             b_init=self.config["b_init"],
+            n_shallow_ensemble=self.config["n_shallow_ensemble"],
             dtype=self.config["readout_dtype"],
         )
         return readout
@@ -122,9 +128,14 @@ class ModelBuilder:
             init_box=init_box,
             inference_disp_fn=inference_disp_fn,
         )
-
-        model = EnergyDerivativeModel(
-            energy_model,
-            calc_stress=self.config["calc_stress"],
-        )
+        if self.config["n_shallow_ensemble"] > 0:
+            model = ShallowEnsembleModel(
+                energy_model,
+                calc_stress=self.config["calc_stress"],
+            )
+        else:
+            model = EnergyDerivativeModel(
+                energy_model,
+                calc_stress=self.config["calc_stress"],
+            )
         return model

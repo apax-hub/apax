@@ -8,7 +8,6 @@ data:
   n_valid: 2
   batch_size: 2
   valid_batch_size: 2
-  shuffle_buffer_size: 4
 
 model:
   nn: [32,32]

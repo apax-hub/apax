@@ -149,3 +149,57 @@ class ApaxEnsemble(ApaxBase):
             transformations=transformations,
         )
         return calc
+
+
+class ApaxImport(zntrack.Node):
+    """Parallel apax model ensemble in ASE.
+
+    Parameters
+    ----------
+    models: list
+        List of `ApaxModel` nodes to ensemble.
+    nl_skin: float
+        Neighborlist skin.
+    transformations: dict
+        Key-parameter dict with function transformations applied
+        to the model function within the ASE calculator.
+        See the apax documentation for available methods.
+    """
+
+    config: str = zntrack.params_path()
+    nl_skin: float = zntrack.params(0.5)
+    transformations: dict[str, dict] = zntrack.params(None)
+
+    _parameter: dict = None
+
+    def _post_load_(self) -> None:
+        self._handle_parameter_file()
+
+    def _handle_parameter_file(self):
+        with self.state.use_tmp_path():
+            self._parameter = yaml.safe_load(pathlib.Path(self.config).read_text())
+
+    def get_calculator(self, **kwargs) -> ase.calculators.calculator.Calculator:
+        """Property to return a model specific ase calculator object.
+
+        Returns
+        -------
+        calc:
+            ase calculator object
+        """
+
+        directory = self._parameter["data"]["directory"]
+        exp = self._parameter["data"]["experiment"]
+        model_dir = directory + "/" + exp
+
+        transformations = []
+        if self.transformations:
+            for transform, params in self.transformations.items():
+                transformations.append(available_transformations[transform](**params))
+
+        calc = ASECalculator(
+            model_dir,
+            dr=self.nl_skin,
+            transformations=transformations,
+        )
+        return calc

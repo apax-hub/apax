@@ -58,7 +58,11 @@ class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
                     inputs["box"],
                     inputs["offsets"],
                 )
-                return model.apply(full_params, R, Z, idx, box, offsets)
+                out = model.apply(full_params, R, Z, idx, box, offsets)
+                # take mean in case of shallow ensemble
+                # no effect for single model
+                out = jnp.mean(out)
+                return out
 
             g_ll = jax.grad(inner)(ll_params)
             g_ll = unflatten_dict(g_ll)

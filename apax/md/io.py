@@ -21,7 +21,7 @@ class TrajHandler:
         self.traj_path: Path
         self.time_step: float
 
-    def step(self, state_and_energy, transform):
+    def step(self, state_and_energy, transform=None):
         pass
 
     def write(self, x=None, transform=None):
@@ -82,7 +82,7 @@ class H5TrajHandler(TrajHandler):
     def reset_buffer(self):
         self.buffer = []
 
-    def step(self, state, transform):
+    def step(self, state, transform=None):
         state, energy, nbr_kwargs = state
 
         if self.step_counter % self.sampling_rate == 0:
