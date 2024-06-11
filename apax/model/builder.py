@@ -37,7 +37,7 @@ class ModelBuilder:
                 dtype=self.config["descriptor_dtype"],
             )
         else:
-            raise NotImplementedError("unknown basis requested")
+            raise ValueError("unknown basis requested")
         return basis_fn
 
     def build_radial_function(self):

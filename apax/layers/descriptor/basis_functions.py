@@ -38,6 +38,9 @@ class GaussianBasis(nn.Module):
 
 
 class BesselBasis(nn.Module):
+    """Non-orthogonalized basis functions of Kocer 
+    https://doi.org/10.1063/1.5086167
+    """
     n_basis: int = 7
     r_max: float = 6.0
     dtype: Any = jnp.float32
@@ -52,8 +55,6 @@ class BesselBasis(nn.Module):
         s1 = jnp.sinc((self.n + 1) * dr / self.r_max)
         s2 = jnp.sinc((self.n + 2) * dr / self.r_max)
         basis = a * b * (s1 + s2)
-        # print(basis.dtype)
-        # quit()
         return basis
 
 
@@ -92,7 +93,7 @@ class RadialFunction(nn.Module):
                     self.dtype,
                 )
             else:
-                raise NotImplementedError(
+                raise ValueError(
                     "Currently only uniformly initialized embeddings and no embeddings"
                     " are implemented."
                 )
