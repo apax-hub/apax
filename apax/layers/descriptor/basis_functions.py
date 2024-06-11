@@ -38,7 +38,7 @@ class GaussianBasis(nn.Module):
 
 
 class BesselBasis(nn.Module):
-    """Non-orthogonalized basis functions of Kocer 
+    """Non-orthogonalized basis functions of Kocer
     https://doi.org/10.1063/1.5086167
     """
     n_basis: int = 7
