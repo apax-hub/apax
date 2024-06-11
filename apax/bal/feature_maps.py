@@ -41,7 +41,7 @@ class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
 
     name: Literal["ll_grad"]
     layer_name: str = "dense_2"
-    is_ntk: bool = True
+    use_ntk: bool = True
 
     def apply(self, model: EnergyModel) -> FeatureMap:
         def ll_grad(params, inputs):
@@ -67,7 +67,7 @@ class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
             g_flat = jax.tree_map(lambda arr: jnp.reshape(arr, (-1,)), g_ll)
             (gw, gb), _ = jax.tree_util.tree_flatten(g_flat)
 
-            if self.is_ntk:
+            if self.use_ntk:
                 bias_factor = 0.1
                 weight_factor = jnp.sqrt(1 / gw.shape[-1])
                 g_scaled = [weight_factor * gw, bias_factor * gb]

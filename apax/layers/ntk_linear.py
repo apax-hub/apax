@@ -25,14 +25,14 @@ class NTKLinear(nn.Module):
         elif self.w_init == "lecun":
             w_initializer = nn.initializers.lecun_normal(dtype=self.dtype)
         else:
-            raise NotImplementedError(f"Unknown weight initializer: {self.w_init}.")
+            raise ValueError(f"Unknown weight initializer: {self.w_init}.")
 
         if self.b_init == "normal":
             b_initializer = nn.initializers.normal(1.0, dtype=self.dtype)
         elif self.b_init == "zeros":
             b_initializer = nn.initializers.constant(0.0, dtype=self.dtype)
         else:
-            raise NotImplementedError(f"Unknown bias initializer: {self.b_init}.")
+            raise ValueError(f"Unknown bias initializer: {self.b_init}.")
         w = self.param("w", w_initializer, (inputs.shape[0], self.units), self.dtype)
         b = self.param("b", b_initializer, [self.units], self.dtype)
 
