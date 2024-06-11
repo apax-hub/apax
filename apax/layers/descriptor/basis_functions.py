@@ -41,6 +41,7 @@ class BesselBasis(nn.Module):
     """Non-orthogonalized basis functions of Kocer
     https://doi.org/10.1063/1.5086167
     """
+
     n_basis: int = 7
     r_max: float = 6.0
     dtype: Any = jnp.float32
