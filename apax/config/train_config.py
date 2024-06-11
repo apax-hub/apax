@@ -22,6 +22,66 @@ from apax.data.statistics import scale_method_list, shift_method_list
 log = logging.getLogger(__name__)
 
 
+class DatasetConfig(BaseModel, extra="forbid"):
+    processing: str
+
+
+class CachedDataset(DatasetConfig, extra="forbid"):
+    """Dataset which pads everything (atoms, neighbors)
+    to the largest system in the dataset.
+    The NL is computed on the fly during the first epoch and stored to disk using
+    tf.data's cache.
+    Most performant option for datasets with samples of very similar size.
+
+    Parameters
+    ----------
+    shuffle_buffer_size : int
+        | Size of the buffer that is shuffled by tf.data.
+        | Larger values require more RAM.
+    """
+
+    processing: Literal["cached"] = "cached"
+    shuffle_buffer_size: PositiveInt = 1000
+
+
+class OTFDataset(DatasetConfig, extra="forbid"):
+    """Dataset which pads everything (atoms, neighbors)
+    to the largest system in the dataset.
+    The NL is computed on the fly and fed into a tf.data generator.
+    Mostly for internal purposes.
+
+    Parameters
+    ----------
+    shuffle_buffer_size : int
+        | Size of the buffer that is shuffled by tf.data.
+        | Larger values require more RAM.
+    """
+
+    processing: Literal["otf"] = "otf"
+    shuffle_buffer_size: PositiveInt = 1000
+
+
+class PBPDatset(DatasetConfig, extra="forbid"):
+    """Dataset which pads everything (atoms, neighbors)
+    to the next larges power of two.
+    This limits the compute wasted due to padding at the (negligible)
+    cost of some recompilations.
+    The NL is computed on-the-fly in parallel for `num_workers` of batches.
+    Does not use tf.data.
+
+    Most performant option for datasets with significantly differently sized systems
+    (e.g. MP, SPICE).
+
+    Parameters
+    ----------
+    num_workers : int
+        | Number of batches to be processed in parallel.
+    """
+
+    processing: Literal["pbp"] = "pbp"
+    num_workers: PositiveInt = 10
+
+
 class DataConfig(BaseModel, extra="forbid"):
     """
     Configuration for data loading, preprocessing and training.
@@ -51,7 +111,7 @@ class DataConfig(BaseModel, extra="forbid"):
     shuffle_buffer_size : int, default = 1000
         | Size of the `tf.data` shuffle buffer.
     additional_properties_info : dict, optional
-        | dict of property name, shape (ragged or fixed) pairs
+        | dict of property name, shape (ragged or fixed) pairs. Currently unused.
     energy_regularisation :
         | Magnitude of the regularization in the per-element energy regression.
 
@@ -59,7 +119,10 @@ class DataConfig(BaseModel, extra="forbid"):
 
     directory: str
     experiment: str
-    ds_type: Literal["cached", "otf"] = "cached"
+    dataset: Union[CachedDataset, OTFDataset, PBPDatset] = Field(
+        CachedDataset(processing="cached"), discriminator="processing"
+    )
+
     data_path: Optional[str] = None
     train_data_path: Optional[str] = None
     val_data_path: Optional[str] = None
@@ -69,7 +132,6 @@ class DataConfig(BaseModel, extra="forbid"):
     n_valid: PositiveInt = 100
     batch_size: PositiveInt = 32
     valid_batch_size: PositiveInt = 100
-    shuffle_buffer_size: PositiveInt = 1000
     additional_properties_info: dict[str, str] = {}
 
     shift_method: str = "per_element_regression_shift"

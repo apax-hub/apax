@@ -2,3 +2,10 @@ from .md import ApaxJaxMD
 from .model import Apax, ApaxEnsemble
 
 __all__ = ["Apax", "ApaxEnsemble", "ApaxJaxMD"]
+
+try:
+    from .analysis import ApaxBatchPrediction  # noqa: F401
+
+    __all__.append("ApaxBatchPrediction")
+except ImportError:
+    pass
