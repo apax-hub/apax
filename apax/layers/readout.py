@@ -26,11 +26,11 @@ class AtomisticReadout(nn.Module):
         for ii, n_hidden in enumerate(units):
             layer = NTKLinear(
                 n_hidden,
-                    w_init=self.w_init,
-                    b_init=self.b_init,
-                    use_ntk=self.use_ntk,
-                    dtype=self.dtype,
-                    name=f"dense_{ii}",
+                w_init=self.w_init,
+                b_init=self.b_init,
+                use_ntk=self.use_ntk,
+                dtype=self.dtype,
+                name=f"dense_{ii}",
             )
             dense.append(layer)
             if ii < len(units) - 1:
