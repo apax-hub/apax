@@ -140,7 +140,7 @@ def kernel_selection(
     n_train = len(train_atoms)
     dataset = OTFInMemoryDataset(
         train_atoms + pool_atoms,
-        cutoff=config.model.r_max,
+        cutoff=config.model.basis.r_max,
         bs=processing_batch_size,
         n_epochs=1,
         ignore_labels=True,

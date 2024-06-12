@@ -11,7 +11,9 @@ from apax.layers.ntk_linear import NTKLinear
 class AtomisticReadout(nn.Module):
     units: List[int] = field(default_factory=lambda: [512, 512])
     activation_fn: Callable = swish
-    b_init: str = "normal"
+    w_init: str = "normal"
+    b_init: str = "zeros"
+    use_ntk: bool = True
     n_shallow_ensemble: int = 0
     dtype: Any = jnp.float32
 
@@ -23,7 +25,12 @@ class AtomisticReadout(nn.Module):
         dense = []
         for ii, n_hidden in enumerate(units):
             layer = NTKLinear(
-                n_hidden, b_init=self.b_init, dtype=self.dtype, name=f"dense_{ii}"
+                n_hidden,
+                    w_init=self.w_init,
+                    b_init=self.b_init,
+                    use_ntk=self.use_ntk,
+                    dtype=self.dtype,
+                    name=f"dense_{ii}",
             )
             dense.append(layer)
             if ii < len(units) - 1:

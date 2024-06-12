@@ -109,7 +109,7 @@ def initialize_datasets(config: Config):
 
     train_ds = Dataset(
         train_raw_ds,
-        config.model.r_max,
+        config.model.basis.r_max,
         config.data.batch_size,
         config.n_epochs,
         config.n_jitted_steps,
@@ -120,7 +120,7 @@ def initialize_datasets(config: Config):
     )
     val_ds = Dataset(
         val_raw_ds,
-        config.model.r_max,
+        config.model.basis.r_max,
         config.data.valid_batch_size,
         config.n_epochs,
         pos_unit=config.data.pos_unit,

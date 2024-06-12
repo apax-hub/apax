@@ -197,6 +197,22 @@ class DataConfig(BaseModel, extra="forbid"):
         return self.model_version_path / "best"
 
 
+class GaussianBasisConfig(BaseModel, extra="forbid"):
+    name: Literal["gaussian"] = "gaussian"
+    n_basis: PositiveInt = 7
+    r_min: NonNegativeFloat = 0.5
+    r_max: PositiveFloat = 6.0
+
+
+class BesselBasisConfig(BaseModel, extra="forbid"):
+    name: Literal["bessel"] = "bessel"
+    n_basis: PositiveInt = 7
+    r_max: PositiveFloat = 6.0
+
+
+BasisConfig = Union[GaussianBasisConfig, BesselBasisConfig]
+
+
 class ModelConfig(BaseModel, extra="forbid"):
     """
     Configuration for the model.
@@ -229,15 +245,15 @@ class ModelConfig(BaseModel, extra="forbid"):
         Data type for scale and shift parameters.
     """
 
-    n_basis: PositiveInt = 7
+    basis: BasisConfig = Field(GaussianBasisConfig(name="gaussian"), discriminator="name")
     n_radial: PositiveInt = 5
-    r_min: NonNegativeFloat = 0.5
-    r_max: PositiveFloat = 6.0
     n_contr: int = 8
     emb_init: Optional[str] = "uniform"
 
     nn: List[PositiveInt] = [512, 512]
+    w_init: Literal["normal", "lecun"] = "normal"
     b_init: Literal["normal", "zeros"] = "normal"
+    use_ntk: bool = True
 
     # corrections
     use_zbl: bool = False
