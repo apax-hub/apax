@@ -21,12 +21,13 @@ data:
   energy_unit: eV
 
 model:
-  n_basis: 7
+  basis:
+    name: gaussian
+    n_basis: 7
+    r_max: 6.5
+    r_min: 0.5
   n_radial: 5
   nn: [512, 512]
-
-  r_max: 6.5
-  r_min: 0.5
 
   calc_stress: false
   use_zbl: true

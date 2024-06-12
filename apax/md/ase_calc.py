@@ -30,7 +30,7 @@ def maybe_vmap(apply, params):
 
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_jax):
-    r_max = config.model.r_max
+    r_max = config.model.basis.r_max
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
     neigbor_from_jax = neighbor_calculable_with_jax(box, r_max)
     box = box.T
@@ -46,7 +46,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
         neighbor_fn = partition.neighbor_list(
             displacement_fn,
             box,
-            config.model.r_max,
+            config.model.basis.r_max,
             dr_threshold,
             fractional_coordinates=True,
             disable_cell_list=True,
@@ -165,7 +165,7 @@ class ASECalculator(Calculator):
 
     def initialize(self, atoms):
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
-        self.r_max = self.model_config.model.r_max
+        self.r_max = self.model_config.model.basis.r_max
         self.neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
         model, neighbor_fn = build_energy_neighbor_fns(
             atoms,
@@ -280,7 +280,7 @@ class ASECalculator(Calculator):
             self.initialize(atoms_list[0])
         dataset = OTFInMemoryDataset(
             atoms_list,
-            self.model_config.model.r_max,
+            self.model_config.model.basis.r_max,
             batch_size,
             n_epochs=1,
             ignore_labels=True,
