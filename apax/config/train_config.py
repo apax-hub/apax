@@ -251,7 +251,9 @@ class ModelConfig(BaseModel, extra="forbid"):
     emb_init: Optional[str] = "uniform"
 
     nn: List[PositiveInt] = [512, 512]
+    w_init: Literal["normal", "lecun"] = "normal"
     b_init: Literal["normal", "zeros"] = "normal"
+    use_ntk: bool = True
 
     # corrections
     use_zbl: bool = False
