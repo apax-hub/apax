@@ -223,7 +223,7 @@ class ShallowEnsembleModel(nn.Module):
         prediction = {
             "energy": energy_mean,
             "energy_ensemble": energy_ens,
-            "energy_uncertainty": energy_variance,
+            "energy_uncertainty": jnp.sqrt(energy_variance),
         }
 
         if self.force_variance:
@@ -232,7 +232,7 @@ class ShallowEnsembleModel(nn.Module):
             forces_variance = divisor * fp64_sum((forces_ens - forces_mean) ** 2, axis=0)
 
             prediction["forces"] = forces_mean
-            prediction["forces_uncertainty"] = forces_variance
+            prediction["forces_uncertainty"] = jnp.sqrt(forces_variance)
             prediction["forces_ensemble"] = forces_ens
         else:
             forces_mean = -jax.grad(mean_energy_fn)(R, Z, neighbor, box, offsets)

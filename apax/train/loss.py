@@ -55,19 +55,18 @@ def crps_loss(
     """Computes the CRPS of a gaussian distribution given
     means, targets and vars (uncertainty estimate)
     """
-    label, means, vars = label[name], prediction[name], prediction[name + "_uncertainty"]
+    label, means, sigmas = label[name], prediction[name], prediction[name + "_uncertainty"]
 
-    sigma = jnp.sqrt(vars)
-    sigma = jnp.clip(sigma, a_min=1e-6)
+    sigmas = jnp.clip(sigmas, a_min=1e-6)
 
-    norm_x = (label - means) / sigma
+    norm_x = (label - means) / sigmas
     cdf = 0.5 * (1 + jsc.special.erf(norm_x / jnp.sqrt(2)))
 
     normalization = 1 / (jnp.sqrt(2.0 * np.pi))
 
     pdf = normalization * jnp.exp(-(norm_x**2) / 2.0)
 
-    crps = sigma * (norm_x * (2 * cdf - 1) + 2 * pdf - 1 / jnp.sqrt(np.pi))
+    crps = sigmas * (norm_x * (2 * cdf - 1) + 2 * pdf - 1 / jnp.sqrt(np.pi))
 
     return crps / divisor
 
@@ -79,14 +78,15 @@ def nll_loss(
     divisor: float = 1.0,
     parameters: dict = {},
 ) -> jax.Array:
-    """Computes the gaussian NLL loss means, targets and vars (uncertainty estimate)"""
-    label, means, vars = label[name], prediction[name], prediction[name + "_uncertainty"]
+    """Computes the gaussian NLL loss means, targets and variances (uncertainty estimate)"""
+    label, means, sigmas = label[name], prediction[name], prediction[name + "_uncertainty"]
+    variances = jnp.pow(sigmas, 2)
     eps = 1e-4
-    sigma = jnp.sqrt(vars)
+    sigma = jnp.sqrt(variances)
     sigma = jnp.clip(sigma, a_min=1e-4)
 
     x1 = jnp.log(jnp.maximum(vars, eps))
-    x2 = (means - label) ** 2 / (jnp.maximum(vars, eps))
+    x2 = (means - label) ** 2 / (jnp.maximum(variances, eps))
     nll = 0.5 * (x1 + x2)
 
     return nll
