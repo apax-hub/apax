@@ -7159,4 +7159,4 @@ zntrack = ["zntrack"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "33202962b0566c7b63d36beb6d6eea1ffa70e123cd808c2725ae180d591867e2"
+content-hash = "7801b7454aafa4fec22b64d0a56108b777ee2262b060354e44a43cf11c0e1986"
