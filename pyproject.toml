@@ -8,6 +8,7 @@ license = "MIT"
 readme = "README.md"
 packages = [{include = "apax"}]
 documentation = "https://apax.readthedocs.io/en/latest/"
+repository = "https://github.com/apax-hub/apax"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
@@ -22,10 +23,10 @@ jaxtyping = "^0.2.8"
 typer = "^0.7.0"
 lazy-loader = "^0.2"
 matscipy = "^0.8.0"
-znh5md = "^0.1.7"
+znh5md = "^0.2"
 pydantic = "^2.3.0"
 jax = "^0.4.25"
-zntrack = {version = "^0.7.2", optional = true}
+zntrack = {version = "^0.7.3", optional = true}
 mlflow = {version = "^2.11.3", extras = ["mlflow"]}
 
 [tool.poetry.extras]
