@@ -14,6 +14,7 @@ from apax.model.gmnn import (
     AtomisticModel,
     EnergyDerivativeModel,
     EnergyModel,
+    FeatureModel,
     ShallowEnsembleModel,
 )
 
@@ -79,12 +80,13 @@ class ModelBuilder:
         )
         return descriptor
 
-    def build_readout(self):
+    def build_readout(self, is_feature_fn=False):
         readout = AtomisticReadout(
             units=self.config["nn"],
             b_init=self.config["b_init"],
             w_init=self.config["w_init"],
             use_ntk=self.config["use_ntk"],
+            is_feature_fn=is_feature_fn,
             n_shallow_ensemble=self.config["n_shallow_ensemble"],
             dtype=self.config["readout_dtype"],
         )
@@ -104,13 +106,12 @@ class ModelBuilder:
         scale,
         shift,
         apply_mask,
-        is_feature_fn = False,
     ):
         descriptor = self.build_descriptor(apply_mask)
         readout = self.build_readout()
         scale_shift = self.build_scale_shift(scale, shift)
 
-        atomistic_model = AtomisticModel(descriptor, readout, scale_shift, is_feature_fn)
+        atomistic_model = AtomisticModel(descriptor, readout, scale_shift)
         return atomistic_model
 
     def build_energy_model(
@@ -177,24 +178,20 @@ class ModelBuilder:
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn=None,
     ):
-        atomistic_model = self.build_atomistic_model(
-            scale,
-            shift,
-            apply_mask,
-            is_feature_fn=True,
-        )
-        corrections = []
-        if self.config["use_zbl"]:
-            repulsion = ZBLRepulsion(
-                apply_mask=apply_mask,
-                r_max=self.config["basis"]["r_max"],
-            )
-            corrections.append(repulsion)
+        # atomistic_model = self.build_atomistic_model(
+        #     scale,
+        #     shift,
+        #     apply_mask,
+        # )
+        descriptor = self.build_descriptor(apply_mask)
+        readout = self.build_readout(is_feature_fn=True)
 
         model = FeatureModel(
-            atomistic_model,
-            should_sum=True,
+            descriptor,
+            readout,
+            should_average=True,
             init_box=init_box,
             inference_disp_fn=inference_disp_fn,
+            mask_atoms=True,
         )
         return model
