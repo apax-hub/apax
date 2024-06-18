@@ -104,12 +104,13 @@ class ModelBuilder:
         scale,
         shift,
         apply_mask,
+        is_feature_fn = False,
     ):
         descriptor = self.build_descriptor(apply_mask)
         readout = self.build_readout()
         scale_shift = self.build_scale_shift(scale, shift)
 
-        atomistic_model = AtomisticModel(descriptor, readout, scale_shift)
+        atomistic_model = AtomisticModel(descriptor, readout, scale_shift, is_feature_fn)
         return atomistic_model
 
     def build_energy_model(
@@ -166,4 +167,34 @@ class ModelBuilder:
                 energy_model,
                 calc_stress=self.config["calc_stress"],
             )
+        return model
+
+    def build_ll_feature_model(
+        self,
+        scale=1.0,
+        shift=0.0,
+        apply_mask=True,
+        init_box: np.array = np.array([0.0, 0.0, 0.0]),
+        inference_disp_fn=None,
+    ):
+        atomistic_model = self.build_atomistic_model(
+            scale,
+            shift,
+            apply_mask,
+            is_feature_fn=True,
+        )
+        corrections = []
+        if self.config["use_zbl"]:
+            repulsion = ZBLRepulsion(
+                apply_mask=apply_mask,
+                r_max=self.config["basis"]["r_max"],
+            )
+            corrections.append(repulsion)
+
+        model = FeatureModel(
+            atomistic_model,
+            should_sum=True,
+            init_box=init_box,
+            inference_disp_fn=inference_disp_fn,
+        )
         return model
