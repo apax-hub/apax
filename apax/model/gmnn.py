@@ -14,8 +14,10 @@ from apax.layers.masking import mask_by_atom
 from apax.layers.properties import stress_times_vol
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
+from apax.layers.ntk_linear import NTKLinear
 from apax.utils.jax_md_reduced import partition
 from apax.utils.math import fp64_sum
+from apax.layers.activation import swish
 
 DisplacementFn = Callable[[Array, Array], Array]
 MDModel = Tuple[partition.NeighborFn, Callable, Callable]
@@ -33,19 +35,37 @@ class AtomisticModel(nn.Module):
     scale_shift: nn.Module = PerElementScaleShift()
     mask_atoms: bool = True
 
+    def setup(self) -> None:
+        self.lin_node_1 = NTKLinear(64, "lecun", "zeros", False)
+        self.lin_message_1 = NTKLinear(64, "lecun", "zeros", False)
+
+
     def __call__(
         self,
         dr_vec: Array,
         Z: Array,
         idx: Array,
     ) -> Array:
+        i, j = idx[0], idx[1]
+        n_atoms = Z.shape[0]
+
         gm = self.descriptor(dr_vec, Z, idx)
-        h = jax.vmap(self.readout)(gm)
+
+        h = jax.vmap(self.lin_node_1)(gm)
+        # linear
+        h_i, h_j = h[i], h[j]
+        h_j = swish(jax.vmap(self.lin_message_1)(h_j))
+
+        u_i = jax.ops.segment_sum(h_j, j, n_atoms)
+        h = h + u_i
+
+        h = jax.vmap(self.readout)(h)
         output = self.scale_shift(h, Z)
 
         if self.mask_atoms:
             output = mask_by_atom(output, Z)
         return output
+
 
 
 class FeatureModel(nn.Module):
