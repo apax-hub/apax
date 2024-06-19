@@ -124,6 +124,9 @@ def get_opt(
         "coefficients": zbl_opt,
         "exponents": zbl_opt,
         "rep_scale": zbl_opt,
+        'weights_K': nn_opt,
+        'weights_Q': nn_opt,
+        'weights_V': nn_opt,
     }
 
     param_partitions = freeze(

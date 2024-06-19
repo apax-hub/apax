@@ -2,10 +2,12 @@ import logging
 from dataclasses import field
 from typing import Any, Callable, Tuple, Union
 
+import einops
 import flax.linen as nn
 import jax
 import numpy as np
 from jax import Array
+import jax.numpy as jnp
 
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.distances import make_distance_fn
@@ -15,7 +17,8 @@ from apax.layers.properties import stress_times_vol
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.layers.ntk_linear import NTKLinear
-from apax.utils.jax_md_reduced import partition
+from apax.layers.descriptor.basis_functions import BesselBasis
+from apax.utils.jax_md_reduced import partition, space
 from apax.utils.math import fp64_sum
 from apax.layers.activation import swish
 
@@ -23,6 +26,72 @@ DisplacementFn = Callable[[Array, Array], Array]
 MDModel = Tuple[partition.NeighborFn, Callable, Callable]
 
 log = logging.getLogger(__name__)
+
+
+class Attention(nn.Module):
+
+    @nn.compact
+    def __call__(self, h, i, j, dr_vec) -> Any:
+        n_atoms = h.shape[0]
+        basis = BesselBasis(7, 5.0)
+        distance = jax.vmap(space.distance, 0, 0)
+        w_initializer = nn.initializers.lecun_normal(dtype=jnp.float32)
+        w1 = self.param("w", w_initializer, (64, 7), jnp.float32)
+
+        weights_Q = self.param(
+            "weights_Q",
+            jax.nn.initializers.lecun_normal(),  # normalise per head
+            (64,64,),
+        )  # -> [h, a, b]
+
+        weights_K = self.param(
+            "weights_K",
+            jax.nn.initializers.lecun_normal(),
+            (64,64,),
+        )
+        weights_V = self.param(
+            "weights_V",
+            jax.nn.initializers.lecun_normal(),
+            (64,64,),
+        )
+
+
+        dr = distance(dr_vec)
+        dr_clipped = jnp.clip(dr, a_max=5.0)
+        cos_cutoff = 0.5 * (jnp.cos(np.pi * dr_clipped / 5.0) + 1.0)
+        cutoff = einops.repeat(cos_cutoff, "neighbors -> neighbors 1")
+        b_j = basis(dr) * cutoff
+
+        w_ij = jnp.einsum("ij, nj -> ni", w1, b_j)
+        # h_j = W * h_j
+        # u_i = jax.ops.segment_sum(h_j, j, n_atoms)
+        # scaling = jax.ops.segment_sum(cutoff, j, n_atoms) # jnp.ones_like(h_j) sqrt
+        # h = h + u_i / scaling
+
+        # w_ij = u_i / scaling
+
+        Q = jnp.einsum("ab,ib->ia", weights_Q, h)  # -> [n, a]
+        K = jnp.einsum("ab,ib->ia", weights_K, h)  # -> [n, a]
+        V = jnp.einsum("ab,ib->ia", weights_V, h)  # -> [n, a]
+
+        Q = Q[i]  # -> [p, h, a]
+        K = K[j]  # -> [p, h, a]
+
+        a_ij = jnp.einsum("pf,pf,pf->p", Q, K, w_ij) / jnp.sqrt(64)
+
+
+        V = V[j]
+
+        m_ij = jnp.einsum("p,pa->pa", a_ij, V)  # -> [p, h, a]
+
+        m_ij = m_ij * cutoff
+
+        u_i = jax.ops.segment_sum(m_ij, i, n_atoms)
+
+        h = h + u_i
+
+
+        return h
 
 
 class AtomisticModel(nn.Module):
@@ -37,8 +106,13 @@ class AtomisticModel(nn.Module):
 
     def setup(self) -> None:
         self.lin_node_1 = NTKLinear(64, "lecun", "zeros", False)
+        self.lin_node_2 = NTKLinear(64, "lecun", "zeros", False)
         self.lin_message_1 = NTKLinear(64, "lecun", "zeros", False)
+        
+        # w_initializer = nn.initializers.lecun_normal(dtype=jnp.float32)
+        # self.w1 = self.param("w", w_initializer, (64, 7), jnp.float32)
 
+        self.attention = Attention()
 
     def __call__(
         self,
@@ -52,14 +126,17 @@ class AtomisticModel(nn.Module):
         gm = self.descriptor(dr_vec, Z, idx)
 
         h = jax.vmap(self.lin_node_1)(gm)
+        h = swish(h)
+        h = jax.vmap(self.lin_node_2)(gm)
         # linear
         h_i, h_j = h[i], h[j]
         h_j = swish(jax.vmap(self.lin_message_1)(h_j))
 
-        u_i = jax.ops.segment_sum(h_j, j, n_atoms)
-        h = h + u_i
+        h = self.attention(h, i, j, dr_vec)
 
         h = jax.vmap(self.readout)(h)
+
+        # h = jax.vmap(self.readout)(gm)
         output = self.scale_shift(h, Z)
 
         if self.mask_atoms:
