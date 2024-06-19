@@ -178,11 +178,6 @@ class ModelBuilder:
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn=None,
     ):
-        # atomistic_model = self.build_atomistic_model(
-        #     scale,
-        #     shift,
-        #     apply_mask,
-        # )
         descriptor = self.build_descriptor(apply_mask)
         readout = self.build_readout(is_feature_fn=True)
 
