@@ -1,7 +1,11 @@
 import numpy as np
 
 from apax.config import ModelConfig
-from apax.layers.descriptor.basis_functions import GaussianBasis, RadialFunction
+from apax.layers.descriptor.basis_functions import (
+    BesselBasis,
+    GaussianBasis,
+    RadialFunction,
+)
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.empirical import ZBLRepulsion
 from apax.layers.readout import AtomisticReadout
@@ -15,21 +19,44 @@ class ModelBuilder:
         self.n_species = n_species
 
     def build_basis_function(self):
-        basis_fn = GaussianBasis(
-            n_basis=self.config["n_basis"],
-            r_min=self.config["r_min"],
-            r_max=self.config["r_max"],
-            dtype=self.config["descriptor_dtype"],
-        )
+
+        basis_config = self.config["basis"]
+        name = basis_config["name"]
+
+        if name == "gaussian":
+            basis_fn = GaussianBasis(
+                n_basis=basis_config["n_basis"],
+                r_min=basis_config["r_min"],
+                r_max=basis_config["r_max"],
+                dtype=self.config["descriptor_dtype"],
+            )
+        elif name == "bessel":
+            basis_fn = BesselBasis(
+                n_basis=basis_config["n_basis"],
+                r_max=basis_config["r_max"],
+                dtype=self.config["descriptor_dtype"],
+            )
+        else:
+            raise ValueError("unknown basis requested")
         return basis_fn
 
     def build_radial_function(self):
         basis_fn = self.build_basis_function()
+
+        if self.config["basis"]["name"] == "gaussian":
+            use_embed_norm = True
+            one_sided_dist = False
+        else:
+            use_embed_norm = False
+            one_sided_dist = True
+
         radial_fn = RadialFunction(
             n_radial=self.config["n_radial"],
             basis_fn=basis_fn,
             n_species=self.n_species,
             emb_init=self.config["emb_init"],
+            use_embed_norm=use_embed_norm,
+            one_sided_dist=one_sided_dist,
             dtype=self.config["descriptor_dtype"],
         )
         return radial_fn
@@ -51,6 +78,8 @@ class ModelBuilder:
         readout = AtomisticReadout(
             units=self.config["nn"],
             b_init=self.config["b_init"],
+            w_init=self.config["w_init"],
+            use_ntk=self.config["use_ntk"],
             dtype=self.config["readout_dtype"],
         )
         return readout
@@ -94,7 +123,7 @@ class ModelBuilder:
         if self.config["use_zbl"]:
             repulsion = ZBLRepulsion(
                 apply_mask=apply_mask,
-                r_max=self.config["r_max"],
+                r_max=self.config["basis"]["r_max"],
             )
             corrections.append(repulsion)
 

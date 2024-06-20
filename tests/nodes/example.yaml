@@ -18,13 +18,15 @@ metrics:
   - mae
 
 model:
-  n_basis: 7
+  basis:
+    name: gaussian
+    r_max: 5.5
+    r_min: 0.7
+    n_basis: 7
   n_radial: 5
   nn:
   - 512
   - 512
-  r_max: 5.5
-  r_min: 0.7
 
   b_init: zeros
   emb_init: uniform

@@ -173,7 +173,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     atoms_list = load_test_data(config, model_version_path, eval_path, n_test)
     test_ds = OTFInMemoryDataset(
         atoms_list,
-        config.model.r_max,
+        config.model.basis.r_max,
         1,
         config.data.valid_batch_size,
         pos_unit=config.data.pos_unit,

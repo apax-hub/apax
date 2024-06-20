@@ -58,7 +58,7 @@ def test_run_md(get_tmp_path):
     neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
-        r_cutoff=model_config.model.r_max,
+        r_cutoff=model_config.model.basis.r_max,
         format=jax_md_reduced.partition.Sparse,
         fractional_coordinates=False,
     )
@@ -134,7 +134,7 @@ def test_ase_calc(get_tmp_path):
     neighbor_fn = jax_md_reduced.partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
-        r_cutoff=model_config.model.r_max,
+        r_cutoff=model_config.model.basis.r_max,
         format=jax_md_reduced.partition.Sparse,
         fractional_coordinates=False,
     )
