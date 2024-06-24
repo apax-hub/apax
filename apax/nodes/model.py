@@ -45,6 +45,7 @@ class Apax(ApaxBase):
     config: str = zntrack.params_path()
     validation_data = zntrack.deps()
     model: t.Optional[t.Any] = zntrack.deps(None)
+    log_level: str = zntrack.meta("info")
 
     model_directory: pathlib.Path = zntrack.outs_path(zntrack.nwd / "apax_model")
 
@@ -84,7 +85,7 @@ class Apax(ApaxBase):
 
     def train_model(self):
         """Train the model using `apax.train.run`"""
-        apax_run(self._parameter)
+        apax_run(self._parameter, log_level=self.log_level)
 
     def get_metrics_from_plots(self):
         """In addition to the plots write a model metric"""
