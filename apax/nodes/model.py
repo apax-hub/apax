@@ -4,6 +4,7 @@ import typing as t
 
 import ase.io
 import pandas as pd
+import numpy as np
 import yaml
 import zntrack.utils
 
@@ -83,10 +84,11 @@ class Apax(ApaxBase):
         """Train the model using `apax.train.run`"""
         apax_run(self._parameter, log_level=self.log_level)
 
-    def get_metrics_from_plots(self):
+    def get_metrics(self):
         """In addition to the plots write a model metric"""
         metrics_df = pd.read_csv(self.model_directory / "log.csv")
-        self.metrics = metrics_df.iloc[-1].to_dict()
+        best_epoch = np.argmin(metrics_df["val_loss"])
+        self.metrics = metrics_df.iloc[best_epoch].to_dict()
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
@@ -94,7 +96,7 @@ class Apax(ApaxBase):
         ase.io.write(self.validation_data_file, self.validation_data)
 
         self.train_model()
-        self.get_metrics_from_plots()
+        self.get_metrics()
 
     def get_calculator(self, **kwargs):
         """Get an apax ase calculator"""
