@@ -21,7 +21,7 @@ class ApaxBase(zntrack.Node):
 
 
 class Apax(ApaxBase):
-    """Class for the implementation of the apax model
+    """Class for traing Apax models
 
     Parameters
     ----------
@@ -32,13 +32,9 @@ class Apax(ApaxBase):
     validation_data: list[ase.Atoms]
         atoms object with the validation data set
     model: t.Optional[Apax]
-        model to be used as a base model
-    model_directory: pathlib.Path
-        model directory
-    train_data_file: pathlib.Path
-        output path to the training data
-    validation_data_file: pathlib.Path
-        output path to the validation data
+        model to be used as a base model for transfer learning
+    log_level: str
+        verbosity of logging during training
     """
 
     data: list = zntrack.deps()
