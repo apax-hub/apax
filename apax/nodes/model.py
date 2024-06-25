@@ -42,14 +42,12 @@ class Apax(ApaxBase):
     config: str = zntrack.params_path()
     validation_data = zntrack.deps()
     model: t.Optional[t.Any] = zntrack.deps(None)
-    log_level: str = zntrack.meta("info")
+    log_level: str = zntrack.meta.Text("info")
 
     model_directory: pathlib.Path = zntrack.outs_path(zntrack.nwd / "apax_model")
 
-    train_data_file: pathlib.Path = zntrack.outs_path(zntrack.nwd / "train_atoms.extxyz")
-    validation_data_file: pathlib.Path = zntrack.outs_path(
-        zntrack.nwd / "val_atoms.extxyz"
-    )
+    train_data_file: pathlib.Path = zntrack.nwd / "train_atoms.extxyz"
+    validation_data_file: pathlib.Path = zntrack.nwd / "val_atoms.extxyz"
 
     metrics = zntrack.metrics()
 
@@ -92,11 +90,15 @@ class Apax(ApaxBase):
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
-        ase.io.write(self.train_data_file, self.data)
-        ase.io.write(self.validation_data_file, self.validation_data)
+        if not self.state.restarted:
+            ase.io.write(self.train_data_file.as_posix(), self.data)
+            ase.io.write(self.validation_data_file.as_posix(), self.validation_data)
 
         self.train_model()
         self.get_metrics()
+
+        self.train_data_file.unlink()
+        self.validation_data_file.unlink()
 
     def get_calculator(self, **kwargs):
         """Get an apax ase calculator"""
