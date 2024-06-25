@@ -512,6 +512,10 @@ class PerBatchPaddedDataset(InMemoryDataset):
             self.count = 0
             self.buffer = deque()
 
+            # reinitialize PPE from time to time to avoid memory leak
+            if n % 10 == 0:
+                self.process_pool = ProcessPoolExecutor(self.num_workers)
+
             if self.should_shuffle:
                 shuffle(self.data)
 
