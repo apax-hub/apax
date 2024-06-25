@@ -46,8 +46,8 @@ class Apax(ApaxBase):
 
     model_directory: pathlib.Path = zntrack.outs_path(zntrack.nwd / "apax_model")
 
-    train_data_file: pathlib.Path = zntrack.nwd / "train_atoms.extxyz"
-    validation_data_file: pathlib.Path = zntrack.nwd / "val_atoms.extxyz"
+    train_data_file: pathlib.Path = zntrack.outs_path(zntrack.nwd / "train_atoms.extxyz")
+    validation_data_file: pathlib.Path = zntrack.outs_path(zntrack.nwd / "val_atoms.extxyz")
 
     metrics = zntrack.metrics()
 
@@ -93,12 +93,20 @@ class Apax(ApaxBase):
         if not self.state.restarted:
             ase.io.write(self.train_data_file.as_posix(), self.data)
             ase.io.write(self.validation_data_file.as_posix(), self.validation_data)
+        
+        csv_path = self.model_directory / "log.csv"
+        if self.state.restarted and csv_path.is_file():
+            metrics_df = pd.read_csv(self.model_directory / "log.csv")
+
+            if metrics_df["epoch"].iloc[-1] >= self._parameter["n_epochs"]-1:
+                return
 
         self.train_model()
         self.get_metrics()
+        
 
-        self.train_data_file.unlink()
-        self.validation_data_file.unlink()
+        # self.train_data_file.unlink()
+        # self.validation_data_file.unlink()
 
     def get_calculator(self, **kwargs):
         """Get an apax ase calculator"""
