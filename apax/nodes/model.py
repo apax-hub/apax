@@ -93,7 +93,7 @@ class Apax(ApaxBase):
         if not self.state.restarted:
             ase.io.write(self.train_data_file.as_posix(), self.data)
             ase.io.write(self.validation_data_file.as_posix(), self.validation_data)
-        
+
         csv_path = self.model_directory / "log.csv"
         if self.state.restarted and csv_path.is_file():
             metrics_df = pd.read_csv(self.model_directory / "log.csv")
@@ -103,7 +103,7 @@ class Apax(ApaxBase):
 
         self.train_model()
         self.get_metrics()
-        
+
 
         # self.train_data_file.unlink()
         # self.validation_data_file.unlink()
