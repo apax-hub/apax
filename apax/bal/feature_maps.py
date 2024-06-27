@@ -67,16 +67,10 @@ class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
 
             g_ll = jax.grad(inner)(ll_params)
             g_ll = unflatten_dict(g_ll)
-            # print(jax.tree_map(lambda arr: arr.shape, g_ll))
-            # print(ll_params)
-            # quit()
 
             g_flat = jax.tree_map(lambda arr: jnp.reshape(arr, (-1,)), g_ll)
             (gb, gw), _ = jax.tree_util.tree_flatten(g_flat)
-            # gw = ll_params[1]['params']['atomistic_model']['readout']['dense_2']["w"][:,0]
-            # gb = ll_params[0]['params']['atomistic_model']['readout']['dense_2']["b"]
-            # print(gw.shape)
-            # print(gb.shape)
+
             if self.use_ntk:
                 bias_factor = 0.1
                 weight_factor = jnp.sqrt(1 / gw.shape[-1])
@@ -85,7 +79,6 @@ class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
                 g_scaled = [gw, gb]
 
             g = jnp.concatenate(g_scaled)
-            # print
 
             return g
 
