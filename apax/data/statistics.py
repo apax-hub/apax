@@ -70,7 +70,7 @@ class IsolatedAtomEnergyShift:
             elemental_energies_shift[k] = v
 
         return elemental_energies_shift
-    
+
 
 class MeanEnergyShift:
     name = "mean_atom_energy_shift"
@@ -80,7 +80,6 @@ class MeanEnergyShift:
     @staticmethod
     def compute(inputs, labels, shift_options):
         energies = labels["energy"]
-        numbers = inputs["numbers"]
         system_sizes = inputs["n_atoms"]
 
         energies = np.array(energies)
