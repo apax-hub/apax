@@ -3,6 +3,7 @@ import pathlib
 import typing as t
 
 import ase.io
+import numpy as np
 import pandas as pd
 import yaml
 import zntrack.utils
@@ -21,7 +22,7 @@ class ApaxBase(zntrack.Node):
 
 
 class Apax(ApaxBase):
-    """Class for the implementation of the apax model
+    """Class for traing Apax models
 
     Parameters
     ----------
@@ -32,19 +33,16 @@ class Apax(ApaxBase):
     validation_data: list[ase.Atoms]
         atoms object with the validation data set
     model: t.Optional[Apax]
-        model to be used as a base model
-    model_directory: pathlib.Path
-        model directory
-    train_data_file: pathlib.Path
-        output path to the training data
-    validation_data_file: pathlib.Path
-        output path to the validation data
+        model to be used as a base model for transfer learning
+    log_level: str
+        verbosity of logging during training
     """
 
     data: list = zntrack.deps()
     config: str = zntrack.params_path()
     validation_data = zntrack.deps()
     model: t.Optional[t.Any] = zntrack.deps(None)
+    log_level: str = zntrack.meta.Text("info")
 
     model_directory: pathlib.Path = zntrack.outs_path(zntrack.nwd / "apax_model")
 
@@ -84,20 +82,29 @@ class Apax(ApaxBase):
 
     def train_model(self):
         """Train the model using `apax.train.run`"""
-        apax_run(self._parameter)
+        apax_run(self._parameter, log_level=self.log_level)
 
-    def get_metrics_from_plots(self):
+    def get_metrics(self):
         """In addition to the plots write a model metric"""
         metrics_df = pd.read_csv(self.model_directory / "log.csv")
-        self.metrics = metrics_df.iloc[-1].to_dict()
+        best_epoch = np.argmin(metrics_df["val_loss"])
+        self.metrics = metrics_df.iloc[best_epoch].to_dict()
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
-        ase.io.write(self.train_data_file, self.data)
-        ase.io.write(self.validation_data_file, self.validation_data)
+        if not self.state.restarted:
+            ase.io.write(self.train_data_file.as_posix(), self.data)
+            ase.io.write(self.validation_data_file.as_posix(), self.validation_data)
+
+        csv_path = self.model_directory / "log.csv"
+        if self.state.restarted and csv_path.is_file():
+            metrics_df = pd.read_csv(self.model_directory / "log.csv")
+
+            if metrics_df["epoch"].iloc[-1] >= self._parameter["n_epochs"] - 1:
+                return
 
         self.train_model()
-        self.get_metrics_from_plots()
+        self.get_metrics()
 
     def get_calculator(self, **kwargs):
         """Get an apax ase calculator"""
