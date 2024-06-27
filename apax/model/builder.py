@@ -25,7 +25,6 @@ class ModelBuilder:
         self.n_species = n_species
 
     def build_basis_function(self):
-
         basis_config = self.config["basis"]
         name = basis_config["name"]
 
