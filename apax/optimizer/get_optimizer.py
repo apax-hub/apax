@@ -70,12 +70,12 @@ def get_schedule(
     return lr_schedule
 
 
-def make_optimizer(opt, lr, n_epochs, steps_per_epoch, opt_kwargs, schedule):
+def make_optimizer(opt, lr, n_epochs, steps_per_epoch, kwargs, schedule):
     if lr <= 1e-7:
         optimizer = optax.set_to_zero()
     else:
         schedule = get_schedule(lr, n_epochs, steps_per_epoch, schedule)
-        optimizer = opt(schedule, **opt_kwargs)
+        optimizer = opt(schedule, **kwargs)
     return optimizer
 
 
@@ -88,8 +88,8 @@ def get_opt(
     scale_lr: float = 0.001,
     shift_lr: float = 0.05,
     zbl_lr: float = 0.001,
-    opt_name: str = "adam",
-    opt_kwargs: dict = {},
+    name: str = "adam",
+    kwargs: dict = {},
     schedule: dict = {},
 ) -> optax._src.base.GradientTransformation:
     """
@@ -98,20 +98,20 @@ def get_opt(
     """
 
     log.info("Initializing Optimizer")
-    if opt_name == "sam":
+    if name == "sam":
         opt = sam
     else:
-        opt = getattr(optax, opt_name)
+        opt = getattr(optax, name)
 
-    nn_opt = make_optimizer(opt, nn_lr, n_epochs, steps_per_epoch, opt_kwargs, schedule)
-    emb_opt = make_optimizer(opt, emb_lr, n_epochs, steps_per_epoch, opt_kwargs, schedule)
+    nn_opt = make_optimizer(opt, nn_lr, n_epochs, steps_per_epoch, kwargs, schedule)
+    emb_opt = make_optimizer(opt, emb_lr, n_epochs, steps_per_epoch, kwargs, schedule)
     scale_opt = make_optimizer(
-        opt, scale_lr, n_epochs, steps_per_epoch, opt_kwargs, schedule
+        opt, scale_lr, n_epochs, steps_per_epoch, kwargs, schedule
     )
     shift_opt = make_optimizer(
-        opt, shift_lr, n_epochs, steps_per_epoch, opt_kwargs, schedule
+        opt, shift_lr, n_epochs, steps_per_epoch, kwargs, schedule
     )
-    zbl_opt = make_optimizer(opt, zbl_lr, n_epochs, steps_per_epoch, opt_kwargs, schedule)
+    zbl_opt = make_optimizer(opt, zbl_lr, n_epochs, steps_per_epoch, kwargs, schedule)
 
     partition_optimizers = {
         "w": nn_opt,

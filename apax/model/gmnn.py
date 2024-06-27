@@ -4,9 +4,9 @@ from typing import Any, Callable, Tuple, Union
 
 import flax.linen as nn
 import jax
+import jax.numpy as jnp
 import numpy as np
 from jax import Array
-import jax.numpy as jnp
 
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.distances import make_distance_fn
@@ -58,7 +58,7 @@ class FeatureModel(nn.Module):
     should_average: bool = False
     init_box: np.array = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
     inference_disp_fn: Any = None
-    mask_atoms:bool = True
+    mask_atoms: bool = True
 
     def setup(self):
         self.compute_distances = make_distance_fn(self.init_box, self.inference_disp_fn)

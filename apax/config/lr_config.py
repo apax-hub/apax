@@ -14,7 +14,7 @@ class LinearLR(LRSchedule, frozen=True, extra="forbid"):
 
     Parameters
     ----------
-    opt_name : str, default = "adam"
+    name : str, default = "adam"
     transition_begin: int = 0
         Number of steps after which to start decreasing
     end_value: NonNegativeFloat = 1e-6

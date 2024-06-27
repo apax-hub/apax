@@ -1,7 +1,6 @@
 n_epochs: <NUMBER OF EPOCHS>
 seed: 1
 patience: null
-n_models: 1
 n_jitted_steps: 1
 data_parallel: True
 weight_average: null
@@ -44,6 +43,8 @@ model:
     r_max: 6.0
     r_min: 0.5
 
+  ensemble: null
+
   n_radial: 5
   n_contr: 8
   nn: [512, 512]
@@ -77,8 +78,8 @@ metrics:
   - mse
 
 optimizer:
-  opt_name: adam
-  opt_kwargs: {}
+  name: adam
+  kwargs: {}
   emb_lr: 0.03
   nn_lr: 0.03
   scale_lr: 0.001

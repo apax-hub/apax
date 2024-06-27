@@ -217,6 +217,20 @@ class BesselBasisConfig(BaseModel, extra="forbid"):
 BasisConfig = Union[GaussianBasisConfig, BesselBasisConfig]
 
 
+class FullEnsembleConfig(BaseModel, extra="forbid"):
+    kind: Literal["full"] = "full"
+    n_members: int
+
+
+class ShallowEnsembleConfig(BaseModel, extra="forbid"):
+    kind: Literal["shallow"] = "shallow"
+    n_members: int
+    force_variance: bool = True
+
+EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
+
+# TODO UPDATE DOCS, FIX TESTS
+
 class ModelConfig(BaseModel, extra="forbid"):
     """
     Configuration for the model.
@@ -259,12 +273,14 @@ class ModelConfig(BaseModel, extra="forbid"):
     b_init: Literal["normal", "zeros"] = "normal"
     use_ntk: bool = True
 
+    ensemble: Optional[EnsembleConfig] = None
+
     # corrections
     use_zbl: bool = False
 
     calc_stress: bool = False
 
-    n_shallow_ensemble: int = 0
+    # n_shallow_ensemble: int = 0
 
     descriptor_dtype: Literal["fp32", "fp64"] = "fp64"
     readout_dtype: Literal["fp32", "fp64"] = "fp32"
@@ -289,7 +305,7 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
 
     Parameters
     ----------
-    opt_name : str, default = "adam"
+    name : str, default = "adam"
         Name of the optimizer. Can be any `optax` optimizer.
     emb_lr : NonNegativeFloat, default = 0.02
         Learning rate of the elemental embedding contraction coefficients.
@@ -303,11 +319,11 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
         Learning rate of the ZBL correction parameters.
     schedule : LRSchedule = LinearLR
         Learning rate schedule.
-    opt_kwargs : dict, default = {}
+    kwargs : dict, default = {}
         Optimizer keyword arguments. Passed to the `optax` optimizer.
     """
 
-    opt_name: str = "adam"
+    name: str = "adam"
     emb_lr: NonNegativeFloat = 0.02
     nn_lr: NonNegativeFloat = 0.03
     scale_lr: NonNegativeFloat = 0.001
@@ -316,7 +332,7 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     schedule: Union[LinearLR, CyclicCosineLR] = Field(
         LinearLR(name="linear"), discriminator="name"
     )
-    opt_kwargs: dict = {}
+    kwargs: dict = {}
 
 
 class MetricsConfig(BaseModel, extra="forbid"):
@@ -511,7 +527,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     n_epochs: PositiveInt
     patience: Optional[PositiveInt] = None
     seed: int = 1
-    n_models: int = 1
+    # n_models: int = 1
     n_jitted_steps: int = 1
     data_parallel: bool = True
 

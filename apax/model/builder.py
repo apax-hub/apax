@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 
 from apax.config import ModelConfig
@@ -17,6 +19,8 @@ from apax.model.gmnn import (
     FeatureModel,
     ShallowEnsembleModel,
 )
+
+log = logging.getLogger(__name__)
 
 
 class ModelBuilder:
@@ -80,13 +84,17 @@ class ModelBuilder:
         return descriptor
 
     def build_readout(self, is_feature_fn=False):
+        if self.config["ensemble"] and self.config["ensemble"]["kind"] == "shallow":
+            n_shallow_ensemble = self.config["ensemble"]["n_members"]
+        else:
+            n_shallow_ensemble = 0
         readout = AtomisticReadout(
             units=self.config["nn"],
             b_init=self.config["b_init"],
             w_init=self.config["w_init"],
             use_ntk=self.config["use_ntk"],
             is_feature_fn=is_feature_fn,
-            n_shallow_ensemble=self.config["n_shallow_ensemble"],
+            n_shallow_ensemble=n_shallow_ensemble,
             dtype=self.config["readout_dtype"],
         )
         return readout
@@ -121,6 +129,7 @@ class ModelBuilder:
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn=None,
     ):
+        log.debug("Bulding atomistic model")
         atomistic_model = self.build_atomistic_model(
             scale,
             shift,
@@ -157,12 +166,19 @@ class ModelBuilder:
             init_box=init_box,
             inference_disp_fn=inference_disp_fn,
         )
-        if self.config["n_shallow_ensemble"] > 0:
+        if (
+            self.config["ensemble"]
+            and self.config["ensemble"]["kind"] == "shallow"
+            and self.config["ensemble"]["n_members"] > 1
+        ):
+            log.info("Bulding ShallowEnsemble model")
             model = ShallowEnsembleModel(
                 energy_model,
                 calc_stress=self.config["calc_stress"],
+                force_variance=self.config["ensemble"]["force_variance"],
             )
         else:
+            log.info("Bulding Standard model")
             model = EnergyDerivativeModel(
                 energy_model,
                 calc_stress=self.config["calc_stress"],
@@ -177,6 +193,7 @@ class ModelBuilder:
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn=None,
     ):
+        log.info("Bulding LL feature model")
         descriptor = self.build_descriptor(apply_mask)
         readout = self.build_readout(is_feature_fn=True)
 

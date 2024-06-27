@@ -386,11 +386,10 @@ def md_setup(model_config: Config, md_config: MDConfig):
 
     n_models = 1
     shallow = False
-    if model_config.n_models > 1:
-        n_models = model_config.n_models
-    elif model_config.model.n_shallow_ensemble > 1:
-        n_models = model_config.model.n_shallow_ensemble
-        shallow = True
+    if "ensemble" in model_config.model_dump().keys() and model_config.ensemble.n_members > 1:
+        n_models = model_config.ensemble.n_members
+        if model_config.model.ensemble.kind == "shallow":
+            shallow = True
 
     energy_fn = create_energy_fn(
         model.apply, params, system.atomic_numbers, n_models, shallow

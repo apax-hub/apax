@@ -132,7 +132,7 @@ def load_params(model_version_path: Path, best=True) -> FrozenDict:
         print(f"No checkpoint found at {model_version_path}")
     if raw_restored is None:
         raise FileNotFoundError(f"No checkpoint found at {model_version_path}")
-    params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
+    params = jax.tree.map(jnp.asarray, raw_restored["model"]["params"])
 
     return params
 

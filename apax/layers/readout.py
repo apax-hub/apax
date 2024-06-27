@@ -15,7 +15,7 @@ class AtomisticReadout(nn.Module):
     b_init: str = "zeros"
     use_ntk: bool = True
     n_shallow_ensemble: int = 0
-    is_feature_fn : bool = False
+    is_feature_fn: bool = False
     dtype: Any = jnp.float32
 
     def setup(self):

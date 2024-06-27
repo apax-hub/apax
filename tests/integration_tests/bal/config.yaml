@@ -1,9 +1,8 @@
 n_epochs: 2
-n_models: 2
 
 data:
   experiment: apax_dummy
-  data_path: dummy_ds  # ds.extxyz #ethanol.traj # ds.extxyz #
+  data_path: dummy_ds
 
   n_train: 4
   n_valid: 2
@@ -16,6 +15,11 @@ model:
     name: gaussian
     n_basis: 5
   n_radial: 3
+
+  ensemble:
+    kind: full
+    n_members: 2
+
   descriptor_dtype: fp32
   readout_dtype: fp32
   scale_shift_dtype: fp32
