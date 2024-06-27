@@ -3,8 +3,8 @@ import pathlib
 import typing as t
 
 import ase.io
-import pandas as pd
 import numpy as np
+import pandas as pd
 import yaml
 import zntrack.utils
 
