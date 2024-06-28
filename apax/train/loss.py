@@ -87,16 +87,15 @@ def nll_loss(
     means = prediction[name]
     sigmas = prediction[name + "_uncertainty"]
 
+    eps = 1e-6
+    sigmas = jnp.clip(sigmas, a_min=eps)
     variances = jnp.pow(sigmas, 2)
-    eps = 1e-4
-    sigma = jnp.sqrt(variances)
-    sigma = jnp.clip(sigma, a_min=1e-6)
 
-    x1 = jnp.log(jnp.maximum(vars, eps))
-    x2 = (means - label) ** 2 / (jnp.maximum(variances, eps))
+    x1 = jnp.log(variances)
+    x2 = ((means - label) ** 2) / variances
     nll = 0.5 * (x1 + x2)
 
-    return nll
+    return nll / divisor
 
 
 def force_angle_loss(
