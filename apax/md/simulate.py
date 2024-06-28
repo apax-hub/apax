@@ -386,7 +386,10 @@ def md_setup(model_config: Config, md_config: MDConfig):
 
     n_models = 1
     shallow = False
-    if "ensemble" in model_config.model_dump().keys() and model_config.ensemble.n_members > 1:
+    if (
+        "ensemble" in model_config.model_dump().keys()
+        and model_config.ensemble.n_members > 1
+    ):
         n_models = model_config.ensemble.n_members
         if model_config.model.ensemble.kind == "shallow":
             shallow = True

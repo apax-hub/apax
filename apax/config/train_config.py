@@ -227,9 +227,10 @@ class ShallowEnsembleConfig(BaseModel, extra="forbid"):
     n_members: int
     force_variance: bool = True
 
+
 EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
 
-# TODO UPDATE DOCS, FIX TESTS
+# TODO update docs
 
 class ModelConfig(BaseModel, extra="forbid"):
     """
