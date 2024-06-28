@@ -236,7 +236,7 @@ def calc_loss(params, inputs, labels, loss_fn, model):
         inputs["offsets"],
     )
     predictions = model(params, R, Z, idx, box, offsets)
-    loss = loss_fn(inputs, labels, predictions)
+    loss = loss_fn(inputs, predictions, labels)
     return loss, predictions
 
 
