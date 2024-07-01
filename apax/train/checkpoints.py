@@ -7,7 +7,8 @@ import jax.numpy as jnp
 from flax.core.frozen_dict import FrozenDict, freeze, unfreeze
 from flax.training import checkpoints, train_state
 from flax.traverse_util import flatten_dict, unflatten_dict
-
+import orbax
+import orbax.checkpoint as ocp
 from apax.config.common import parse_config
 from apax.config.train_config import Config
 
@@ -68,13 +69,16 @@ def create_params(model, rng_key, sample_input: tuple, n_models: int):
     return params, rng_key
 
 
-def load_state(state, ckpt_dir):
+def load_state(state, ckpt_dir, ckpt_mgr):
     start_epoch = 0
     target = {"model": state, "epoch": 0}
-    checkpoints_exist = Path(ckpt_dir).is_dir()
+    checkpoints_exist = any(Path(ckpt_dir).iterdir())
     if checkpoints_exist:
         log.info("Loading checkpoint")
-        raw_restored = checkpoints.restore_checkpoint(ckpt_dir, target=target, step=None)
+        # raw_restored = checkpoints.restore_checkpoint(ckpt_dir, target=target, step=None)
+        raw_restored = ckpt_mgr.restore(ckpt_mgr.latest_step())
+        print(raw_restored)
+        quit()
         state = raw_restored["model"]
         start_epoch = raw_restored["epoch"] + 1
         log.info("Successfully restored checkpoint from epoch %d", raw_restored["epoch"])
@@ -120,16 +124,37 @@ def stack_parameters(param_list: List[FrozenDict]) -> FrozenDict:
 
 def load_params(model_version_path: Path, best=True) -> FrozenDict:
     model_version_path = Path(model_version_path)
-    if best:
-        model_version_path = model_version_path / "best"
+    # if best:
+    #     model_version_path = model_version_path / "best"
+    ckpt_dir = model_version_path / "best"
     log.info(f"loading checkpoint from {model_version_path}")
-    try:
-        # keep try except block for zntrack load from rev
-        raw_restored = checkpoints.restore_checkpoint(
-            model_version_path, target=None, step=None
-        )
-    except FileNotFoundError:
-        print(f"No checkpoint found at {model_version_path}")
+
+    # try:
+    # keep try except block for zntrack load from rev
+    # raw_restored = checkpoints.restore_checkpoint(
+    #     model_version_path, target=None, step=None
+    # )
+    mgr_options = orbax.checkpoint.CheckpointManagerOptions(
+        create=False,
+    )
+    best_ckpt_mgr = orbax.checkpoint.CheckpointManager(
+        ckpt_dir.resolve().as_posix(),
+        # orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler()),
+        options=mgr_options,
+        # item_names=('state', 'metadata'),
+        item_handlers=ocp.StandardCheckpointHandler()
+    )
+    # ckptr = orbax.checkpoint.Checkpointer(orbax.checkpoint.PyTreeCheckpointHandler())
+    raw_restored = best_ckpt_mgr.restore(best_ckpt_mgr.latest_step())
+    print(raw_restored)
+    quit()
+    
+    # orbax_checkpointer = orbax.checkpoint.PyTreeCheckpointer()
+    # raw_restored = orbax_checkpointer.restore(ckpt_dir, item=None)
+
+
+    # except FileNotFoundError:
+    #     print(f"No checkpoint found at {model_version_path}")
     if raw_restored is None:
         raise FileNotFoundError(f"No checkpoint found at {model_version_path}")
     params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])

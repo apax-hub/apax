@@ -3,12 +3,15 @@ import logging
 import time
 from functools import partial
 from typing import Callable, Optional
+import orbax
+import orbax.checkpoint as ocp
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 from clu import metrics
 from flax.training.train_state import TrainState
+import flax
 from jax.experimental import mesh_utils
 from jax.sharding import PositionalSharding
 from tqdm import trange
@@ -75,9 +78,37 @@ def fit(
     log.info("Beginning Training")
     callbacks.on_train_begin()
 
+    # ckpt_dir = ckpt_dir / "ckpts"
     latest_dir = ckpt_dir / "latest"
     best_dir = ckpt_dir / "best"
-    ckpt_manager = CheckpointManager()
+    
+    # ckpt_manager = CheckpointManager()
+    mgr_options = orbax.checkpoint.CheckpointManagerOptions(
+        create=True, max_to_keep=3, enable_async_checkpointing=True,
+    )
+    latest_ckpt_mgr = orbax.checkpoint.CheckpointManager(
+        latest_dir.resolve().as_posix(),
+        options=mgr_options,
+        # item_names=('state', 'metadata'),
+        item_handlers=ocp.args.Composite(
+            state=ocp.args.StandardRestore(state),
+            extra_metadata=ocp.args.JsonRestore(),
+        ),
+    )
+
+    mgr_options = orbax.checkpoint.CheckpointManagerOptions(
+        create=True, max_to_keep=3, enable_async_checkpointing=True,
+    )
+    best_ckpt_mgr = orbax.checkpoint.CheckpointManager(
+        best_dir.resolve().as_posix(),
+        options=mgr_options,
+        # item_names=('state', 'metadata'),
+        item_handlers=ocp.args.Composite(
+            state=ocp.args.StandardRestore(state),
+            extra_metadata=ocp.args.JsonRestore(),
+        ),
+    )
+
 
     train_step, val_step = make_step_fns(
         loss_fn, Metrics, model=state.apply_fn, is_ensemble=is_ensemble
@@ -85,7 +116,7 @@ def fit(
     if train_ds.n_jit_steps > 1:
         train_step = jax.jit(functools.partial(jax.lax.scan, train_step))
 
-    state, start_epoch = load_state(state, latest_dir)
+    state, start_epoch = load_state(state, latest_dir, latest_ckpt_mgr) # latest_dir
     if start_epoch >= n_epochs:
         raise ValueError(
             f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
@@ -197,13 +228,31 @@ def fit(
         epoch_end_time = time.time()
         epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
 
-        ckpt = {"model": state, "epoch": epoch}
+        # ckpt = {"model": state, "epoch": epoch}
         if epoch % ckpt_interval == 0:
-            ckpt_manager.save_checkpoint(ckpt, epoch, latest_dir)
+            # ckpt_manager.save_checkpoint(ckpt, epoch, latest_dir)
+            metadata = {"epoch": epoch}
+            latest_ckpt_mgr.save(epoch,
+                               args=ocp.args.Composite(
+                state=ocp.args.StandardSave(state),
+                metadata=ocp.args.JsonSave(metadata),
+                )
+            )
+
+            # latest = latest_ckpt_mgr.restore(latest_ckpt_mgr.latest_step())
+            # print(latest)
+            # quit()
 
         if epoch_metrics["val_loss"] < best_loss:
             best_loss = epoch_metrics["val_loss"]
-            ckpt_manager.save_checkpoint(ckpt, epoch, best_dir)
+            metadata = {"epoch": epoch}
+            # ckpt_manager.save_checkpoint(ckpt, epoch, best_dir)
+            best_ckpt_mgr.save(epoch,
+                               args=ocp.args.Composite(
+                state=ocp.args.StandardSave(state),
+                metadata=ocp.args.JsonSave(metadata),
+                )
+            )
             early_stopping_counter = 0
         else:
             early_stopping_counter += 1
@@ -225,6 +274,8 @@ def fit(
     train_ds.cleanup()
     if val_ds:
         val_ds.cleanup()
+    latest_ckpt_mgr.wait_until_finished()
+    best_ckpt_mgr.wait_until_finished()
 
 
 def calc_loss(params, inputs, labels, loss_fn, model):
