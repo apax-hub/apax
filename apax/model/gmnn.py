@@ -215,7 +215,6 @@ class ShallowEnsembleModel(nn.Module):
 
         n_ens = energy_ens.shape[0]
         divisor = 1 / (n_ens - 1)
-
         energy_mean = jnp.mean(energy_ens)
         energy_variance = divisor * fp64_sum((energy_ens - energy_mean) ** 2)
 
