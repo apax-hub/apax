@@ -70,9 +70,6 @@ class H5TrajHandler(TrajHandler):
         self.sampling_rate = sampling_rate
         self.traj_path = traj_path
         self.db = znh5md.IO(self.traj_path)
-        if not self.traj_path.is_file():
-            log.info(f"Initializing new trajectory file at {self.traj_path}")
-            self.db.initialize_database_groups()
         self.time_step = time_step
 
         self.step_counter = 0
