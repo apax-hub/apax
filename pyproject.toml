@@ -23,7 +23,7 @@ jaxtyping = "^0.2.8"
 typer = "^0.7.0"
 lazy-loader = "^0.2"
 matscipy = "^0.8.0"
-znh5md = "0.3.0a2"
+znh5md = "0.3.0a3"
 pydantic = "^2.3.0"
 jax = "^0.4.25"
 zntrack = {version = "^0.7.3", optional = true}
