@@ -76,10 +76,14 @@ class PBPDatset(DatasetConfig, extra="forbid"):
     ----------
     num_workers : int
         | Number of batches to be processed in parallel.
+    reset_every : int
+        | Number of epochs before reinitializing the ProcessPoolExcecutor.
+        | Avoids memory leaks.
     """
 
     processing: Literal["pbp"] = "pbp"
     num_workers: PositiveInt = 10
+    reset_every: PositiveInt = 10
 
 
 class DataConfig(BaseModel, extra="forbid"):
@@ -259,6 +263,8 @@ class ModelConfig(BaseModel, extra="forbid"):
     use_zbl: bool = False
 
     calc_stress: bool = False
+
+    n_shallow_ensemble: int = 0
 
     descriptor_dtype: Literal["fp32", "fp64"] = "fp64"
     readout_dtype: Literal["fp32", "fp64"] = "fp32"

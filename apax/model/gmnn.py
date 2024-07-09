@@ -110,16 +110,27 @@ class EnergyModel(nn.Module):
         )
 
         # Model Core
+        # shape Natoms
+        # shape shallow ens: Natoms x Nensemble
         atomic_energies = self.atomistic_model(dr_vec, Z, idx)
-        total_energy = fp64_sum(atomic_energies)
+
+        # check for shallow ensemble
+        is_shallow_ensemble = atomic_energies.shape[1] > 1
+        if is_shallow_ensemble:
+            total_energies_ensemble = fp64_sum(atomic_energies, axis=0)
+            # shape Nensemble
+            result = total_energies_ensemble
+        else:
+            # shape ()
+            result = fp64_sum(atomic_energies)
 
         # Corrections
         for correction in self.corrections:
             energy_correction = correction(dr_vec, Z, idx)
-            total_energy = total_energy + energy_correction
+            result = result + energy_correction
 
         # TODO think of nice abstraction for predicting additional properties
-        return total_energy
+        return result
 
 
 class EnergyDerivativeModel(nn.Module):
@@ -148,6 +159,75 @@ class EnergyDerivativeModel(nn.Module):
         if self.calc_stress:
             stress = stress_times_vol(
                 self.energy_model, R, box, Z=Z, neighbor=neighbor, offsets=offsets
+            )
+            prediction["stress"] = stress
+
+        return prediction
+
+
+def make_mean_energy_fn(energy_fn):
+    def mean_energy_fn(
+        R: Array,
+        Z: Array,
+        neighbor: Union[partition.NeighborList, Array],
+        box,
+        offsets,
+        perturbation=None,
+    ):
+        e_ens = energy_fn(R, Z, neighbor, box, offsets, perturbation)
+        E_mean = jnp.mean(e_ens)
+        return E_mean
+
+    return mean_energy_fn
+
+
+class ShallowEnsembleModel(nn.Module):
+    """Transforms an EnergyModel into one that also predicts derivatives the total energy.
+    Can calculate forces and stress tensors.
+    """
+
+    energy_model: EnergyModel = EnergyModel()
+    calc_stress: bool = False
+    force_variance: bool = True
+
+    def __call__(
+        self,
+        R: Array,
+        Z: Array,
+        neighbor: Union[partition.NeighborList, Array],
+        box,
+        offsets,
+    ):
+        energy_ens = self.energy_model(R, Z, neighbor, box, offsets)
+        mean_energy_fn = make_mean_energy_fn(self.energy_model)
+
+        n_ens = energy_ens.shape[0]
+        divisor = 1 / (n_ens - 1)
+
+        energy_mean = jnp.mean(energy_ens)
+        energy_variance = divisor * fp64_sum((energy_ens - energy_mean) ** 2)
+
+        prediction = {
+            "energy": energy_mean,
+            "energy_ensemble": energy_ens,
+            "energy_uncertainty": jnp.sqrt(energy_variance),
+        }
+
+        if self.force_variance:
+            forces_ens = -jax.jacrev(self.energy_model)(R, Z, neighbor, box, offsets)
+            forces_mean = jnp.mean(forces_ens, axis=0)
+            forces_variance = divisor * fp64_sum((forces_ens - forces_mean) ** 2, axis=0)
+
+            prediction["forces"] = forces_mean
+            prediction["forces_uncertainty"] = jnp.sqrt(forces_variance)
+            prediction["forces_ensemble"] = forces_ens
+        else:
+            forces_mean = -jax.grad(mean_energy_fn)(R, Z, neighbor, box, offsets)
+            prediction["forces"] = forces_mean
+
+        if self.calc_stress:
+            stress = stress_times_vol(
+                mean_energy_fn, R, box, Z=Z, neighbor=neighbor, offsets=offsets
             )
             prediction["stress"] = stress
 
