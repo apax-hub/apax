@@ -133,7 +133,7 @@ class ModelBuilder:
             corrections.append(repulsion)
 
         model = EnergyModel(
-            atomistic_model,
+            atomistic_model=atomistic_model,
             corrections=corrections,
             init_box=init_box,
             inference_disp_fn=inference_disp_fn,
