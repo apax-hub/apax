@@ -93,7 +93,6 @@ class H5TrajHandler(TrajHandler):
     def write(self, x=None, transform=None):
         if len(self.buffer) > 0:
             self.db.extend(self.buffer)
-            # TODO: time_step
             self.reset_buffer()
 
 
