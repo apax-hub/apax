@@ -41,7 +41,6 @@ class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
 
     name: Literal["ll_grad"] = "ll_grad"
     layer_name: str = "dense_2"
-    use_ntk: bool = True
 
     def apply(self, model: EnergyModel) -> FeatureMap:
         def ll_grad(params, inputs):
@@ -77,6 +76,61 @@ class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
             return g
 
         return ll_grad
+    
+
+class LastLayerForceFeatures(FeatureTransformation, extra="forbid"):
+    """
+    Model transfomration which computes the gradient of the output
+    wrt. the specified layer.
+    """
+
+    name: Literal["ll_force_feat"] = "ll_force_feat"
+    layer_name: str = "dense_2"
+    return_raw: bool = True
+
+    def apply(self, model: EnergyModel) -> FeatureMap:
+        def ll_grad(params, inputs):
+            ll_params, remaining_params = extract_feature_params(params, self.layer_name)
+
+            energy_fn = model.apply
+            force_fn = jax.grad(energy_fn, 1)
+            def inner(ll_params):
+                ll_params.update(remaining_params)
+                full_params = unflatten_dict(ll_params)
+
+                R, Z, idx, box, offsets = (
+                    inputs["positions"],
+                    inputs["numbers"],
+                    inputs["idx"],
+                    inputs["box"],
+                    inputs["offsets"],
+                )
+                out = force_fn(full_params, R, Z, idx, box, offsets)
+                return out
+
+            g_ll = jax.jacobian(inner)(ll_params)
+            g_ll = unflatten_dict(g_ll)
+
+            # shapes:
+            # b: n_atoms, 3, 1
+            # w: n_atoms, 3, n_features, 1         
+
+            if self.return_raw:
+                g_flat = jax.tree_map(lambda arr: arr, g_ll) # jnp.reshape(arr, (-1,))
+                (gb, gw), _ = jax.tree_util.tree_flatten(g_flat)
+                
+                # g: n_atoms, 3, n_features
+                g = gw[:,:,:,0]
+            else:
+                g_flat = jax.tree_map(lambda arr: jnp.reshape(jnp.sum(jnp.sum(arr, 0), 0), (-1,)), g_ll)
+                (gb, gw), _ = jax.tree_util.tree_flatten(g_flat)
+                g = [gw, gb]
+                g = jnp.concatenate(g)
+
+            return g
+
+        return ll_grad
+
 
 
 class IdentityFeatures(FeatureTransformation, extra="forbid"):
@@ -89,5 +143,5 @@ class IdentityFeatures(FeatureTransformation, extra="forbid"):
 
 
 FeatureMapOptions = TypeAdapter(
-    Union[LastLayerGradientFeatures, IdentityFeatures]
+    Union[LastLayerGradientFeatures, LastLayerForceFeatures, IdentityFeatures]
 ).validate_python
