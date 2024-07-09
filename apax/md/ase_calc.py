@@ -6,9 +6,9 @@ import ase
 import jax
 import jax.numpy as jnp
 import numpy as np
-from flax.core.frozen_dict import freeze, unfreeze
 from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
+from flax.core.frozen_dict import freeze, unfreeze
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
@@ -315,17 +315,25 @@ class ASECalculator(Calculator):
             pbar.update(batch_size)
         pbar.close()
         return evaluated_atoms_list
-    
+
     @property
     def ll_weights(self):
-        dense_layers = list(self.params["params"]["energy_model"]["atomistic_model"]["readout"].keys())
-        llweights = self.params["params"]["energy_model"]["atomistic_model"]["readout"][dense_layers[-1]]["w"]
+        dense_layers = list(
+            self.params["params"]["energy_model"]["atomistic_model"]["readout"].keys()
+        )
+        llweights = self.params["params"]["energy_model"]["atomistic_model"]["readout"][
+            dense_layers[-1]
+        ]["w"]
         return np.asarray(llweights)
 
     def set_ll_weights(self, new_weights):
         params = unfreeze(self.params)
-        dense_layers = list(params["params"]["energy_model"]["atomistic_model"]["readout"].keys())
-        params["params"]["energy_model"]["atomistic_model"]["readout"][dense_layers[-1]]["w"] = jnp.asarray(new_weights, dtype=jnp.float32)
+        dense_layers = list(
+            params["params"]["energy_model"]["atomistic_model"]["readout"].keys()
+        )
+        params["params"]["energy_model"]["atomistic_model"]["readout"][dense_layers[-1]][
+            "w"
+        ] = jnp.asarray(new_weights, dtype=jnp.float32)
         self.params = freeze(params)
         self.step = None
 
@@ -386,5 +394,3 @@ def get_step_fn(model, atoms, neigbor_from_jax):
             return results
 
     return step_fn
-
-

@@ -232,6 +232,7 @@ EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
 
 # TODO update docs
 
+
 class ModelConfig(BaseModel, extra="forbid"):
     """
     Configuration for the model.
