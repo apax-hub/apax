@@ -1,6 +1,7 @@
 from typing import Callable, Literal, Tuple, Union
 
 import jax
+import jax.ad_checkpoint
 import jax.numpy as jnp
 from flax.core.frozen_dict import FrozenDict
 from flax.traverse_util import flatten_dict, unflatten_dict
@@ -109,7 +110,7 @@ class LastLayerForceFeatures(FeatureTransformation, extra="forbid"):
                 out = force_fn(full_params, R, Z, idx, box, offsets)
                 return out
 
-            g_ll = jax.jacobian(inner)(ll_params)
+            g_ll = jax.jacfwd(inner)(ll_params)
             g_ll = unflatten_dict(g_ll)
 
             # shapes:
