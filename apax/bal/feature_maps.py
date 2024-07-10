@@ -93,7 +93,7 @@ class LastLayerForceFeatures(FeatureTransformation, extra="forbid"):
         def ll_grad(params, inputs):
             ll_params, remaining_params = extract_feature_params(params, self.layer_name)
 
-            energy_fn = model.apply
+            energy_fn = lambda *inputs: jnp.mean(model.apply(*inputs))
             force_fn = jax.grad(energy_fn, 1)
 
             def inner(ll_params):
