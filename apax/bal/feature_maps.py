@@ -118,7 +118,7 @@ class LastLayerForceFeatures(FeatureTransformation, extra="forbid"):
             # w: n_atoms, 3, n_features, 1
 
             if self.return_raw:
-                g_flat = jax.tree_map(lambda arr: arr, g_ll)  # jnp.reshape(arr, (-1,))
+                g_flat = jax.tree_map(lambda arr: arr, g_ll)
                 (gb, gw), _ = jax.tree_util.tree_flatten(g_flat)
 
                 # g: n_atoms, 3, n_features
