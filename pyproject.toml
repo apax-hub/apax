@@ -80,7 +80,7 @@ show_missing = true
 line-length = 90
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
+select = ["E", "F", "C", "I"]
 extend-ignore = [
-    "E501", "E731", "E741", "E402", "F841", "F811"
+    "E501", "E731", "E741", "E402", "F841", "F811", "C901"
 ]
