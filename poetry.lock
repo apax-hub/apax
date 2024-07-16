@@ -1727,6 +1727,46 @@ etree-tf = ["etils[etree]", "tensorflow"]
 lazy-imports = ["etils[ecolab]"]
 
 [[package]]
+name = "etils"
+version = "1.9.2"
+description = "Collection of common python utils"
+optional = false
+python-versions = ">=3.11"
+files = [
+    {file = "etils-1.9.2-py3-none-any.whl", hash = "sha256:ecd79de1fbfea9b0d6924756cfa922b05ed3360c45cf2170767da4bee0001d20"},
+    {file = "etils-1.9.2.tar.gz", hash = "sha256:15dcd35ac0c0cc2404b46ac0846af3cc4e876fd3d80f36f57951e27e8b9d6379"},
+]
+
+[package.dependencies]
+absl-py = {version = "*", optional = true, markers = "extra == \"etqdm\""}
+fsspec = {version = "*", optional = true, markers = "extra == \"epath\""}
+importlib_resources = {version = "*", optional = true, markers = "extra == \"epath\""}
+numpy = {version = "*", optional = true, markers = "extra == \"enp\""}
+tqdm = {version = "*", optional = true, markers = "extra == \"etqdm\""}
+typing_extensions = {version = "*", optional = true, markers = "extra == \"epy\""}
+zipp = {version = "*", optional = true, markers = "extra == \"epath\""}
+
+[package.extras]
+all = ["etils[array-types]", "etils[eapp]", "etils[ecolab]", "etils[edc]", "etils[enp]", "etils[epath-gcs]", "etils[epath-s3]", "etils[epath]", "etils[epy]", "etils[etqdm]", "etils[etree-dm]", "etils[etree-jax]", "etils[etree-tf]", "etils[etree]"]
+array-types = ["etils[enp]"]
+dev = ["chex", "dataclass_array", "optree", "pydantic", "pyink", "pylint (>=2.6.0)", "pytest", "pytest-subtests", "pytest-xdist", "torch"]
+docs = ["etils[all,dev]", "sphinx-apitree[ext]"]
+eapp = ["absl-py", "etils[epy]", "simple_parsing"]
+ecolab = ["etils[enp]", "etils[epy]", "etils[etree]", "jupyter", "mediapy", "numpy", "packaging", "protobuf"]
+edc = ["etils[epy]"]
+enp = ["etils[epy]", "numpy"]
+epath = ["etils[epy]", "fsspec", "importlib_resources", "typing_extensions", "zipp"]
+epath-gcs = ["etils[epath]", "gcsfs"]
+epath-s3 = ["etils[epath]", "s3fs"]
+epy = ["typing_extensions"]
+etqdm = ["absl-py", "etils[epy]", "tqdm"]
+etree = ["etils[array-types]", "etils[enp]", "etils[epy]", "etils[etqdm]"]
+etree-dm = ["dm-tree", "etils[etree]"]
+etree-jax = ["etils[etree]", "jax[cpu]"]
+etree-tf = ["etils[etree]", "tensorflow"]
+lazy-imports = ["etils[ecolab]"]
+
+[[package]]
 name = "exceptiongroup"
 version = "1.2.1"
 description = "Backport of PEP 654 (exception groups)"
@@ -6206,76 +6246,6 @@ and-cuda = ["nvidia-cublas-cu12 (==12.2.5.6)", "nvidia-cuda-cupti-cu12 (==12.2.1
 
 [[package]]
 name = "tensorflow-datasets"
-version = "4.9.5"
-description = "tensorflow/datasets is a library of datasets ready to use with TensorFlow."
-optional = false
-python-versions = ">=3.10"
-files = [
-    {file = "tensorflow_datasets-4.9.5-py3-none-any.whl", hash = "sha256:3d704dd6a06ec37bb972e648e940cce081626fd570524179423b668c7d6e2c33"},
-    {file = "tensorflow_datasets-4.9.5.tar.gz", hash = "sha256:b0d9d29eebf502676b186cd50094a1855d51e7cc86adffa7ad0354b3dbb1ce66"},
-]
-
-[package.dependencies]
-absl-py = "*"
-array-record = {version = ">=0.5.0", markers = "platform_system == \"Linux\""}
-click = "*"
-dm-tree = "*"
-etils = {version = ">=1.6.0", extras = ["enp", "epath", "epy", "etree"]}
-immutabledict = "*"
-numpy = "*"
-promise = "*"
-protobuf = ">=3.20"
-psutil = "*"
-pyarrow = "*"
-requests = ">=2.19.0"
-simple-parsing = "*"
-tensorflow-metadata = "*"
-termcolor = "*"
-toml = "*"
-tqdm = "*"
-wrapt = "*"
-
-[package.extras]
-aflw2k3d = ["scipy"]
-beir = ["apache-beam"]
-ble-wind-field = ["gcsfs", "zarr"]
-c4 = ["apache-beam", "gcld3", "langdetect", "nltk", "tldextract"]
-c4-wsrs = ["apache-beam"]
-cats-vs-dogs = ["matplotlib"]
-colorectal-histology = ["Pillow"]
-common-voice = ["pydub"]
-dev = ["apache-beam", "conllu", "dill", "jax[cpu]", "jupyter", "pandas", "pydub", "pylint (>=2.6.0)", "pytest", "pytest-shard", "pytest-xdist", "pyyaml", "tensorflow-io[tensorflow]", "yapf"]
-duke-ultrasound = ["scipy"]
-eurosat = ["imagecodecs", "scikit-image", "tifffile"]
-groove = ["pretty-midi", "pydub"]
-gtzan = ["pydub"]
-huggingface = ["Pillow", "bs4", "conllu", "datasets", "dill", "envlogger", "gcld3", "gcsfs", "h5py", "imagecodecs", "jax[cpu]", "jupyter", "langdetect", "lxml", "matplotlib", "mwparserfromhell", "mwxml", "networkx", "nltk", "opencv-python", "pandas", "pretty-midi", "pycocotools", "pydub", "pytest", "pytest-shard", "pytest-xdist", "pyyaml", "scikit-image", "scipy", "tensorflow-io[tensorflow]", "tifffile", "tldextract", "zarr"]
-imagenet2012-corrupted = ["opencv-python", "scikit-image", "scipy"]
-librispeech = ["pydub"]
-locomotion = ["envlogger"]
-lsun = ["tensorflow-io[tensorflow]"]
-matplotlib = ["matplotlib"]
-nsynth = ["crepe (>=0.0.11)", "librosa", "scikit-learn (==0.20.3)"]
-ogbg-molpcba = ["networkx", "pandas"]
-pet-finder = ["pandas"]
-qm9 = ["pandas"]
-robonet = ["h5py"]
-robosuite-panda-pick-place-can = ["envlogger"]
-smartwatch-gestures = ["pandas"]
-svhn = ["scipy"]
-tensorflow = ["tensorflow (>=2.1)"]
-tensorflow-data-validation = ["tensorflow-data-validation"]
-tests-all = ["Pillow", "apache-beam", "bs4", "conllu", "dill", "envlogger", "gcld3", "gcsfs", "h5py", "imagecodecs", "jax[cpu]", "jupyter", "langdetect", "lxml", "matplotlib", "mwparserfromhell", "mwxml", "networkx", "nltk", "opencv-python", "pandas", "pretty-midi", "pycocotools", "pydub", "pytest", "pytest-shard", "pytest-xdist", "pyyaml", "scikit-image", "scipy", "tensorflow-io[tensorflow]", "tifffile", "tldextract", "zarr"]
-tf-nightly = ["tf-nightly"]
-the300w-lp = ["scipy"]
-wider-face = ["Pillow"]
-wiki-dialog = ["apache-beam"]
-wikipedia = ["apache-beam", "mwparserfromhell", "mwxml"]
-wsc273 = ["bs4", "lxml"]
-youtube-vis = ["pycocotools"]
-
-[[package]]
-name = "tensorflow-datasets"
 version = "4.9.6"
 description = "tensorflow/datasets is a library of datasets ready to use with TensorFlow."
 optional = false
@@ -6290,7 +6260,10 @@ absl-py = "*"
 array-record = {version = ">=0.5.0", markers = "platform_system == \"Linux\""}
 click = "*"
 dm-tree = "*"
-etils = {version = ">=1.6.0", extras = ["enp", "epath", "epy", "etree"], markers = "python_version < \"3.11\""}
+etils = [
+    {version = ">=1.9.1", extras = ["enp", "epath", "epy", "etree"], markers = "python_version >= \"3.11\""},
+    {version = ">=1.6.0", extras = ["enp", "epath", "epy", "etree"], markers = "python_version < \"3.11\""},
+]
 immutabledict = "*"
 numpy = "*"
 promise = "*"
@@ -7069,13 +7042,13 @@ dask = ["bokeh (>=2.4.2,<3.0.0)", "dask (>=2022.12.1,<2023.0.0)", "dask-jobqueue
 
 [[package]]
 name = "znh5md"
-version = "0.3.0a3"
+version = "0.3.0"
 description = "ASE Interface for the H5MD format."
 optional = false
 python-versions = "<4.0,>=3.10"
 files = [
-    {file = "znh5md-0.3.0a3-py3-none-any.whl", hash = "sha256:2473a051817bb6cda8d628d70ac833da3912b0689247260dbc171be116c218a6"},
-    {file = "znh5md-0.3.0a3.tar.gz", hash = "sha256:322a19e5367f1fc21f50448c1a7a984b5892b1452d90f5d58e1ad8fd2078e0cd"},
+    {file = "znh5md-0.3.0-py3-none-any.whl", hash = "sha256:155685c084eb1a3395287df58ae1276d745480fdb065ca4319d2025c746c040e"},
+    {file = "znh5md-0.3.0.tar.gz", hash = "sha256:a3e7037c91aae0e23cc29195761f3ca2ff94b15cf08ab00f6a1929b81faa196a"},
 ]
 
 [package.dependencies]
@@ -7141,4 +7114,4 @@ zntrack = ["zntrack"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "4f6040341337e296c391c09059d71ce965b4c8e537e8abbca48d50b4dd3834bb"
+content-hash = "e506d49cdb14ca8b0ed13dadcbaaa2c928e9bcd53067ff5a593bd1a7e02c923c"
