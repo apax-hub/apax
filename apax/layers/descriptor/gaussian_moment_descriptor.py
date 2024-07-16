@@ -58,9 +58,7 @@ class GaussianMomentDescriptor(nn.Module):
         contr_4 = jnp.einsum(
             "arij, asik, atjk -> rsta", moments[2], moments[2], moments[2]
         )  # noqa: E501
-        contr_5 = jnp.einsum(
-            "ari, asj, atij -> rsta", moments[1], moments[1], moments[2]
-        )  # noqa: E501
+        contr_5 = jnp.einsum("ari, asj, atij -> rsta", moments[1], moments[1], moments[2])  # noqa: E501
         contr_6 = jnp.einsum(
             "arijk, asijl, atkl -> rsta", moments[3], moments[3], moments[2]
         )  # noqa: E501

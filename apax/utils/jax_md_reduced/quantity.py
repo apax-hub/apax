@@ -14,7 +14,6 @@
 
 """Describes different physical quantities."""
 
-
 import functools
 import operator
 from typing import Callable, Optional, Tuple, TypeVar, Union

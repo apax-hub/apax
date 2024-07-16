@@ -79,7 +79,7 @@ directory = "coverage_html_report"
 show_missing = true
 
 [tool.ruff]
-line-length = 100
+line-length = 90
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
