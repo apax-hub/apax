@@ -17,10 +17,9 @@
 
 import functools
 import operator
-from typing import Any, Callable, Optional, Tuple, TypeVar, Union
+from typing import Callable, Optional, Tuple, TypeVar, Union
 
 import jax.numpy as jnp
-from absl import logging
 from jax import ShapeDtypeStruct, eval_shape, grad, ops, vmap
 from jax.scipy.special import gammaln
 from jax.tree_util import tree_map, tree_reduce

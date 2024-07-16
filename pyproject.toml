@@ -68,14 +68,6 @@ markers = [
     "slow: mark a test as slow and should only run explicitly"
 ]
 
-[tool.black]
-line-length = 90
-preview = true
-
-[tool.isort]
-profile = 'black'
-multi_line_output = 3
-
 [tool.coverage.run]
 branch = true
 source = ["apax"]
@@ -85,3 +77,14 @@ directory = "coverage_html_report"
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+extend-ignore = [
+    "E501", "E731", "E741", "E402", "F841", "F811"
+]
+
+

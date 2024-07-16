@@ -15,10 +15,9 @@
 import logging
 from enum import Enum, IntEnum
 from functools import partial
-from typing import Any, Callable, Dict, Generator, Optional
+from typing import Any, Callable, Dict, Optional
 
 import jax.numpy as jnp
-import numpy as onp
 from jax import eval_shape, jit, lax, vmap
 from jax.core import ShapedArray
 
