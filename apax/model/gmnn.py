@@ -4,6 +4,7 @@ from typing import Any, Callable, Tuple, Union
 
 import flax.linen as nn
 import jax
+import jax.numpy as jnp
 import numpy as np
 from jax import Array
 

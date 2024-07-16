@@ -15,10 +15,9 @@
 import logging
 from enum import Enum, IntEnum
 from functools import partial
-from typing import Any, Callable, Dict, Generator, Optional
+from typing import Any, Callable, Dict, Optional
 
 import jax.numpy as jnp
-import numpy as onp
 from jax import eval_shape, jit, lax, vmap
 from jax.core import ShapedArray
 
@@ -266,9 +265,9 @@ class NeighborList:
     format: NeighborListFormat = dataclasses.static_field()
     cell_size: Optional[float] = dataclasses.static_field()
     cell_list_fn: Callable[[Array, CellList], CellList] = dataclasses.static_field()
-    update_fn: Callable[
-        [Array, "NeighborList"], "NeighborList"
-    ] = dataclasses.static_field()
+    update_fn: Callable[[Array, "NeighborList"], "NeighborList"] = (
+        dataclasses.static_field()
+    )
 
     def update(self, position: Array, **kwargs) -> "NeighborList":
         return self.update_fn(position, self, **kwargs)
@@ -341,9 +340,9 @@ class NeighborList:
     format: NeighborListFormat = dataclasses.static_field()
     cell_size: Optional[float] = dataclasses.static_field()
     cell_list_fn: Callable[[Array, CellList], CellList] = dataclasses.static_field()
-    update_fn: Callable[
-        [Array, "NeighborList"], "NeighborList"
-    ] = dataclasses.static_field()
+    update_fn: Callable[[Array, "NeighborList"], "NeighborList"] = (
+        dataclasses.static_field()
+    )
 
     def update(self, position: Array, **kwargs) -> "NeighborList":
         return self.update_fn(position, self, **kwargs)
@@ -722,7 +721,7 @@ def neighbor_list(
                 if not is_sparse(format):
                     capacity_limit = N - 1 if mask_self else N
                 elif format is NeighborListFormat.Sparse:
-                    capacity_limit = N * (N - 1) if mask_self else N ** 2
+                    capacity_limit = N * (N - 1) if mask_self else N**2
                 else:
                     capacity_limit = N * (N - 1) // 2
                 if max_occupancy > capacity_limit:

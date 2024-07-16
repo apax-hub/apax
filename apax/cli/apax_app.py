@@ -177,7 +177,7 @@ def visualize_model(
             "Training configuration file to be visualized. A CO molecule is taken as"
             " sample input."
         ),
-    )
+    ),
 ):
     """
     Visualize a model based on a configuration file.
