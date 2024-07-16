@@ -9,7 +9,8 @@ import numpy as np
 from ase import units
 from ase.io import read
 from flax.training import checkpoints
-from jax.experimental.host_callback import barrier_wait, id_tap
+from jax.experimental import io_callback
+from jax.experimental.host_callback import barrier_wait
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -28,16 +29,23 @@ from apax.utils.jax_md_reduced import partition, quantity, simulate, space
 log = logging.getLogger(__name__)
 
 
-def create_energy_fn(model, params, numbers, n_models):
-    def ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
+def create_energy_fn(model, params, numbers, n_models, shallow=False):
+    def full_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
         vmodel = jax.vmap(model, (0, None, None, None, None, None, None), 0)
         energies = vmodel(params, R, Z, neighbor, box, offsets, perturbation)
         energy = jnp.mean(energies)
+        return energy
 
+    def shallow_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
+        energies = model(params, R, Z, neighbor, box, offsets, perturbation)
+        energy = jnp.mean(energies)
         return energy
 
     if n_models > 1:
-        energy_fn = ensemble
+        if shallow:
+            energy_fn = shallow_ensemble
+        else:
+            energy_fn = full_ensemble
     else:
         energy_fn = model
 
@@ -218,7 +226,7 @@ def run_sim(
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
-            id_tap(traj_handler.step, (state, current_energy, nbr_kwargs))
+            io_callback(traj_handler.step, None, (state, current_energy, nbr_kwargs))
             return state, neighbor
 
         state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
@@ -375,8 +383,17 @@ def md_setup(model_config: Config, md_config: MDConfig):
 
     _, params = restore_parameters(model_config.data.model_version_path)
     params = canonicalize_energy_model_parameters(params)
+
+    n_models = 1
+    shallow = False
+    if model_config.n_models > 1:
+        n_models = model_config.n_models
+    elif model_config.model.n_shallow_ensemble > 1:
+        n_models = model_config.model.n_shallow_ensemble
+        shallow = True
+
     energy_fn = create_energy_fn(
-        model.apply, params, system.atomic_numbers, model_config.n_models
+        model.apply, params, system.atomic_numbers, n_models, shallow
     )
     sim_fns = SimulationFunctions(energy_fn, shift_fn, neighbor_fn)
     return system, sim_fns
