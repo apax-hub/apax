@@ -12,7 +12,7 @@ from flax.core.frozen_dict import freeze, unfreeze
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
-from apax.data.input_pipeline import OTFInMemoryDataset
+from apax.data.input_pipeline import OTFInMemoryDataset, CachedInMemoryDataset, PerBatchPaddedDataset
 from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
 from apax.utils.jax_md_reduced import partition, quantity, space
@@ -277,8 +277,9 @@ class ASECalculator(Calculator):
         evaluated_atoms_list:
             List of Atoms with labels predicted by the model.
         """
-        if self.model is None:
-            self.initialize(atoms_list[0])
+
+        init_box = atoms_list[0].cell.array
+
         dataset = OTFInMemoryDataset(
             atoms_list,
             self.model_config.model.basis.r_max,
@@ -290,13 +291,21 @@ class ASECalculator(Calculator):
         evaluated_atoms_list = []
         n_data = dataset.n_data
         ds = dataset.batch()
-        batched_model = jax.jit(jax.vmap(self.model, in_axes=(0, 0, 0, 0, 0)))
+
+        builder = ModelBuilder(self.model_config.model.get_dict())
+        model = builder.build_energy_derivative_model(
+            apply_mask=True,
+            init_box=init_box,
+        )
+
+        model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
 
         pbar = trange(
-            n_data, desc="Computing features", ncols=100, leave=True, disable=silent
+            n_data, desc="Evaluating data", ncols=100, leave=True, disable=silent
         )
         for i, inputs in enumerate(ds):
-            results = batched_model(
+            results = model(
+                self.params,
                 inputs["positions"],
                 inputs["numbers"],
                 inputs["idx"],
