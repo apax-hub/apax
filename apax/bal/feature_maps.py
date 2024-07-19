@@ -64,10 +64,10 @@ class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
                 # no effect for single model
                 out = jnp.mean(out)
                 return out
-
+            
             g_ll = jax.grad(inner)(ll_params)
             g_ll = unflatten_dict(g_ll)
-
+            g_ll = jax.tree_map(lambda arr: jnp.mean(arr, axis=-1, keepdims=True), g_ll)
             g_flat = jax.tree_map(lambda arr: jnp.reshape(arr, (-1,)), g_ll)
             (gb, gw), _ = jax.tree_util.tree_flatten(g_flat)
 
@@ -110,6 +110,7 @@ class LastLayerForceFeatures(FeatureTransformation, extra="forbid"):
                 out = force_fn(full_params, R, Z, idx, box, offsets)
                 return out
 
+            ll_params = jax.tree_map(lambda arr: jnp.mean(arr, axis=-1, keepdims=True), ll_params)
             g_ll = jax.jacfwd(inner)(ll_params)
             g_ll = unflatten_dict(g_ll)
 
@@ -118,8 +119,7 @@ class LastLayerForceFeatures(FeatureTransformation, extra="forbid"):
             # w: n_atoms, 3, n_features, 1
 
             if self.return_raw:
-                g_flat = jax.tree_map(lambda arr: arr, g_ll)
-                (gb, gw), _ = jax.tree_util.tree_flatten(g_flat)
+                (gb, gw), _ = jax.tree_util.tree_flatten(g_ll)
 
                 # g: n_atoms, 3, n_features
                 g = gw[:, :, :, 0]
