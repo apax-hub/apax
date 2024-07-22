@@ -44,9 +44,9 @@ model:
     r_min: 0.5
 
   ensemble: null
-  # if you would like to train model ensembles, this can be achieved with 
+  # if you would like to train model ensembles, this can be achieved with
   # the following example.
-  # ensemble: 
+  # ensemble:
   #  kind: full
   #  n_members: N
 
