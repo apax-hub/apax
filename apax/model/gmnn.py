@@ -52,7 +52,6 @@ class AtomisticModel(nn.Module):
 class FeatureModel(nn.Module):
     """Model wrapps some submodel (e.g. a descriptor) to supply distance computation."""
 
-    # atomistic_model: nn.Module = GaussianMomentDescriptor()
     descriptor: nn.Module = GaussianMomentDescriptor()
     readout: nn.Module = AtomisticReadout()
     should_average: bool = False
@@ -80,7 +79,6 @@ class FeatureModel(nn.Module):
             perturbation,
         )
 
-        # features = self.atomistic_model(dr_vec, Z, idx)
         gm = self.descriptor(dr_vec, Z, idx)
         features = jax.vmap(self.readout)(gm)
 
