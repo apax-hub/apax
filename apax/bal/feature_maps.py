@@ -64,7 +64,7 @@ class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
                 # no effect for single model
                 out = jnp.mean(out)
                 return out
-            
+
             g_ll = jax.grad(inner)(ll_params)
             g_ll = unflatten_dict(g_ll)
             g_ll = jax.tree_map(lambda arr: jnp.mean(arr, axis=-1, keepdims=True), g_ll)
