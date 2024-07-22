@@ -187,8 +187,6 @@ class ModelBuilder:
 
     def build_ll_feature_model(
         self,
-        scale=1.0,
-        shift=0.0,
         apply_mask=True,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn=None,
