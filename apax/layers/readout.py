@@ -19,12 +19,13 @@ class AtomisticReadout(nn.Module):
     dtype: Any = jnp.float32
 
     def setup(self):
-        units = [u for u in self.units]
+        units = list(self.units)
         if not self.is_feature_fn:
             readout_unit = [1]
             if self.n_shallow_ensemble > 0:
                 readout_unit = [self.n_shallow_ensemble]
-            units = list(self.units) + readout_unit
+            units += readout_unit
+
         dense = []
         for ii, n_hidden in enumerate(units):
             layer = NTKLinear(

@@ -12,7 +12,9 @@ from flax.core.frozen_dict import freeze, unfreeze
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
-from apax.data.input_pipeline import OTFInMemoryDataset, CachedInMemoryDataset, PerBatchPaddedDataset
+from apax.data.input_pipeline import (
+    OTFInMemoryDataset,
+)
 from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
 from apax.utils.jax_md_reduced import partition, quantity, space
