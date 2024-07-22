@@ -202,6 +202,18 @@ class DataConfig(BaseModel, extra="forbid"):
 
 
 class GaussianBasisConfig(BaseModel, extra="forbid"):
+    """
+    Gaussian primitive basis functions.
+
+    Parameters
+    ----------
+    n_basis : PositiveInt, default = 7
+        Number of uncontracted basis functions.
+    r_min : NonNegativeFloat, default = 0.5
+        Position of the first uncontracted basis function's mean.
+    r_max : PositiveFloat, default = 6.0
+        Cutoff radius of the descriptor.
+    """
     name: Literal["gaussian"] = "gaussian"
     n_basis: PositiveInt = 7
     r_min: NonNegativeFloat = 0.5
@@ -209,6 +221,16 @@ class GaussianBasisConfig(BaseModel, extra="forbid"):
 
 
 class BesselBasisConfig(BaseModel, extra="forbid"):
+    """
+    Gaussian primitive basis functions.
+
+    Parameters
+    ----------
+    n_basis : PositiveInt, default = 7
+        Number of uncontracted basis functions.
+    r_max : PositiveFloat, default = 6.0
+        Cutoff radius of the descriptor.
+    """
     name: Literal["bessel"] = "bessel"
     n_basis: PositiveInt = 7
     r_max: PositiveFloat = 6.0
@@ -218,19 +240,42 @@ BasisConfig = Union[GaussianBasisConfig, BesselBasisConfig]
 
 
 class FullEnsembleConfig(BaseModel, extra="forbid"):
+    """
+    Configuration for full model ensembles.
+    Usage can improve accuracy and stability at the cost of slower inference.
+    Uncertainties will generally not be calibrated.
+
+    Parameters
+    ----------
+    n_members : int
+        Number of ensemble members.
+    """
     kind: Literal["full"] = "full"
     n_members: int
 
 
 class ShallowEnsembleConfig(BaseModel, extra="forbid"):
+    """
+    Configuration for shallow (last layer) ensembles.
+    Allows use of probabilistic loss functions.
+    The predicted uncertainties should be well calibrated.
+    See 10.1088/2632-2153/ad594a for details.
+
+    Parameters
+    ----------
+    n_members : int
+        Number of ensemble members.
+    force_variance : bool, default = True
+        Whether or not to compute force uncertainties.
+        Required for probabilistic force loss and calibration of force uncertainties.
+        Can lead to better force metrics but but enabling it introduces some non-negligible cost.
+    """
     kind: Literal["shallow"] = "shallow"
     n_members: int
     force_variance: bool = True
 
 
 EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
-
-# TODO update docs
 
 
 class ModelConfig(BaseModel, extra="forbid"):
@@ -239,20 +284,24 @@ class ModelConfig(BaseModel, extra="forbid"):
 
     Parameters
     ----------
-    n_basis : PositiveInt, default = 7
-        Number of uncontracted gaussian basis functions.
+    basis : BasisConfig, default = GaussianBasisConfig()
+        Configuration for primitive basis funtions.
     n_radial : PositiveInt, default = 5
         Number of contracted basis functions.
-    r_min : NonNegativeFloat, default = 0.5
-        Position of the first uncontracted basis function's mean.
-    r_max : PositiveFloat, default = 6.0
-        Cutoff radius of the descriptor.
-    nn : List[PositiveInt], default = [512, 512]
-        Number of hidden layers and units in those layers.
-    b_init : Literal["normal", "zeros"], default = "normal"
-        Initialization scheme for the neural network biases.
+    n_contr : int, default = 8
+        How many gaussian moment contractions to use.
     emb_init : Optional[str], default = "uniform"
         Initialization scheme for embedding layer weights.
+    nn : List[PositiveInt], default = [512, 512]
+        Number of hidden layers and units in those layers.
+    w_init : Literal["normal", "lecun"], default = "normal"
+        Initialization scheme for the neural network weights.
+    b_init : Literal["normal", "zeros"], default = "normal"
+        Initialization scheme for the neural network biases.
+    use_ntk : bool, default = True
+        Whether or not to use NTK parametrization.
+    ensemble : Optional[EnsembleConfig], default = None
+        What kind of model ensemble to use (optional).
     use_zbl : bool, default = False
         Whether to include the ZBL correction.
     calc_stress : bool, default = False
@@ -281,8 +330,6 @@ class ModelConfig(BaseModel, extra="forbid"):
     use_zbl: bool = False
 
     calc_stress: bool = False
-
-    # n_shallow_ensemble: int = 0
 
     descriptor_dtype: Literal["fp32", "fp64"] = "fp64"
     readout_dtype: Literal["fp32", "fp64"] = "fp32"
