@@ -44,6 +44,11 @@ model:
     r_min: 0.5
 
   ensemble: null
+  # if you would like to train model ensembles, this can be achieved with 
+  # the following example.
+  # ensemble: 
+  #  kind: full
+  #  n_members: N
 
   n_radial: 5
   n_contr: 8
