@@ -214,6 +214,7 @@ class GaussianBasisConfig(BaseModel, extra="forbid"):
     r_max : PositiveFloat, default = 6.0
         Cutoff radius of the descriptor.
     """
+
     name: Literal["gaussian"] = "gaussian"
     n_basis: PositiveInt = 7
     r_min: NonNegativeFloat = 0.5
@@ -231,6 +232,7 @@ class BesselBasisConfig(BaseModel, extra="forbid"):
     r_max : PositiveFloat, default = 6.0
         Cutoff radius of the descriptor.
     """
+
     name: Literal["bessel"] = "bessel"
     n_basis: PositiveInt = 7
     r_max: PositiveFloat = 6.0
@@ -250,6 +252,7 @@ class FullEnsembleConfig(BaseModel, extra="forbid"):
     n_members : int
         Number of ensemble members.
     """
+
     kind: Literal["full"] = "full"
     n_members: int
 
@@ -270,6 +273,7 @@ class ShallowEnsembleConfig(BaseModel, extra="forbid"):
         Required for probabilistic force loss and calibration of force uncertainties.
         Can lead to better force metrics but but enabling it introduces some non-negligible cost.
     """
+
     kind: Literal["shallow"] = "shallow"
     n_members: int
     force_variance: bool = True
