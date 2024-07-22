@@ -10,6 +10,7 @@ from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
 from flax.core.frozen_dict import freeze, unfreeze
 from matscipy.neighbours import neighbour_list
+from vesin import ase_neighbor_list
 from tqdm import trange
 
 from apax.data.input_pipeline import OTFInMemoryDataset, CachedInMemoryDataset, PerBatchPaddedDataset
@@ -17,6 +18,7 @@ from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
 from apax.utils.jax_md_reduced import partition, quantity, space
 
+# TODO add vesin to poetry 
 
 def maybe_vmap(apply, params):
     n_models = check_for_ensemble(params)
@@ -98,6 +100,10 @@ def unpack_results(results, inputs):
                 single_results[k] = v[: inputs["n_atoms"][i]]
         unpacked_results.append(single_results)
     return unpacked_results
+
+
+
+
 
 
 class ASECalculator(Calculator):
