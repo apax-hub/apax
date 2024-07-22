@@ -24,7 +24,7 @@ class AtomisticReadout(nn.Module):
             readout_unit = [1]
             if self.n_shallow_ensemble > 0:
                 readout_unit = [self.n_shallow_ensemble]
-            units += readout_unit
+            units = list(self.units) + readout_unit
         dense = []
         for ii, n_hidden in enumerate(units):
             layer = NTKLinear(

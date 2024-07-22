@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Callable, Optional, Tuple, Union
 
 import jax.numpy as jnp
 from jax import custom_jvp, vmap
 
-from apax.utils.jax_md_reduced.util import Array, f32, f64, safe_mask
+from apax.utils.jax_md_reduced.util import Array, f32, safe_mask
 
 # Types
 

@@ -193,7 +193,7 @@ def run_sim(
     )
 
     step = 0
-    ckpts_exist = any([True for p in ckpt_dir.rglob("*") if "checkpoint" in p.stem])
+    ckpts_exist = any(True for p in ckpt_dir.rglob("*") if "checkpoint" in p.stem)
     should_load_ckpt = restart and ckpts_exist
     state, step = handle_checkpoints(
         state, step, system, load_momenta, ckpt_dir, should_load_ckpt

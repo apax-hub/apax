@@ -121,7 +121,7 @@ class ASECalculator(Calculator):
         dr_threshold: float = 0.5,
         transformations: Callable = [],
         padding_factor: float = 1.5,
-        **kwargs
+        **kwargs,
     ):
         """
         Parameters
