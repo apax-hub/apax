@@ -52,9 +52,12 @@ class AtomisticModel(nn.Module):
 class FeatureModel(nn.Module):
     """Model wrapps some submodel (e.g. a descriptor) to supply distance computation."""
 
-    feature_model: nn.Module = GaussianMomentDescriptor()
+    descriptor: nn.Module = GaussianMomentDescriptor()
+    readout: nn.Module = AtomisticReadout()
+    should_average: bool = False
     init_box: np.array = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
     inference_disp_fn: Any = None
+    mask_atoms: bool = True
 
     def setup(self):
         self.compute_distances = make_distance_fn(self.init_box, self.inference_disp_fn)
@@ -76,7 +79,13 @@ class FeatureModel(nn.Module):
             perturbation,
         )
 
-        features = self.feature_model(dr_vec, Z, idx)
+        gm = self.descriptor(dr_vec, Z, idx)
+        features = jax.vmap(self.readout)(gm)
+
+        if self.mask_atoms:
+            features = mask_by_atom(features, Z)
+        if self.should_average:
+            features = jnp.mean(features, axis=0)
         return features
 
 
@@ -204,7 +213,6 @@ class ShallowEnsembleModel(nn.Module):
 
         n_ens = energy_ens.shape[0]
         divisor = 1 / (n_ens - 1)
-
         energy_mean = jnp.mean(energy_ens)
         energy_variance = divisor * fp64_sum((energy_ens - energy_mean) ** 2)
 

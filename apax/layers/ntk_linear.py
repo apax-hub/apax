@@ -41,7 +41,6 @@ class NTKLinear(nn.Module):
         if self.use_ntk:
             bias_factor = 0.1
             weight_factor = jnp.sqrt(1.0 / inputs.shape[0])
-
             prediction = weight_factor * wx + bias_factor * b
         else:
             prediction = wx + b

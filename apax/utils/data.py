@@ -56,7 +56,6 @@ def load_data(data_path):
 
     """
     data_path = Path(data_path)
-    log.info(f"Loading data from {data_path}")
 
     if not data_path.is_file():
         msg = f"data path ({data_path}) does not exist."

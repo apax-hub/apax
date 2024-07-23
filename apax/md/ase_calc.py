@@ -8,10 +8,13 @@ import jax.numpy as jnp
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
+from flax.core.frozen_dict import freeze, unfreeze
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
-from apax.data.input_pipeline import OTFInMemoryDataset
+from apax.data.input_pipeline import (
+    OTFInMemoryDataset,
+)
 from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
 from apax.utils.jax_md_reduced import partition, quantity, space
@@ -276,8 +279,9 @@ class ASECalculator(Calculator):
         evaluated_atoms_list:
             List of Atoms with labels predicted by the model.
         """
-        if self.model is None:
-            self.initialize(atoms_list[0])
+
+        init_box = atoms_list[0].cell.array
+
         dataset = OTFInMemoryDataset(
             atoms_list,
             self.model_config.model.basis.r_max,
@@ -289,13 +293,21 @@ class ASECalculator(Calculator):
         evaluated_atoms_list = []
         n_data = dataset.n_data
         ds = dataset.batch()
-        batched_model = jax.jit(jax.vmap(self.model, in_axes=(0, 0, 0, 0, 0)))
+
+        builder = ModelBuilder(self.model_config.model.get_dict())
+        model = builder.build_energy_derivative_model(
+            apply_mask=True,
+            init_box=init_box,
+        )
+
+        model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
 
         pbar = trange(
-            n_data, desc="Computing features", ncols=100, leave=True, disable=silent
+            n_data, desc="Evaluating data", ncols=100, leave=True, disable=silent
         )
         for i, inputs in enumerate(ds):
-            results = batched_model(
+            results = model(
+                self.params,
                 inputs["positions"],
                 inputs["numbers"],
                 inputs["idx"],
@@ -314,6 +326,27 @@ class ASECalculator(Calculator):
             pbar.update(batch_size)
         pbar.close()
         return evaluated_atoms_list
+
+    @property
+    def ll_weights(self):
+        dense_layers = list(
+            self.params["params"]["energy_model"]["atomistic_model"]["readout"].keys()
+        )
+        llweights = self.params["params"]["energy_model"]["atomistic_model"]["readout"][
+            dense_layers[-1]
+        ]["w"]
+        return np.asarray(llweights)
+
+    def set_ll_weights(self, new_weights):
+        params = unfreeze(self.params)
+        dense_layers = list(
+            params["params"]["energy_model"]["atomistic_model"]["readout"].keys()
+        )
+        params["params"]["energy_model"]["atomistic_model"]["readout"][dense_layers[-1]][
+            "w"
+        ] = jnp.asarray(new_weights, dtype=jnp.float32)
+        self.params = freeze(params)
+        self.step = None
 
 
 def neighbor_calculable_with_jax(box, r_max):

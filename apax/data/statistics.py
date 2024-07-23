@@ -72,6 +72,26 @@ class IsolatedAtomEnergyShift:
         return elemental_energies_shift
 
 
+class MeanEnergyShift:
+    name = "mean_atom_energy_shift"
+    parameters = []
+    dtypes = []
+
+    @staticmethod
+    def compute(inputs, labels, shift_options):
+        energies = labels["energy"]
+        system_sizes = inputs["n_atoms"]
+
+        energies = np.array(energies)
+        system_sizes = np.array(system_sizes)
+
+        ds_energy = np.sum(energies)
+        n_atoms_total = np.sum(system_sizes)
+
+        mean_energy = ds_energy / n_atoms_total
+        return mean_energy
+
+
 class MeanEnergyRMSScale:
     name = "mean_energy_rms_scale"
     parameters = []
@@ -152,7 +172,7 @@ class PerElementCustomScale:
         return element_scale
 
 
-shift_method_list = [PerElementRegressionShift, IsolatedAtomEnergyShift]
+shift_method_list = [PerElementRegressionShift, IsolatedAtomEnergyShift, MeanEnergyShift]
 scale_method_list = [
     MeanEnergyRMSScale,
     PerElementForceRMSScale,
