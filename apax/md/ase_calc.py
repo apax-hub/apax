@@ -182,7 +182,7 @@ class ASECalculator(Calculator):
             model = make_ensemble(model)
 
         for transformation in self.transformations:
-            model = transformation.apply(model, self.n_models)
+            model = transformation.apply(model)
 
         self.model = model
         self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
