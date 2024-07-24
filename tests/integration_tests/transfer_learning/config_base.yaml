@@ -9,7 +9,9 @@ data:
 
 model:
   nn: [32,32]
-  n_basis: 5
+  basis:
+    name: gaussian
+    n_basis: 5
   n_radial: 3
   calc_stress: false
   b_init: normal

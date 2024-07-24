@@ -9,7 +9,8 @@ import numpy as np
 from ase import units
 from ase.io import read
 from flax.training import checkpoints
-from jax.experimental.host_callback import barrier_wait, id_tap
+from jax.experimental import io_callback
+from jax.experimental.host_callback import barrier_wait
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -28,16 +29,23 @@ from apax.utils.jax_md_reduced import partition, quantity, simulate, space
 log = logging.getLogger(__name__)
 
 
-def create_energy_fn(model, params, numbers, n_models):
-    def ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
+def create_energy_fn(model, params, numbers, n_models, shallow=False):
+    def full_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
         vmodel = jax.vmap(model, (0, None, None, None, None, None, None), 0)
         energies = vmodel(params, R, Z, neighbor, box, offsets, perturbation)
         energy = jnp.mean(energies)
+        return energy
 
+    def shallow_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
+        energies = model(params, R, Z, neighbor, box, offsets, perturbation)
+        energy = jnp.mean(energies)
         return energy
 
     if n_models > 1:
-        energy_fn = ensemble
+        if shallow:
+            energy_fn = shallow_ensemble
+        else:
+            energy_fn = full_ensemble
     else:
         energy_fn = model
 
@@ -81,7 +89,8 @@ def get_ensemble(ensemble, sim_fns):
     nbr_options = nbr_update_options_default
 
     if ensemble.name == "nve":
-        init_fn, apply_fn = simulate.nve(energy, shift, dt)
+        kT = units.kB * ensemble.temperature
+        init_fn, apply_fn = simulate.nve(energy, shift, kT, dt)
     elif ensemble.name == "nvt":
         kT = units.kB * ensemble.temperature
         thermostat_chain = dict(ensemble.thermostat_chain)
@@ -125,7 +134,7 @@ def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_
     return state, step
 
 
-def run_nvt(
+def run_sim(
     system: System,
     sim_fns,
     ensemble,
@@ -184,7 +193,7 @@ def run_nvt(
     )
 
     step = 0
-    ckpts_exist = any([True for p in ckpt_dir.rglob("*") if "checkpoint" in p.stem])
+    ckpts_exist = any(True for p in ckpt_dir.rglob("*") if "checkpoint" in p.stem)
     should_load_ckpt = restart and ckpts_exist
     state, step = handle_checkpoints(
         state, step, system, load_momenta, ckpt_dir, should_load_ckpt
@@ -217,7 +226,7 @@ def run_nvt(
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
-            id_tap(traj_handler.step, (state, current_energy, nbr_kwargs))
+            io_callback(traj_handler.step, None, (state, current_energy, nbr_kwargs))
             return state, neighbor
 
         state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
@@ -333,7 +342,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     atoms = read(md_config.initial_structure)
     system = System.from_atoms(atoms)
 
-    r_max = model_config.model.r_max
+    r_max = model_config.model.basis.r_max
     log.info("initializing model")
     if np.all(system.box < 1e-6):
         frac_coords = False
@@ -345,13 +354,13 @@ def md_setup(model_config: Config, md_config: MDConfig):
         if np.any(atoms.cell.lengths() / 2 < r_max):
             log.error(
                 "cutoff is larger than box/2 in at least",
-                f"one cell vector direction {atoms.cell.lengths()/2} < {r_max}",
+                f"one cell vector direction {atoms.cell.lengths() / 2} < {r_max}",
                 "can not calculate the correct neighbors",
             )
         if np.any(heights / 2 < r_max):
             log.error(
                 "cutoff is larger than box/2 in at least",
-                f"one cell vector direction {heights/2} < {r_max}",
+                f"one cell vector direction {heights / 2} < {r_max}",
                 "can not calculate the correct neighbors",
             )
         displacement_fn, shift_fn = space.periodic_general(
@@ -374,8 +383,19 @@ def md_setup(model_config: Config, md_config: MDConfig):
 
     _, params = restore_parameters(model_config.data.model_version_path)
     params = canonicalize_energy_model_parameters(params)
+
+    n_models = 1
+    shallow = False
+    if (
+        "ensemble" in model_config.model_dump().keys()
+        and model_config.ensemble.n_members > 1
+    ):
+        n_models = model_config.ensemble.n_members
+        if model_config.model.ensemble.kind == "shallow":
+            shallow = True
+
     energy_fn = create_energy_fn(
-        model.apply, params, system.atomic_numbers, model_config.n_models
+        model.apply, params, system.atomic_numbers, n_models, shallow
     )
     sim_fns = SimulationFunctions(energy_fn, shift_fn, neighbor_fn)
     return system, sim_fns
@@ -415,7 +435,7 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
     )
     # TODO implement correct chunking
 
-    run_nvt(
+    run_sim(
         system,
         sim_fns,
         md_config.ensemble,

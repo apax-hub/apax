@@ -1,4 +1,5 @@
 import os
+import warnings
 
 import jax
 
@@ -8,3 +9,5 @@ jax.config.update("jax_enable_x64", True)
 from apax.utils.helpers import setup_ase
 
 setup_ase()
+
+warnings.filterwarnings("ignore", message=".*os.fork()*")

@@ -16,9 +16,74 @@ from pydantic import (
 )
 from typing_extensions import Annotated
 
+from apax.config.lr_config import CyclicCosineLR, LinearLR
 from apax.data.statistics import scale_method_list, shift_method_list
 
 log = logging.getLogger(__name__)
+
+
+class DatasetConfig(BaseModel, extra="forbid"):
+    processing: str
+
+
+class CachedDataset(DatasetConfig, extra="forbid"):
+    """Dataset which pads everything (atoms, neighbors)
+    to the largest system in the dataset.
+    The NL is computed on the fly during the first epoch and stored to disk using
+    tf.data's cache.
+    Most performant option for datasets with samples of very similar size.
+
+    Parameters
+    ----------
+    shuffle_buffer_size : int
+        | Size of the buffer that is shuffled by tf.data.
+        | Larger values require more RAM.
+    """
+
+    processing: Literal["cached"] = "cached"
+    shuffle_buffer_size: PositiveInt = 1000
+
+
+class OTFDataset(DatasetConfig, extra="forbid"):
+    """Dataset which pads everything (atoms, neighbors)
+    to the largest system in the dataset.
+    The NL is computed on the fly and fed into a tf.data generator.
+    Mostly for internal purposes.
+
+    Parameters
+    ----------
+    shuffle_buffer_size : int
+        | Size of the buffer that is shuffled by tf.data.
+        | Larger values require more RAM.
+    """
+
+    processing: Literal["otf"] = "otf"
+    shuffle_buffer_size: PositiveInt = 1000
+
+
+class PBPDatset(DatasetConfig, extra="forbid"):
+    """Dataset which pads everything (atoms, neighbors)
+    to the next larges power of two.
+    This limits the compute wasted due to padding at the (negligible)
+    cost of some recompilations.
+    The NL is computed on-the-fly in parallel for `num_workers` of batches.
+    Does not use tf.data.
+
+    Most performant option for datasets with significantly differently sized systems
+    (e.g. MP, SPICE).
+
+    Parameters
+    ----------
+    num_workers : int
+        | Number of batches to be processed in parallel.
+    reset_every : int
+        | Number of epochs before reinitializing the ProcessPoolExcecutor.
+        | Avoids memory leaks.
+    """
+
+    processing: Literal["pbp"] = "pbp"
+    num_workers: PositiveInt = 10
+    reset_every: PositiveInt = 10
 
 
 class DataConfig(BaseModel, extra="forbid"):
@@ -50,7 +115,7 @@ class DataConfig(BaseModel, extra="forbid"):
     shuffle_buffer_size : int, default = 1000
         | Size of the `tf.data` shuffle buffer.
     additional_properties_info : dict, optional
-        | dict of property name, shape (ragged or fixed) pairs
+        | dict of property name, shape (ragged or fixed) pairs. Currently unused.
     energy_regularisation :
         | Magnitude of the regularization in the per-element energy regression.
 
@@ -58,7 +123,10 @@ class DataConfig(BaseModel, extra="forbid"):
 
     directory: str
     experiment: str
-    ds_type: Literal["cached", "otf"] = "cached"
+    dataset: Union[CachedDataset, OTFDataset, PBPDatset] = Field(
+        CachedDataset(processing="cached"), discriminator="processing"
+    )
+
     data_path: Optional[str] = None
     train_data_path: Optional[str] = None
     val_data_path: Optional[str] = None
@@ -68,7 +136,6 @@ class DataConfig(BaseModel, extra="forbid"):
     n_valid: PositiveInt = 100
     batch_size: PositiveInt = 32
     valid_batch_size: PositiveInt = 100
-    shuffle_buffer_size: PositiveInt = 1000
     additional_properties_info: dict[str, str] = {}
 
     shift_method: str = "per_element_regression_shift"
@@ -134,26 +201,111 @@ class DataConfig(BaseModel, extra="forbid"):
         return self.model_version_path / "best"
 
 
+class GaussianBasisConfig(BaseModel, extra="forbid"):
+    """
+    Gaussian primitive basis functions.
+
+    Parameters
+    ----------
+    n_basis : PositiveInt, default = 7
+        Number of uncontracted basis functions.
+    r_min : NonNegativeFloat, default = 0.5
+        Position of the first uncontracted basis function's mean.
+    r_max : PositiveFloat, default = 6.0
+        Cutoff radius of the descriptor.
+    """
+
+    name: Literal["gaussian"] = "gaussian"
+    n_basis: PositiveInt = 7
+    r_min: NonNegativeFloat = 0.5
+    r_max: PositiveFloat = 6.0
+
+
+class BesselBasisConfig(BaseModel, extra="forbid"):
+    """
+    Gaussian primitive basis functions.
+
+    Parameters
+    ----------
+    n_basis : PositiveInt, default = 7
+        Number of uncontracted basis functions.
+    r_max : PositiveFloat, default = 6.0
+        Cutoff radius of the descriptor.
+    """
+
+    name: Literal["bessel"] = "bessel"
+    n_basis: PositiveInt = 7
+    r_max: PositiveFloat = 6.0
+
+
+BasisConfig = Union[GaussianBasisConfig, BesselBasisConfig]
+
+
+class FullEnsembleConfig(BaseModel, extra="forbid"):
+    """
+    Configuration for full model ensembles.
+    Usage can improve accuracy and stability at the cost of slower inference.
+    Uncertainties will generally not be calibrated.
+
+    Parameters
+    ----------
+    n_members : int
+        Number of ensemble members.
+    """
+
+    kind: Literal["full"] = "full"
+    n_members: int
+
+
+class ShallowEnsembleConfig(BaseModel, extra="forbid"):
+    """
+    Configuration for shallow (last layer) ensembles.
+    Allows use of probabilistic loss functions.
+    The predicted uncertainties should be well calibrated.
+    See 10.1088/2632-2153/ad594a for details.
+
+    Parameters
+    ----------
+    n_members : int
+        Number of ensemble members.
+    force_variance : bool, default = True
+        Whether or not to compute force uncertainties.
+        Required for probabilistic force loss and calibration of force uncertainties.
+        Can lead to better force metrics but but enabling it introduces some non-negligible cost.
+    """
+
+    kind: Literal["shallow"] = "shallow"
+    n_members: int
+    force_variance: bool = True
+
+
+EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
+
+
 class ModelConfig(BaseModel, extra="forbid"):
     """
     Configuration for the model.
 
     Parameters
     ----------
-    n_basis : PositiveInt, default = 7
-        Number of uncontracted gaussian basis functions.
+    basis : BasisConfig, default = GaussianBasisConfig()
+        Configuration for primitive basis funtions.
     n_radial : PositiveInt, default = 5
         Number of contracted basis functions.
-    r_min : NonNegativeFloat, default = 0.5
-        Position of the first uncontracted basis function's mean.
-    r_max : PositiveFloat, default = 6.0
-        Cutoff radius of the descriptor.
-    nn : List[PositiveInt], default = [512, 512]
-        Number of hidden layers and units in those layers.
-    b_init : Literal["normal", "zeros"], default = "normal"
-        Initialization scheme for the neural network biases.
+    n_contr : int, default = 8
+        How many gaussian moment contractions to use.
     emb_init : Optional[str], default = "uniform"
         Initialization scheme for embedding layer weights.
+    nn : List[PositiveInt], default = [512, 512]
+        Number of hidden layers and units in those layers.
+    w_init : Literal["normal", "lecun"], default = "normal"
+        Initialization scheme for the neural network weights.
+    b_init : Literal["normal", "zeros"], default = "normal"
+        Initialization scheme for the neural network biases.
+    use_ntk : bool, default = True
+        Whether or not to use NTK parametrization.
+    ensemble : Optional[EnsembleConfig], default = None
+        What kind of model ensemble to use (optional).
     use_zbl : bool, default = False
         Whether to include the ZBL correction.
     calc_stress : bool, default = False
@@ -166,15 +318,17 @@ class ModelConfig(BaseModel, extra="forbid"):
         Data type for scale and shift parameters.
     """
 
-    n_basis: PositiveInt = 7
+    basis: BasisConfig = Field(GaussianBasisConfig(name="gaussian"), discriminator="name")
     n_radial: PositiveInt = 5
-    r_min: NonNegativeFloat = 0.5
-    r_max: PositiveFloat = 6.0
-    n_contr: int = -1
+    n_contr: int = 8
     emb_init: Optional[str] = "uniform"
 
     nn: List[PositiveInt] = [512, 512]
+    w_init: Literal["normal", "lecun"] = "normal"
     b_init: Literal["normal", "zeros"] = "normal"
+    use_ntk: bool = True
+
+    ensemble: Optional[EnsembleConfig] = None
 
     # corrections
     use_zbl: bool = False
@@ -204,7 +358,7 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
 
     Parameters
     ----------
-    opt_name : str, default = "adam"
+    name : str, default = "adam"
         Name of the optimizer. Can be any `optax` optimizer.
     emb_lr : NonNegativeFloat, default = 0.02
         Learning rate of the elemental embedding contraction coefficients.
@@ -216,24 +370,22 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
         Learning rate of the elemental output shifts.
     zbl_lr : NonNegativeFloat, default = 0.001
         Learning rate of the ZBL correction parameters.
-    transition_begin : int, default = 0
-        Number of training steps (not epochs) before the start of the linear
-        learning rate schedule.
-    opt_kwargs : dict, default = {}
+    schedule : LRSchedule = LinearLR
+        Learning rate schedule.
+    kwargs : dict, default = {}
         Optimizer keyword arguments. Passed to the `optax` optimizer.
-    sam_rho : NonNegativeFloat, default = 0.0
-        Rho parameter for Sharpness-Aware Minimization.
     """
 
-    opt_name: str = "adam"
+    name: str = "adam"
     emb_lr: NonNegativeFloat = 0.02
     nn_lr: NonNegativeFloat = 0.03
     scale_lr: NonNegativeFloat = 0.001
     shift_lr: NonNegativeFloat = 0.05
     zbl_lr: NonNegativeFloat = 0.001
-    transition_begin: int = 0
-    opt_kwargs: dict = {}
-    sam_rho: NonNegativeFloat = 0.0
+    schedule: Union[LinearLR, CyclicCosineLR] = Field(
+        LinearLR(name="linear"), discriminator="name"
+    )
+    kwargs: dict = {}
 
 
 class MetricsConfig(BaseModel, extra="forbid"):
@@ -357,6 +509,21 @@ class CheckpointConfig(BaseModel, extra="forbid"):
     reset_layers: List[str] = []
 
 
+class WeightAverage(BaseModel, extra="forbid"):
+    """Applies an exponential moving average to model parameters.
+
+    Parameters
+    ----------
+    ema_start : int, default = 1
+        Epoch at which to start averaging models.
+    alpha : float, default = 0.9
+        How much of the new model to use. 1.0 would mean no averaging, 0.0 no updates.
+    """
+
+    ema_start: int = 0
+    alpha: float = 0.9
+
+
 class Config(BaseModel, frozen=True, extra="forbid"):
     """
     Main configuration of a apax training run. Parameter that are config classes will
@@ -381,8 +548,6 @@ class Config(BaseModel, frozen=True, extra="forbid"):
         | Number of epochs without improvement before trainings gets terminated.
     seed : int, default = 1
         | Random seed.
-    n_models : int, default = 1
-        | Number of models to be trained at once.
     n_jitted_steps : int, default = 1
         | Number of train batches to be processed in a compiled loop.
         | Can yield significant speedups for small structures or small batch sizes.
@@ -396,6 +561,8 @@ class Config(BaseModel, frozen=True, extra="forbid"):
         | Loss configuration.
     optimizer : :class:`.OptimizerConfig`
         | Loss optimizer configuration.
+    weight_average : :class:`.WeightAverage`, optional
+        | Options for averaging weights between epochs.
     callbacks : List of various CallBack classes
         | Possible callbacks are :class:`.CSVCallback`,
         | :class:`.TBCallback`, :class:`.MLFlowCallback`
@@ -411,7 +578,6 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     n_epochs: PositiveInt
     patience: Optional[PositiveInt] = None
     seed: int = 1
-    n_models: int = 1
     n_jitted_steps: int = 1
     data_parallel: bool = True
 
@@ -420,6 +586,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     metrics: List[MetricsConfig] = []
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()
+    weight_average: Optional[WeightAverage] = None
     callbacks: List[CallBack] = [CSVCallback(name="csv")]
     progress_bar: TrainProgressbarConfig = TrainProgressbarConfig()
     checkpoints: CheckpointConfig = CheckpointConfig()

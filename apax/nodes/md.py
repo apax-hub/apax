@@ -9,9 +9,9 @@ import yaml
 import znh5md
 import zntrack.utils
 
-from apax.md.nvt import run_md
+from apax.md.simulate import run_md
 
-from .model import Apax
+from .model import ApaxBase
 from .utils import check_duplicate_keys
 
 log = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ class ApaxJaxMD(zntrack.Node):
     data: list[ase.Atoms] = zntrack.deps()
     data_id: int = zntrack.params(-1)
 
-    model: Apax = zntrack.deps()
+    model: ApaxBase = zntrack.deps()
     repeat = zntrack.params(None)
 
     config: str = zntrack.params_path(None)
@@ -76,13 +76,6 @@ class ApaxJaxMD(zntrack.Node):
 
     @functools.cached_property
     def atoms(self) -> typing.List[ase.Atoms]:
-        def file_handle(filename):
-            file = self.state.fs.open(filename, "rb")
-            return h5py.File(file)
-
-        return znh5md.ASEH5MD(
-            self.sim_dir / "md.h5",
-            format_handler=functools.partial(
-                znh5md.FormatHandler, file_handle=file_handle
-            ),
-        ).get_atoms_list()
+        with self.state.fs.open(self.sim_dir / "md.h5", "rb") as f:
+            with h5py.File(f) as file:
+                return znh5md.IO(file_handle=file)[:]

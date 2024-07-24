@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "apax"
-version = "0.4.0"
+version = "0.5.0"
 description = "Atomistic Learned Potential Package in JAX"
 authors = ["Moritz René Schäfer <schaefer@theochem.uni-stuttgart.de>", "Nico Segreto <segreto@theochem.uni-stuttgart.de>"]
 keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
@@ -23,14 +23,17 @@ jaxtyping = "^0.2.8"
 typer = "^0.7.0"
 lazy-loader = "^0.2"
 matscipy = "^0.8.0"
-znh5md = "^0.2"
+znh5md = "^0.3"
 pydantic = "^2.3.0"
 jax = "^0.4.25"
 zntrack = {version = "^0.7.3", optional = true}
-mlflow = {version = "^2.11.3", extras = ["mlflow"]}
+mlflow = {version = "^2", optional = true}
+orbax-checkpoint = "0.5.16"
+flax = "0.8.4"
 
 [tool.poetry.extras]
 zntrack = ["zntrack"]
+mlflow = ["mlflow"]
 
 [tool.poetry.scripts]
 apax = 'apax.cli.apax_app:app'
@@ -39,12 +42,10 @@ apax = 'apax.cli.apax_app:app'
 pytest = "^7.2.0"
 pytest-cov = "^4.0.0"
 pytest-xdist = "^3.0.2"
-black = "^22.10.0"
 coverage = {extras = ["toml"], version = "^6.4.2"}
 matplotlib = "^3.6.2"
 pre-commit = "^2.20.0"
-isort = "^5.10.1"
-flake8 = "^5.0.4"
+ruff = "^0.5"
 
 [tool.poetry.group.docs.dependencies]
 sphinx = "^7.2.6"
@@ -67,14 +68,6 @@ markers = [
     "slow: mark a test as slow and should only run explicitly"
 ]
 
-[tool.black]
-line-length = 90
-preview = true
-
-[tool.isort]
-profile = 'black'
-multi_line_output = 3
-
 [tool.coverage.run]
 branch = true
 source = ["apax"]
@@ -84,3 +77,12 @@ directory = "coverage_html_report"
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.ruff]
+line-length = 90
+
+[tool.ruff.lint]
+select = ["E", "F", "C", "I", "E"]
+extend-ignore = [
+    "E501", "E731", "E741", "E402", "F841", "F811", "C901", "E203", "E402"
+]

@@ -110,7 +110,7 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=Fal
 
     callbacks.on_train_begin()
     _, test_step_fn = make_step_fns(
-        loss_fn, Metrics, model=model, sam_rho=0.0, is_ensemble=is_ensemble
+        loss_fn, Metrics, model=model, is_ensemble=is_ensemble
     )
 
     batch_test_ds = test_ds.batch()
@@ -173,7 +173,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     atoms_list = load_test_data(config, model_version_path, eval_path, n_test)
     test_ds = OTFInMemoryDataset(
         atoms_list,
-        config.model.r_max,
+        config.model.basis.r_max,
         1,
         config.data.valid_batch_size,
         pos_unit=config.data.pos_unit,
@@ -181,6 +181,11 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     )
 
     _, init_box = test_ds.init_input()
+
+    if config.model.ensemble and config.model.ensemble.kind == "full":
+        n_full_models = config.model.ensemble.n_members
+    else:
+        n_full_models = 1
 
     builder = ModelBuilder(config.model.get_dict())
     model = builder.build_energy_derivative_model(
@@ -198,5 +203,5 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
         loss_fn,
         test_ds,
         callbacks,
-        is_ensemble=config.n_models > 1,
+        is_ensemble=n_full_models > 1,
     )

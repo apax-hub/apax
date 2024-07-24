@@ -15,6 +15,7 @@ from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import create_params, create_train_state
 from apax.train.loss import Loss, LossCollection
 from apax.train.metrics import initialize_metrics
+from apax.train.parameters import EMAParameters
 from apax.train.trainer import fit
 from apax.transfer_learning import transfer_parameters
 from apax.utils.random import seed_py_np_tf
@@ -98,28 +99,33 @@ def initialize_datasets(config: Config):
 
     train_raw_ds, val_raw_ds = load_data_files(config.data)
 
-    Dataset = dataset_dict[config.data.ds_type]
+    Dataset = dataset_dict[config.data.dataset.processing]
+
+    dataset_kwargs = dict(config.data.dataset)
+    processing = dataset_kwargs.pop("processing")
+
+    if processing == "cached":
+        dataset_kwargs["cache_path"] = config.data.model_version_path
 
     train_ds = Dataset(
         train_raw_ds,
-        config.model.r_max,
+        config.model.basis.r_max,
         config.data.batch_size,
         config.n_epochs,
-        config.data.shuffle_buffer_size,
         config.n_jitted_steps,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
         pre_shuffle=True,
-        cache_path=config.data.model_version_path,
+        **dataset_kwargs,
     )
     val_ds = Dataset(
         val_raw_ds,
-        config.model.r_max,
+        config.model.basis.r_max,
         config.data.valid_batch_size,
         config.n_epochs,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
-        cache_path=config.data.model_version_path,
+        **dataset_kwargs,
     )
     ds_stats = compute_scale_shift_parameters(
         train_ds.inputs,
@@ -158,7 +164,6 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
 
     train_ds, val_ds, ds_stats = initialize_datasets(config)
 
-    log.info("Initializing Model")
     sample_input, init_box = train_ds.init_input()
     builder = ModelBuilder(config.model.get_dict())
     model = builder.build_energy_derivative_model(
@@ -169,15 +174,18 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
     )
     batched_model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
 
-    params, rng_key = create_params(model, rng_key, sample_input, config.n_models)
+    if config.model.ensemble and config.model.ensemble.kind == "full":
+        n_full_models = config.model.ensemble.n_members
+    else:
+        n_full_models = 1
+    params, rng_key = create_params(model, rng_key, sample_input, n_full_models)
 
     # TODO rework optimizer initialization and lr keywords
     steps_per_epoch = train_ds.steps_per_epoch()
-    n_epochs = config.n_epochs
-    transition_steps = steps_per_epoch * n_epochs - config.optimizer.transition_begin
     tx = get_opt(
         params,
-        transition_steps=transition_steps,
+        config.n_epochs,
+        steps_per_epoch,
         **config.optimizer.model_dump(),
     )
 
@@ -188,21 +196,28 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
     if do_transfer_learning:
         state = transfer_parameters(state, config.checkpoints)
 
+    if config.weight_average:
+        ema_handler = EMAParameters(
+            config.weight_average.ema_start, config.weight_average.alpha
+        )
+    else:
+        ema_handler = None
+
     fit(
         state,
         train_ds,
         loss_fn,
         Metrics,
         callbacks,
-        n_epochs,
+        config.n_epochs,
         ckpt_dir=config.data.model_version_path,
         ckpt_interval=config.checkpoints.ckpt_interval,
         val_ds=val_ds,
-        sam_rho=config.optimizer.sam_rho,
         patience=config.patience,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
         disable_batch_pbar=config.progress_bar.disable_batch_pbar,
-        is_ensemble=config.n_models > 1,
+        is_ensemble=n_full_models > 1,
         data_parallel=config.data_parallel,
+        ema_handler=ema_handler,
     )
     log.info("Finished training")

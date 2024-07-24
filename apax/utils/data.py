@@ -3,6 +3,7 @@ from pathlib import Path
 
 import jax.numpy as jnp
 import numpy as np
+import znh5md
 from ase.io import read
 
 log = logging.getLogger(__name__)
@@ -54,27 +55,17 @@ def load_data(data_path):
         List of all structures where entries are ASE atoms objects.
 
     """
-    # TODO external labels can be included via hdf5 files only? this would clean up a lot
+    data_path = Path(data_path)
 
-    try:
-        log.info(f"Loading data from {data_path}")
-        atoms_list = read(data_path, index=":")
-    except IOError:
+    if not data_path.is_file():
         msg = f"data path ({data_path}) does not exist."
         log.error(msg)
         raise FileNotFoundError(msg)
 
-    label_path = Path(data_path)
-    label_path = label_path.with_stem(label_path.stem + "_label").with_suffix(".npz")
-
-    if label_path.is_file():
-        log.info(f"Loading non ASE labels from {label_path.as_posix()}")
-        label_dict = np.load(label_path.as_posix(), allow_pickle=True)
-
-        # check if len atoms == len labels
-        for key, val in label_dict.items():
-            for a, v in zip(atoms_list, val):
-                a.calc.results[key] = v
+    if data_path.suffix in [".h5", ".h5md", ".hdf5"]:
+        atoms_list = znh5md.IO(data_path)[:]
+    else:
+        atoms_list = read(data_path.as_posix(), index=":")
 
     return atoms_list
 

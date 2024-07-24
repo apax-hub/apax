@@ -33,13 +33,11 @@ also return a function that computes the invariant for that ensemble. This
 can be used for testing purposes, but is not often used otherwise.
 """
 
-import functools
-from collections import namedtuple
-from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, Union
+from typing import Callable, Dict, Optional, Tuple, TypeVar
 
 import jax.numpy as jnp
 from jax import grad, jit, lax, random
-from jax.tree_util import tree_flatten, tree_map, tree_reduce, tree_unflatten
+from jax.tree_util import tree_flatten, tree_map, tree_unflatten
 
 from apax.utils.jax_md_reduced import (
     dataclasses,
@@ -262,7 +260,7 @@ class NVEState:
 
 
 # pylint: disable=invalid-name
-def nve(energy_or_force_fn, shift_fn, dt=1e-3, **sim_kwargs):
+def nve(energy_or_force_fn, shift_fn, kT, dt=1e-3, **sim_kwargs):
     """Simulates a system in the NVE ensemble.
 
     Samples from the microcanonical ensemble in which the number of particles
@@ -283,7 +281,7 @@ def nve(energy_or_force_fn, shift_fn, dt=1e-3, **sim_kwargs):
     force_fn = quantity.canonicalize_force(energy_or_force_fn)
 
     @jit
-    def init_fn(key, R, kT, mass=f32(1.0), **kwargs):
+    def init_fn(key, R, mass=f32(1.0), **kwargs):
         force = force_fn(R, **kwargs)
         state = NVEState(R, None, force, mass)
         state = canonicalize_mass(state)
@@ -846,12 +844,7 @@ def npt_nose_hoover(
     def sinhx_x(x):
         """Taylor series for sinh(x) / x as x -> 0."""
         return (
-            1
-            + x**2 / 6
-            + x**4 / 120
-            + x**6 / 5040
-            + x**8 / 362_880
-            + x**10 / 39_916_800
+            1 + x**2 / 6 + x**4 / 120 + x**6 / 5040 + x**8 / 362_880 + x**10 / 39_916_800
         )
 
     def exp_iL1(box, R, V, V_b, **kwargs):

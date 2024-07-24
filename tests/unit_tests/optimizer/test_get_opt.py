@@ -29,6 +29,7 @@ def test_get_opt():
         nn_lr=0.01,
         scale_lr=0.001,
         shift_lr=0.1,
+        schedule={"name": "linear", "transition_begin": 0, "end_value": 1e-6},
     )
     opt_state = opt.init(params=params)
 

@@ -51,7 +51,7 @@ def create_params(model, rng_key, sample_input: tuple, n_models: int):
     keys = jax.random.split(rng_key, num=n_models + 1)
     rng_key, model_rng = keys[0], keys[1:]
 
-    log.info(f"initializing {n_models} models")
+    log.info(f"initializing {n_models} model(s)")
 
     if n_models == 1:
         params = model.init(model_rng[0], *sample_input)
@@ -132,7 +132,7 @@ def load_params(model_version_path: Path, best=True) -> FrozenDict:
         print(f"No checkpoint found at {model_version_path}")
     if raw_restored is None:
         raise FileNotFoundError(f"No checkpoint found at {model_version_path}")
-    params = jax.tree_map(jnp.asarray, raw_restored["model"]["params"])
+    params = jax.tree.map(jnp.asarray, raw_restored["model"]["params"])
 
     return params
 

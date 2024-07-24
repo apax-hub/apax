@@ -1,6 +1,5 @@
 n_epochs: 5
 seed: 1
-n_models: 1
 
 data:
   batch_size: 8
@@ -18,13 +17,15 @@ metrics:
   - mae
 
 model:
-  n_basis: 7
+  basis:
+    name: gaussian
+    r_max: 5.5
+    r_min: 0.7
+    n_basis: 7
   n_radial: 5
   nn:
   - 512
   - 512
-  r_max: 5.5
-  r_min: 0.7
 
   b_init: zeros
   emb_init: uniform
@@ -35,7 +36,7 @@ model:
   scale_shift_dtype: fp32
 
 optimizer:
-  opt_name: adam
+  name: adam
   emb_lr: 0.01
   nn_lr: 0.005
   scale_lr: 0.001

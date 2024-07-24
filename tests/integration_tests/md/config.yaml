@@ -8,11 +8,12 @@ data:
   n_valid: 2
   batch_size: 2
   valid_batch_size: 2
-  shuffle_buffer_size: 4
 
 model:
   nn: [32,32]
-  n_basis: 5
+  basis:
+    name: gaussian
+    n_basis: 5
   n_radial: 3
   descriptor_dtype: fp64
   readout_dtype: fp32
