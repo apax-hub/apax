@@ -98,7 +98,7 @@ class GaussianAcceleratedMolecularDynamics(FunctionTransformation):
 
 
 @dataclasses.dataclass
-class GlobalCalibration():
+class GlobalCalibration:
     """
     Applies a global calibration to energy and force uncertainties.
     Energy ensemble predictions are rescaled according to EQ 7 in
@@ -119,14 +119,18 @@ class GlobalCalibration():
         def calibrated_model(positions, Z, idx, box, offsets):
             results = model(positions, Z, idx, box, offsets)
 
-            results["energy_uncertainty"] = results["energy_uncertainty"] * self.energy_factor
+            results["energy_uncertainty"] = (
+                results["energy_uncertainty"] * self.energy_factor
+            )
 
             Emean = results["energy"]
             Ei = results["energy_ensemble"]
             results["energy_ensemble"] = Emean + self.energy_factor * (Ei - Emean)
 
             if "forces_uncertainty" in results.keys():
-                results["forces_uncertainty"] = results["forces_uncertainty"] * self.forces_factor
+                results["forces_uncertainty"] = (
+                    results["forces_uncertainty"] * self.forces_factor
+                )
 
             return results
 

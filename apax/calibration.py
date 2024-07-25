@@ -8,13 +8,13 @@ from apax.md import ASECalculator
 
 
 def compute_calibration_factors(
-        calc: ASECalculator,
-        atoms_list: list[Atoms],
-        batch_size: int = 32,
-        criterion: str = "ma_cal",
-        shared_factor=False,
-        optimizer_bounds: Tuple[float, float] = (1e-2, 1e2),
-    ) -> Tuple[float, float]:
+    calc: ASECalculator,
+    atoms_list: list[Atoms],
+    batch_size: int = 32,
+    criterion: str = "ma_cal",
+    shared_factor=False,
+    optimizer_bounds: Tuple[float, float] = (1e-2, 1e2),
+) -> Tuple[float, float]:
     """Computes global recalibration factors. These can be supplied to the ASEcalculator as part of the GlobalCalibration transformation.
 
     Parameters

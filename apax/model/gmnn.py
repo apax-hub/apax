@@ -208,6 +208,7 @@ def make_member_chunk_jac(energy_model, start, end):
     grad_i_fn = jax.jacrev(energy_chunk_fn)
     return grad_i_fn
 
+
 class ShallowEnsembleModel(nn.Module):
     """Transforms an EnergyModel into one that also predicts derivatives the total energy.
     Can calculate forces and stress tensors.
@@ -252,7 +253,7 @@ class ShallowEnsembleModel(nn.Module):
                 for _ in range(n_ens // self.chunk_size):
                     end = start + self.chunk_size
                     jac_i_fn = make_member_chunk_jac(self.energy_model, start, end)
-                    force_i = - jac_i_fn(R, Z, neighbor, box, offsets)
+                    force_i = -jac_i_fn(R, Z, neighbor, box, offsets)
                     forces_ens.append(force_i)
                     start = end
 
