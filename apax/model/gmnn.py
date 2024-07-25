@@ -195,7 +195,7 @@ def make_single_member_gradient(energy_model, idx):
     def energy_i_fn(R, Z, neighbor, box, offsets):
         Ei = energy_model(R, Z, neighbor, box, offsets)[idx]
         return Ei
-    
+
     grad_i_fn = jax.grad(energy_i_fn)
     return grad_i_fn
 
@@ -204,7 +204,7 @@ def make_member_chunk_jac(energy_model, start, end):
     def energy_chunk_fn(R, Z, neighbor, box, offsets):
         Ei = energy_model(R, Z, neighbor, box, offsets)[start:end]
         return Ei
-    
+
     grad_i_fn = jax.jacrev(energy_chunk_fn)
     return grad_i_fn
 

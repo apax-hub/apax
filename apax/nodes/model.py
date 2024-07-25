@@ -271,7 +271,7 @@ class ApaxCalibrate(ApaxBase):
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
-        
+
         calc = self.model.get_calculator()
         self.e_factor, self.f_factor = compute_calibration_factors(
             calc,
@@ -286,7 +286,7 @@ class ApaxCalibrate(ApaxBase):
             "e_factor": self.e_factor,
             "f_factor": self.f_factor,
         }
-        
+
 
     def get_calculator(self, **kwargs) -> ase.calculators.calculator.Calculator:
         """Property to return a model specific ase calculator object.
