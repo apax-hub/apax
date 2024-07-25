@@ -277,6 +277,7 @@ class ShallowEnsembleConfig(BaseModel, extra="forbid"):
     kind: Literal["shallow"] = "shallow"
     n_members: int
     force_variance: bool = True
+    chunk_size: Optional[int] = None
 
 
 EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]

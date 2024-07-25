@@ -1,6 +1,6 @@
 import logging
 from dataclasses import field
-from typing import Any, Callable, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import flax.linen as nn
 import jax
@@ -191,6 +191,23 @@ def make_mean_energy_fn(energy_fn):
     return mean_energy_fn
 
 
+def make_single_member_gradient(energy_model, idx):
+    def energy_i_fn(R, Z, neighbor, box, offsets):
+        Ei = energy_model(R, Z, neighbor, box, offsets)[idx]
+        return Ei
+    
+    grad_i_fn = jax.grad(energy_i_fn)
+    return grad_i_fn
+
+
+def make_member_chunk_jac(energy_model, start, end):
+    def energy_chunk_fn(R, Z, neighbor, box, offsets):
+        Ei = energy_model(R, Z, neighbor, box, offsets)[start:end]
+        return Ei
+    
+    grad_i_fn = jax.jacrev(energy_chunk_fn)
+    return grad_i_fn
+
 class ShallowEnsembleModel(nn.Module):
     """Transforms an EnergyModel into one that also predicts derivatives the total energy.
     Can calculate forces and stress tensors.
@@ -199,6 +216,7 @@ class ShallowEnsembleModel(nn.Module):
     energy_model: EnergyModel = EnergyModel()
     calc_stress: bool = False
     force_variance: bool = True
+    chunk_size: Optional[int] = None
 
     def __call__(
         self,
@@ -223,13 +241,32 @@ class ShallowEnsembleModel(nn.Module):
         }
 
         if self.force_variance:
-            forces_ens = -jax.jacrev(self.energy_model)(R, Z, neighbor, box, offsets)
+            if not self.chunk_size:
+                forces_ens = -jax.jacrev(self.energy_model)(R, Z, neighbor, box, offsets)
+            else:
+                with jax.ensure_compile_time_eval():
+                    assert n_ens % self.chunk_size == 0
+
+                forces_ens = []
+                start = 0
+                for _ in range(n_ens // self.chunk_size):
+                    end = start + self.chunk_size
+                    jac_i_fn = make_member_chunk_jac(self.energy_model, start, end)
+                    force_i = - jac_i_fn(R, Z, neighbor, box, offsets)
+                    forces_ens.append(force_i)
+                    start = end
+
+                n_atoms = R.shape[0]
+                forces_ens = jnp.array(forces_ens)
+                forces_ens = np.reshape(forces_ens, (n_ens, n_atoms, 3))
+
             forces_mean = jnp.mean(forces_ens, axis=0)
             forces_variance = divisor * fp64_sum((forces_ens - forces_mean) ** 2, axis=0)
 
             prediction["forces"] = forces_mean
             prediction["forces_uncertainty"] = jnp.sqrt(forces_variance)
             prediction["forces_ensemble"] = forces_ens
+
         else:
             forces_mean = -jax.grad(mean_energy_fn)(R, Z, neighbor, box, offsets)
             prediction["forces"] = forces_mean
