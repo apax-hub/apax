@@ -299,7 +299,11 @@ class ApaxCalibrate(ApaxBase):
 
         config_file = self.model._parameter["data"]["directory"]
 
-        transformations = [GlobalCalibration(self.e_factor, self.f_factor)]
+        calibration = GlobalCalibration(
+            energy_factor=self.e_factor,
+            forces_factor=self.f_factor,
+        )
+        transformations = [calibration]
         if self.transformations:
             for transform, params in self.transformations.items():
                 transformations.append(available_transformations[transform](**params))

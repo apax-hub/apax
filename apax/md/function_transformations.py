@@ -128,8 +128,8 @@ class GaussianAcceleratedMolecularDynamics(FunctionTransformation):
         return gamd_energy_force
 
 
-
-class GlobalCalibration(FunctionTransformation):
+@dataclasses.dataclass
+class GlobalCalibration():
     """
     Applies a global calibration to energy and force uncertainties.
     Energy ensemble predictions are rescaled according to EQ 7 in
