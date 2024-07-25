@@ -95,37 +95,6 @@ class GaussianAcceleratedMolecularDynamics(FunctionTransformation):
         gamd_energy_force = make_biased_energy_force_fn(gamd_energy)
 
         return gamd_energy_force
-    
-
-class GaussianAcceleratedMolecularDynamics(FunctionTransformation):
-    """
-    Applies a boost potential to the system that pulls it towards a target energy.
-    https://pubs.acs.org/doi/10.1021/acs.jctc.5b00436
-
-    Parameters
-    ----------
-    energy_target : float
-        Target potential energy below which to apply the boost potential.
-    spring_constant : float
-        Spring constant of the boost potential.
-    """
-
-    energy_target: float
-    spring_constant: float
-
-    def apply(self, model):
-        def gamd_energy(positions, Z, idx, box, offsets):
-            results = model(positions, Z, idx, box, offsets)
-
-            energy = jnp.clip(results["energy"], a_max=self.energy_target)
-
-            E_gamd = 0.5 * self.spring_constant * (energy - self.energy_target) ** 2
-
-            return E_gamd, results
-
-        gamd_energy_force = make_biased_energy_force_fn(gamd_energy)
-
-        return gamd_energy_force
 
 
 @dataclasses.dataclass
