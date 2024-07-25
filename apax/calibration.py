@@ -45,7 +45,7 @@ def compute_calibration_factors(
     Ftrue = np.reshape([a.get_forces() for a in atoms_list], (-1,))
     new_atoms = calc.batch_eval(atoms_list, batch_size=batch_size)
 
-    Epred = np.array([a.get_potential_energy() for a in new_atoms])
+    Epred = np.array([a.get_potential_energy() for a in new_atoms]) / num_atoms
     Fpred = np.reshape([a.get_forces() for a in new_atoms], (-1,))
 
     Estd = np.array([a.calc.results["energy_uncertainty"] for a in new_atoms]) / num_atoms
