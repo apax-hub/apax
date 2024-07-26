@@ -15,18 +15,14 @@
 """Code to transform functions on individual tuples of particles to sets."""
 
 import enum
-import math
-from functools import partial, reduce
-from operator import mul
+from functools import partial
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import jax.numpy as jnp
 import numpy as onp
-from jax import eval_shape, lax, ops, tree_map, vmap
-from jax.core import ShapedArray
-from jax.interpreters import partial_eval as pe
+from jax import ops, tree_map, vmap
 
-from apax.utils.jax_md_reduced import dataclasses, partition, quantity, space, util
+from apax.utils.jax_md_reduced import dataclasses, partition, space, util
 
 high_precision_sum = util.high_precision_sum
 

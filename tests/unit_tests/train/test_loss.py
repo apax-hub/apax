@@ -11,68 +11,76 @@ from apax.train.loss import (
 
 
 def test_weighted_squared_error():
-    energy_label = jnp.array([[0.1, 0.4, 0.2, -0.5], [0.1, -0.1, 0.8, 0.6]])
+    name = "energy"
+    label = {"energy": jnp.array([[0.1, 0.4, 0.2, -0.5], [0.1, -0.1, 0.8, 0.6]])}
 
-    loss = weighted_squared_error(energy_label, energy_label, divisor=1.0)
+    loss = weighted_squared_error(label, label, name, divisor=1.0)
     loss = jnp.sum(loss)
     ref = 0.0
     assert loss.shape == ()
     assert abs(loss - ref) < 1e-6
 
-    pred = jnp.array(
-        [
-            [0.6, 0.4, 0.2, -0.5],
-            [0.1, -0.1, 0.8, 0.6],
-        ]
-    )
-    loss = weighted_squared_error(energy_label, pred, divisor=1.0)
+    pred = {
+        "energy": jnp.array(
+            [
+                [0.6, 0.4, 0.2, -0.5],
+                [0.1, -0.1, 0.8, 0.6],
+            ]
+        )
+    }
+    loss = weighted_squared_error(label, pred, name, divisor=1.0)
     loss = jnp.sum(loss)
     ref = 0.25
     assert abs(loss - ref) < 1e-6
 
-    loss = weighted_squared_error(energy_label, pred, divisor=2.0)
+    loss = weighted_squared_error(label, pred, name, divisor=2.0)
     loss = jnp.sum(loss)
     ref = 0.125
     assert abs(loss - ref) < 1e-6
 
 
 def test_force_angle_loss():
-    F_pred = jnp.array(
-        [
+    name = "forces"
+    F_pred = {
+        "forces": jnp.array(
             [
-                [0.5, 0.0, 0.0],
-                [0.5, 0.0, 0.0],
-                [0.5, 0.5, 0.0],
-                [0.0, 0.5, 0.0],
-                [0.0, 0.5, 0.0],
-                [0.0, 0.0, 0.0],  # padding
+                [
+                    [0.5, 0.0, 0.0],
+                    [0.5, 0.0, 0.0],
+                    [0.5, 0.5, 0.0],
+                    [0.0, 0.5, 0.0],
+                    [0.0, 0.5, 0.0],
+                    [0.0, 0.0, 0.0],  # padding
+                ]
             ]
-        ]
-    )
+        )
+    }
 
-    F_0 = jnp.array(
-        [
+    F_0 = {
+        "forces": jnp.array(
             [
-                [0.5, 0.0, 0.0],
-                [0.9, 0.0, 0.0],
-                [0.5, 0.0, 0.0],
-                [0.5, 0.0, 0.0],
-                [0.9, 0.0, 0.0],
-                [0.0, 0.0, 0.0],  # padding
+                [
+                    [0.5, 0.0, 0.0],
+                    [0.9, 0.0, 0.0],
+                    [0.5, 0.0, 0.0],
+                    [0.5, 0.0, 0.0],
+                    [0.9, 0.0, 0.0],
+                    [0.0, 0.0, 0.0],  # padding
+                ]
             ]
-        ]
-    )
+        )
+    }
 
-    F_angle_loss = force_angle_loss(F_pred, F_0)
+    F_angle_loss = force_angle_loss(F_pred, F_0, name)
     F_angle_loss = jnp.arccos(-F_angle_loss + 1) * 360 / (2 * np.pi)
     assert F_angle_loss.shape == (1, 6)
     ref = jnp.array([0.0, 0.0, 45.0, 90.0, 90.0, 90.0])
     assert jnp.allclose(F_angle_loss, ref)
 
-    F_angle_loss = force_angle_div_force_label(F_pred, F_0)
+    F_angle_loss = force_angle_div_force_label(F_pred, F_0, name)
     assert F_angle_loss.shape == (1, 6)
 
-    F_angle_loss = force_angle_exponential_weight(F_pred, F_0)
+    F_angle_loss = force_angle_exponential_weight(F_pred, F_0, name)
     assert F_angle_loss.shape == (1, 6)
 
 

@@ -1,9 +1,9 @@
 n_epochs: <NUMBER OF EPOCHS>
 seed: 1
 patience: null
-n_models: 1
 n_jitted_steps: 1
 data_parallel: True
+weight_average: null
 
 data:
   directory: models/
@@ -15,8 +15,11 @@ data:
   #train_data_path: <PATH>
   #val_data_path: <PATH>
   #test_data_path: <PATH>
+  dataset:
+    processing: cached
+    shuffle_buffer_size: 1000
+
   additional_properties_info: {}
-  ds_type: cached
 
   n_train: 1000
   n_valid: 100
@@ -30,19 +33,26 @@ data:
   scale_method: "per_element_force_rms_scale"
   scale_options: {}
 
-  shuffle_buffer_size: 1000
-
   pos_unit: Ang
   energy_unit: eV
 
 model:
-  n_basis: 7
-  n_radial: 5
-  n_contr: -1
-  nn: [512, 512]
+  basis:
+    name: gaussian
+    n_basis: 7
+    r_max: 6.0
+    r_min: 0.5
 
-  r_max: 6.0
-  r_min: 0.5
+  ensemble: null
+  # if you would like to train model ensembles, this can be achieved with
+  # the following example.
+  # ensemble:
+  #  kind: full
+  #  n_members: N
+
+  n_radial: 5
+  n_contr: 8
+  nn: [512, 512]
 
   calc_stress: true
   use_zbl: false
@@ -73,16 +83,17 @@ metrics:
   - mse
 
 optimizer:
-  opt_name: adam
-  opt_kwargs: {}
+  name: adam
+  kwargs: {}
   emb_lr: 0.03
   nn_lr: 0.03
   scale_lr: 0.001
   shift_lr: 0.05
   zbl_lr: 0.001
-  transition_begin: 0
-  sam_rho: 0.0
-
+  schedule:
+    name: linear
+    transition_begin: 0
+    end_value: 1e-6
 callbacks:
 - name: csv
 

@@ -26,8 +26,6 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
     def setup(self):
         self.distance = vmap(space.distance, 0, 0)
 
-        self.ke = 14.3996
-
         a_exp = 0.23
         a_num = 0.46850
         coeffs = jnp.array([0.18175, 0.50986, 0.28022, 0.02817])[:, None]
@@ -37,7 +35,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
         a_num_isp = inverse_softplus(a_num)
         coeffs_isp = inverse_softplus(coeffs)
         exps_isp = inverse_softplus(exps)
-        rep_scale_isp = inverse_softplus(1.0 / self.ke)
+        rep_scale_isp = inverse_softplus(0.0)
 
         self.a_exp = self.param("a_exp", nn.initializers.constant(a_exp_isp), (1,))
         self.a_num = self.param("a_num", nn.initializers.constant(a_num_isp), (1,))
@@ -86,5 +84,5 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
         E_ij = Z_i * Z_j / dr * f * cos_cutoff
         if self.apply_mask:
             E_ij = mask_by_neighbor(E_ij, idx)
-        E = 0.5 * rep_scale * self.ke * fp64_sum(E_ij)
+        E = 0.5 * rep_scale * fp64_sum(E_ij)
         return fp64_sum(E)

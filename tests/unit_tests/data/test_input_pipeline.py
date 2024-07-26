@@ -5,7 +5,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from jax import vmap
 
 from apax.data.preprocessing import compute_nl
-from apax.model.gmnn import disp_fn
+from apax.layers.distances import disp_fn
 from apax.utils.convert import atoms_to_inputs, atoms_to_labels
 from apax.utils.data import split_atoms, split_idxs
 from apax.utils.random import seed_py_np_tf

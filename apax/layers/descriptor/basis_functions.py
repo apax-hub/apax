@@ -37,11 +37,35 @@ class GaussianBasis(nn.Module):
         return basis
 
 
+class BesselBasis(nn.Module):
+    """Non-orthogonalized basis functions of Kocer
+    https://doi.org/10.1063/1.5086167
+    """
+
+    n_basis: int = 7
+    r_max: float = 6.0
+    dtype: Any = jnp.float32
+
+    def setup(self):
+        self.n = jnp.arange(self.n_basis, dtype=self.dtype)
+
+    def __call__(self, dr):
+        dr = einops.repeat(dr, "neighbors -> neighbors 1")
+        a = (-1) ** self.n * (jnp.sqrt(2) * np.pi / (self.r_max ** (3 / 2)))
+        b = (self.n + 1) * (self.n + 2) / jnp.sqrt((self.n + 1) ** 2 * (self.n + 2) ** 2)
+        s1 = jnp.sinc((self.n + 1) * dr / self.r_max)
+        s2 = jnp.sinc((self.n + 2) * dr / self.r_max)
+        basis = a * b * (s1 + s2)
+        return basis
+
+
 class RadialFunction(nn.Module):
     n_radial: int = 5
     basis_fn: nn.Module = GaussianBasis()
     n_species: int = 119
     emb_init: str = "uniform"
+    use_embed_norm: bool = True
+    one_sided_dist: bool = False
     dtype: Any = jnp.float32
 
     def setup(self):
@@ -49,10 +73,15 @@ class RadialFunction(nn.Module):
         self.embed_norm = jnp.array(
             1.0 / np.sqrt(self.basis_fn.n_basis), dtype=self.dtype
         )
+        if self.one_sided_dist:
+            lower_bound = 0.0
+        else:
+            lower_bound = -1.0
+
         if self.emb_init is not None:
             self._n_radial = self.n_radial
             if self.emb_init == "uniform":
-                emb_initializer = uniform_range(-1.0, 1.0, dtype=self.dtype)
+                emb_initializer = uniform_range(lower_bound, 1.0, dtype=self.dtype)
                 self.embeddings = self.param(
                     "atomic_type_embedding",
                     emb_initializer,
@@ -65,7 +94,7 @@ class RadialFunction(nn.Module):
                     self.dtype,
                 )
             else:
-                raise NotImplementedError(
+                raise ValueError(
                     "Currently only uniformly initialized embeddings and no embeddings"
                     " are implemented."
                 )
@@ -84,7 +113,8 @@ class RadialFunction(nn.Module):
             species_pair_coeffs = self.embeddings[
                 Z_j, Z_i, ...
             ]  # reverse convention to match original
-            species_pair_coeffs = self.embed_norm * species_pair_coeffs
+            if self.use_embed_norm:
+                species_pair_coeffs = self.embed_norm * species_pair_coeffs
 
             # radial shape: neighbors x n_radial
             radial_function = einops.einsum(
