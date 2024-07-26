@@ -92,6 +92,7 @@ def unpack_results(results, inputs):
     unpacked_results = []
     for i in range(n_structures):
         single_results = jax.tree_map(lambda x: x[i], results)
+        single_results["energy"] = single_results["energy"].item()
         for k, v in single_results.items():
             if "forces" in k:
                 single_results[k] = v[: inputs["n_atoms"][i]]
