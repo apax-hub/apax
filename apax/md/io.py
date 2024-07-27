@@ -70,7 +70,9 @@ class H5TrajHandler(TrajHandler):
         self.sampling_rate = sampling_rate
         self.traj_path = traj_path
         self.time_step = time_step
-        self.db = znh5md.IO(self.traj_path, timestep=self.time_step, store="time")
+        self.db = znh5md.IO(
+            self.traj_path, timestep=self.time_step, store="time", save_units=False
+        )
 
         self.step_counter = 0
         self.buffer = []
