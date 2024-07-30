@@ -2,17 +2,17 @@ import logging
 import pathlib
 import typing as t
 
-from ase import Atoms
 import ase.io
 import numpy as np
 import pandas as pd
 import yaml
 import zntrack.utils
+from ase import Atoms
 
-from apax.md import ASECalculator
-from apax.md.function_transformations import available_transformations, GlobalCalibration
-from apax.train.run import run as apax_run
 from apax.calibration import compute_calibration_factors
+from apax.md import ASECalculator
+from apax.md.function_transformations import GlobalCalibration, available_transformations
+from apax.train.run import run as apax_run
 
 from .utils import check_duplicate_keys
 
@@ -173,7 +173,6 @@ class ApaxEnsemble(ApaxBase):
             return calc
 
 
-
 class ApaxImport(zntrack.Node):
     """Parallel apax model ensemble in ASE.
 
@@ -229,7 +228,6 @@ class ApaxImport(zntrack.Node):
             return calc
 
 
-
 class ApaxCalibrate(ApaxBase):
     """Globally calibrate the energy and force uncertainties of an Apax model.
 
@@ -258,7 +256,7 @@ class ApaxCalibrate(ApaxBase):
     batch_size: int = zntrack.params(32)
     criterion: str = zntrack.params("ma_cal")
     shared_factor: bool = zntrack.params(False)
-    optimizer_bounds: t.Tuple[float, float]  = zntrack.params((1e-2, 1e2))
+    optimizer_bounds: t.Tuple[float, float] = zntrack.params((1e-2, 1e2))
 
     transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
 
@@ -271,7 +269,7 @@ class ApaxCalibrate(ApaxBase):
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
-        
+
         calc = self.model.get_calculator()
         self.e_factor, self.f_factor = compute_calibration_factors(
             calc,
@@ -286,7 +284,6 @@ class ApaxCalibrate(ApaxBase):
             "e_factor": self.e_factor,
             "f_factor": self.f_factor,
         }
-        
 
     def get_calculator(self, **kwargs) -> ase.calculators.calculator.Calculator:
         """Property to return a model specific ase calculator object.

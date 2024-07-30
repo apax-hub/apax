@@ -195,7 +195,7 @@ def make_single_member_gradient(energy_model, idx):
     def energy_i_fn(R, Z, neighbor, box, offsets):
         Ei = energy_model(R, Z, neighbor, box, offsets)[idx]
         return Ei
-    
+
     grad_i_fn = jax.grad(energy_i_fn)
     return grad_i_fn
 
@@ -204,9 +204,10 @@ def make_member_chunk_jac(energy_model, start, end):
     def energy_chunk_fn(R, Z, neighbor, box, offsets):
         Ei = energy_model(R, Z, neighbor, box, offsets)[start:end]
         return Ei
-    
+
     grad_i_fn = jax.jacrev(energy_chunk_fn)
     return grad_i_fn
+
 
 class ShallowEnsembleModel(nn.Module):
     """Transforms an EnergyModel into one that also predicts derivatives the total energy.
@@ -252,7 +253,7 @@ class ShallowEnsembleModel(nn.Module):
                 for _ in range(n_ens // self.chunk_size):
                     end = start + self.chunk_size
                     jac_i_fn = make_member_chunk_jac(self.energy_model, start, end)
-                    force_i = - jac_i_fn(R, Z, neighbor, box, offsets)
+                    force_i = -jac_i_fn(R, Z, neighbor, box, offsets)
                     forces_ens.append(force_i)
                     start = end
 
