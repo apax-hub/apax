@@ -134,9 +134,37 @@ def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_
     return state, step
 
 
+def create_evaluation_functions(aux_fn, positions, Z, neighbor, box):
+
+    offsets = jnp.zeros((neighbor.idx.shape[1], 3))
+    
+    def on_eval(positions, neighbor, box):
+        predictions = aux_fn(
+            positions,
+            Z,
+            neighbor,
+            box,
+            offsets
+        )
+        return predictions
+    
+    predictions = aux_fn(positions,
+            Z,
+            neighbor,
+            box,
+            offsets)
+    dummpy_preds = jax.tree_map(lambda x: jnp.zeros_like(x), predictions)
+    
+    def no_eval(positions, neighbor, box):
+        predictions = dummpy_preds
+        return predictions
+
+    return on_eval, no_eval
+
+
 def run_sim(
     system: System,
-    sim_fns,
+    sim_fns: SimulationFunctions,
     ensemble,
     sim_dir: Path,
     n_steps: int,
@@ -208,31 +236,50 @@ def run_sim(
     pbar_update_freq = int(np.ceil(500 / n_inner))
     pbar_increment = n_inner * pbar_update_freq
 
+    sampling_rate = traj_handler.sampling_rate
+    on_eval, no_eval = create_evaluation_functions(
+        sim_fns.auxiliary_fn,
+        state.position,
+        system.atomic_numbers,
+        neighbor,
+        system.box,
+    )
+
     @jax.jit
-    def sim(state, neighbor):  # TODO make more modular
+    def sim(state, outer_step, neighbor):  # TODO make more modular
         def body_fn(i, state):
-            state, neighbor = state
+            state, outer_step, neighbor = state # neighbors
             if isinstance(state, simulate.NPTNoseHooverState):
                 box = state.box
                 apply_fn_kwargs = {}
             else:
                 box = system.box
-                apply_fn_kwargs = {"box": box}
+                apply_fn_kwargs = {"box": box} # this might cause a bug
 
-            current_energy = energy_fn(R=state.position, neighbor=neighbor, box=box)
-            nbr_kwargs = nbr_options(state)
+            # current_energy = energy_fn(R=state.position, neighbor=neighbor, box=box)
+
             state = apply_fn(state, neighbor=neighbor, **apply_fn_kwargs)
-
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
-            io_callback(traj_handler.step, None, (state, current_energy, nbr_kwargs))
-            return state, neighbor
+            step = i + outer_step * n_inner
+            condition = step % sampling_rate == 0
+            predictions = jax.lax.cond(
+                condition,
+                on_eval,
+                no_eval,
+                state.position, neighbor, box
+            )
 
-        state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
+            # maybe move this to on_eval
+            io_callback(traj_handler.step, None, (state, predictions, nbr_kwargs))
+            return state, outer_step, neighbor
+
+        state, outer_step, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, outer_step, neighbor))
         current_temperature = (
             quantity.temperature(velocity=state.velocity, mass=state.mass) / units.kB
         )
+        
         return state, neighbor, current_temperature
 
     start = time.time()
@@ -250,7 +297,7 @@ def run_sim(
         leave=True,
     )
     while step < n_outer:
-        new_state, neighbor, current_temperature = sim(state, neighbor)
+        new_state, neighbor, current_temperature = sim(state, step, neighbor)
 
         if neighbor.did_buffer_overflow:
             with logging_redirect_tqdm():
@@ -368,7 +415,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         )
 
     builder = ModelBuilder(model_config.model.get_dict())
-    model = builder.build_energy_model(
+    energy_model = builder.build_energy_model(
         apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
     )
     neighbor_fn = partition.neighbor_list(
@@ -381,23 +428,31 @@ def md_setup(model_config: Config, md_config: MDConfig):
         disable_cell_list=True,
     )
 
-    _, params = restore_parameters(model_config.data.model_version_path)
-    params = canonicalize_energy_model_parameters(params)
+    _, gradient_model_params = restore_parameters(model_config.data.model_version_path)
+    params = canonicalize_energy_model_parameters(gradient_model_params)
 
     n_models = 1
     shallow = False
     if (
-        "ensemble" in model_config.model_dump().keys()
-        and model_config.ensemble.n_members > 1
+        "ensemble" in model_config.model.model_dump().keys()
+        and model_config.model.ensemble.n_members > 1
     ):
-        n_models = model_config.ensemble.n_members
+        n_models = model_config.model.ensemble.n_members
         if model_config.model.ensemble.kind == "shallow":
             shallow = True
 
     energy_fn = create_energy_fn(
-        model.apply, params, system.atomic_numbers, n_models, shallow
+        energy_model.apply, params, system.atomic_numbers, n_models, shallow
     )
-    sim_fns = SimulationFunctions(energy_fn, shift_fn, neighbor_fn)
+
+    auxiliary_fn = builder.build_energy_derivative_model(
+        apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
+    )
+    auxiliary_fn = partial(
+        auxiliary_fn.apply,
+        gradient_model_params,
+    )
+    sim_fns = SimulationFunctions(energy_fn, auxiliary_fn, shift_fn, neighbor_fn)
     return system, sim_fns
 
 
