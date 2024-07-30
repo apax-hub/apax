@@ -310,7 +310,7 @@ class ASECalculator(Calculator):
         model = jax.jit(model)
 
         pbar = trange(
-            n_data, desc="Evaluating data", ncols=100, leave=True, disable=silent
+            n_data, desc="Evaluating data", ncols=100, leave=False, disable=silent
         )
         for i, inputs in enumerate(ds):
             results = model(

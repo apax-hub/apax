@@ -9,7 +9,9 @@ def setup_ase():
     """
     from ase.calculators.calculator import all_properties
 
-    for val in ["forces_uncertainty", "energy_uncertainty", "stress_uncertainty"]:
+    additional_keys = ["forces_uncertainty", "energy_uncertainty", "stress_uncertainty", "energy_ensemble", "forces_ensemble"]
+
+    for val in additional_keys:
         if val not in all_properties:
             all_properties.append(val)
 
