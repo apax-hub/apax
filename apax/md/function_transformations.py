@@ -14,14 +14,15 @@ def make_biased_energy_force_fn(bias_fn):
     def biased_energy_force_fn(positions, Z, idx, box, offsets):
         bias_and_grad_fn = jax.value_and_grad(bias_fn, has_aux=True)
 
-        (E_bias, results), F_bias = bias_and_grad_fn(positions, Z, idx, box, offsets)
+        (E_bias, results), neg_F_bias = bias_and_grad_fn(positions, Z, idx, box, offsets)
 
         if "energy_unbiased" not in results.keys():
             results["energy_unbiased"] = results["energy"]
             results["forces_unbiased"] = results["forces"]
 
+        F_bias = - neg_F_bias
         results["energy"] = results["energy"] + E_bias
-        results["forces"] = results["forces"] - F_bias
+        results["forces"] = results["forces"] + F_bias
 
         return results
 
