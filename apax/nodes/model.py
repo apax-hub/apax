@@ -264,9 +264,6 @@ class ApaxCalibrate(ApaxBase):
 
     metrics = zntrack.metrics()
 
-    e_factor: float = zntrack.outs()
-    f_factor: float = zntrack.outs()
-
     def run(self):
         """Primary method to run which executes all steps of the model training"""
 

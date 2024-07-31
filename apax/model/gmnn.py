@@ -246,7 +246,9 @@ class ShallowEnsembleModel(nn.Module):
                 forces_ens = -jax.jacrev(self.energy_model)(R, Z, neighbor, box, offsets)
             else:
                 with jax.ensure_compile_time_eval():
-                    assert n_ens % self.chunk_size == 0
+                    if not n_ens % self.chunk_size == 0:
+                        m = "the chunksize needs to be a factor of the number of ensemble memebrs"
+                        raise ValueError(m)
 
                 forces_ens = []
                 start = 0
