@@ -137,7 +137,7 @@ def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_
 def create_evaluation_functions(aux_fn, positions, Z, neighbor, box):
 
     offsets = jnp.zeros((neighbor.idx.shape[1], 3))
-    
+
     def on_eval(positions, neighbor, box):
         predictions = aux_fn(
             positions,
@@ -147,14 +147,14 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box):
             offsets
         )
         return predictions
-    
+
     predictions = aux_fn(positions,
             Z,
             neighbor,
             box,
             offsets)
     dummpy_preds = jax.tree_map(lambda x: jnp.zeros_like(x), predictions)
-    
+
     def no_eval(positions, neighbor, box):
         predictions = dummpy_preds
         return predictions
@@ -279,7 +279,7 @@ def run_sim(
         current_temperature = (
             quantity.temperature(velocity=state.velocity, mass=state.mass) / units.kB
         )
-        
+
         return state, neighbor, current_temperature
 
     start = time.time()
