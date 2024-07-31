@@ -95,6 +95,7 @@ def unpack_results(results, inputs):
     unpacked_results = []
     for i in range(n_structures):
         single_results = jax.tree_map(lambda x: x[i], results)
+        single_results["energy"] = single_results["energy"].item()
         for k, v in single_results.items():
             if "forces" in k:
                 single_results[k] = v[: inputs["n_atoms"][i]]
@@ -182,7 +183,7 @@ class ASECalculator(Calculator):
             model = make_ensemble(model)
 
         for transformation in self.transformations:
-            model = transformation.apply(model, self.n_models)
+            model = transformation.apply(model)
 
         self.model = model
         self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
@@ -300,14 +301,19 @@ class ASECalculator(Calculator):
             init_box=init_box,
         )
 
-        model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
+        model = partial(model.apply, self.params)
+
+        for transformation in self.transformations:
+            model = transformation.apply(model)
+
+        model = jax.vmap(model, in_axes=(0, 0, 0, 0, 0))
+        model = jax.jit(model)
 
         pbar = trange(
-            n_data, desc="Evaluating data", ncols=100, leave=True, disable=silent
+            n_data, desc="Evaluating data", ncols=100, leave=False, disable=silent
         )
         for i, inputs in enumerate(ds):
             results = model(
-                self.params,
                 inputs["positions"],
                 inputs["numbers"],
                 inputs["idx"],
