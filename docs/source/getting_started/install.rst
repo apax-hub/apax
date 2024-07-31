@@ -56,15 +56,7 @@ CUDA 12:
 .. highlight:: bash
 .. code-block:: bash
 
-    pip install --upgrade "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-
-CUDA 11:
-
-.. highlight:: bash
-.. code-block:: bash
-
-    pip install --upgrade "jax[cuda11_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-
+    pip install -U "jax[cuda12]"
 
 See the `Jax installation instructions <https://github.com/google/jax#installation>`_ for more details.
 

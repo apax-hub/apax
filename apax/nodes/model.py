@@ -7,9 +7,11 @@ import numpy as np
 import pandas as pd
 import yaml
 import zntrack.utils
+from ase import Atoms
 
+from apax.calibration import compute_calibration_factors
 from apax.md import ASECalculator
-from apax.md.function_transformations import available_transformations
+from apax.md.function_transformations import GlobalCalibration, available_transformations
 from apax.train.run import run as apax_run
 
 from .utils import check_duplicate_keys
@@ -42,6 +44,8 @@ class Apax(ApaxBase):
     config: str = zntrack.params_path()
     validation_data = zntrack.deps()
     model: t.Optional[t.Any] = zntrack.deps(None)
+    nl_skin: float = zntrack.params(0.5)
+    transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
     log_level: str = zntrack.meta.Text("info")
 
     model_directory: pathlib.Path = zntrack.outs_path(zntrack.nwd / "apax_model")
@@ -108,8 +112,18 @@ class Apax(ApaxBase):
 
     def get_calculator(self, **kwargs):
         """Get an apax ase calculator"""
+        transformations = []
+        if self.transformations:
+            for transform, params in self.transformations.items():
+                transformations.append(available_transformations[transform](**params))
+
         with self.state.use_tmp_path():
-            return ASECalculator(model_dir=self.model_directory)
+            calc = ASECalculator(
+                model_dir=self.model_directory,
+                dr_threshold=self.nl_skin,
+                transformations=transformations,
+            )
+            return calc
 
 
 class ApaxEnsemble(ApaxBase):
@@ -129,7 +143,7 @@ class ApaxEnsemble(ApaxBase):
 
     models: list[Apax] = zntrack.deps()
     nl_skin: float = zntrack.params(0.5)
-    transformations: dict[str, dict] = zntrack.params(None)
+    transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
 
     def run(self) -> None:
         pass
@@ -150,12 +164,13 @@ class ApaxEnsemble(ApaxBase):
             for transform, params in self.transformations.items():
                 transformations.append(available_transformations[transform](**params))
 
-        calc = ASECalculator(
-            param_files,
-            dr=self.nl_skin,
-            transformations=transformations,
-        )
-        return calc
+        with self.state.use_tmp_path():
+            calc = ASECalculator(
+                param_files,
+                dr_threshold=self.nl_skin,
+                transformations=transformations,
+            )
+            return calc
 
 
 class ApaxImport(zntrack.Node):
@@ -175,7 +190,7 @@ class ApaxImport(zntrack.Node):
 
     config: str = zntrack.params_path()
     nl_skin: float = zntrack.params(0.5)
-    transformations: dict[str, dict] = zntrack.params(None)
+    transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
 
     _parameter: dict = None
 
@@ -204,9 +219,93 @@ class ApaxImport(zntrack.Node):
             for transform, params in self.transformations.items():
                 transformations.append(available_transformations[transform](**params))
 
-        calc = ASECalculator(
-            model_dir,
-            dr=self.nl_skin,
-            transformations=transformations,
+        with self.state.use_tmp_path():
+            calc = ASECalculator(
+                model_dir,
+                dr=self.nl_skin,
+                transformations=transformations,
+            )
+            return calc
+
+
+class ApaxCalibrate(ApaxBase):
+    """Globally calibrate the energy and force uncertainties of an Apax model.
+
+    Parameters
+    ----------
+    model: Apax
+        Model to calibrate
+    validation_data: list[ase.Atoms]
+        Calibration atoms
+    batch_size: int, default = 32
+        Processing batch size. Choose the largest allowed by your VRAM.
+    criterion: str, default = "ma_cal
+        Calibration criterion. See uncertainty_toolbox for more details.
+    shared_factor: bool, default = False
+        Whether or not to calibrate energies and forces separately.
+    optimizer_bounds: Tuple[float, float], default = (1e-2, 1e2)
+        Search value bounds.
+    transformations: dict
+        Key-parameter dict with function transformations applied
+        to the model function within the ASE calculator.
+        See the apax documentation for available methods.
+    """
+
+    model: t.Any = zntrack.deps()
+    validation_data: list[Atoms] = zntrack.deps()
+    batch_size: int = zntrack.params(32)
+    criterion: str = zntrack.params("ma_cal")
+    shared_factor: bool = zntrack.params(False)
+    optimizer_bounds: t.Tuple[float, float] = zntrack.params((1e-2, 1e2))
+
+    transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
+
+    nl_skin: float = zntrack.params(0.5)
+
+    metrics = zntrack.metrics()
+
+    def run(self):
+        """Primary method to run which executes all steps of the model training"""
+
+        calc = self.model.get_calculator()
+        self.e_factor, self.f_factor = compute_calibration_factors(
+            calc,
+            self.validation_data,
+            batch_size=self.batch_size,
+            criterion=self.criterion,
+            shared_factor=self.shared_factor,
+            optimizer_bounds=self.optimizer_bounds,
         )
-        return calc
+
+        self.metrics = {
+            "e_factor": self.e_factor,
+            "f_factor": self.f_factor,
+        }
+
+    def get_calculator(self, **kwargs) -> ase.calculators.calculator.Calculator:
+        """Property to return a model specific ase calculator object.
+
+        Returns
+        -------
+        calc:
+            ase calculator object
+        """
+
+        config_file = self.model._parameter["data"]["directory"]
+
+        calibration = GlobalCalibration(
+            energy_factor=self.e_factor,
+            forces_factor=self.f_factor,
+        )
+        transformations = [calibration]
+        if self.transformations:
+            for transform, params in self.transformations.items():
+                transformations.append(available_transformations[transform](**params))
+
+        with self.state.use_tmp_path():
+            calc = ASECalculator(
+                config_file,
+                dr=self.nl_skin,
+                transformations=transformations,
+            )
+            return calc

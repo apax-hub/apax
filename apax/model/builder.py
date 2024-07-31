@@ -176,6 +176,7 @@ class ModelBuilder:
                 energy_model,
                 calc_stress=self.config["calc_stress"],
                 force_variance=self.config["ensemble"]["force_variance"],
+                chunk_size=self.config["ensemble"]["chunk_size"],
             )
         else:
             log.info("Bulding Standard model")

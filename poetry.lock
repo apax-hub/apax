@@ -2751,7 +2751,7 @@ i18n = ["Babel (>=2.7)"]
 name = "joblib"
 version = "1.4.2"
 description = "Lightweight pipelining with Python functions"
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "joblib-1.4.2-py3-none-any.whl", hash = "sha256:06d478d5674cbc267e7496a410ee875abd68e4340feff4490bcb7afb88060ae6"},
@@ -5376,7 +5376,7 @@ files = [
 name = "scikit-learn"
 version = "1.5.1"
 description = "A set of python modules for machine learning and data mining"
-optional = true
+optional = false
 python-versions = ">=3.9"
 files = [
     {file = "scikit_learn-1.5.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:781586c414f8cc58e71da4f3d7af311e0505a683e112f2f62919e3019abd3745"},
@@ -6389,7 +6389,7 @@ tests = ["pytest", "pytest-cov"]
 name = "threadpoolctl"
 version = "3.5.0"
 description = "threadpoolctl"
-optional = true
+optional = false
 python-versions = ">=3.8"
 files = [
     {file = "threadpoolctl-3.5.0-py3-none-any.whl", hash = "sha256:56c1e26c150397e58c4926da8eeee87533b1e32bef131bd4bf6a2f45f3185467"},
@@ -6572,6 +6572,24 @@ files = [
     {file = "tzdata-2024.1-py2.py3-none-any.whl", hash = "sha256:9068bc196136463f5245e51efda838afa15aaeca9903f49050dfa2679db4d252"},
     {file = "tzdata-2024.1.tar.gz", hash = "sha256:2674120f8d891909751c38abcdfd386ac0a5a1127954fbc332af6b5ceae07efd"},
 ]
+
+[[package]]
+name = "uncertainty-toolbox"
+version = "0.1.1"
+description = "Uncertainty Toolbox: a python toolbox for predictive uncertainty quantification, calibration, metrics, and visualization."
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "uncertainty-toolbox-0.1.1.tar.gz", hash = "sha256:d9389112bd431edc8b6e44c5b12405dea8f86063ff9b79f0bb178e5ac76bcfa5"},
+    {file = "uncertainty_toolbox-0.1.1-py3-none-any.whl", hash = "sha256:9aebd0ab174f15a06f1c63c6172dd24ace2b7a4ba5610c3ee5a186bf5669cf24"},
+]
+
+[package.dependencies]
+matplotlib = ">=3.2.2"
+numpy = ">=1.19.0"
+scikit-learn = ">=0.23.1"
+scipy = ">=1.5.0"
+tqdm = ">=4.54.0"
 
 [[package]]
 name = "urllib3"
@@ -7023,4 +7041,4 @@ zntrack = ["zntrack"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "10ea75420f714566201de1262839ef428081976cdfc58874dab6ca2beafa2794"
+content-hash = "8cfe7ad5c7b3a93a18daf87e1f86e6e520ed453c6fc5d3ddad7046342ae6a46c"

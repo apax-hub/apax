@@ -272,11 +272,16 @@ class ShallowEnsembleConfig(BaseModel, extra="forbid"):
         Whether or not to compute force uncertainties.
         Required for probabilistic force loss and calibration of force uncertainties.
         Can lead to better force metrics but but enabling it introduces some non-negligible cost.
+    chunk_size : Optional[int], default = None
+        If set to an integer, the jacobian of ensemble energies wrt. to positions will be computed
+        in chunks of that size. This sacrifices some performance for the possibility to use relatively
+        large ensemble sizes.
     """
 
     kind: Literal["shallow"] = "shallow"
     n_members: int
     force_variance: bool = True
+    chunk_size: Optional[int] = None
 
 
 EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
