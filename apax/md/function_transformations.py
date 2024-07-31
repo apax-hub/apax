@@ -20,7 +20,7 @@ def make_biased_energy_force_fn(bias_fn):
             results["energy_unbiased"] = results["energy"]
             results["forces_unbiased"] = results["forces"]
 
-        F_bias = - neg_F_bias
+        F_bias = -neg_F_bias
         results["energy"] = results["energy"] + E_bias
         results["forces"] = results["forces"] + F_bias
 
