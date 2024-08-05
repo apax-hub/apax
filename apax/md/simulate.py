@@ -15,6 +15,7 @@ from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from apax.config import Config, MDConfig, parse_config
+from apax.md.ase_calc import make_ensemble, maybe_vmap
 from apax.md.io import H5TrajHandler, TrajHandler, truncate_trajectory_to_checkpoint
 from apax.md.md_checkpoint import load_md_state
 from apax.md.sim_utils import SimulationFunctions, System
@@ -256,8 +257,6 @@ def run_sim(
                 box = system.box
                 apply_fn_kwargs = {"box": box} # this might cause a bug
 
-            # current_energy = energy_fn(R=state.position, neighbor=neighbor, box=box)
-
             state = apply_fn(state, neighbor=neighbor, **apply_fn_kwargs)
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
@@ -435,6 +434,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     shallow = False
     if (
         "ensemble" in model_config.model.model_dump().keys()
+        and model_config.model.ensemble is not None
         and model_config.model.ensemble.n_members > 1
     ):
         n_models = model_config.model.ensemble.n_members
@@ -447,11 +447,16 @@ def md_setup(model_config: Config, md_config: MDConfig):
 
     auxiliary_fn = builder.build_energy_derivative_model(
         apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
-    )
-    auxiliary_fn = partial(
-        auxiliary_fn.apply,
-        gradient_model_params,
-    )
+    ).apply
+    
+    if n_models > 1 and not shallow:
+        auxiliary_fn = maybe_vmap(auxiliary_fn, gradient_model_params)
+        auxiliary_fn = make_ensemble(auxiliary_fn)
+    else:
+        auxiliary_fn = partial(
+            auxiliary_fn,
+            gradient_model_params,
+        )
     sim_fns = SimulationFunctions(energy_fn, auxiliary_fn, shift_fn, neighbor_fn)
     return system, sim_fns
 
