@@ -136,24 +136,13 @@ def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_
 
 
 def create_evaluation_functions(aux_fn, positions, Z, neighbor, box):
-
     offsets = jnp.zeros((neighbor.idx.shape[1], 3))
 
     def on_eval(positions, neighbor, box):
-        predictions = aux_fn(
-            positions,
-            Z,
-            neighbor,
-            box,
-            offsets
-        )
+        predictions = aux_fn(positions, Z, neighbor, box, offsets)
         return predictions
 
-    predictions = aux_fn(positions,
-            Z,
-            neighbor,
-            box,
-            offsets)
+    predictions = aux_fn(positions, Z, neighbor, box, offsets)
     dummpy_preds = jax.tree_map(lambda x: jnp.zeros_like(x), predictions)
 
     def no_eval(positions, neighbor, box):
@@ -249,13 +238,13 @@ def run_sim(
     @jax.jit
     def sim(state, outer_step, neighbor):  # TODO make more modular
         def body_fn(i, state):
-            state, outer_step, neighbor = state # neighbors
+            state, outer_step, neighbor = state  # neighbors
             if isinstance(state, simulate.NPTNoseHooverState):
                 box = state.box
                 apply_fn_kwargs = {}
             else:
                 box = system.box
-                apply_fn_kwargs = {"box": box} # this might cause a bug
+                apply_fn_kwargs = {"box": box}  # this might cause a bug
 
             state = apply_fn(state, neighbor=neighbor, **apply_fn_kwargs)
             nbr_kwargs = nbr_options(state)
@@ -264,17 +253,16 @@ def run_sim(
             step = i + outer_step * n_inner
             condition = step % sampling_rate == 0
             predictions = jax.lax.cond(
-                condition,
-                on_eval,
-                no_eval,
-                state.position, neighbor, box
+                condition, on_eval, no_eval, state.position, neighbor, box
             )
 
             # maybe move this to on_eval
             io_callback(traj_handler.step, None, (state, predictions, nbr_kwargs))
             return state, outer_step, neighbor
 
-        state, outer_step, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, outer_step, neighbor))
+        state, outer_step, neighbor = jax.lax.fori_loop(
+            0, n_inner, body_fn, (state, outer_step, neighbor)
+        )
         current_temperature = (
             quantity.temperature(velocity=state.velocity, mass=state.mass) / units.kB
         )

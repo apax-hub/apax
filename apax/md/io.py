@@ -51,7 +51,7 @@ class TrajHandler:
         atoms = Atoms(self.atomic_numbers, positions, momenta=momenta, cell=box)
         atoms.cell = atoms.cell.T
         atoms.pbc = np.diag(atoms.cell.array) > 1e-6
-        predictions = {k: np.array(v) for k,v in predictions.items()}
+        predictions = {k: np.array(v) for k, v in predictions.items()}
         predictions["energy"] = predictions["energy"].item()
         atoms.calc = SinglePointCalculator(atoms, **predictions)
         return atoms
