@@ -448,7 +448,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
     auxiliary_fn = builder.build_energy_derivative_model(
         apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
     ).apply
-    
+
     if n_models > 1 and not shallow:
         auxiliary_fn = maybe_vmap(auxiliary_fn, gradient_model_params)
         auxiliary_fn = make_ensemble(auxiliary_fn)
