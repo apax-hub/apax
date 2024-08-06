@@ -1,8 +1,10 @@
 import os
 import pathlib
+import sys
 
 import ipsuite as ips
 import numpy as np
+import pytest
 import yaml
 import zntrack
 
@@ -43,6 +45,8 @@ def test_n_train_model(tmp_path, get_md22_stachyose):
     assert atoms.get_potential_energy() < 0
 
 
+@pytest.mark.skipif('ipsuite' not in sys.modules,
+                    reason="requires new ipsuite release")
 def test_n_train_2_model(tmp_path, get_md22_stachyose):
     os.chdir(tmp_path)
 
