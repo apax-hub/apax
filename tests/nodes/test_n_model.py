@@ -45,8 +45,7 @@ def test_n_train_model(tmp_path, get_md22_stachyose):
     assert atoms.get_potential_energy() < 0
 
 
-@pytest.mark.skipif('ipsuite' not in sys.modules,
-                    reason="requires new ipsuite release")
+@pytest.mark.skipif("ipsuite" not in sys.modules, reason="requires new ipsuite release")
 def test_n_train_2_model(tmp_path, get_md22_stachyose):
     os.chdir(tmp_path)
 
@@ -84,7 +83,9 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
         )
 
         prediction = ips.analysis.Prediction(data=kernel_selection.atoms, model=ensemble)
-        analysis = ips.analysis.PredictionMetrics(x=kernel_selection.atoms, y=prediction.atoms)
+        analysis = ips.analysis.PredictionMetrics(
+            x=kernel_selection.atoms, y=prediction.atoms
+        )
 
     proj.run()
 
