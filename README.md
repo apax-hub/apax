@@ -50,7 +50,7 @@ Simply run the following commands and add the appropriate entries in the marked 
 apax template train # use --full for a template with all input options
 ```
 
-Please refer to the documentation LINK for a detailed explanation of all parameters.
+Please refer to the [documentation](https://apax.readthedocs.io/en/latest/) for a detailed explanation of all parameters.
 The documentation can convenienty be accessed by running `apax docs`.
 
 ## Molecular Dynamics
@@ -69,28 +69,14 @@ The second way is to use the ASE calculator provided in `apax.md`.
 
 ## Input File Auto-Completion
 
-use the following command to generate JSON schemata for training and validation files:
+use the following command to generate JSON schemata for training and MD configuration files:
 
 ```bash
 apax schema
 ```
 
-If you are using VSCode, you can utilize them to lint and autocomplete your input files by including them in `.vscode/settings.json`
-
-```json
-{
-    "yaml.schemas": {
-
-        "/absolute/path/to/apaxtrain.schema.json": [
-            "train.yaml"
-        ]
-        ,
-        "/absolute/path/to/apaxmd.schema.json": [
-            "md.yaml"
-        ]
-    }
-}
-```
+If you are using VSCode, you can utilize them to lint and autocomplete your input files.
+The command creates the 2 schemata and adds them to the projects `.vscode/settings.json`
 
 
 ## Authors
