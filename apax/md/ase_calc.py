@@ -13,7 +13,7 @@ from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
 from apax.data.input_pipeline import (
-    OTFInMemoryDataset, CachedInMemoryDataset,
+    CachedInMemoryDataset,
 )
 from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
