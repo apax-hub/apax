@@ -9,6 +9,7 @@ from apax.layers.descriptor.basis_functions import (
     RadialFunction,
 )
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
+from apax.layers.descriptor.e3xcustom import e3xRepresentation
 from apax.layers.empirical import ZBLRepulsion
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
@@ -74,14 +75,7 @@ class ModelBuilder:
         self,
         apply_mask,
     ):
-        radial_fn = self.build_radial_function()
-        descriptor = GaussianMomentDescriptor(
-            radial_fn=radial_fn,
-            n_contr=self.config["n_contr"],
-            dtype=self.config["descriptor_dtype"],
-            apply_mask=apply_mask,
-        )
-        return descriptor
+        raise NotImplementedError("use a subclass to facilitate this")
 
     def build_readout(self, is_feature_fn=False):
         if self.config["ensemble"] and self.config["ensemble"]["kind"] == "shallow":
@@ -205,3 +199,39 @@ class ModelBuilder:
             mask_atoms=True,
         )
         return model
+
+
+
+class GMNNBuilder(ModelBuilder):
+    def build_descriptor(
+        self,
+        apply_mask,
+    ):
+        radial_fn = self.build_radial_function()
+        descriptor = GaussianMomentDescriptor(
+            radial_fn=radial_fn,
+            n_contr=self.config["n_contr"],
+            dtype=self.config["descriptor_dtype"],
+            apply_mask=apply_mask,
+        )
+        return descriptor
+
+
+class e3xCustomBuilder(ModelBuilder):
+    def build_descriptor(
+        self,
+        apply_mask,
+    ):
+        # radial_fn = self.build_radial_function()
+        descriptor = e3xRepresentation(
+            features=self.config["features"],
+            max_degree=self.config["max_degree"],
+            num_iterations=self.config["num_iterations"],
+            num_basis_functions=self.config["num_basis_functions"],
+            cutoff=self.config["cutoff"],
+            # dtype=self.config["descriptor_dtype"],
+            apply_mask=apply_mask,
+        )
+        return descriptor
+    
+

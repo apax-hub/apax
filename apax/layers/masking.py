@@ -12,4 +12,6 @@ def mask_by_neighbor(arr, idx):
     mask = ((idx[0] - idx[1]) != 0).astype(arr.dtype)
     if len(arr.shape) == 2:
         mask = mask[..., None]
+    elif len(arr.shape) == 4:
+        mask = mask[:, None, None, None]
     return arr * mask

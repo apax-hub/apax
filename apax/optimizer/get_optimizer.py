@@ -120,6 +120,9 @@ def get_opt(
         "coefficients": zbl_opt,
         "exponents": zbl_opt,
         "rep_scale": zbl_opt,
+        "kernel": nn_opt,
+        "bias": nn_opt,
+        "embedding": emb_opt,
     }
 
     param_partitions = freeze(

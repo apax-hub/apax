@@ -287,7 +287,7 @@ class ShallowEnsembleConfig(BaseModel, extra="forbid"):
 EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
 
 
-class ModelConfig(BaseModel, extra="forbid"):
+class GMNNConfig(BaseModel, extra="forbid"):
     """
     Configuration for the model.
 
@@ -323,6 +323,9 @@ class ModelConfig(BaseModel, extra="forbid"):
         Data type for scale and shift parameters.
     """
 
+
+    name: Literal["gmnn"] = "gmnn"
+
     basis: BasisConfig = Field(GaussianBasisConfig(name="gaussian"), discriminator="name")
     n_radial: PositiveInt = 5
     n_contr: int = 8
@@ -354,6 +357,93 @@ class ModelConfig(BaseModel, extra="forbid"):
         model_dict["scale_shift_dtype"] = prec_dict[model_dict["scale_shift_dtype"]]
 
         return model_dict
+    
+    def get_builder(self):
+        from apax.model.builder import GMNNBuilder
+        return GMNNBuilder
+
+
+class e3xCustomConfig(BaseModel, extra="forbid"):
+    """
+    Configuration for the model.
+
+    Parameters
+    ----------
+    basis : BasisConfig, default = GaussianBasisConfig()
+        Configuration for primitive basis funtions.
+    n_radial : PositiveInt, default = 5
+        Number of contracted basis functions.
+    n_contr : int, default = 8
+        How many gaussian moment contractions to use.
+    emb_init : Optional[str], default = "uniform"
+        Initialization scheme for embedding layer weights.
+    nn : List[PositiveInt], default = [512, 512]
+        Number of hidden layers and units in those layers.
+    w_init : Literal["normal", "lecun"], default = "normal"
+        Initialization scheme for the neural network weights.
+    b_init : Literal["normal", "zeros"], default = "normal"
+        Initialization scheme for the neural network biases.
+    use_ntk : bool, default = True
+        Whether or not to use NTK parametrization.
+    ensemble : Optional[EnsembleConfig], default = None
+        What kind of model ensemble to use (optional).
+    use_zbl : bool, default = False
+        Whether to include the ZBL correction.
+    calc_stress : bool, default = False
+        Whether to calculate stress during model evaluation.
+    descriptor_dtype : Literal["fp32", "fp64"], default = "fp64"
+        Data type for descriptor calculations.
+    readout_dtype : Literal["fp32", "fp64"], default = "fp32"
+        Data type for readout calculations.
+    scale_shift_dtype : Literal["fp32", "fp64"], default = "fp32"
+        Data type for scale and shift parameters.
+    """
+    
+    name: Literal["e3x-custom"] = "e3x-custom"
+
+    basis: BasisConfig = Field(GaussianBasisConfig(name="gaussian"), discriminator="name")
+
+    features: PositiveInt = 32
+    max_degree: PositiveInt = 2
+    num_iterations: PositiveInt = 1
+    num_basis_functions: PositiveInt = 8
+    cutoff: PositiveInt = 5.0
+
+    ensemble: Optional[EnsembleConfig] = None
+
+    nn: List[PositiveInt] = [32, 32]
+    w_init: Literal["normal", "lecun"] = "lecun"
+    b_init: Literal["normal", "zeros"] = "zeros"
+    use_ntk: bool = False
+
+    # corrections
+    use_zbl: bool = False
+
+    calc_stress: bool = False
+
+    descriptor_dtype: Literal["fp32", "fp64"] = "fp64"
+    readout_dtype: Literal["fp32", "fp64"] = "fp32"
+    scale_shift_dtype: Literal["fp32", "fp64"] = "fp32"
+
+    def get_dict(self):
+        import jax.numpy as jnp
+
+        model_dict = self.model_dump()
+        prec_dict = {"fp32": jnp.float32, "fp64": jnp.float64}
+        model_dict["descriptor_dtype"] = prec_dict[model_dict["descriptor_dtype"]]
+        model_dict["readout_dtype"] = prec_dict[model_dict["readout_dtype"]]
+        model_dict["scale_shift_dtype"] = prec_dict[model_dict["scale_shift_dtype"]]
+
+        return model_dict
+    
+    def get_builder(self):
+        from apax.model.builder import e3xCustomBuilder
+        return e3xCustomBuilder
+
+
+
+ModelConfig = Union[GMNNConfig, e3xCustomConfig]
+
 
 
 class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
@@ -587,7 +677,9 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     data_parallel: bool = True
 
     data: DataConfig
-    model: ModelConfig = ModelConfig()
+    model: ModelConfig = Field(
+        GMNNConfig(name="gmnn"), discriminator="name"
+    )
     metrics: List[MetricsConfig] = []
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()

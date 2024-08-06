@@ -165,7 +165,8 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
     train_ds, val_ds, ds_stats = initialize_datasets(config)
 
     sample_input, init_box = train_ds.init_input()
-    builder = ModelBuilder(config.model.get_dict())
+    Builder = config.model.get_builder()
+    builder = Builder(config.model.get_dict())
     model = builder.build_energy_derivative_model(
         scale=ds_stats.elemental_scale,
         shift=ds_stats.elemental_shift,

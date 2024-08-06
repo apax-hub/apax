@@ -31,6 +31,7 @@ mlflow = {version = "^2", optional = true}
 orbax-checkpoint = "0.5.16"
 flax = "0.8.4"
 uncertainty-toolbox = "^0.1.1"
+e3x = "^1.0.2"
 
 [tool.poetry.extras]
 zntrack = ["zntrack"]
