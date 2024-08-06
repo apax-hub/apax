@@ -75,7 +75,10 @@ def make_optimizer(opt, lr, n_epochs, steps_per_epoch, kwargs, schedule):
         optimizer = optax.set_to_zero()
     else:
         schedule = get_schedule(lr, n_epochs, steps_per_epoch, schedule)
-        optimizer = opt(schedule, **kwargs)
+        optimizer = optax.chain(
+            opt(schedule, **kwargs),
+            optax.zero_nans(),
+        )
     return optimizer
 
 
