@@ -34,7 +34,7 @@ class BatchKernelSelection(BatchConfigurationSelection):
         Number of samples to be processed in parallel.
         Does not affect the result, just the speed of computing features.
     """
-    
+
     _module_ = "apax.nodes"
 
     models: typing.List[ApaxBase] = zntrack.deps()
