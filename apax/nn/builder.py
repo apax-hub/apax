@@ -222,15 +222,12 @@ class EquivMPBuilder(ModelBuilder):
         self,
         apply_mask,
     ):
-        # radial_fn = self.build_radial_function()
         descriptor = EquivMPRepresentation(
             features=self.config["features"],
             max_degree=self.config["max_degree"],
             num_iterations=self.config["num_iterations"],
             basis_fn=self.build_basis_function(),
-            # num_basis_functions=self.config["num_basis_functions"],
-            # cutoff=self.config["cutoff"],
-            # dtype=self.config["descriptor_dtype"],
+            dtype=self.config["descriptor_dtype"],
             apply_mask=apply_mask,
         )
         return descriptor

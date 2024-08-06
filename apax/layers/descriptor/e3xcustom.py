@@ -1,4 +1,5 @@
 import functools
+from typing import Any
 
 import flax.linen as nn
 import jax
@@ -16,13 +17,14 @@ class EquivMPRepresentation(nn.Module):
     max_degree: int = 2
     num_iterations: int = 3
     max_atomic_number: int = 118
+    dtype: Any = jnp.float32
     apply_mask: bool = True
 
 
     @nn.compact
     def __call__(self, dr_vec, Z, neighbor_idxs):
 
-        dr_vec = dr_vec.astype(jnp.float32)
+        dr_vec = dr_vec.astype(self.dtype)
 
         idx_i, idx_j = neighbor_idxs[0], neighbor_idxs[1]
         # 1. Calculate displacement vectors.
@@ -42,7 +44,7 @@ class EquivMPRepresentation(nn.Module):
 
         # 3. Embed atomic numbers in feature space, x has shape (num_atoms, 1, 1, features).
         x = e3x.nn.Embed(num_embeddings=self.max_atomic_number+1, features=self.features)(Z)
-        x = x.astype(jnp.float32)
+        x = x.astype(self.dtype)
 
         # 4. Perform iterations (message-passing + atom-wise refinement).
         for i in range(self.num_iterations):
@@ -57,8 +59,8 @@ class EquivMPRepresentation(nn.Module):
                 # In intermediate iterations, the message-pass should consider all possible coupling paths.
                 y = e3x.nn.MessagePass()(x, basis, dst_idx=idx_i, src_idx=idx_j)
             
-            x = x.astype(jnp.float32)
-            y = y.astype(jnp.float32)
+            x = x.astype(self.dtype)
+            y = y.astype(self.dtype)
             y = e3x.nn.add(x, y)
 
             # Atom-wise refinement MLP.
