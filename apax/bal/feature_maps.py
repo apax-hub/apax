@@ -7,7 +7,7 @@ from flax.core.frozen_dict import FrozenDict
 from flax.traverse_util import flatten_dict, unflatten_dict
 from pydantic import BaseModel, TypeAdapter
 
-from apax.model.gmnn import EnergyModel
+from apax.nn.models import EnergyModel
 
 FeatureMap = Callable[[FrozenDict, dict], jax.Array]
 

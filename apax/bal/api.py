@@ -10,8 +10,8 @@ from tqdm import trange
 
 from apax.bal import feature_maps, kernel, selection, transforms
 from apax.data.input_pipeline import OTFInMemoryDataset
-from apax.model.builder import ModelBuilder
-from apax.model.gmnn import EnergyModel
+from apax.nn.builder import ModelBuilder
+from apax.nn.models import EnergyModel
 from apax.train.checkpoints import (
     canonicalize_energy_model_parameters,
     check_for_ensemble,

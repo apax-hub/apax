@@ -9,11 +9,11 @@ from apax.layers.descriptor.basis_functions import (
     RadialFunction,
 )
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
-from apax.layers.descriptor.e3xcustom import e3xRepresentation
+from apax.layers.descriptor.e3xcustom import EquivMPRepresentation
 from apax.layers.empirical import ZBLRepulsion
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
-from apax.model.gmnn import (
+from apax.nn.models import (
     AtomisticModel,
     EnergyDerivativeModel,
     EnergyModel,
@@ -217,18 +217,19 @@ class GMNNBuilder(ModelBuilder):
         return descriptor
 
 
-class e3xCustomBuilder(ModelBuilder):
+class EquivMPBuilder(ModelBuilder):
     def build_descriptor(
         self,
         apply_mask,
     ):
         # radial_fn = self.build_radial_function()
-        descriptor = e3xRepresentation(
+        descriptor = EquivMPRepresentation(
             features=self.config["features"],
             max_degree=self.config["max_degree"],
             num_iterations=self.config["num_iterations"],
-            num_basis_functions=self.config["num_basis_functions"],
-            cutoff=self.config["cutoff"],
+            basis_fn=self.build_basis_function(),
+            # num_basis_functions=self.config["num_basis_functions"],
+            # cutoff=self.config["cutoff"],
             # dtype=self.config["descriptor_dtype"],
             apply_mask=apply_mask,
         )

@@ -287,7 +287,38 @@ class ShallowEnsembleConfig(BaseModel, extra="forbid"):
 EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
 
 
-class GMNNConfig(BaseModel, extra="forbid"):
+
+class BaseModelConfig(BaseModel, extra="forbid"):
+
+    nn: List[PositiveInt] = [512, 512]
+    w_init: Literal["normal", "lecun"] = "normal"
+    b_init: Literal["normal", "zeros"] = "normal"
+    use_ntk: bool = True
+
+    ensemble: Optional[EnsembleConfig] = None
+
+    # corrections
+    use_zbl: bool = False
+
+    calc_stress: bool = False
+
+    descriptor_dtype: Literal["fp32", "fp64"] = "fp64"
+    readout_dtype: Literal["fp32", "fp64"] = "fp32"
+    scale_shift_dtype: Literal["fp32", "fp64"] = "fp32"
+
+    def get_dict(self):
+        import jax.numpy as jnp
+
+        model_dict = self.model_dump()
+        prec_dict = {"fp32": jnp.float32, "fp64": jnp.float64}
+        model_dict["descriptor_dtype"] = prec_dict[model_dict["descriptor_dtype"]]
+        model_dict["readout_dtype"] = prec_dict[model_dict["readout_dtype"]]
+        model_dict["scale_shift_dtype"] = prec_dict[model_dict["scale_shift_dtype"]]
+
+        return model_dict
+
+
+class GMNNConfig(BaseModelConfig, extra="forbid"):
     """
     Configuration for the model.
 
@@ -330,40 +361,13 @@ class GMNNConfig(BaseModel, extra="forbid"):
     n_radial: PositiveInt = 5
     n_contr: int = 8
     emb_init: Optional[str] = "uniform"
-
-    nn: List[PositiveInt] = [512, 512]
-    w_init: Literal["normal", "lecun"] = "normal"
-    b_init: Literal["normal", "zeros"] = "normal"
-    use_ntk: bool = True
-
-    ensemble: Optional[EnsembleConfig] = None
-
-    # corrections
-    use_zbl: bool = False
-
-    calc_stress: bool = False
-
-    descriptor_dtype: Literal["fp32", "fp64"] = "fp64"
-    readout_dtype: Literal["fp32", "fp64"] = "fp32"
-    scale_shift_dtype: Literal["fp32", "fp64"] = "fp32"
-
-    def get_dict(self):
-        import jax.numpy as jnp
-
-        model_dict = self.model_dump()
-        prec_dict = {"fp32": jnp.float32, "fp64": jnp.float64}
-        model_dict["descriptor_dtype"] = prec_dict[model_dict["descriptor_dtype"]]
-        model_dict["readout_dtype"] = prec_dict[model_dict["readout_dtype"]]
-        model_dict["scale_shift_dtype"] = prec_dict[model_dict["scale_shift_dtype"]]
-
-        return model_dict
     
     def get_builder(self):
-        from apax.model.builder import GMNNBuilder
+        from apax.nn.builder import GMNNBuilder
         return GMNNBuilder
 
 
-class e3xCustomConfig(BaseModel, extra="forbid"):
+class EquivMPConfig(BaseModelConfig, extra="forbid"):
     """
     Configuration for the model.
 
@@ -399,50 +403,21 @@ class e3xCustomConfig(BaseModel, extra="forbid"):
         Data type for scale and shift parameters.
     """
     
-    name: Literal["e3x-custom"] = "e3x-custom"
+    name: Literal["equiv-mp"] = "equiv-mp"
 
     basis: BasisConfig = Field(GaussianBasisConfig(name="gaussian"), discriminator="name")
 
     features: PositiveInt = 32
     max_degree: PositiveInt = 2
     num_iterations: PositiveInt = 1
-    num_basis_functions: PositiveInt = 8
-    cutoff: PositiveInt = 5.0
-
-    ensemble: Optional[EnsembleConfig] = None
-
-    nn: List[PositiveInt] = [32, 32]
-    w_init: Literal["normal", "lecun"] = "lecun"
-    b_init: Literal["normal", "zeros"] = "zeros"
-    use_ntk: bool = False
-
-    # corrections
-    use_zbl: bool = False
-
-    calc_stress: bool = False
-
-    descriptor_dtype: Literal["fp32", "fp64"] = "fp64"
-    readout_dtype: Literal["fp32", "fp64"] = "fp32"
-    scale_shift_dtype: Literal["fp32", "fp64"] = "fp32"
-
-    def get_dict(self):
-        import jax.numpy as jnp
-
-        model_dict = self.model_dump()
-        prec_dict = {"fp32": jnp.float32, "fp64": jnp.float64}
-        model_dict["descriptor_dtype"] = prec_dict[model_dict["descriptor_dtype"]]
-        model_dict["readout_dtype"] = prec_dict[model_dict["readout_dtype"]]
-        model_dict["scale_shift_dtype"] = prec_dict[model_dict["scale_shift_dtype"]]
-
-        return model_dict
     
     def get_builder(self):
-        from apax.model.builder import e3xCustomBuilder
-        return e3xCustomBuilder
+        from apax.nn.builder import EquivMPBuilder
+        return EquivMPBuilder
 
 
 
-ModelConfig = Union[GMNNConfig, e3xCustomConfig]
+ModelConfig = Union[GMNNConfig, EquivMPConfig]
 
 
 

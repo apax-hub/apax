@@ -13,7 +13,7 @@ from flax.training import checkpoints
 from apax.config import Config, MDConfig
 from apax.md import run_md
 from apax.md.ase_calc import ASECalculator
-from apax.model.builder import ModelBuilder
+from apax.nn.builder import ModelBuilder
 from apax.utils import jax_md_reduced
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
