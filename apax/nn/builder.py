@@ -232,4 +232,3 @@ class EquivMPBuilder(ModelBuilder):
         )
         return descriptor
     
-
