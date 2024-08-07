@@ -109,24 +109,19 @@ def schema():
 
     if not settings_path.is_file():
         with settings_path.open("w") as f:
-            json.dump({'yaml.schemas': {}}, f, indent=2)
+            json.dump({"yaml.schemas": {}}, f, indent=2)
 
     with settings_path.open("r") as f:
         settings = json.load(f)
 
-
-    if 'yaml.schemas' not in settings.keys():
-        settings['yaml.schemas'] = {}
-
+    if "yaml.schemas" not in settings.keys():
+        settings["yaml.schemas"] = {}
 
     train_schema = (vscode_path / "apaxtrain.schema.json").resolve().as_posix()
     md_schema = (vscode_path / "apaxmd.schema.json").resolve().as_posix()
 
-    schemas = {
-        train_schema: ['train*.yaml'],
-        md_schema: ['md*.yaml']
-    }
-    settings['yaml.schemas'].update(schemas)
+    schemas = {train_schema: ["train*.yaml"], md_schema: ["md*.yaml"]}
+    settings["yaml.schemas"].update(schemas)
 
     with settings_path.open("w") as f:
         json.dump(settings, f, indent=2)
