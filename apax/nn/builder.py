@@ -230,7 +230,7 @@ class EquivMPBuilder(ModelBuilder):
             apply_mask=apply_mask,
         )
         return descriptor
-    
+
 
 class So3kratesBuilder(ModelBuilder):
     def build_descriptor(
