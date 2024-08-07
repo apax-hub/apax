@@ -8,8 +8,7 @@ from apax.layers.descriptor.basis_functions import (
     GaussianBasis,
     RadialFunction,
 )
-from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
-from apax.layers.descriptor.equiv_mp import EquivMPRepresentation
+from apax.layers.descriptor import GaussianMomentDescriptor, EquivMPRepresentation, So3kratesRepresentation
 from apax.layers.empirical import ZBLRepulsion
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
@@ -233,3 +232,23 @@ class EquivMPBuilder(ModelBuilder):
         return descriptor
     
 
+class So3kratesBuilder(ModelBuilder):
+    def build_descriptor(
+        self,
+        apply_mask,
+    ):
+        descriptor = So3kratesRepresentation(
+            basis_fn=self.build_basis_function(),
+            num_layers=self.config["num_layers"],
+            max_degree=self.config["max_degree"],
+            num_features=self.config["num_features"],
+            num_heads=self.config["num_heads"],
+            use_layer_norm_1=self.config["use_layer_norm_1"],
+            use_layer_norm_2=self.config["use_layer_norm_2"],
+            use_layer_norm_final=self.config["use_layer_norm_final"],
+            activation=self.config["activation"],
+            cutoff_fn=self.config["cutoff_fn"],
+            transform_input_features=self.config["transform_input_features"],
+            dtype=self.config["descriptor_dtype"],
+        )
+        return descriptor

@@ -1,3 +1,4 @@
+from typing import Any
 from myrto.so3krates.so3krates import So3krates, TransformerBlock
 import jax.numpy as jnp
 
@@ -13,6 +14,8 @@ from myrto.so3krates.embedding import ChemicalEmbedding, RadialEmbedding, Spheri
 from myrto.so3krates.helpers import constant, degree_wise_repeat, degree_wise_trace, infer_max_degree
 from myrto.so3krates.mlp import MLP
 
+from apax.layers.descriptor.basis_functions import BesselBasis
+
 def get_node_mask(Z):
     mask = (Z != 0).astype(jnp.int16)
     return mask
@@ -25,7 +28,8 @@ def get_neighbor_mask(idx):
 
 class So3kratesRepresentation(nn.Module):
     # cutoff: float = 5.0
-    num_radial_features: int = 32
+    # num_radial_features: int = 32
+    basis_fn: nn.Module = BesselBasis()
     num_layers: int = 1
     max_degree: int = 3
     num_features: int = 128
@@ -36,6 +40,7 @@ class So3kratesRepresentation(nn.Module):
     activation: str = "silu"
     cutoff_fn: str = "cosine_cutoff"
     transform_input_features: bool = False
+    dtype: Any = jnp.float32
 
     @nn.compact
     def __call__(self,
@@ -43,6 +48,7 @@ class So3kratesRepresentation(nn.Module):
         Z: Array,
         idx: Array,
         ):
+        dr_vec = dr_vec.astype(self.dtype)
 
         R_ij = dr_vec
         i,j = idx[0], idx[1]
@@ -59,7 +65,7 @@ class So3kratesRepresentation(nn.Module):
         r_ij = e3x.ops.norm(R_ij, axis=-1)  # -> [pairs]
 
         cutoff_fn = getattr(e3x.nn.functions, self.cutoff_fn)
-        cutoffs = cutoff_fn(r_ij, cutoff=self.cutoff)  # -> [pairs]
+        cutoffs = cutoff_fn(r_ij, cutoff=self.basis_fn.r_max)  # -> [pairs]
         cutoffs *= pair_mask
 
         neighborhood_sizes = jax.ops.segment_sum(cutoffs, i, num_segments=Z_i.shape[0])[
@@ -69,7 +75,8 @@ class So3kratesRepresentation(nn.Module):
             lambda x: 1 / x, neighborhood_sizes[:, None], pair_mask
         ).reshape(-1)
 
-        radial_expansion = RadialEmbedding(self.num_radial_features, self.cutoff)(r_ij)
+        # radial_expansion = RadialEmbedding(self.num_radial_features, self.cutoff)(r_ij)
+        radial_expansion = self.basis_fn(r_ij)
         radial_expansion *= cutoffs[..., None]  # -> [pairs, num_radial_features]
 
         spherical_expansion = SphericalHarmonics(self.max_degree)(

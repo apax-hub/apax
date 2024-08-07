@@ -126,6 +126,9 @@ def get_opt(
         "kernel": nn_opt,
         "bias": nn_opt,
         "embedding": emb_opt,
+        "weights_K": nn_opt,
+        "weights_Q": nn_opt,
+        "weights_V": nn_opt,
     }
 
     param_partitions = freeze(
