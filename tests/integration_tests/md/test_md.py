@@ -63,7 +63,7 @@ def test_run_md(get_tmp_path):
         fractional_coordinates=False,
     )
     neighbors = neighbor_fn.allocate(positions)
-    
+
     Builder = model_config.model.get_builder()
     builder = Builder(model_config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_derivative_model(

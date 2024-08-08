@@ -152,7 +152,7 @@ def kernel_selection(
 
     Builder = config.model.get_builder()
     builder = Builder(config.model.get_dict(), n_species=119)
-    
+
     model = builder.build_energy_model(apply_mask=True, init_box=init_box)
 
     feature_fn = create_feature_fn(
