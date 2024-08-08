@@ -50,9 +50,6 @@ class BatchKernelSelection(BatchConfigurationSelection):
         else:
             param_files = self.models._parameter["data"]["directory"]
 
-        if isinstance(self.train_data, dict):
-            self.train_data = get_flat_data_from_dict(self.train_data)
-
         selected = kernel_selection(
             param_files,
             self.train_data,
