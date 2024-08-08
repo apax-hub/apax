@@ -205,7 +205,8 @@ def visualize_model(
         raise typer.Exit(code=1)
 
     R, Z, idx, box, offsets = make_minimal_input()
-    builder = ModelBuilder(config.model.get_dict(), n_species=10)
+    Builder = config.model.get_builder()
+    builder = Builder(config.model.get_dict(), n_species=10)
     model = builder.build_energy_model()
     print(model.tabulate(jax.random.PRNGKey(0), R, Z, idx, box, offsets))
 

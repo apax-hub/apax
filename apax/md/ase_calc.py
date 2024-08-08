@@ -57,7 +57,8 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
         )
 
     n_species = 119  # int(np.max(Z) + 1)
-    builder = ModelBuilder(config.model.get_dict(), n_species=n_species)
+    Builder = config.model.get_builder()
+    builder = Builder(config.model.get_dict(), n_species=n_species)
 
     model = builder.build_energy_derivative_model(
         apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
@@ -295,7 +296,8 @@ class ASECalculator(Calculator):
         n_data = dataset.n_data
         ds = dataset.batch()
 
-        builder = ModelBuilder(self.model_config.model.get_dict())
+        Builder = self.model_config.model.get_builder()
+        builder = Builder(self.model_config.model.get_dict())
         model = builder.build_energy_derivative_model(
             apply_mask=True,
             init_box=init_box,

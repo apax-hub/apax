@@ -63,8 +63,9 @@ def test_run_md(get_tmp_path):
         fractional_coordinates=False,
     )
     neighbors = neighbor_fn.allocate(positions)
-
-    builder = ModelBuilder(model_config.model.get_dict(), n_species=n_species)
+    
+    Builder = model_config.model.get_builder()
+    builder = Builder(model_config.model.get_dict(), n_species=n_species)
     model = builder.build_energy_derivative_model(
         apply_mask=False, inference_disp_fn=displacement_fn
     )
@@ -140,7 +141,8 @@ def test_ase_calc(get_tmp_path):
     )
     neighbors = neighbor_fn.allocate(positions)
 
-    builder = ModelBuilder(model_config.model.get_dict())
+    Builder = model_config.model.get_builder()
+    builder = Builder(model_config.model.get_dict())
     model = builder.build_energy_derivative_model(inference_disp_fn=displacement_fn)
     rng_key = jax.random.PRNGKey(model_config.seed)
     params = model.init(

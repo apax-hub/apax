@@ -150,7 +150,9 @@ def kernel_selection(
 
     _, init_box = dataset.init_input()
 
-    builder = ModelBuilder(config.model.get_dict(), n_species=119)
+    Builder = config.model.get_builder()
+    builder = Builder(config.model.get_dict(), n_species=119)
+    
     model = builder.build_energy_model(apply_mask=True, init_box=init_box)
 
     feature_fn = create_feature_fn(

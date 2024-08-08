@@ -367,7 +367,8 @@ def md_setup(model_config: Config, md_config: MDConfig):
             system.box, fractional_coordinates=frac_coords
         )
 
-    builder = ModelBuilder(model_config.model.get_dict())
+    Builder = model_config.model.get_builder()
+    builder = Builder(model_config.model.get_dict())
     model = builder.build_energy_model(
         apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
     )

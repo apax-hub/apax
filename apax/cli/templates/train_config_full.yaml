@@ -37,6 +37,7 @@ data:
   energy_unit: eV
 
 model:
+  name: gmnn
   basis:
     name: gaussian
     n_basis: 7
