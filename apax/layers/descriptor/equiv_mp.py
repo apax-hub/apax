@@ -58,7 +58,7 @@ class EquivMPRepresentation(nn.Module):
             else:
                 # In intermediate iterations, the message-pass should consider all possible coupling paths.
                 y = e3x.nn.MessagePass()(x, basis, dst_idx=idx_i, src_idx=idx_j)
-            
+
             x = x.astype(self.dtype)
             y = y.astype(self.dtype)
             y = e3x.nn.add(x, y)
@@ -70,6 +70,6 @@ class EquivMPRepresentation(nn.Module):
 
             # Residual connection.
             x = e3x.nn.add(x, y)
-        
+
         x = x[:, 0 , 0 , :]
         return x

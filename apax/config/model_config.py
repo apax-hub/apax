@@ -169,7 +169,7 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
     n_radial: PositiveInt = 5
     n_contr: int = 8
     emb_init: Optional[str] = "uniform"
-    
+
     def get_builder(self):
         from apax.nn.builder import GMNNBuilder
         return GMNNBuilder
@@ -210,7 +210,7 @@ class EquivMPConfig(BaseModelConfig, extra="forbid"):
     scale_shift_dtype : Literal["fp32", "fp64"], default = "fp32"
         Data type for scale and shift parameters.
     """
-    
+
     name: Literal["equiv-mp"] = "equiv-mp"
 
     basis: BasisConfig = Field(GaussianBasisConfig(name="gaussian"), discriminator="name")
@@ -218,7 +218,7 @@ class EquivMPConfig(BaseModelConfig, extra="forbid"):
     features: PositiveInt = 32
     max_degree: PositiveInt = 2
     num_iterations: PositiveInt = 1
-    
+
     def get_builder(self):
         from apax.nn.builder import EquivMPBuilder
         return EquivMPBuilder
@@ -260,7 +260,7 @@ class So3kratesConfig(BaseModelConfig, extra="forbid"):
     scale_shift_dtype : Literal["fp32", "fp64"], default = "fp32"
         Data type for scale and shift parameters.
     """
-    
+
     name: Literal["so3krates"] = "so3krates"
 
     basis: BasisConfig = Field(BesselBasisConfig(name="bessel"), discriminator="name")
@@ -275,7 +275,7 @@ class So3kratesConfig(BaseModelConfig, extra="forbid"):
     activation: str = "silu"
     cutoff_fn: str = "cosine_cutoff"
     transform_input_features: bool = False
-    
+
     def get_builder(self):
         from apax.nn.builder import So3kratesBuilder
         return So3kratesBuilder
