@@ -611,9 +611,9 @@ def nvt_nose_hoover(
     @jit
     def apply_fn(state, **kwargs):
         if "kT" not in kwargs:
-          _kT = kT
+            _kT = kT
         else:
-          _kT = kwargs.pop("kT")
+            _kT = kwargs.pop("kT")
 
         chain = state.chain
 
@@ -795,9 +795,9 @@ def npt_nose_hoover(
         N, dim = R.shape
 
         if "kT" not in kwargs:
-          _kT = kT
+            _kT = kT
         else:
-          _kT = kwargs.pop("kT")
+            _kT = kwargs.pop("kT")
 
         # The box position is defined via pos = (1 / d) log V / V_0.
         zero = jnp.zeros((), dtype=R.dtype)
@@ -908,9 +908,9 @@ def npt_nose_hoover(
     def apply_fn(state, **kwargs):
         S = state
         if "kT" not in kwargs:
-          _kT = kT
+            _kT = kT
         else:
-          _kT = kwargs.pop("kT")
+            _kT = kwargs.pop("kT")
 
         bc = barostat.update_mass(S.barostat, _kT)
         tc = thermostat.update_mass(S.thermostat, _kT)

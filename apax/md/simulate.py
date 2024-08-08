@@ -247,7 +247,7 @@ def run_sim(
                 box = system.box
                 apply_fn_kwargs = {"box": box}
 
-            apply_fn_kwargs["kT"] = kT(step) # Get current Temperature
+            apply_fn_kwargs["kT"] = kT(step)  # Get current Temperature
 
             state = apply_fn(state, neighbor=neighbor, **apply_fn_kwargs)
             nbr_kwargs = nbr_options(state)

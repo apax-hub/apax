@@ -20,7 +20,9 @@ class ConstantTempSchedule(BaseModel, extra="forbid"):
 
     def get_schedule(self):
         from apax.md.schedules import ConstantTSchedule
+
         return ConstantTSchedule(self.T0)
+
 
 class PiecewiseLinearTempSchedule(ConstantTempSchedule, extra="forbid"):
     name: Literal["piecewise"] = "piecewise"
@@ -29,12 +31,14 @@ class PiecewiseLinearTempSchedule(ConstantTempSchedule, extra="forbid"):
 
     def get_schedule(self):
         from apax.md.schedules import PieceWiseLinearTSchedule
+
         schedule = PieceWiseLinearTSchedule(
             self.T0,
             self.values,
             self.steps,
         )
         return schedule
+
 
 class OscillatingRampTempSchedule(ConstantTempSchedule, extra="forbid"):
     name: Literal["oscillating_ramp"] = "oscillating_ramp"
@@ -45,6 +49,7 @@ class OscillatingRampTempSchedule(ConstantTempSchedule, extra="forbid"):
 
     def get_schedule(self):
         from apax.md.schedules import OscillatingRampTSchedule
+
         schedule = OscillatingRampTSchedule(
             self.T0,
             self.Tend,
@@ -55,7 +60,9 @@ class OscillatingRampTempSchedule(ConstantTempSchedule, extra="forbid"):
         return schedule
 
 
-TemperatureSchedules = Union[ConstantTempSchedule, PiecewiseLinearTempSchedule, OscillatingRampTempSchedule]
+TemperatureSchedules = Union[
+    ConstantTempSchedule, PiecewiseLinearTempSchedule, OscillatingRampTempSchedule
+]
 
 
 class NHCOptions(BaseModel, extra="forbid"):
@@ -88,6 +95,7 @@ class Integrator(BaseModel, extra="forbid"):
     ----------
 
     """
+
     name: str
     dt: PositiveFloat = 0.5  # fs
     temperature_schedule: TemperatureSchedules = Field(
@@ -104,6 +112,7 @@ class NVEOptions(Integrator, extra="forbid"):
     name : Literal["nve"]
         Name of the ensemble.
     """
+
     name: Literal["nve"]
 
 
