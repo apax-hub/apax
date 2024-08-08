@@ -15,7 +15,6 @@ from tqdm import trange
 from apax.data.input_pipeline import (
     OTFInMemoryDataset,
 )
-from apax.nn import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
 from apax.utils.jax_md_reduced import partition, quantity, space
 

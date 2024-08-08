@@ -9,7 +9,6 @@ from apax.config import Config, LossConfig, parse_config
 from apax.data.initialization import load_data_files
 from apax.data.input_pipeline import dataset_dict
 from apax.data.statistics import compute_scale_shift_parameters
-from apax.nn import ModelBuilder
 from apax.optimizer import get_opt
 from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import create_params, create_train_state

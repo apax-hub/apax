@@ -18,7 +18,6 @@ from apax.config import Config, MDConfig, parse_config
 from apax.md.io import H5TrajHandler, TrajHandler, truncate_trajectory_to_checkpoint
 from apax.md.md_checkpoint import load_md_state
 from apax.md.sim_utils import SimulationFunctions, System
-from apax.nn import ModelBuilder
 from apax.train.checkpoints import (
     canonicalize_energy_model_parameters,
     restore_parameters,

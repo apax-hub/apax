@@ -1,20 +1,19 @@
 from typing import Any
-from myrto.so3krates.so3krates import So3krates, TransformerBlock
-import jax.numpy as jnp
 
-from jaxtyping import Array, Bool, Float, Int
+import e3x
 import flax.linen as nn
 import jax
-import e3x
-
+import jax.numpy as jnp
+from jaxtyping import Array
+from myrto.so3krates.embedding import (
+    ChemicalEmbedding,
+    SphericalHarmonics,
+)
+from myrto.so3krates.so3krates import TransformerBlock
 from myrto.utils.safe import masked
 
-from myrto.so3krates.attention import AttentionBlock
-from myrto.so3krates.embedding import ChemicalEmbedding, RadialEmbedding, SphericalHarmonics
-from myrto.so3krates.helpers import constant, degree_wise_repeat, degree_wise_trace, infer_max_degree
-from myrto.so3krates.mlp import MLP
-
 from apax.layers.descriptor.basis_functions import BesselBasis
+
 
 def get_node_mask(Z):
     mask = (Z != 0).astype(jnp.int16)

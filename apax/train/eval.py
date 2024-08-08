@@ -9,7 +9,6 @@ from tqdm import trange
 
 from apax.config import parse_config
 from apax.data.input_pipeline import OTFInMemoryDataset
-from apax.nn import ModelBuilder
 from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import restore_single_parameters
 from apax.train.metrics import initialize_metrics

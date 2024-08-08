@@ -1,11 +1,10 @@
 import functools
 from typing import Any
 
+import e3x
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
-import e3x
-
 
 from apax.layers.descriptor.basis_functions import BesselBasis
 from apax.layers.masking import mask_by_neighbor

@@ -3,12 +3,16 @@ import logging
 import numpy as np
 
 from apax.config import ModelConfig
+from apax.layers.descriptor import (
+    EquivMPRepresentation,
+    GaussianMomentDescriptor,
+    So3kratesRepresentation,
+)
 from apax.layers.descriptor.basis_functions import (
     BesselBasis,
     GaussianBasis,
     RadialFunction,
 )
-from apax.layers.descriptor import GaussianMomentDescriptor, EquivMPRepresentation, So3kratesRepresentation
 from apax.layers.empirical import ZBLRepulsion
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift

@@ -10,7 +10,6 @@ from ase.calculators.emt import EMT
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from apax.config.train_config import Config
-from apax.nn.builder import ModelBuilder
 from apax.train.run import run
 from apax.utils.datasets import download_md22_stachyose
 from apax.utils.helpers import mod_config

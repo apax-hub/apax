@@ -191,7 +191,6 @@ def visualize_model(
     import jax
 
     from apax.config import Config
-    from apax.nn.builder import ModelBuilder
     from apax.utils.data import make_minimal_input
 
     with open(config_path, "r") as stream:
