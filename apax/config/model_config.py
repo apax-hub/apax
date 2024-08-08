@@ -95,9 +95,7 @@ class ShallowEnsembleConfig(BaseModel, extra="forbid"):
 EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
 
 
-
 class BaseModelConfig(BaseModel, extra="forbid"):
-
     nn: List[PositiveInt] = [512, 512]
     w_init: Literal["normal", "lecun"] = "normal"
     b_init: Literal["normal", "zeros"] = "normal"
@@ -162,7 +160,6 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
         Data type for scale and shift parameters.
     """
 
-
     name: Literal["gmnn"] = "gmnn"
 
     basis: BasisConfig = Field(GaussianBasisConfig(name="gaussian"), discriminator="name")
@@ -172,6 +169,7 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
 
     def get_builder(self):
         from apax.nn.builder import GMNNBuilder
+
         return GMNNBuilder
 
 
@@ -221,8 +219,8 @@ class EquivMPConfig(BaseModelConfig, extra="forbid"):
 
     def get_builder(self):
         from apax.nn.builder import EquivMPBuilder
-        return EquivMPBuilder
 
+        return EquivMPBuilder
 
 
 class So3kratesConfig(BaseModelConfig, extra="forbid"):
@@ -278,6 +276,7 @@ class So3kratesConfig(BaseModelConfig, extra="forbid"):
 
     def get_builder(self):
         from apax.nn.builder import So3kratesBuilder
+
         return So3kratesBuilder
 
 

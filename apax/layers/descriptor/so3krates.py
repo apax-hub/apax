@@ -42,15 +42,16 @@ class So3kratesRepresentation(nn.Module):
     dtype: Any = jnp.float32
 
     @nn.compact
-    def __call__(self,
+    def __call__(
+        self,
         dr_vec: Array,
         Z: Array,
         idx: Array,
-        ):
+    ):
         dr_vec = dr_vec.astype(self.dtype)
 
         R_ij = dr_vec
-        i,j = idx[0], idx[1]
+        i, j = idx[0], idx[1]
         Z_i = Z
 
         pair_mask = get_neighbor_mask(idx)

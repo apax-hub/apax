@@ -204,7 +204,6 @@ class ModelBuilder:
         return model
 
 
-
 class GMNNBuilder(ModelBuilder):
     def build_descriptor(
         self,

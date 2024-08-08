@@ -201,7 +201,6 @@ class DataConfig(BaseModel, extra="forbid"):
         return self.model_version_path / "best"
 
 
-
 class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     """
     Configuration of the optimizer.
@@ -433,9 +432,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     data_parallel: bool = True
 
     data: DataConfig
-    model: ModelConfig = Field(
-        GMNNConfig(name="gmnn"), discriminator="name"
-    )
+    model: ModelConfig = Field(GMNNConfig(name="gmnn"), discriminator="name")
     metrics: List[MetricsConfig] = []
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()
