@@ -90,7 +90,7 @@ def get_ensemble(ensemble: Integrator, sim_fns):
     dt = ensemble.dt * units.fs
     nbr_options = nbr_update_options_default
 
-    kT = ensemble.temperature.get_schedule()
+    kT = ensemble.temperature_schedule.get_schedule()
     if ensemble.name == "nve":
         init_fn, apply_fn = simulate.nve(energy, shift, kT(0), dt)
     elif ensemble.name == "nvt":

@@ -90,7 +90,7 @@ class Integrator(BaseModel, extra="forbid"):
     """
     name: str
     dt: PositiveFloat = 0.5  # fs
-    temperature: TemperatureSchedules = Field(
+    temperature_schedule: TemperatureSchedules = Field(
         ConstantTempSchedule(name="constant", T0=298.15), discriminator="name"
     )
 
