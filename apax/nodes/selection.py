@@ -6,7 +6,6 @@ import numpy as np
 import zntrack.utils
 from ipsuite.analysis.ensemble import plot_with_uncertainty
 from ipsuite.configuration_selection.base import BatchConfigurationSelection
-from ipsuite.utils.combine import get_flat_data_from_dict
 from matplotlib import pyplot as plt
 
 from apax.bal import kernel_selection
