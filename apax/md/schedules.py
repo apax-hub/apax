@@ -21,8 +21,8 @@ class PieceWiseLinearTSchedule(TSchedule):
         self.T0 = T0
         self.values = jnp.array(values)
         self.steps= jnp.array(steps)
-       
-    
+
+
     def __call__(self, step) -> float:
         T = jnp.interp(step, self.steps, self.values, left=self.T0, right=self.values[-1])
         return T * units.kB
@@ -47,8 +47,8 @@ class OscillatingRampTSchedule(TSchedule):
 
         T = jnp.maximum(0, T) # prevent negative temperature
         T = jnp.where(step < self.total_steps, T, self.Tend)
-    
+
         return T * units.kB
 
 
-        
+

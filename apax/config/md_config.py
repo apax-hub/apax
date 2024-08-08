@@ -14,7 +14,7 @@ class ConstantTempSchedule(BaseModel, extra="forbid"):
     temperature : PositiveFloat, default = 298.15
         Temperature in Kelvin (K).
     """
-    
+
     name: Literal["constant"] = "constant"
     T0: PositiveFloat = 298.15  # K
 
@@ -86,7 +86,7 @@ class Integrator(BaseModel, extra="forbid"):
 
     Parameters
     ----------
-    
+
     """
     name: str
     dt: PositiveFloat = 0.5  # fs
