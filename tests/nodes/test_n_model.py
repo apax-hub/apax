@@ -2,7 +2,11 @@ import os
 import pathlib
 import sys
 
-import ipsuite as ips
+try:
+    import ipsuite as ips
+except ImportError:
+    pass
+
 import numpy as np
 import pytest
 import yaml
