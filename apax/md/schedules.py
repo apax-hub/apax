@@ -49,6 +49,3 @@ class OscillatingRampTSchedule(TSchedule):
         T = jnp.where(step < self.total_steps, T, self.Tend)
 
         return T * units.kB
-
-
-
