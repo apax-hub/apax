@@ -1,6 +1,7 @@
 import jax.numpy as jnp
-from ase import units
 import numpy as np
+from ase import units
+
 
 class TSchedule:
     def __init__(self, T0: int):
