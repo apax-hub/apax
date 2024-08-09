@@ -232,7 +232,7 @@ class So3kratesConfig(BaseModelConfig, extra="forbid"):
         Smooth cutoff function
     transform_input_features: bool = False
         Whether or not to apply a dense layer to transformer input features
-    
+
     """
 
     name: Literal["so3krates"] = "so3krates"
