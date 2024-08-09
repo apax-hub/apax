@@ -15,7 +15,6 @@ data:
 
   shift_method: "per_element_regression_shift"
   shift_options: {"energy_regularisation": 1.0}
-  shuffle_buffer_size: 1000
 
   pos_unit: Ang
   energy_unit: eV
@@ -73,7 +72,6 @@ optimizer:
   scale_lr: 0.001
   shift_lr: 0.05
   zbl_lr: 0.001
-  transition_begin: 0
 
 callbacks:
   - name: csv
