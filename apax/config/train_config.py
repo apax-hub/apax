@@ -9,7 +9,6 @@ from pydantic import (
     ConfigDict,
     Field,
     NonNegativeFloat,
-    PositiveFloat,
     PositiveInt,
     create_model,
     model_validator,
@@ -17,6 +16,7 @@ from pydantic import (
 from typing_extensions import Annotated
 
 from apax.config.lr_config import CyclicCosineLR, LinearLR
+from apax.config.model_config import GMNNConfig, ModelConfig
 from apax.data.statistics import scale_method_list, shift_method_list
 
 log = logging.getLogger(__name__)
@@ -199,161 +199,6 @@ class DataConfig(BaseModel, extra="forbid"):
     @property
     def best_model_path(self):
         return self.model_version_path / "best"
-
-
-class GaussianBasisConfig(BaseModel, extra="forbid"):
-    """
-    Gaussian primitive basis functions.
-
-    Parameters
-    ----------
-    n_basis : PositiveInt, default = 7
-        Number of uncontracted basis functions.
-    r_min : NonNegativeFloat, default = 0.5
-        Position of the first uncontracted basis function's mean.
-    r_max : PositiveFloat, default = 6.0
-        Cutoff radius of the descriptor.
-    """
-
-    name: Literal["gaussian"] = "gaussian"
-    n_basis: PositiveInt = 7
-    r_min: NonNegativeFloat = 0.5
-    r_max: PositiveFloat = 6.0
-
-
-class BesselBasisConfig(BaseModel, extra="forbid"):
-    """
-    Gaussian primitive basis functions.
-
-    Parameters
-    ----------
-    n_basis : PositiveInt, default = 7
-        Number of uncontracted basis functions.
-    r_max : PositiveFloat, default = 6.0
-        Cutoff radius of the descriptor.
-    """
-
-    name: Literal["bessel"] = "bessel"
-    n_basis: PositiveInt = 7
-    r_max: PositiveFloat = 6.0
-
-
-BasisConfig = Union[GaussianBasisConfig, BesselBasisConfig]
-
-
-class FullEnsembleConfig(BaseModel, extra="forbid"):
-    """
-    Configuration for full model ensembles.
-    Usage can improve accuracy and stability at the cost of slower inference.
-    Uncertainties will generally not be calibrated.
-
-    Parameters
-    ----------
-    n_members : int
-        Number of ensemble members.
-    """
-
-    kind: Literal["full"] = "full"
-    n_members: int
-
-
-class ShallowEnsembleConfig(BaseModel, extra="forbid"):
-    """
-    Configuration for shallow (last layer) ensembles.
-    Allows use of probabilistic loss functions.
-    The predicted uncertainties should be well calibrated.
-    See 10.1088/2632-2153/ad594a for details.
-
-    Parameters
-    ----------
-    n_members : int
-        Number of ensemble members.
-    force_variance : bool, default = True
-        Whether or not to compute force uncertainties.
-        Required for probabilistic force loss and calibration of force uncertainties.
-        Can lead to better force metrics but but enabling it introduces some non-negligible cost.
-    chunk_size : Optional[int], default = None
-        If set to an integer, the jacobian of ensemble energies wrt. to positions will be computed
-        in chunks of that size. This sacrifices some performance for the possibility to use relatively
-        large ensemble sizes.
-    """
-
-    kind: Literal["shallow"] = "shallow"
-    n_members: int
-    force_variance: bool = True
-    chunk_size: Optional[int] = None
-
-
-EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
-
-
-class ModelConfig(BaseModel, extra="forbid"):
-    """
-    Configuration for the model.
-
-    Parameters
-    ----------
-    basis : BasisConfig, default = GaussianBasisConfig()
-        Configuration for primitive basis funtions.
-    n_radial : PositiveInt, default = 5
-        Number of contracted basis functions.
-    n_contr : int, default = 8
-        How many gaussian moment contractions to use.
-    emb_init : Optional[str], default = "uniform"
-        Initialization scheme for embedding layer weights.
-    nn : List[PositiveInt], default = [512, 512]
-        Number of hidden layers and units in those layers.
-    w_init : Literal["normal", "lecun"], default = "normal"
-        Initialization scheme for the neural network weights.
-    b_init : Literal["normal", "zeros"], default = "normal"
-        Initialization scheme for the neural network biases.
-    use_ntk : bool, default = True
-        Whether or not to use NTK parametrization.
-    ensemble : Optional[EnsembleConfig], default = None
-        What kind of model ensemble to use (optional).
-    use_zbl : bool, default = False
-        Whether to include the ZBL correction.
-    calc_stress : bool, default = False
-        Whether to calculate stress during model evaluation.
-    descriptor_dtype : Literal["fp32", "fp64"], default = "fp64"
-        Data type for descriptor calculations.
-    readout_dtype : Literal["fp32", "fp64"], default = "fp32"
-        Data type for readout calculations.
-    scale_shift_dtype : Literal["fp32", "fp64"], default = "fp32"
-        Data type for scale and shift parameters.
-    """
-
-    basis: BasisConfig = Field(GaussianBasisConfig(name="gaussian"), discriminator="name")
-    n_radial: PositiveInt = 5
-    n_contr: int = 8
-    emb_init: Optional[str] = "uniform"
-
-    nn: List[PositiveInt] = [512, 512]
-    w_init: Literal["normal", "lecun"] = "normal"
-    b_init: Literal["normal", "zeros"] = "normal"
-    use_ntk: bool = True
-
-    ensemble: Optional[EnsembleConfig] = None
-
-    # corrections
-    use_zbl: bool = False
-
-    calc_stress: bool = False
-
-    descriptor_dtype: Literal["fp32", "fp64"] = "fp64"
-    readout_dtype: Literal["fp32", "fp64"] = "fp32"
-    scale_shift_dtype: Literal["fp32", "fp64"] = "fp32"
-
-    def get_dict(self):
-        import jax.numpy as jnp
-
-        model_dict = self.model_dump()
-        prec_dict = {"fp32": jnp.float32, "fp64": jnp.float64}
-        model_dict["descriptor_dtype"] = prec_dict[model_dict["descriptor_dtype"]]
-        model_dict["readout_dtype"] = prec_dict[model_dict["readout_dtype"]]
-        model_dict["scale_shift_dtype"] = prec_dict[model_dict["scale_shift_dtype"]]
-
-        return model_dict
 
 
 class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
@@ -587,7 +432,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     data_parallel: bool = True
 
     data: DataConfig
-    model: ModelConfig = ModelConfig()
+    model: ModelConfig = Field(GMNNConfig(name="gmnn"), discriminator="name")
     metrics: List[MetricsConfig] = []
     loss: List[LossConfig]
     optimizer: OptimizerConfig = OptimizerConfig()

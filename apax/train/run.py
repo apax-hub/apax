@@ -9,7 +9,6 @@ from apax.config import Config, LossConfig, parse_config
 from apax.data.initialization import load_data_files
 from apax.data.input_pipeline import dataset_dict
 from apax.data.statistics import compute_scale_shift_parameters
-from apax.model import ModelBuilder
 from apax.optimizer import get_opt
 from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import create_params, create_train_state
@@ -165,7 +164,8 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
     train_ds, val_ds, ds_stats = initialize_datasets(config)
 
     sample_input, init_box = train_ds.init_input()
-    builder = ModelBuilder(config.model.get_dict())
+    Builder = config.model.get_builder()
+    builder = Builder(config.model.get_dict())
     model = builder.build_energy_derivative_model(
         scale=ds_stats.elemental_scale,
         shift=ds_stats.elemental_shift,

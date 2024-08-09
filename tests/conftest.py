@@ -10,7 +10,6 @@ from ase.calculators.emt import EMT
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from apax.config.train_config import Config
-from apax.model.builder import ModelBuilder
 from apax.train.run import run
 from apax.utils.datasets import download_md22_stachyose
 from apax.utils.helpers import mod_config
@@ -137,7 +136,8 @@ def get_sample_input():
 
 
 def initialize_model(model_config, sample_input):
-    builder = ModelBuilder(model_config.model.get_dict())
+    Builder = model_config.model.get_builder()
+    builder = Builder(model_config.model.get_dict())
     model = builder.build_energy_derivative_model()
     rng_key = jax.random.PRNGKey(model_config.seed)
     params = model.init(rng_key, *sample_input)

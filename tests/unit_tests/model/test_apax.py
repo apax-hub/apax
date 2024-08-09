@@ -4,7 +4,7 @@ import numpy as np
 
 from apax.layers.descriptor import GaussianMomentDescriptor
 from apax.layers.scaling import PerElementScaleShift
-from apax.model.gmnn import AtomisticModel, EnergyDerivativeModel, EnergyModel
+from apax.nn.models import AtomisticModel, EnergyDerivativeModel, EnergyModel
 
 
 def test_apax_variable_size():

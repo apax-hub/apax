@@ -3,16 +3,20 @@ import logging
 import numpy as np
 
 from apax.config import ModelConfig
+from apax.layers.descriptor import (
+    EquivMPRepresentation,
+    GaussianMomentDescriptor,
+    So3kratesRepresentation,
+)
 from apax.layers.descriptor.basis_functions import (
     BesselBasis,
     GaussianBasis,
     RadialFunction,
 )
-from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.empirical import ZBLRepulsion
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
-from apax.model.gmnn import (
+from apax.nn.models import (
     AtomisticModel,
     EnergyDerivativeModel,
     EnergyModel,
@@ -74,14 +78,7 @@ class ModelBuilder:
         self,
         apply_mask,
     ):
-        radial_fn = self.build_radial_function()
-        descriptor = GaussianMomentDescriptor(
-            radial_fn=radial_fn,
-            n_contr=self.config["n_contr"],
-            dtype=self.config["descriptor_dtype"],
-            apply_mask=apply_mask,
-        )
-        return descriptor
+        raise NotImplementedError("use a subclass to facilitate this")
 
     def build_readout(self, is_feature_fn=False):
         if self.config["ensemble"] and self.config["ensemble"]["kind"] == "shallow":
@@ -205,3 +202,56 @@ class ModelBuilder:
             mask_atoms=True,
         )
         return model
+
+
+class GMNNBuilder(ModelBuilder):
+    def build_descriptor(
+        self,
+        apply_mask,
+    ):
+        radial_fn = self.build_radial_function()
+        descriptor = GaussianMomentDescriptor(
+            radial_fn=radial_fn,
+            n_contr=self.config["n_contr"],
+            dtype=self.config["descriptor_dtype"],
+            apply_mask=apply_mask,
+        )
+        return descriptor
+
+
+class EquivMPBuilder(ModelBuilder):
+    def build_descriptor(
+        self,
+        apply_mask,
+    ):
+        descriptor = EquivMPRepresentation(
+            features=self.config["features"],
+            max_degree=self.config["max_degree"],
+            num_iterations=self.config["num_iterations"],
+            basis_fn=self.build_basis_function(),
+            dtype=self.config["descriptor_dtype"],
+            apply_mask=apply_mask,
+        )
+        return descriptor
+
+
+class So3kratesBuilder(ModelBuilder):
+    def build_descriptor(
+        self,
+        apply_mask,
+    ):
+        descriptor = So3kratesRepresentation(
+            basis_fn=self.build_basis_function(),
+            num_layers=self.config["num_layers"],
+            max_degree=self.config["max_degree"],
+            num_features=self.config["num_features"],
+            num_heads=self.config["num_heads"],
+            use_layer_norm_1=self.config["use_layer_norm_1"],
+            use_layer_norm_2=self.config["use_layer_norm_2"],
+            use_layer_norm_final=self.config["use_layer_norm_final"],
+            activation=self.config["activation"],
+            cutoff_fn=self.config["cutoff_fn"],
+            transform_input_features=self.config["transform_input_features"],
+            dtype=self.config["descriptor_dtype"],
+        )
+        return descriptor
