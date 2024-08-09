@@ -70,7 +70,7 @@ def test_cli_validate(get_tmp_path):
 
     md_config_dict["initial_structure"] = "initial_structure.extxyz"
     md_config_dict["duration"] = 10
-    md_config_dict["ensemble"]["temperature"] = 10
+    md_config_dict["ensemble"]["temperature_schedule"]["T0"] = 10
 
     with open("md_config_fixed.yaml", "w") as conf:
         yaml.dump(md_config_dict, conf, default_flow_style=False)

@@ -1,7 +1,9 @@
 ensemble:
   name: nvt
   dt: 0.5 # fs time step
-  temperature: <T> # K
+  temperature_schedule:
+    name: constant
+    T0: <T> # K
   thermostat_chain:
     chain_length: 3
     chain_steps: 2
