@@ -41,6 +41,7 @@ class PiecewiseLinearTempSchedule(ConstantTempSchedule, extra="forbid"):
         temperatures should be reached.
 
     """
+
     name: Literal["piecewise"] = "piecewise"
     values: list[PositiveFloat]
     steps: list[PositiveInt]
@@ -71,6 +72,7 @@ class OscillatingRampTempSchedule(ConstantTempSchedule, extra="forbid"):
     total_steps: PositiveInt
         Total steps of the schedule. Afterwards, Tend will be kept.
     """
+
     name: Literal["oscillating_ramp"] = "oscillating_ramp"
     Tend: PositiveFloat
     amplitude: PositiveFloat
