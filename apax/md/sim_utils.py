@@ -41,5 +41,6 @@ class System:
 @dataclasses.dataclass
 class SimulationFunctions:
     energy_fn: Callable
+    auxiliary_fn: Callable
     shift_fn: Callable
     neighbor_fn: Callable

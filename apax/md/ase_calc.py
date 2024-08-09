@@ -13,7 +13,7 @@ from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
 from apax.data.input_pipeline import (
-    OTFInMemoryDataset,
+    CachedInMemoryDataset,
 )
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
 from apax.utils.jax_md_reduced import partition, quantity, space
@@ -283,7 +283,7 @@ class ASECalculator(Calculator):
 
         init_box = atoms_list[0].cell.array
 
-        dataset = OTFInMemoryDataset(
+        dataset = CachedInMemoryDataset(
             atoms_list,
             self.model_config.model.basis.r_max,
             batch_size,
@@ -332,6 +332,7 @@ class ASECalculator(Calculator):
                 evaluated_atoms_list.append(atoms)
             pbar.update(batch_size)
         pbar.close()
+        dataset.cleanup()
         return evaluated_atoms_list
 
     @property

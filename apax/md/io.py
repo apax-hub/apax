@@ -33,7 +33,7 @@ class TrajHandler:
     def reset_buffer(self):
         pass
 
-    def atoms_from_state(self, state, energy, nbr_kwargs):
+    def atoms_from_state(self, state, predictions, nbr_kwargs):
         if "box" in nbr_kwargs.keys():
             box = nbr_kwargs["box"]
         else:
@@ -51,7 +51,9 @@ class TrajHandler:
         atoms = Atoms(self.atomic_numbers, positions, momenta=momenta, cell=box)
         atoms.cell = atoms.cell.T
         atoms.pbc = np.diag(atoms.cell.array) > 1e-6
-        atoms.calc = SinglePointCalculator(atoms, energy=float(energy), forces=forces)
+        predictions = {k: np.array(v) for k, v in predictions.items()}
+        predictions["energy"] = predictions["energy"].item()
+        atoms.calc = SinglePointCalculator(atoms, **predictions)
         return atoms
 
 
@@ -82,10 +84,10 @@ class H5TrajHandler(TrajHandler):
         self.buffer = []
 
     def step(self, state, transform=None):
-        state, energy, nbr_kwargs = state
+        state, predictions, nbr_kwargs = state
 
         if self.step_counter % self.sampling_rate == 0:
-            new_atoms = self.atoms_from_state(state, energy, nbr_kwargs)
+            new_atoms = self.atoms_from_state(state, predictions, nbr_kwargs)
             self.buffer.append(new_atoms)
         self.step_counter += 1
 

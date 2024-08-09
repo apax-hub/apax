@@ -15,6 +15,8 @@ from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from apax.config import Config, MDConfig, parse_config
+from apax.config.md_config import Integrator
+from apax.md.ase_calc import make_ensemble, maybe_vmap
 from apax.md.io import H5TrajHandler, TrajHandler, truncate_trajectory_to_checkpoint
 from apax.md.md_checkpoint import load_md_state
 from apax.md.sim_utils import SimulationFunctions, System
@@ -81,24 +83,22 @@ def nbr_update_options_npt(state):
     return {"box": box}
 
 
-def get_ensemble(ensemble, sim_fns):
+def get_ensemble(ensemble: Integrator, sim_fns):
     energy, shift = sim_fns.energy_fn, sim_fns.shift_fn
 
     dt = ensemble.dt * units.fs
     nbr_options = nbr_update_options_default
 
+    kT = ensemble.temperature_schedule.get_schedule()
     if ensemble.name == "nve":
-        kT = units.kB * ensemble.temperature
-        init_fn, apply_fn = simulate.nve(energy, shift, kT, dt)
+        init_fn, apply_fn = simulate.nve(energy, shift, kT(0), dt)
     elif ensemble.name == "nvt":
-        kT = units.kB * ensemble.temperature
         thermostat_chain = dict(ensemble.thermostat_chain)
         thermostat_chain["tau"] *= dt
 
-        init_fn, apply_fn = simulate.nvt_nose_hoover(energy, shift, dt, kT)
+        init_fn, apply_fn = simulate.nvt_nose_hoover(energy, shift, dt, kT(0))
 
     elif ensemble.name == "npt":
-        kT = units.kB * ensemble.temperature
         pressure = ensemble.pressure * units.bar
         thermostat_chain = dict(ensemble.thermostat_chain)
         barostat_chain = dict(ensemble.barostat_chain)
@@ -110,7 +110,7 @@ def get_ensemble(ensemble, sim_fns):
             shift,
             dt,
             pressure,
-            kT,
+            kT(0),
             thermostat_kwargs=thermostat_chain,
             barostat_kwargs=barostat_chain,
         )
@@ -120,7 +120,7 @@ def get_ensemble(ensemble, sim_fns):
             "Only the NVE and Nose Hoover NVT/NPT thermostats are currently interfaced."
         )
 
-    return init_fn, apply_fn, nbr_options
+    return init_fn, apply_fn, kT, nbr_options
 
 
 def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_ckpt):
@@ -133,9 +133,26 @@ def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_
     return state, step
 
 
+def create_evaluation_functions(aux_fn, positions, Z, neighbor, box):
+    offsets = jnp.zeros((neighbor.idx.shape[1], 3))
+
+    def on_eval(positions, neighbor, box):
+        predictions = aux_fn(positions, Z, neighbor, box, offsets)
+        return predictions
+
+    predictions = aux_fn(positions, Z, neighbor, box, offsets)
+    dummpy_preds = jax.tree_map(lambda x: jnp.zeros_like(x), predictions)
+
+    def no_eval(positions, neighbor, box):
+        predictions = dummpy_preds
+        return predictions
+
+    return on_eval, no_eval
+
+
 def run_sim(
     system: System,
-    sim_fns,
+    sim_fns: SimulationFunctions,
     ensemble,
     sim_dir: Path,
     n_steps: int,
@@ -177,7 +194,7 @@ def run_sim(
     ckpt_dir.mkdir(exist_ok=True)
 
     log.info("initializing simulation")
-    init_fn, apply_fn, nbr_options = get_ensemble(ensemble, sim_fns)
+    init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns)
 
     neighbor = sim_fns.neighbor_fn.allocate(
         system.positions, extra_capacity=extra_capacity
@@ -207,31 +224,50 @@ def run_sim(
     pbar_update_freq = int(np.ceil(500 / n_inner))
     pbar_increment = n_inner * pbar_update_freq
 
+    sampling_rate = traj_handler.sampling_rate
+    on_eval, no_eval = create_evaluation_functions(
+        sim_fns.auxiliary_fn,
+        state.position,
+        system.atomic_numbers,
+        neighbor,
+        system.box,
+    )
+
     @jax.jit
-    def sim(state, neighbor):  # TODO make more modular
+    def sim(state, outer_step, neighbor):  # TODO make more modular
         def body_fn(i, state):
-            state, neighbor = state
+            state, outer_step, neighbor = state
+            step = i + outer_step * n_inner
+
+            apply_fn_kwargs = {}
             if isinstance(state, simulate.NPTNoseHooverState):
                 box = state.box
-                apply_fn_kwargs = {}
             else:
                 box = system.box
                 apply_fn_kwargs = {"box": box}
 
-            current_energy = energy_fn(R=state.position, neighbor=neighbor, box=box)
-            nbr_kwargs = nbr_options(state)
-            state = apply_fn(state, neighbor=neighbor, **apply_fn_kwargs)
+            apply_fn_kwargs["kT"] = kT(step)  # Get current Temperature
 
+            state = apply_fn(state, neighbor=neighbor, **apply_fn_kwargs)
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
-            io_callback(traj_handler.step, None, (state, current_energy, nbr_kwargs))
-            return state, neighbor
+            condition = step % sampling_rate == 0
+            predictions = jax.lax.cond(
+                condition, on_eval, no_eval, state.position, neighbor, box
+            )
 
-        state, neighbor = jax.lax.fori_loop(0, n_inner, body_fn, (state, neighbor))
+            # maybe move this to on_eval
+            io_callback(traj_handler.step, None, (state, predictions, nbr_kwargs))
+            return state, outer_step, neighbor
+
+        state, outer_step, neighbor = jax.lax.fori_loop(
+            0, n_inner, body_fn, (state, outer_step, neighbor)
+        )
         current_temperature = (
             quantity.temperature(velocity=state.velocity, mass=state.mass) / units.kB
         )
+
         return state, neighbor, current_temperature
 
     start = time.time()
@@ -249,7 +285,7 @@ def run_sim(
         leave=True,
     )
     while step < n_outer:
-        new_state, neighbor, current_temperature = sim(state, neighbor)
+        new_state, neighbor, current_temperature = sim(state, step, neighbor)
 
         if neighbor.did_buffer_overflow:
             with logging_redirect_tqdm():
@@ -368,7 +404,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
 
     Builder = model_config.model.get_builder()
     builder = Builder(model_config.model.get_dict())
-    model = builder.build_energy_model(
+    energy_model = builder.build_energy_model(
         apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
     )
     neighbor_fn = partition.neighbor_list(
@@ -381,23 +417,38 @@ def md_setup(model_config: Config, md_config: MDConfig):
         disable_cell_list=True,
     )
 
-    _, params = restore_parameters(model_config.data.model_version_path)
-    params = canonicalize_energy_model_parameters(params)
+    _, gradient_model_params = restore_parameters(model_config.data.model_version_path)
+    params = canonicalize_energy_model_parameters(gradient_model_params)
 
     n_models = 1
     shallow = False
     if (
-        "ensemble" in model_config.model_dump().keys()
-        and model_config.ensemble.n_members > 1
+        "ensemble" in model_config.model.model_dump().keys()
+        and model_config.model.ensemble is not None
+        and model_config.model.ensemble.n_members > 1
     ):
-        n_models = model_config.ensemble.n_members
+        n_models = model_config.model.ensemble.n_members
         if model_config.model.ensemble.kind == "shallow":
             shallow = True
 
     energy_fn = create_energy_fn(
-        model.apply, params, system.atomic_numbers, n_models, shallow
+        energy_model.apply, params, system.atomic_numbers, n_models, shallow
     )
-    sim_fns = SimulationFunctions(energy_fn, shift_fn, neighbor_fn)
+
+    auxiliary_fn = builder.build_energy_derivative_model(
+        apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
+    ).apply
+
+    if n_models > 1 and not shallow:
+        auxiliary_fn = maybe_vmap(auxiliary_fn, gradient_model_params)
+        auxiliary_fn = make_ensemble(auxiliary_fn)
+    else:
+        auxiliary_fn = partial(
+            auxiliary_fn,
+            gradient_model_params,
+        )
+
+    sim_fns = SimulationFunctions(energy_fn, auxiliary_fn, shift_fn, neighbor_fn)
     return system, sim_fns
 
 
