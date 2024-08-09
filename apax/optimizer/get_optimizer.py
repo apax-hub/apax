@@ -129,6 +129,7 @@ def get_opt(
         "weights_K": nn_opt,
         "weights_Q": nn_opt,
         "weights_V": nn_opt,
+        "scale": scale_opt,
     }
 
     param_partitions = freeze(
