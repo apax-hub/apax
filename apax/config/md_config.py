@@ -8,11 +8,14 @@ from pydantic import BaseModel, Field, NonNegativeInt, PositiveFloat, PositiveIn
 
 
 class ConstantTempSchedule(BaseModel, extra="forbid"):
-    """
+    """Constant temperature schedule. 
+
     Attributes
     ----------
-    temperature : PositiveFloat, default = 298.15
-        Temperature in Kelvin (K).
+    name: str
+        Identifier of the temperature schedule.
+    T0 : PositiveFloat, default = 298.15
+        Initial temperature in Kelvin (K).
     """
 
     name: Literal["constant"] = "constant"
@@ -25,6 +28,19 @@ class ConstantTempSchedule(BaseModel, extra="forbid"):
 
 
 class PiecewiseLinearTempSchedule(ConstantTempSchedule, extra="forbid"):
+    """Piecewise linear temperature schedule.
+    Temperature is linearly interpolated between T0 and the supplied
+    values at the specified time steps.
+
+    Attributes
+    ----------
+    values: list[PositiveFloat]
+        List of temperatures to interpolate between.
+    steps: list[PositiveInt]
+        Time steps (not simulation time!) at which the corresponding
+        temperatures should be reached.
+
+    """
     name: Literal["piecewise"] = "piecewise"
     values: list[PositiveFloat]
     steps: list[PositiveInt]
@@ -41,6 +57,20 @@ class PiecewiseLinearTempSchedule(ConstantTempSchedule, extra="forbid"):
 
 
 class OscillatingRampTempSchedule(ConstantTempSchedule, extra="forbid"):
+    """Combination of a linear interpolation between T0 and Tend and a temperature oscillation.
+    Mostly for sampling purposes.
+
+    Attributes
+    ----------
+    Tend: PositiveFloat
+        Final temperature in Kelvin.
+    amplitude: PositiveFloat
+        Amplitude of temperature oscilaltions.
+    num_oscillations: PositiveInt
+        Number of oscillations to occur during the simulation.
+    total_steps: PositiveInt
+        Total steps of the schedule. Afterwards, Tend will be kept.
+    """
     name: Literal["oscillating_ramp"] = "oscillating_ramp"
     Tend: PositiveFloat
     amplitude: PositiveFloat
@@ -60,7 +90,7 @@ class OscillatingRampTempSchedule(ConstantTempSchedule, extra="forbid"):
         return schedule
 
 
-TemperatureSchedules = Union[
+TemperatureSchedule = Union[
     ConstantTempSchedule, PiecewiseLinearTempSchedule, OscillatingRampTempSchedule
 ]
 
@@ -93,12 +123,19 @@ class Integrator(BaseModel, extra="forbid"):
 
     Parameters
     ----------
-
+    name : str
+        Name of the ensemble.
+    dt: PositiveFloat, default = 0.5
+        Time step in femto seconds.
+    temperature_schedule: TemperatureSchedule
+        Temperature schedule to use throughout the simulation.
+        For NVE, it is only used for velocity initialization and
+        disregarded at subsequent steps.
     """
 
     name: str
     dt: PositiveFloat = 0.5  # fs
-    temperature_schedule: TemperatureSchedules = Field(
+    temperature_schedule: TemperatureSchedule = Field(
         ConstantTempSchedule(name="constant", T0=298.15), discriminator="name"
     )
 
