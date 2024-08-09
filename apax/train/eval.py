@@ -9,7 +9,6 @@ from tqdm import trange
 
 from apax.config import parse_config
 from apax.data.input_pipeline import OTFInMemoryDataset
-from apax.model import ModelBuilder
 from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import restore_single_parameters
 from apax.train.metrics import initialize_metrics
@@ -187,7 +186,8 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
     else:
         n_full_models = 1
 
-    builder = ModelBuilder(config.model.get_dict())
+    Builder = config.model.get_builder()
+    builder = Builder(config.model.get_dict(), n_species=119)
     model = builder.build_energy_derivative_model(
         apply_mask=True,
         init_box=init_box,

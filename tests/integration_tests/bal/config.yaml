@@ -10,6 +10,7 @@ data:
   valid_batch_size: 2
 
 model:
+  name: gmnn
   nn: [32,32]
   basis:
     name: gaussian
