@@ -124,6 +124,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     scale_shift_dtype : Literal["fp32", "fp64"], default = "fp32"
         Data type for scale and shift parameters.
     """
+
     basis: BasisConfig = Field(BesselBasisConfig(name="bessel"), discriminator="name")
 
     nn: List[PositiveInt] = [128, 128]
