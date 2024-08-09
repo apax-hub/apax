@@ -15,6 +15,7 @@ from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from apax.config import Config, MDConfig, parse_config
+from apax.config.md_config import Integrator
 from apax.md.ase_calc import make_ensemble, maybe_vmap
 from apax.md.io import H5TrajHandler, TrajHandler, truncate_trajectory_to_checkpoint
 from apax.md.md_checkpoint import load_md_state
@@ -83,24 +84,22 @@ def nbr_update_options_npt(state):
     return {"box": box}
 
 
-def get_ensemble(ensemble, sim_fns):
+def get_ensemble(ensemble: Integrator, sim_fns):
     energy, shift = sim_fns.energy_fn, sim_fns.shift_fn
 
     dt = ensemble.dt * units.fs
     nbr_options = nbr_update_options_default
 
+    kT = ensemble.temperature_schedule.get_schedule()
     if ensemble.name == "nve":
-        kT = units.kB * ensemble.temperature
-        init_fn, apply_fn = simulate.nve(energy, shift, kT, dt)
+        init_fn, apply_fn = simulate.nve(energy, shift, kT(0), dt)
     elif ensemble.name == "nvt":
-        kT = units.kB * ensemble.temperature
         thermostat_chain = dict(ensemble.thermostat_chain)
         thermostat_chain["tau"] *= dt
 
-        init_fn, apply_fn = simulate.nvt_nose_hoover(energy, shift, dt, kT)
+        init_fn, apply_fn = simulate.nvt_nose_hoover(energy, shift, dt, kT(0))
 
     elif ensemble.name == "npt":
-        kT = units.kB * ensemble.temperature
         pressure = ensemble.pressure * units.bar
         thermostat_chain = dict(ensemble.thermostat_chain)
         barostat_chain = dict(ensemble.barostat_chain)
@@ -112,7 +111,7 @@ def get_ensemble(ensemble, sim_fns):
             shift,
             dt,
             pressure,
-            kT,
+            kT(0),
             thermostat_kwargs=thermostat_chain,
             barostat_kwargs=barostat_chain,
         )
@@ -122,7 +121,7 @@ def get_ensemble(ensemble, sim_fns):
             "Only the NVE and Nose Hoover NVT/NPT thermostats are currently interfaced."
         )
 
-    return init_fn, apply_fn, nbr_options
+    return init_fn, apply_fn, kT, nbr_options
 
 
 def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_ckpt):
@@ -196,7 +195,7 @@ def run_sim(
     ckpt_dir.mkdir(exist_ok=True)
 
     log.info("initializing simulation")
-    init_fn, apply_fn, nbr_options = get_ensemble(ensemble, sim_fns)
+    init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns)
 
     neighbor = sim_fns.neighbor_fn.allocate(
         system.positions, extra_capacity=extra_capacity
@@ -238,19 +237,22 @@ def run_sim(
     @jax.jit
     def sim(state, outer_step, neighbor):  # TODO make more modular
         def body_fn(i, state):
-            state, outer_step, neighbor = state  # neighbors
+            state, outer_step, neighbor = state
+            step = i + outer_step * n_inner
+
+            apply_fn_kwargs = {}
             if isinstance(state, simulate.NPTNoseHooverState):
                 box = state.box
-                apply_fn_kwargs = {}
             else:
                 box = system.box
-                apply_fn_kwargs = {"box": box}  # this might cause a bug
+                apply_fn_kwargs = {"box": box}
+
+            apply_fn_kwargs["kT"] = kT(step)  # Get current Temperature
 
             state = apply_fn(state, neighbor=neighbor, **apply_fn_kwargs)
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
-            step = i + outer_step * n_inner
             condition = step % sampling_rate == 0
             predictions = jax.lax.cond(
                 condition, on_eval, no_eval, state.position, neighbor, box
@@ -445,6 +447,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
             auxiliary_fn,
             gradient_model_params,
         )
+
     sim_fns = SimulationFunctions(energy_fn, auxiliary_fn, shift_fn, neighbor_fn)
     return system, sim_fns
 
