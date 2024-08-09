@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, NonNegativeInt, PositiveFloat, PositiveIn
 
 
 class ConstantTempSchedule(BaseModel, extra="forbid"):
-    """Constant temperature schedule. 
+    """Constant temperature schedule.
 
     Attributes
     ----------
