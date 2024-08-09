@@ -449,6 +449,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         n_epochs,
         n_jit_steps=1,
         num_workers: Optional[int] = None,
+        reset_every: int = 10,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
         pre_shuffle=False,
@@ -490,6 +491,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.prepare_batch = BatchProcessor(cutoff, forces, stress)
 
         self.count = 0
+        self.reset_every = reset_every
         self.max_count = self.n_epochs * self.steps_per_epoch()
         self.buffer = deque()
 
@@ -511,6 +513,10 @@ class PerBatchPaddedDataset(InMemoryDataset):
         for n in range(self.n_epochs):
             self.count = 0
             self.buffer = deque()
+
+            # reinitialize PPE from time to time to avoid memory leak
+            if n % self.reset_every == 0:
+                self.process_pool = ProcessPoolExecutor(self.num_workers)
 
             if self.should_shuffle:
                 shuffle(self.data)

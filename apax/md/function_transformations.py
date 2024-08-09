@@ -6,20 +6,21 @@ import jax.numpy as jnp
 
 @dataclasses.dataclass
 class FunctionTransformation:
-    def apply(self, model, n_models):
+    def apply(self, model):
         raise NotImplementedError
 
 
 def make_biased_energy_force_fn(bias_fn):
     def biased_energy_force_fn(positions, Z, idx, box, offsets):
-        gamd_fn = jax.value_and_grad(bias_fn, has_aux=True)
+        bias_and_grad_fn = jax.value_and_grad(bias_fn, has_aux=True)
 
-        (E_bias, results), F_bias = gamd_fn(positions, Z, idx, box, offsets)
+        (E_bias, results), neg_F_bias = bias_and_grad_fn(positions, Z, idx, box, offsets)
 
         if "energy_unbiased" not in results.keys():
             results["energy_unbiased"] = results["energy"]
             results["forces_unbiased"] = results["forces"]
 
+        F_bias = -neg_F_bias
         results["energy"] = results["energy"] + E_bias
         results["forces"] = results["forces"] + F_bias
 
@@ -48,10 +49,11 @@ class UncertaintyDrivenDynamics(FunctionTransformation):
     height: float
     width: float
 
-    def apply(self, model, n_models):
+    def apply(self, model):
         def udd_energy(positions, Z, idx, box, offsets):
             n_atoms = positions.shape[0]
             results = model(positions, Z, idx, box, offsets)
+            n_models = results["energy_ensemble"].shape[0]
 
             sigma2 = results["energy_uncertainty"] ** 2
 
@@ -81,7 +83,7 @@ class GaussianAcceleratedMolecularDynamics(FunctionTransformation):
     energy_target: float
     spring_constant: float
 
-    def apply(self, model, n_models):
+    def apply(self, model):
         def gamd_energy(positions, Z, idx, box, offsets):
             results = model(positions, Z, idx, box, offsets)
 
@@ -96,7 +98,48 @@ class GaussianAcceleratedMolecularDynamics(FunctionTransformation):
         return gamd_energy_force
 
 
+@dataclasses.dataclass
+class GlobalCalibration:
+    """
+    Applies a global calibration to energy and force uncertainties.
+    Energy ensemble predictions are rescaled according to EQ 7 in
+    https://doi.org/10.1063/5.0036522
+
+    Parameters
+    ----------
+    energy_factor : float
+        Global calibration factor by which to scale the energy uncertainty.
+    forces_factor : float
+        Global calibration factor by which to scale the force uncertainties.
+    """
+
+    energy_factor: float
+    forces_factor: float
+
+    def apply(self, model):
+        def calibrated_model(positions, Z, idx, box, offsets):
+            results = model(positions, Z, idx, box, offsets)
+
+            results["energy_uncertainty"] = (
+                results["energy_uncertainty"] * self.energy_factor
+            )
+
+            Emean = results["energy"]
+            Ei = results["energy_ensemble"]
+            results["energy_ensemble"] = Emean + self.energy_factor * (Ei - Emean)
+
+            if "forces_uncertainty" in results.keys():
+                results["forces_uncertainty"] = (
+                    results["forces_uncertainty"] * self.forces_factor
+                )
+
+            return results
+
+        return calibrated_model
+
+
 available_transformations = {
     "udd": UncertaintyDrivenDynamics,
     "gamd": GaussianAcceleratedMolecularDynamics,
+    "global_cal": GlobalCalibration,
 }

@@ -1,7 +1,9 @@
 ensemble:
   name: nvt
   dt: 0.05 # fs time step
-  temperature: 5 # K
+  temperature_schedule:
+    name: constant
+    T0: 5 # K
 
 duration: 0.25
 n_inner: 1

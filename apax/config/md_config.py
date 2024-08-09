@@ -7,6 +7,96 @@ import yaml
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveFloat, PositiveInt
 
 
+class ConstantTempSchedule(BaseModel, extra="forbid"):
+    """Constant temperature schedule.
+
+    Attributes
+    ----------
+    name: str
+        Identifier of the temperature schedule.
+    T0 : PositiveFloat, default = 298.15
+        Initial temperature in Kelvin (K).
+    """
+
+    name: Literal["constant"] = "constant"
+    T0: PositiveFloat = 298.15  # K
+
+    def get_schedule(self):
+        from apax.md.schedules import ConstantTSchedule
+
+        return ConstantTSchedule(self.T0)
+
+
+class PiecewiseLinearTempSchedule(ConstantTempSchedule, extra="forbid"):
+    """Piecewise linear temperature schedule.
+    Temperature is linearly interpolated between T0 and the supplied
+    values at the specified time steps.
+
+    Attributes
+    ----------
+    values: list[PositiveFloat]
+        List of temperatures to interpolate between.
+    steps: list[PositiveInt]
+        Time steps (not simulation time!) at which the corresponding
+        temperatures should be reached.
+
+    """
+
+    name: Literal["piecewise"] = "piecewise"
+    values: list[PositiveFloat]
+    steps: list[PositiveInt]
+
+    def get_schedule(self):
+        from apax.md.schedules import PieceWiseLinearTSchedule
+
+        schedule = PieceWiseLinearTSchedule(
+            self.T0,
+            self.values,
+            self.steps,
+        )
+        return schedule
+
+
+class OscillatingRampTempSchedule(ConstantTempSchedule, extra="forbid"):
+    """Combination of a linear interpolation between T0 and Tend and a temperature oscillation.
+    Mostly for sampling purposes.
+
+    Attributes
+    ----------
+    Tend: PositiveFloat
+        Final temperature in Kelvin.
+    amplitude: PositiveFloat
+        Amplitude of temperature oscilaltions.
+    num_oscillations: PositiveInt
+        Number of oscillations to occur during the simulation.
+    total_steps: PositiveInt
+        Total steps of the schedule. Afterwards, Tend will be kept.
+    """
+
+    name: Literal["oscillating_ramp"] = "oscillating_ramp"
+    Tend: PositiveFloat
+    amplitude: PositiveFloat
+    num_oscillations: PositiveInt
+    total_steps: PositiveInt
+
+    def get_schedule(self):
+        from apax.md.schedules import OscillatingRampTSchedule
+
+        schedule = OscillatingRampTSchedule(
+            self.T0,
+            self.Tend,
+            self.amplitude,
+            self.num_oscillations,
+            self.total_steps,
+        )
+        return schedule
+
+
+TemperatureSchedule = Union[
+    ConstantTempSchedule, PiecewiseLinearTempSchedule, OscillatingRampTempSchedule
+]
+
+
 class NHCOptions(BaseModel, extra="forbid"):
     """
     Options for Nose-Hoover chain thermostat.
@@ -35,11 +125,21 @@ class Integrator(BaseModel, extra="forbid"):
 
     Parameters
     ----------
-    dt : PositiveFloat, default = 0.5
-        Time step size in femtoseconds (fs).
+    name : str
+        Name of the ensemble.
+    dt: PositiveFloat, default = 0.5
+        Time step in femto seconds.
+    temperature_schedule: TemperatureSchedule
+        Temperature schedule to use throughout the simulation.
+        For NVE, it is only used for velocity initialization and
+        disregarded at subsequent steps.
     """
 
+    name: str
     dt: PositiveFloat = 0.5  # fs
+    temperature_schedule: TemperatureSchedule = Field(
+        ConstantTempSchedule(name="constant", T0=298.15), discriminator="name"
+    )
 
 
 class NVEOptions(Integrator, extra="forbid"):
@@ -50,16 +150,12 @@ class NVEOptions(Integrator, extra="forbid"):
     ----------
     name : Literal["nve"]
         Name of the ensemble.
-    init_temperature : PositiveFloat, default = 298.15
-        Initialisation temperature in Kelvin (K).
-
     """
 
     name: Literal["nve"]
-    init_temperature: PositiveFloat = 298.15  # K
 
 
-class NVTOptions(Integrator, extra="forbid"):
+class NVTOptions(NVEOptions, extra="forbid"):
     """
     Options for NVT ensemble simulations.
 
@@ -67,14 +163,11 @@ class NVTOptions(Integrator, extra="forbid"):
     ----------
     name : Literal["nvt"]
         Name of the ensemble.
-    temperature : PositiveFloat, default = 298.15
-        Temperature in Kelvin (K).
     thermostat_chain : NHCOptions, default = NHCOptions()
         Thermostat chain options.
     """
 
     name: Literal["nvt"]
-    temperature: PositiveFloat = 298.15  # K
     thermostat_chain: NHCOptions = NHCOptions()
 
 
@@ -106,8 +199,8 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     ----------
     seed : int, default = 1
         | Random seed for momentum initialization.
-    temperature : float, default = 298.15
-        | Temperature of the simulation in Kelvin.
+    ensemle :
+        | Options for integrating the EoM and which ensemble to use.
     dt : float, default = 0.5
         | Time step in fs.
     duration : float, required

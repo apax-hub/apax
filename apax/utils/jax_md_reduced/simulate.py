@@ -33,13 +33,11 @@ also return a function that computes the invariant for that ensemble. This
 can be used for testing purposes, but is not often used otherwise.
 """
 
-import functools
-from collections import namedtuple
-from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, Union
+from typing import Callable, Dict, Optional, Tuple, TypeVar
 
 import jax.numpy as jnp
 from jax import grad, jit, lax, random
-from jax.tree_util import tree_flatten, tree_map, tree_reduce, tree_unflatten
+from jax.tree_util import tree_flatten, tree_map, tree_unflatten
 
 from apax.utils.jax_md_reduced import (
     dataclasses,
@@ -612,7 +610,10 @@ def nvt_nose_hoover(
 
     @jit
     def apply_fn(state, **kwargs):
-        _kT = kT if "kT" not in kwargs else kwargs["kT"]
+        if "kT" not in kwargs:
+            _kT = kT
+        else:
+            _kT = kwargs.pop("kT")
 
         chain = state.chain
 
@@ -793,7 +794,10 @@ def npt_nose_hoover(
     def init_fn(key, R, box, mass=f32(1.0), **kwargs):
         N, dim = R.shape
 
-        _kT = kT if "kT" not in kwargs else kwargs["kT"]
+        if "kT" not in kwargs:
+            _kT = kT
+        else:
+            _kT = kwargs.pop("kT")
 
         # The box position is defined via pos = (1 / d) log V / V_0.
         zero = jnp.zeros((), dtype=R.dtype)
@@ -846,12 +850,7 @@ def npt_nose_hoover(
     def sinhx_x(x):
         """Taylor series for sinh(x) / x as x -> 0."""
         return (
-            1
-            + x**2 / 6
-            + x**4 / 120
-            + x**6 / 5040
-            + x**8 / 362_880
-            + x**10 / 39_916_800
+            1 + x**2 / 6 + x**4 / 120 + x**6 / 5040 + x**8 / 362_880 + x**10 / 39_916_800
         )
 
     def exp_iL1(box, R, V, V_b, **kwargs):
@@ -908,7 +907,10 @@ def npt_nose_hoover(
 
     def apply_fn(state, **kwargs):
         S = state
-        _kT = kT if "kT" not in kwargs else kwargs["kT"]
+        if "kT" not in kwargs:
+            _kT = kT
+        else:
+            _kT = kwargs.pop("kT")
 
         bc = barostat.update_mass(S.barostat, _kT)
         tc = thermostat.update_mass(S.thermostat, _kT)

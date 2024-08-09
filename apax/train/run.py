@@ -109,7 +109,7 @@ def initialize_datasets(config: Config):
 
     train_ds = Dataset(
         train_raw_ds,
-        config.model.r_max,
+        config.model.basis.r_max,
         config.data.batch_size,
         config.n_epochs,
         config.n_jitted_steps,
@@ -120,7 +120,7 @@ def initialize_datasets(config: Config):
     )
     val_ds = Dataset(
         val_raw_ds,
-        config.model.r_max,
+        config.model.basis.r_max,
         config.data.valid_batch_size,
         config.n_epochs,
         pos_unit=config.data.pos_unit,
@@ -164,7 +164,6 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
 
     train_ds, val_ds, ds_stats = initialize_datasets(config)
 
-    log.info("Initializing Model")
     sample_input, init_box = train_ds.init_input()
     builder = ModelBuilder(config.model.get_dict())
     model = builder.build_energy_derivative_model(
@@ -175,7 +174,11 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
     )
     batched_model = jax.vmap(model.apply, in_axes=(None, 0, 0, 0, 0, 0))
 
-    params, rng_key = create_params(model, rng_key, sample_input, config.n_models)
+    if config.model.ensemble and config.model.ensemble.kind == "full":
+        n_full_models = config.model.ensemble.n_members
+    else:
+        n_full_models = 1
+    params, rng_key = create_params(model, rng_key, sample_input, n_full_models)
 
     # TODO rework optimizer initialization and lr keywords
     steps_per_epoch = train_ds.steps_per_epoch()
@@ -213,7 +216,7 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
         patience=config.patience,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
         disable_batch_pbar=config.progress_bar.disable_batch_pbar,
-        is_ensemble=config.n_models > 1,
+        is_ensemble=n_full_models > 1,
         data_parallel=config.data_parallel,
         ema_handler=ema_handler,
     )

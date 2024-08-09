@@ -8,10 +8,13 @@ import jax.numpy as jnp
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
+from flax.core.frozen_dict import freeze, unfreeze
 from matscipy.neighbours import neighbour_list
 from tqdm import trange
 
-from apax.data.input_pipeline import OTFInMemoryDataset
+from apax.data.input_pipeline import (
+    CachedInMemoryDataset,
+)
 from apax.model import ModelBuilder
 from apax.train.checkpoints import check_for_ensemble, restore_parameters
 from apax.utils.jax_md_reduced import partition, quantity, space
@@ -30,7 +33,7 @@ def maybe_vmap(apply, params):
 
 
 def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_jax):
-    r_max = config.model.r_max
+    r_max = config.model.basis.r_max
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
     neigbor_from_jax = neighbor_calculable_with_jax(box, r_max)
     box = box.T
@@ -46,7 +49,7 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
         neighbor_fn = partition.neighbor_list(
             displacement_fn,
             box,
-            config.model.r_max,
+            config.model.basis.r_max,
             dr_threshold,
             fractional_coordinates=True,
             disable_cell_list=True,
@@ -92,6 +95,7 @@ def unpack_results(results, inputs):
     unpacked_results = []
     for i in range(n_structures):
         single_results = jax.tree_map(lambda x: x[i], results)
+        single_results["energy"] = single_results["energy"].item()
         for k, v in single_results.items():
             if "forces" in k:
                 single_results[k] = v[: inputs["n_atoms"][i]]
@@ -120,7 +124,7 @@ class ASECalculator(Calculator):
         dr_threshold: float = 0.5,
         transformations: Callable = [],
         padding_factor: float = 1.5,
-        **kwargs
+        **kwargs,
     ):
         """
         Parameters
@@ -165,7 +169,7 @@ class ASECalculator(Calculator):
 
     def initialize(self, atoms):
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
-        self.r_max = self.model_config.model.r_max
+        self.r_max = self.model_config.model.basis.r_max
         self.neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
         model, neighbor_fn = build_energy_neighbor_fns(
             atoms,
@@ -179,7 +183,7 @@ class ASECalculator(Calculator):
             model = make_ensemble(model)
 
         for transformation in self.transformations:
-            model = transformation.apply(model, self.n_models)
+            model = transformation.apply(model)
 
         self.model = model
         self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
@@ -276,11 +280,12 @@ class ASECalculator(Calculator):
         evaluated_atoms_list:
             List of Atoms with labels predicted by the model.
         """
-        if self.model is None:
-            self.initialize(atoms_list[0])
-        dataset = OTFInMemoryDataset(
+
+        init_box = atoms_list[0].cell.array
+
+        dataset = CachedInMemoryDataset(
             atoms_list,
-            self.model_config.model.r_max,
+            self.model_config.model.basis.r_max,
             batch_size,
             n_epochs=1,
             ignore_labels=True,
@@ -289,13 +294,26 @@ class ASECalculator(Calculator):
         evaluated_atoms_list = []
         n_data = dataset.n_data
         ds = dataset.batch()
-        batched_model = jax.jit(jax.vmap(self.model, in_axes=(0, 0, 0, 0, 0)))
+
+        builder = ModelBuilder(self.model_config.model.get_dict())
+        model = builder.build_energy_derivative_model(
+            apply_mask=True,
+            init_box=init_box,
+        )
+
+        model = partial(model.apply, self.params)
+
+        for transformation in self.transformations:
+            model = transformation.apply(model)
+
+        model = jax.vmap(model, in_axes=(0, 0, 0, 0, 0))
+        model = jax.jit(model)
 
         pbar = trange(
-            n_data, desc="Computing features", ncols=100, leave=True, disable=silent
+            n_data, desc="Evaluating data", ncols=100, leave=False, disable=silent
         )
         for i, inputs in enumerate(ds):
-            results = batched_model(
+            results = model(
                 inputs["positions"],
                 inputs["numbers"],
                 inputs["idx"],
@@ -308,12 +326,34 @@ class ASECalculator(Calculator):
             # than the batch_size,  which is why we check this explicitly
             num_strucutres_in_batch = results["energy"].shape[0]
             for j in range(num_strucutres_in_batch):
-                atoms = atoms_list[i].copy()
+                atoms = atoms_list[i * batch_size + j].copy()
                 atoms.calc = SinglePointCalculator(atoms=atoms, **unpadded_results[j])
                 evaluated_atoms_list.append(atoms)
             pbar.update(batch_size)
         pbar.close()
+        dataset.cleanup()
         return evaluated_atoms_list
+
+    @property
+    def ll_weights(self):
+        dense_layers = list(
+            self.params["params"]["energy_model"]["atomistic_model"]["readout"].keys()
+        )
+        llweights = self.params["params"]["energy_model"]["atomistic_model"]["readout"][
+            dense_layers[-1]
+        ]["w"]
+        return np.asarray(llweights)
+
+    def set_ll_weights(self, new_weights):
+        params = unfreeze(self.params)
+        dense_layers = list(
+            params["params"]["energy_model"]["atomistic_model"]["readout"].keys()
+        )
+        params["params"]["energy_model"]["atomistic_model"]["readout"][dense_layers[-1]][
+            "w"
+        ] = jnp.asarray(new_weights, dtype=jnp.float32)
+        self.params = freeze(params)
+        self.step = None
 
 
 def neighbor_calculable_with_jax(box, r_max):

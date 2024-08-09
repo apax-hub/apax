@@ -102,13 +102,37 @@ def schema():
     console.print("Generating JSON schema")
     from apax.config import Config, MDConfig
 
+    vscode_path = Path(".vscode")
+    vscode_path.mkdir(exist_ok=True)
+
+    settings_path = vscode_path / "settings.json"
+
+    if not settings_path.is_file():
+        with settings_path.open("w") as f:
+            json.dump({"yaml.schemas": {}}, f, indent=2)
+
+    with settings_path.open("r") as f:
+        settings = json.load(f)
+
+    if "yaml.schemas" not in settings.keys():
+        settings["yaml.schemas"] = {}
+
+    train_schema = (vscode_path / "apaxtrain.schema.json").resolve().as_posix()
+    md_schema = (vscode_path / "apaxmd.schema.json").resolve().as_posix()
+
+    schemas = {train_schema: ["train*.yaml"], md_schema: ["md*.yaml"]}
+    settings["yaml.schemas"].update(schemas)
+
+    with settings_path.open("w") as f:
+        json.dump(settings, f, indent=2)
+
     train_schema = Config.model_json_schema()
     md_schema = MDConfig.model_json_schema()
-    with open("./apaxtrain.schema.json", "w") as f:
-        f.write(json.dumps(train_schema, indent=2))
+    with (vscode_path / "apaxtrain.schema.json").open("w") as f:
+        json.dump(train_schema, f, indent=2)
 
-    with open("./apaxmd.schema.json", "w") as f:
-        f.write(json.dumps(md_schema, indent=2))
+    with (vscode_path / "apaxmd.schema.json").open("w") as f:
+        json.dump(md_schema, f, indent=2)
 
 
 @validate_app.command("train")
@@ -177,7 +201,7 @@ def visualize_model(
             "Training configuration file to be visualized. A CO molecule is taken as"
             " sample input."
         ),
-    )
+    ),
 ):
     """
     Visualize a model based on a configuration file.

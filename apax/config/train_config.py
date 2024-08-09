@@ -76,10 +76,14 @@ class PBPDatset(DatasetConfig, extra="forbid"):
     ----------
     num_workers : int
         | Number of batches to be processed in parallel.
+    reset_every : int
+        | Number of epochs before reinitializing the ProcessPoolExcecutor.
+        | Avoids memory leaks.
     """
 
     processing: Literal["pbp"] = "pbp"
     num_workers: PositiveInt = 10
+    reset_every: PositiveInt = 10
 
 
 class DataConfig(BaseModel, extra="forbid"):
@@ -197,26 +201,116 @@ class DataConfig(BaseModel, extra="forbid"):
         return self.model_version_path / "best"
 
 
+class GaussianBasisConfig(BaseModel, extra="forbid"):
+    """
+    Gaussian primitive basis functions.
+
+    Parameters
+    ----------
+    n_basis : PositiveInt, default = 7
+        Number of uncontracted basis functions.
+    r_min : NonNegativeFloat, default = 0.5
+        Position of the first uncontracted basis function's mean.
+    r_max : PositiveFloat, default = 6.0
+        Cutoff radius of the descriptor.
+    """
+
+    name: Literal["gaussian"] = "gaussian"
+    n_basis: PositiveInt = 7
+    r_min: NonNegativeFloat = 0.5
+    r_max: PositiveFloat = 6.0
+
+
+class BesselBasisConfig(BaseModel, extra="forbid"):
+    """
+    Gaussian primitive basis functions.
+
+    Parameters
+    ----------
+    n_basis : PositiveInt, default = 7
+        Number of uncontracted basis functions.
+    r_max : PositiveFloat, default = 6.0
+        Cutoff radius of the descriptor.
+    """
+
+    name: Literal["bessel"] = "bessel"
+    n_basis: PositiveInt = 7
+    r_max: PositiveFloat = 6.0
+
+
+BasisConfig = Union[GaussianBasisConfig, BesselBasisConfig]
+
+
+class FullEnsembleConfig(BaseModel, extra="forbid"):
+    """
+    Configuration for full model ensembles.
+    Usage can improve accuracy and stability at the cost of slower inference.
+    Uncertainties will generally not be calibrated.
+
+    Parameters
+    ----------
+    n_members : int
+        Number of ensemble members.
+    """
+
+    kind: Literal["full"] = "full"
+    n_members: int
+
+
+class ShallowEnsembleConfig(BaseModel, extra="forbid"):
+    """
+    Configuration for shallow (last layer) ensembles.
+    Allows use of probabilistic loss functions.
+    The predicted uncertainties should be well calibrated.
+    See 10.1088/2632-2153/ad594a for details.
+
+    Parameters
+    ----------
+    n_members : int
+        Number of ensemble members.
+    force_variance : bool, default = True
+        Whether or not to compute force uncertainties.
+        Required for probabilistic force loss and calibration of force uncertainties.
+        Can lead to better force metrics but but enabling it introduces some non-negligible cost.
+    chunk_size : Optional[int], default = None
+        If set to an integer, the jacobian of ensemble energies wrt. to positions will be computed
+        in chunks of that size. This sacrifices some performance for the possibility to use relatively
+        large ensemble sizes.
+    """
+
+    kind: Literal["shallow"] = "shallow"
+    n_members: int
+    force_variance: bool = True
+    chunk_size: Optional[int] = None
+
+
+EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
+
+
 class ModelConfig(BaseModel, extra="forbid"):
     """
     Configuration for the model.
 
     Parameters
     ----------
-    n_basis : PositiveInt, default = 7
-        Number of uncontracted gaussian basis functions.
+    basis : BasisConfig, default = GaussianBasisConfig()
+        Configuration for primitive basis funtions.
     n_radial : PositiveInt, default = 5
         Number of contracted basis functions.
-    r_min : NonNegativeFloat, default = 0.5
-        Position of the first uncontracted basis function's mean.
-    r_max : PositiveFloat, default = 6.0
-        Cutoff radius of the descriptor.
-    nn : List[PositiveInt], default = [512, 512]
-        Number of hidden layers and units in those layers.
-    b_init : Literal["normal", "zeros"], default = "normal"
-        Initialization scheme for the neural network biases.
+    n_contr : int, default = 8
+        How many gaussian moment contractions to use.
     emb_init : Optional[str], default = "uniform"
         Initialization scheme for embedding layer weights.
+    nn : List[PositiveInt], default = [512, 512]
+        Number of hidden layers and units in those layers.
+    w_init : Literal["normal", "lecun"], default = "normal"
+        Initialization scheme for the neural network weights.
+    b_init : Literal["normal", "zeros"], default = "normal"
+        Initialization scheme for the neural network biases.
+    use_ntk : bool, default = True
+        Whether or not to use NTK parametrization.
+    ensemble : Optional[EnsembleConfig], default = None
+        What kind of model ensemble to use (optional).
     use_zbl : bool, default = False
         Whether to include the ZBL correction.
     calc_stress : bool, default = False
@@ -229,15 +323,17 @@ class ModelConfig(BaseModel, extra="forbid"):
         Data type for scale and shift parameters.
     """
 
-    n_basis: PositiveInt = 7
+    basis: BasisConfig = Field(GaussianBasisConfig(name="gaussian"), discriminator="name")
     n_radial: PositiveInt = 5
-    r_min: NonNegativeFloat = 0.5
-    r_max: PositiveFloat = 6.0
     n_contr: int = 8
     emb_init: Optional[str] = "uniform"
 
     nn: List[PositiveInt] = [512, 512]
+    w_init: Literal["normal", "lecun"] = "normal"
     b_init: Literal["normal", "zeros"] = "normal"
+    use_ntk: bool = True
+
+    ensemble: Optional[EnsembleConfig] = None
 
     # corrections
     use_zbl: bool = False
@@ -267,7 +363,7 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
 
     Parameters
     ----------
-    opt_name : str, default = "adam"
+    name : str, default = "adam"
         Name of the optimizer. Can be any `optax` optimizer.
     emb_lr : NonNegativeFloat, default = 0.02
         Learning rate of the elemental embedding contraction coefficients.
@@ -281,11 +377,11 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
         Learning rate of the ZBL correction parameters.
     schedule : LRSchedule = LinearLR
         Learning rate schedule.
-    opt_kwargs : dict, default = {}
+    kwargs : dict, default = {}
         Optimizer keyword arguments. Passed to the `optax` optimizer.
     """
 
-    opt_name: str = "adam"
+    name: str = "adam"
     emb_lr: NonNegativeFloat = 0.02
     nn_lr: NonNegativeFloat = 0.03
     scale_lr: NonNegativeFloat = 0.001
@@ -294,7 +390,7 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     schedule: Union[LinearLR, CyclicCosineLR] = Field(
         LinearLR(name="linear"), discriminator="name"
     )
-    opt_kwargs: dict = {}
+    kwargs: dict = {}
 
 
 class MetricsConfig(BaseModel, extra="forbid"):
@@ -457,8 +553,6 @@ class Config(BaseModel, frozen=True, extra="forbid"):
         | Number of epochs without improvement before trainings gets terminated.
     seed : int, default = 1
         | Random seed.
-    n_models : int, default = 1
-        | Number of models to be trained at once.
     n_jitted_steps : int, default = 1
         | Number of train batches to be processed in a compiled loop.
         | Can yield significant speedups for small structures or small batch sizes.
@@ -489,7 +583,6 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     n_epochs: PositiveInt
     patience: Optional[PositiveInt] = None
     seed: int = 1
-    n_models: int = 1
     n_jitted_steps: int = 1
     data_parallel: bool = True
 
