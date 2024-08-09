@@ -96,10 +96,40 @@ EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
 
 
 class BaseModelConfig(BaseModel, extra="forbid"):
-    nn: List[PositiveInt] = [512, 512]
-    w_init: Literal["normal", "lecun"] = "normal"
-    b_init: Literal["normal", "zeros"] = "normal"
-    use_ntk: bool = True
+    """
+    Configuration for the model.
+
+    Parameters
+    ----------
+    basis : BasisConfig, default = GaussianBasisConfig()
+        Configuration for primitive basis funtions.
+    nn : List[PositiveInt], default = [512, 512]
+        Number of hidden layers and units in those layers.
+    w_init : Literal["normal", "lecun"], default = "normal"
+        Initialization scheme for the neural network weights.
+    b_init : Literal["normal", "zeros"], default = "normal"
+        Initialization scheme for the neural network biases.
+    use_ntk : bool, default = True
+        Whether or not to use NTK parametrization.
+    ensemble : Optional[EnsembleConfig], default = None
+        What kind of model ensemble to use (optional).
+    use_zbl : bool, default = False
+        Whether to include the ZBL correction.
+    calc_stress : bool, default = False
+        Whether to calculate stress during model evaluation.
+    descriptor_dtype : Literal["fp32", "fp64"], default = "fp64"
+        Data type for descriptor calculations.
+    readout_dtype : Literal["fp32", "fp64"], default = "fp32"
+        Data type for readout calculations.
+    scale_shift_dtype : Literal["fp32", "fp64"], default = "fp32"
+        Data type for scale and shift parameters.
+    """
+    basis: BasisConfig = Field(BesselBasisConfig(name="bessel"), discriminator="name")
+
+    nn: List[PositiveInt] = [128, 128]
+    w_init: Literal["normal", "lecun"] = "lecun"
+    b_init: Literal["normal", "zeros"] = "zeros"
+    use_ntk: bool = False
 
     ensemble: Optional[EnsembleConfig] = None
 
@@ -108,9 +138,9 @@ class BaseModelConfig(BaseModel, extra="forbid"):
 
     calc_stress: bool = False
 
-    descriptor_dtype: Literal["fp32", "fp64"] = "fp64"
+    descriptor_dtype: Literal["fp32", "fp64"] = "fp32"
     readout_dtype: Literal["fp32", "fp64"] = "fp32"
-    scale_shift_dtype: Literal["fp32", "fp64"] = "fp32"
+    scale_shift_dtype: Literal["fp32", "fp64"] = "fp64"
 
     def get_dict(self):
         import jax.numpy as jnp
@@ -130,39 +160,16 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
 
     Parameters
     ----------
-    basis : BasisConfig, default = GaussianBasisConfig()
-        Configuration for primitive basis funtions.
     n_radial : PositiveInt, default = 5
         Number of contracted basis functions.
     n_contr : int, default = 8
         How many gaussian moment contractions to use.
     emb_init : Optional[str], default = "uniform"
         Initialization scheme for embedding layer weights.
-    nn : List[PositiveInt], default = [512, 512]
-        Number of hidden layers and units in those layers.
-    w_init : Literal["normal", "lecun"], default = "normal"
-        Initialization scheme for the neural network weights.
-    b_init : Literal["normal", "zeros"], default = "normal"
-        Initialization scheme for the neural network biases.
-    use_ntk : bool, default = True
-        Whether or not to use NTK parametrization.
-    ensemble : Optional[EnsembleConfig], default = None
-        What kind of model ensemble to use (optional).
-    use_zbl : bool, default = False
-        Whether to include the ZBL correction.
-    calc_stress : bool, default = False
-        Whether to calculate stress during model evaluation.
-    descriptor_dtype : Literal["fp32", "fp64"], default = "fp64"
-        Data type for descriptor calculations.
-    readout_dtype : Literal["fp32", "fp64"], default = "fp32"
-        Data type for readout calculations.
-    scale_shift_dtype : Literal["fp32", "fp64"], default = "fp32"
-        Data type for scale and shift parameters.
     """
 
     name: Literal["gmnn"] = "gmnn"
 
-    basis: BasisConfig = Field(GaussianBasisConfig(name="gaussian"), discriminator="name")
     n_radial: PositiveInt = 5
     n_contr: int = 8
     emb_init: Optional[str] = "uniform"
@@ -179,39 +186,15 @@ class EquivMPConfig(BaseModelConfig, extra="forbid"):
 
     Parameters
     ----------
-    basis : BasisConfig, default = GaussianBasisConfig()
-        Configuration for primitive basis funtions.
-    n_radial : PositiveInt, default = 5
-        Number of contracted basis functions.
-    n_contr : int, default = 8
-        How many gaussian moment contractions to use.
-    emb_init : Optional[str], default = "uniform"
-        Initialization scheme for embedding layer weights.
-    nn : List[PositiveInt], default = [512, 512]
-        Number of hidden layers and units in those layers.
-    w_init : Literal["normal", "lecun"], default = "normal"
-        Initialization scheme for the neural network weights.
-    b_init : Literal["normal", "zeros"], default = "normal"
-        Initialization scheme for the neural network biases.
-    use_ntk : bool, default = True
-        Whether or not to use NTK parametrization.
-    ensemble : Optional[EnsembleConfig], default = None
-        What kind of model ensemble to use (optional).
-    use_zbl : bool, default = False
-        Whether to include the ZBL correction.
-    calc_stress : bool, default = False
-        Whether to calculate stress during model evaluation.
-    descriptor_dtype : Literal["fp32", "fp64"], default = "fp64"
-        Data type for descriptor calculations.
-    readout_dtype : Literal["fp32", "fp64"], default = "fp32"
-        Data type for readout calculations.
-    scale_shift_dtype : Literal["fp32", "fp64"], default = "fp32"
-        Data type for scale and shift parameters.
+    features: PositiveInt = 32
+        Feature dimension of the linear layers
+    max_degree: PositiveInt = 2
+        Maximal rotation order for features and tensorproducts
+    num_iterations: PositiveInt = 1
+        Number of message passing steps.
     """
 
     name: Literal["equiv-mp"] = "equiv-mp"
-
-    basis: BasisConfig = Field(GaussianBasisConfig(name="gaussian"), discriminator="name")
 
     features: PositiveInt = 32
     max_degree: PositiveInt = 2
@@ -229,39 +212,30 @@ class So3kratesConfig(BaseModelConfig, extra="forbid"):
 
     Parameters
     ----------
-    basis : BasisConfig, default = GaussianBasisConfig()
-        Configuration for primitive basis funtions.
-    n_radial : PositiveInt, default = 5
-        Number of contracted basis functions.
-    n_contr : int, default = 8
-        How many gaussian moment contractions to use.
-    emb_init : Optional[str], default = "uniform"
-        Initialization scheme for embedding layer weights.
-    nn : List[PositiveInt], default = [512, 512]
-        Number of hidden layers and units in those layers.
-    w_init : Literal["normal", "lecun"], default = "normal"
-        Initialization scheme for the neural network weights.
-    b_init : Literal["normal", "zeros"], default = "normal"
-        Initialization scheme for the neural network biases.
-    use_ntk : bool, default = True
-        Whether or not to use NTK parametrization.
-    ensemble : Optional[EnsembleConfig], default = None
-        What kind of model ensemble to use (optional).
-    use_zbl : bool, default = False
-        Whether to include the ZBL correction.
-    calc_stress : bool, default = False
-        Whether to calculate stress during model evaluation.
-    descriptor_dtype : Literal["fp32", "fp64"], default = "fp64"
-        Data type for descriptor calculations.
-    readout_dtype : Literal["fp32", "fp64"], default = "fp32"
-        Data type for readout calculations.
-    scale_shift_dtype : Literal["fp32", "fp64"], default = "fp32"
-        Data type for scale and shift parameters.
+    num_layers: PositiveInt = 1
+        Number of message passing layers
+    max_degree: PositiveInt = 3
+        Maximum rotation order
+    num_features: PositiveInt = 128
+        Feature dimension
+    num_heads: PositiveInt = 4
+        Number of attention heads
+    use_layer_norm_1: bool = False
+        Layer norm in transformer block
+    use_layer_norm_2: bool = False
+        Layer norm in transformer block
+    use_layer_norm_final: bool = False
+        Layer norm before readout
+    activation: str = "silu"
+        Activation function
+    cutoff_fn: str = "cosine_cutoff"
+        Smooth cutoff function
+    transform_input_features: bool = False
+        Whether or not to apply a dense layer to transformer input features
+    
     """
 
     name: Literal["so3krates"] = "so3krates"
-
-    basis: BasisConfig = Field(BesselBasisConfig(name="bessel"), discriminator="name")
 
     num_layers: PositiveInt = 1
     max_degree: PositiveInt = 3
