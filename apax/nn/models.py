@@ -79,8 +79,10 @@ class FeatureModel(nn.Module):
             perturbation,
         )
 
-        gm = self.descriptor(dr_vec, Z, idx)
-        features = jax.vmap(self.readout)(gm)
+        features = self.descriptor(dr_vec, Z, idx)
+
+        if self.readout:
+            features = jax.vmap(self.readout)(features)
 
         if self.mask_atoms:
             features = mask_by_atom(features, Z)
