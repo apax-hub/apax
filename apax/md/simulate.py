@@ -341,7 +341,20 @@ def run_sim(
     traj_handler.close()
     end = time.time()
     elapsed_time = end - start
-    log.info("simulation finished after elapsed time: %.2f s", elapsed_time)
+
+    ps_per_s = total_sim_time / elapsed_time
+    nanosec_per_day = ps_per_s / 1e3 * 60 * 60 * 24
+
+    sec_per_step = elapsed_time / n_steps
+    n_atoms = system.positions.shape[0]
+    musec_per_step_per_atom = sec_per_step * 1e6 / n_atoms
+
+    log.info("simulation finished after: %.2f s", elapsed_time)
+    log.info(
+        "performance summary: %.2f ns/day, %.2f mu s/step/atom",
+        nanosec_per_day,
+        musec_per_step_per_atom,
+    )
 
 
 def md_setup(model_config: Config, md_config: MDConfig):
