@@ -343,7 +343,7 @@ def run_sim(
     elapsed_time = end - start
 
     ps_per_s = total_sim_time / elapsed_time
-    nanosec_per_day = ps_per_s / 1e3 * 60*60*24 
+    nanosec_per_day = ps_per_s / 1e3 * 60*60*24
 
     sec_per_step = elapsed_time / n_steps
     n_atoms = system.positions.shape[0]
