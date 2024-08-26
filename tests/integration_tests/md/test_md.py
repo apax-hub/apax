@@ -215,4 +215,3 @@ def test_jaxmd_schedule_and_thresold(get_tmp_path, example_dataset):
 
     traj = znh5md.IO(md_config.sim_dir + "/" + md_config.traj_name)[:]
     assert len(traj) < 1000  # num steps
-
