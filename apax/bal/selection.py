@@ -3,7 +3,7 @@ import numpy as np
 from apax.bal.kernel import KernelMatrix
 
 
-def max_dist_selection(matrix: KernelMatrix, batch_size: int):
+def max_dist_selection(matrix: KernelMatrix, batch_size: int, min_distance_threshold: float):
     """
     Iteratively selects samples from the pool which are
     most distant from all previously selected samples.
@@ -27,6 +27,7 @@ def max_dist_selection(matrix: KernelMatrix, batch_size: int):
     # Use max norm for first point
     new_idx = np.argmax(min_squared_distances)
     selected_idxs = list(range(n_train)) + [new_idx]
+    distances = []
 
     for _ in range(1, batch_size):
         squared_distances = matrix.score(new_idx)
@@ -35,8 +36,12 @@ def max_dist_selection(matrix: KernelMatrix, batch_size: int):
         min_squared_distances = np.minimum(min_squared_distances, squared_distances)
 
         new_idx = np.argmax(min_squared_distances)
+        max_dist = np.max(min_squared_distances)
+        if max_dist < min_distance_threshold:
+            break
         selected_idxs.append(new_idx)
+        distances.append(max_dist)
 
-    return (
-        np.array(selected_idxs[n_train:]) - n_train
-    )  # shift by number of train datapoints
+    # shift by number of train datapoints
+    selected_idxs = np.array(selected_idxs[n_train:]) - n_train
+    return selected_idxs, distances

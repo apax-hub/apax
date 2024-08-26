@@ -94,6 +94,7 @@ def kernel_selection(
     selection_method: str,
     feature_transforms: list = [],
     selection_batch_size: int = 10,
+    min_distance_threshold: int = 0.0,
     processing_batch_size: int = 64,
 ) -> list[int]:
     """
@@ -159,6 +160,6 @@ def kernel_selection(
     )
     g = compute_features(feature_fn, dataset)
     km = kernel.KernelMatrix(g, n_train)
-    new_indices = selection_fn(km, selection_batch_size)
+    new_indices, distances = selection_fn(km, selection_batch_size, min_distance_threshold)
 
-    return new_indices
+    return new_indices, distances, g
