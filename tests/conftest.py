@@ -160,3 +160,4 @@ def load_and_dump_config(config_path, dump_path):
 def load_config_and_run_training(config_path, updated_config):
     config_dict = mod_config(config_path, updated_config)
     run(config_dict)
+    return config_dict

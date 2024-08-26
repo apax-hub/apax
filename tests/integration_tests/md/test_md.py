@@ -1,9 +1,11 @@
 import os
 import pathlib
+import uuid
 
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 import yaml
 import znh5md
 from ase import Atoms
@@ -14,6 +16,7 @@ from apax.config import Config, MDConfig
 from apax.md import run_md
 from apax.md.ase_calc import ASECalculator
 from apax.utils import jax_md_reduced
+from tests.conftest import load_config_and_run_training
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
@@ -178,3 +181,38 @@ def test_ase_calc(get_tmp_path):
     assert "energy_uncertainty" in atoms.calc.results.keys()
     assert "forces_uncertainty" in atoms.calc.results.keys()
     assert "stress_uncertainty" in atoms.calc.results.keys()
+
+
+
+@pytest.mark.parametrize("num_data", (30,))
+def test_jaxmd_schedule_and_thresold(get_tmp_path, example_dataset):
+    model_confg_path = TEST_PATH / "config.yaml"
+    working_dir = get_tmp_path / str(uuid.uuid4())
+    data_path = get_tmp_path / "ds.extxyz"
+
+    write(data_path, example_dataset)
+
+    data_config_mods = {
+        "data": {
+            "directory": working_dir.as_posix(),
+            "experiment": "model",
+            "data_path": data_path.as_posix(),
+        },
+    }
+    model_config_dict = load_config_and_run_training(model_confg_path, data_config_mods)
+
+    md_confg_path = TEST_PATH / "md_config.yaml"
+
+    with open(md_confg_path.as_posix(), "r") as stream:
+        md_config_dict = yaml.safe_load(stream)
+    md_config_dict["sim_dir"] = get_tmp_path.as_posix()
+    md_config_dict["initial_structure"] = get_tmp_path.as_posix() + "/ds.extxyz"
+    md_config = MDConfig.model_validate(md_config_dict)
+
+    model_config = Config.model_validate(model_config_dict)
+
+    run_md(model_config, md_config)
+
+    traj = znh5md.IO(md_config.sim_dir + "/" + md_config.traj_name)[:]
+    assert len(traj) < 1000  # num steps
+

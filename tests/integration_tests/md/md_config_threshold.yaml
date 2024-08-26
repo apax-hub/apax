@@ -1,0 +1,17 @@
+ensemble:
+  name: nvt
+  dt: 0.1 # fs time step
+  temperature_schedule:
+    name: piecewise
+    T0: 5 # K
+    values: [100, 200, 1000]
+    steps: [10, 20, 30]
+
+duration: 100 # fs
+n_inner: 1
+sampling_rate: 1
+checkpoint_interval: 2
+restart: True
+dynamics_checks:
+  - name: forces_uncertainty
+    threshold: 1.0
