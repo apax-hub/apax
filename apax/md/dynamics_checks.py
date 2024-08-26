@@ -29,8 +29,6 @@ class EnergyUncertaintyCheck(DynamicsCheckBase, extra="forbid"):
         return check_passed
     
 
-from jax import debug
-
 class ForceUncertaintyCheck(DynamicsCheckBase, extra="forbid"):
     name: Literal["forces_uncertainty"] = "forces_uncertainty"
     threshold: float
