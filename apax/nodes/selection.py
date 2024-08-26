@@ -88,7 +88,7 @@ class BatchKernelSelection(BatchConfigurationSelection):
 
         mask = distance_mask
         if self.rank_all:
-            # if we rank all, we need to slice the indices to only 
+            # if we rank all, we need to slice the indices to only
             # select the first n
             numbers = np.arange(len(distances))
             number_mask = numbers < self.n_configurations
