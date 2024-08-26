@@ -5,6 +5,7 @@ from typing import Literal, Union
 
 import yaml
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveFloat, PositiveInt
+from typing_extensions import Annotated
 
 
 class ConstantTempSchedule(BaseModel, extra="forbid"):
@@ -190,6 +191,22 @@ class NPTOptions(NVTOptions, extra="forbid"):
     barostat_chain: NHCOptions = NHCOptions(tau=1000)
 
 
+class EnergyUncertaintyCheck(BaseModel, extra="forbid"):
+    name: Literal["energy_uncertainty"] = "energy_uncertainty"
+    threshold: PositiveFloat
+    per_atom: bool = True
+
+
+class ForcesUncertaintyCheck(BaseModel, extra="forbid"):
+    name: Literal["forces_uncertainty"] = "forces_uncertainty"
+    threshold: PositiveFloat
+
+
+DynamicsCheck = Annotated[
+    Union[EnergyUncertaintyCheck, ForcesUncertaintyCheck], Field(discriminator="name")
+]
+
+
 class MDConfig(BaseModel, frozen=True, extra="forbid"):
     """
     Configuration for a NHC molecular dynamics simulation.
@@ -246,6 +263,8 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     buffer_size: PositiveInt = 100
     dr_threshold: PositiveFloat = 0.5
     extra_capacity: NonNegativeInt = 0
+
+    dynamics_checks: list[DynamicsCheck] = []
 
     initial_structure: str
     load_momenta: bool = False
