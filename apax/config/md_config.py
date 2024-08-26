@@ -2,10 +2,10 @@ import os
 
 # from types import UnionType
 from typing import Literal, Union
-from typing_extensions import Annotated
 
 import yaml
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveFloat, PositiveInt
+from typing_extensions import Annotated
 
 
 class ConstantTempSchedule(BaseModel, extra="forbid"):

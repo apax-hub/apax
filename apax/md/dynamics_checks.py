@@ -1,8 +1,8 @@
 
-from dataclasses import dataclass
 from typing import Literal, Union
+
 import jax.numpy as jnp
-from pydantic import TypeAdapter, BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 
 class DynamicsCheckBase(BaseModel):
@@ -16,7 +16,7 @@ class EnergyUncertaintyCheck(DynamicsCheckBase, extra="forbid"):
 
     def check(self, predictions):
 
-        if not "energy_uncertainty" in predictions.keys():
+        if "energy_uncertainty" not in predictions.keys():
             m = "No energy uncertainty found. Are you using a model ensemble?"
             raise ValueError(m)
 
@@ -35,7 +35,7 @@ class ForceUncertaintyCheck(DynamicsCheckBase, extra="forbid"):
 
     def check(self, predictions):
 
-        if not "forces_uncertainty" in predictions.keys():
+        if "forces_uncertainty" not in predictions.keys():
             m = "No force uncertainties found. Are you using a model ensemble?"
             raise ValueError(m)
 
