@@ -305,7 +305,7 @@ def run_sim(
 
         if not all_checks_passed:
             with logging_redirect_tqdm():
-                log.info(f"One or more dynamics checks failed at step: {step+1}")
+                log.critical(f"One or more dynamics checks failed at step: {step+1}")
             break
 
         if neighbor.did_buffer_overflow:
