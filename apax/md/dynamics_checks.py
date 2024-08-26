@@ -15,11 +15,11 @@ class EnergyUncertaintyCheck(DynamicsCheckBase, extra="forbid"):
     per_atom: bool = True
 
     def check(self, predictions):
-        
+
         if not "energy_uncertainty" in predictions.keys():
             m = "No energy uncertainty found. Are you using a model ensemble?"
             raise ValueError(m)
-        
+
         energy_uncertainty = predictions["energy_uncertainty"]
         if self.per_atom:
             n_atoms = predictions["forces"].shape[0]
@@ -27,18 +27,18 @@ class EnergyUncertaintyCheck(DynamicsCheckBase, extra="forbid"):
 
         check_passed = jnp.all(energy_uncertainty < self.threshold)
         return check_passed
-    
+
 
 class ForceUncertaintyCheck(DynamicsCheckBase, extra="forbid"):
     name: Literal["forces_uncertainty"] = "forces_uncertainty"
     threshold: float
 
     def check(self, predictions):
-        
+
         if not "forces_uncertainty" in predictions.keys():
             m = "No force uncertainties found. Are you using a model ensemble?"
             raise ValueError(m)
-        
+
         forces_uncertainty = predictions["forces_uncertainty"]
 
         check_passed = jnp.all(forces_uncertainty < self.threshold)

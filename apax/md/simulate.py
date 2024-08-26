@@ -303,7 +303,7 @@ def run_sim(
             raise ValueError(
                 f"NaN encountered, simulation aborted after {step+1} steps."
             )
-        
+
         if not all_checks_passed:
             with logging_redirect_tqdm():
                 log.info(
