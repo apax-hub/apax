@@ -160,6 +160,9 @@ def kernel_selection(
     )
     g = compute_features(feature_fn, dataset)
     km = kernel.KernelMatrix(g, n_train)
-    new_indices, distances = selection_fn(km, selection_batch_size, min_distance_threshold)
+    ranking_indices, distances = selection_fn(km, selection_batch_size)
 
-    return new_indices, distances, g
+    g_train = g[:n_train]
+    g_pool = g[n_train:]
+
+    return ranking_indices, distances, g_train, g_pool
