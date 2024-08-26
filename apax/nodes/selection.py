@@ -84,7 +84,6 @@ class BatchKernelSelection(BatchConfigurationSelection):
         )
 
         features_pool = features_pool[ranking]
-
         distance_mask = distances > self.min_distance_threshold
 
         mask = distance_mask
