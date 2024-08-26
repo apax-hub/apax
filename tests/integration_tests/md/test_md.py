@@ -183,7 +183,6 @@ def test_ase_calc(get_tmp_path):
     assert "stress_uncertainty" in atoms.calc.results.keys()
 
 
-
 @pytest.mark.parametrize("num_data", (30,))
 def test_jaxmd_schedule_and_thresold(get_tmp_path, example_dataset):
     model_confg_path = TEST_PATH / "config.yaml"
