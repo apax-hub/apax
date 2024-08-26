@@ -1,12 +1,12 @@
-n_epochs: 2
+n_epochs: 5
 
 data:
   experiment: apax_dummy
   data_path: dummy_ds  # ds.extxyz #ethanol.traj # ds.extxyz #
 
-  n_train: 4
+  n_train: 10
   n_valid: 2
-  batch_size: 2
+  batch_size: 1
   valid_batch_size: 2
 
 model:
@@ -16,6 +16,12 @@ model:
     name: gaussian
     n_basis: 5
   n_radial: 3
+
+  ensemble:
+    kind: shallow
+    n_members: 4
+    force_variance: true
+
   descriptor_dtype: fp64
   readout_dtype: fp32
   scale_shift_dtype: fp64
@@ -27,4 +33,6 @@ metrics:
 
 loss:
   - name: energy
+    loss_type: crps
   - name: forces
+    loss_type: crps
