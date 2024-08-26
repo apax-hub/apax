@@ -296,18 +296,16 @@ def run_sim(
         leave=True,
     )
     while step < n_outer:
-        new_state, neighbor, current_temperature, all_checks_passed = sim(state, step, neighbor)
+        new_state, neighbor, current_temperature, all_checks_passed = sim(
+            state, step, neighbor
+        )
 
         if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
-            raise ValueError(
-                f"NaN encountered, simulation aborted after {step+1} steps."
-            )
+            raise ValueError(f"NaN encountered, simulation aborted after {step+1} steps.")
 
         if not all_checks_passed:
             with logging_redirect_tqdm():
-                log.info(
-                    f"One or more dynamics checks failed at step: {step+1}"
-                )
+                log.info(f"One or more dynamics checks failed at step: {step+1}")
             break
 
         if neighbor.did_buffer_overflow:
@@ -509,7 +507,9 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
 
     dynamics_checks = []
     if md_config.dynamics_checks:
-        check_list = [DynamicsChecks(check.model_dump()) for check in md_config.dynamics_checks]
+        check_list = [
+            DynamicsChecks(check.model_dump()) for check in md_config.dynamics_checks
+        ]
         dynamics_checks.extend(check_list)
 
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))

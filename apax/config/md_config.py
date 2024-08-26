@@ -191,12 +191,11 @@ class NPTOptions(NVTOptions, extra="forbid"):
     barostat_chain: NHCOptions = NHCOptions(tau=1000)
 
 
-
-
 class EnergyUncertaintyCheck(BaseModel, extra="forbid"):
     name: Literal["energy_uncertainty"] = "energy_uncertainty"
     threshold: PositiveFloat
     per_atom: bool = True
+
 
 class ForcesUncertaintyCheck(BaseModel, extra="forbid"):
     name: Literal["forces_uncertainty"] = "forces_uncertainty"
