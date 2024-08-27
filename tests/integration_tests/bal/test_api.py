@@ -36,7 +36,10 @@ def test_kernel_selection(example_atoms, get_tmp_path, get_sample_input):
     train_atoms = example_atoms[:n_train]
     pool_atoms = example_atoms[n_train:]
 
-    base_fm_options = {"name": "ll_grad", "layer_name": "dense_2", }
+    base_fm_options = {
+        "name": "ll_grad",
+        "layer_name": "dense_2",
+    }
     selection_method = "max_dist"
     bs = 5
 
