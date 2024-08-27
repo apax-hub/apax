@@ -36,17 +36,17 @@ def test_kernel_selection(example_atoms, get_tmp_path, get_sample_input):
     train_atoms = example_atoms[:n_train]
     pool_atoms = example_atoms[n_train:]
 
-    base_fm_options = {"name": "ll_grad", "layer_name": "dense_2"}
+    base_fm_options = {"name": "ll_grad", "layer_name": "dense_2", }
     selection_method = "max_dist"
     bs = 5
 
-    selected_indices = kernel_selection(
+    ranking_indices, distances, g_train, g_pool = kernel_selection(
         model_config.data.model_version_path,
         train_atoms,
         pool_atoms,
         base_fm_options,
         selection_method,
         selection_batch_size=bs,
-        processing_batch_size=bs,
+        processing_batch_size=1,
     )
-    assert len(selected_indices) == bs
+    assert len(ranking_indices) == bs

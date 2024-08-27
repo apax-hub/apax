@@ -94,7 +94,6 @@ def kernel_selection(
     selection_method: str,
     feature_transforms: list = [],
     selection_batch_size: int = 10,
-    min_distance_threshold: int = 0.0,
     processing_batch_size: int = 64,
 ) -> list[int]:
     """
