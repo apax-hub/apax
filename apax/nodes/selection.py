@@ -109,7 +109,9 @@ class BatchKernelSelection(BatchConfigurationSelection):
         self._get_selection_plot(atoms_lst, ranking)
         return list(ranking)
 
-    def _get_selection_plot(self, atoms_lst: typing.List[ase.Atoms], indices: typing.List[int]):
+    def _get_selection_plot(
+        self, atoms_lst: typing.List[ase.Atoms], indices: typing.List[int]
+    ):
         energies = np.array([atoms.calc.results["energy"] for atoms in atoms_lst])
 
         if "energy_uncertainty" in atoms_lst[0].calc.results.keys():
@@ -131,9 +133,7 @@ class BatchKernelSelection(BatchConfigurationSelection):
 
         fig.savefig(self.img_selection, bbox_inches="tight", dpi=240)
 
-
     def _get_distances_plot(self, distances: np.ndarray, last_selected: int):
-
         fig, ax = plt.subplots()
         ax.semilogy(distances, label="sq. distances")
 
@@ -144,9 +144,9 @@ class BatchKernelSelection(BatchConfigurationSelection):
         ax.legend()
         fig.savefig(self.img_distances, bbox_inches="tight", dpi=240)
 
-
-    def _get_pca_plot(self, g_train: np.ndarray, g_selection: np.ndarray, g_remaining: np.ndarray):
-
+    def _get_pca_plot(
+        self, g_train: np.ndarray, g_selection: np.ndarray, g_remaining: np.ndarray
+    ):
         if PCA:
             all_features = [g_train, g_selection]
             if len(g_remaining) > 0:
@@ -170,10 +170,26 @@ class BatchKernelSelection(BatchConfigurationSelection):
         fig, ax = plt.subplots()
 
         if len(g_remaining) > 0:
-            ax.scatter(*g_pool_2d.T, color="gray", marker="o", s=5, alpha=0.6, label="Remaining data")
+            ax.scatter(
+                *g_pool_2d.T,
+                color="gray",
+                marker="o",
+                s=5,
+                alpha=0.6,
+                label="Remaining data",
+            )
 
-        ax.scatter(*g_train_2d.T, color="C0", marker="^", s=5, alpha=0.6, label="Train data")
-        ax.scatter(*g_selection_2d.T, color="red", marker="*", s=5, alpha=0.6, label="Selected data")
+        ax.scatter(
+            *g_train_2d.T, color="C0", marker="^", s=5, alpha=0.6, label="Train data"
+        )
+        ax.scatter(
+            *g_selection_2d.T,
+            color="red",
+            marker="*",
+            s=5,
+            alpha=0.6,
+            label="Selected data",
+        )
 
         ax.set_xlabel("dim 1")
         ax.set_ylabel("dim 2")
