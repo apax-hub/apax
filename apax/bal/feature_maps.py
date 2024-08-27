@@ -3,9 +3,9 @@ from typing import Callable, Literal, Tuple, Union
 import jax
 import jax.ad_checkpoint
 import jax.numpy as jnp
+import numpy as np
 from flax.core.frozen_dict import FrozenDict
 from flax.traverse_util import flatten_dict, unflatten_dict
-import numpy as np
 from pydantic import BaseModel, TypeAdapter
 
 from apax.nn.models import EnergyModel
