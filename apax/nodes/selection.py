@@ -98,7 +98,7 @@ class BatchKernelSelection(BatchConfigurationSelection):
         features_selection = features_pool[mask]
         features_remaining = features_pool[~mask]
 
-        false_indices = np.where(mask == False)[0]
+        false_indices = np.where(~mask)[0]
         if len(false_indices) > 0:
             last_selected = false_indices[0] - 1
         else:
