@@ -149,14 +149,11 @@ class LastLayerForceFeatures(FeatureTransformation, extra="forbid"):
                 g = jnp.concatenate(g)
 
             elif self.strategy == "flatten":
-                g_flat = jax.tree_map(
-                    lambda arr: jnp.reshape(arr, (-1,)), g_ll
-                )
+                g_flat = jax.tree_map(lambda arr: jnp.reshape(arr, (-1,)), g_ll)
                 (gb, gw), _ = jax.tree_util.tree_flatten(g_flat)
                 g = gw
             else:
                 raise ValueError(f"unknown strategy: {self.strategy}")
-
 
             return g
 
@@ -225,5 +222,10 @@ class IdentityFeatures(FeatureTransformation, extra="forbid"):
 
 
 FeatureMapOptions = TypeAdapter(
-    Union[LastLayerGradientFeatures, LastLayerForceFeatures, FullGradientRPFeatures, IdentityFeatures]
+    Union[
+        LastLayerGradientFeatures,
+        LastLayerForceFeatures,
+        FullGradientRPFeatures,
+        IdentityFeatures,
+    ]
 ).validate_python

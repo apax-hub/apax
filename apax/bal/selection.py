@@ -26,7 +26,6 @@ def max_dist_selection(matrix: KernelMatrix, batch_size: Optional[int] = None):
     min_squared_distances = matrix.diagonal
     min_squared_distances[:n_train] = -np.inf
 
-
     n_pool = len(min_squared_distances[n_train:])
     end = n_pool
 
