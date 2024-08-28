@@ -135,6 +135,27 @@ def schema():
         json.dump(md_schema, f, indent=2)
 
 
+def format_error(error):
+    input_type = type(error["input"]).__name__
+    loc = ".".join(error["loc"])
+    error_msg = error["msg"]
+    msg = f"{loc}\n  {error_msg}\n  input_type: {input_type}"
+    if type(error["input"]) not in [dict, list]:
+        field_input = error["input"]
+        msg += f"\n  input: {field_input}"
+    msg += "\n"
+    return msg
+
+def cleanup_error(e):
+    e_clean = []
+    for error in e.errors():
+        error.pop("url")
+        e_clean.append(format_error(error))
+    e_clean = "".join(e_clean)
+    return e_clean
+
+
+
 @validate_app.command("train")
 def validate_train_config(
     config_path: Path = typer.Argument(
@@ -156,7 +177,8 @@ def validate_train_config(
     try:
         _ = Config.model_validate(user_config)
     except ValidationError as e:
-        print(e)
+        print(f"{e.error_count()} validation errors for config")
+        print(cleanup_error(e))
         console.print("Configuration Invalid!", style="red3")
         raise typer.Exit(code=1)
     else:
