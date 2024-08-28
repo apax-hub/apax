@@ -72,7 +72,7 @@ class ApaxJaxMD(zntrack.Node):
                 atoms = atoms.repeat(self.repeat)
             ase.io.write(self.init_struc_dir.as_posix(), atoms)
 
-        run_md(self.model._parameter, self._parameter)
+        run_md(self.model._parameter, self._parameter, log_level="info")
 
     @functools.cached_property
     def atoms(self) -> typing.List[ase.Atoms]:
