@@ -146,6 +146,7 @@ def format_error(error):
     msg += "\n"
     return msg
 
+
 def cleanup_error(e):
     e_clean = []
     for error in e.errors():
@@ -153,7 +154,6 @@ def cleanup_error(e):
         e_clean.append(format_error(error))
     e_clean = "".join(e_clean)
     return e_clean
-
 
 
 @validate_app.command("train")
