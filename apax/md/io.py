@@ -8,6 +8,7 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from apax.md.sim_utils import System
+from apax.utils.helpers import APAX_PROPERTIES
 from apax.utils.jax_md_reduced import space
 
 log = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ class TrajHandler:
         buffer_size: int,
         traj_path: Path,
         time_step: float = 0.5,
-        properties: list[str] = [],
+        properties: list[str] = APAX_PROPERTIES,
     ) -> None:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
