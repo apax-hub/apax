@@ -7,6 +7,7 @@ from typing_extensions import Annotated
 
 from apax.utils.helpers import APAX_PROPERTIES
 
+
 class ConstantTempSchedule(BaseModel, extra="forbid"):
     """Constant temperature schedule.
 

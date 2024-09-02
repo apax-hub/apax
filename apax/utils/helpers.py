@@ -2,7 +2,6 @@ import csv
 
 import yaml
 
-
 APAX_PROPERTIES = [
     "energy",
     "forces",
