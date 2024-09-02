@@ -375,10 +375,9 @@ def neighbor_calculable_with_jax(box, r_max):
             )
             height.append(np.linalg.norm(c_vec_list[i] - projection))
 
-        if np.min(height) / 2 > r_max:
-            return True
-        else:
-            return False
+        mic_possible = np.min(height) / 2 > r_max
+        return mic_possible
+
 
 
 def get_step_fn(model, atoms, neigbor_from_jax):

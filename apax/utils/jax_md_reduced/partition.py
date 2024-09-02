@@ -336,6 +336,7 @@ class NeighborList:
     error: PartitionError
     cell_list_capacity: Optional[int] = dataclasses.static_field()
     max_occupancy: int = dataclasses.static_field()
+    offsets: Array
 
     format: NeighborListFormat = dataclasses.static_field()
     cell_size: Optional[float] = dataclasses.static_field()
@@ -345,7 +346,13 @@ class NeighborList:
     )
 
     def update(self, position: Array, **kwargs) -> "NeighborList":
+        # cond
         return self.update_fn(position, self, **kwargs)
+    
+    def cpu_update(self, position: Array, **kwargs) -> "NeighborList":
+        return ...
+
+
 
     @property
     def did_buffer_overflow(self) -> bool:
