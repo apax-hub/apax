@@ -200,7 +200,7 @@ def test_jaxmd_schedule_and_thresold(get_tmp_path, example_dataset):
     }
     model_config_dict = load_config_and_run_training(model_confg_path, data_config_mods)
 
-    md_confg_path = TEST_PATH / "md_config.yaml"
+    md_confg_path = TEST_PATH / "md_config_threshold.yaml"
 
     with open(md_confg_path.as_posix(), "r") as stream:
         md_config_dict = yaml.safe_load(stream)
@@ -214,3 +214,13 @@ def test_jaxmd_schedule_and_thresold(get_tmp_path, example_dataset):
 
     traj = znh5md.IO(md_config.sim_dir + "/" + md_config.traj_name)[:]
     assert len(traj) < 1000  # num steps
+
+    results_keys = list(traj[0].calc.results.keys())
+
+    assert "energy" in results_keys
+    assert "forces" in results_keys
+    assert "energy_uncertainty" in results_keys
+    assert "forces_ensemble" in results_keys
+
+    assert "energy_ensemble" not in results_keys
+    assert "forces_uncertainty" not in results_keys
