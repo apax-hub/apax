@@ -271,8 +271,8 @@ class ShallowEnsembleModel(nn.Module):
             prediction["forces"] = forces_mean
             prediction["forces_uncertainty"] = jnp.sqrt(forces_variance)
 
-            forces_ens = jnp.transpose(forces_ens, (1,2,0))
-            prediction["forces_ensemble"] = forces_ens # n_atoms x 3 x n_members
+            forces_ens = jnp.transpose(forces_ens, (1, 2, 0))
+            prediction["forces_ensemble"] = forces_ens  # n_atoms x 3 x n_members
 
         else:
             forces_mean = -jax.grad(mean_energy_fn)(R, Z, neighbor, box, offsets)
