@@ -61,9 +61,10 @@ def get_schedule(
     return lr_schedule
 
 
-
 class OptimizerFactory:
-    def __init__(self, opt, n_epochs, steps_per_epoch, gradient_clipping, kwargs, schedule) -> None:
+    def __init__(
+        self, opt, n_epochs, steps_per_epoch, gradient_clipping, kwargs, schedule
+    ) -> None:
         self.opt = opt
         self.n_epochs = n_epochs
         self.steps_per_epoch = steps_per_epoch
@@ -71,11 +72,13 @@ class OptimizerFactory:
         self.kwargs = kwargs
         self.schedule = schedule
 
-    def create(self,lr):
+    def create(self, lr):
         if lr <= 1e-7:
             optimizer = optax.set_to_zero()
         else:
-            schedule = get_schedule(lr, self.n_epochs, self.steps_per_epoch, self.schedule)
+            schedule = get_schedule(
+                lr, self.n_epochs, self.steps_per_epoch, self.schedule
+            )
             optimizer = optax.chain(
                 optax.clip(self.gradient_clipping),
                 self.opt(schedule, **self.kwargs),
@@ -112,12 +115,7 @@ def get_opt(
         opt = getattr(optax, name)
 
     opt_fac = OptimizerFactory(
-        opt,
-        n_epochs,
-        steps_per_epoch,
-        gradient_clipping,
-        kwargs,
-        schedule
+        opt, n_epochs, steps_per_epoch, gradient_clipping, kwargs, schedule
     )
 
     nn_opt = opt_fac.create(nn_lr)

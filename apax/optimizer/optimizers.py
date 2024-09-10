@@ -23,11 +23,11 @@ def ademamix(
     b2=0.999,
     b3=0.9999,
     alpha=5.0,
-    b3_scheduler=None, # TODO maybe implement schedules
+    b3_scheduler=None,  # TODO maybe implement schedules
     alpha_scheduler=None,
     eps=1e-8,
     weight_decay=0.0,
-    ):
+):
     """AdEMAmix implementation directly taken from the original implementation:
     2409.03137
     """
@@ -38,33 +38,26 @@ def ademamix(
     )
 
 
-def scale_by_ademamix(
-    b1,
-    b2,
-    b3,
-    alpha,
-    b3_scheduler,
-    alpha_scheduler,
-    eps
-    ):
-
+def scale_by_ademamix(b1, b2, b3, alpha, b3_scheduler, alpha_scheduler, eps):
     def init_fn(params):
-        m1 = tree_zeros_like(params) # fast EMA
-        m2 = tree_zeros_like(params) # slow EMA
-        nu = tree_zeros_like(params) # second moment estimate
+        m1 = tree_zeros_like(params)  # fast EMA
+        m2 = tree_zeros_like(params)  # slow EMA
+        nu = tree_zeros_like(params)  # second moment estimate
         return ScaleByAdemamixState(
-        count=jnp.zeros([], jnp.int32),
-        count_m2=jnp.zeros([], jnp.int32),
-        m1=m1,
-        m2=m2,
-        nu=nu
-    )
+            count=jnp.zeros([], jnp.int32),
+            count_m2=jnp.zeros([], jnp.int32),
+            m1=m1,
+            m2=m2,
+            nu=nu,
+        )
 
     def update_fn(updates, state, params=None):
         del params
         c_b3 = b3_scheduler(state.count_m2) if b3_scheduler is not None else b3
-        c_alpha = alpha_scheduler(state.count_m2) if alpha_scheduler is not None else alpha
-        m1 = update_moment(updates, state.m1, b1, 1) # m1 = b1 * m1 + (1-b1) * updates
+        c_alpha = (
+            alpha_scheduler(state.count_m2) if alpha_scheduler is not None else alpha
+        )
+        m1 = update_moment(updates, state.m1, b1, 1)  # m1 = b1 * m1 + (1-b1) * updates
         m2 = update_moment(updates, state.m2, c_b3, 1)
         nu = update_moment_per_elem_norm(updates, state.nu, b2, 2)
         count_inc = numerics.safe_int32_increment(state.count)
@@ -72,17 +65,13 @@ def scale_by_ademamix(
         m1_hat = bias_correction(m1, b1, count_inc)
         nu_hat = bias_correction(nu, b2, count_inc)
         updates = jtu.tree_map(
-        lambda m1_, m2_, v_: (m1_+c_alpha*m2_)/(jnp.sqrt(v_)+eps),
+            lambda m1_, m2_, v_: (m1_ + c_alpha * m2_) / (jnp.sqrt(v_) + eps),
             m1_hat,
             m2,
-            nu_hat
+            nu_hat,
         )
         return updates, ScaleByAdemamixState(
-        count=count_inc,
-        count_m2=count_m2_inc,
-        m1=m1,
-        m2=m2,
-        nu=nu
+            count=count_inc, count_m2=count_m2_inc, m1=m1, m2=m2, nu=nu
         )
 
     return base.GradientTransformation(init_fn, update_fn)
