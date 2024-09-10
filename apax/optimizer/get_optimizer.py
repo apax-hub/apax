@@ -91,6 +91,8 @@ def get_opt(
     scale_lr: float = 0.001,
     shift_lr: float = 0.05,
     zbl_lr: float = 0.001,
+    rep_scale_lr: float = 0.001,
+    rep_prefactor_lr: float = 0.0001,
     name: str = "adam",
     kwargs: dict = {},
     schedule: dict = {},
@@ -111,6 +113,8 @@ def get_opt(
     scale_opt = make_optimizer(opt, scale_lr, n_epochs, steps_per_epoch, kwargs, schedule)
     shift_opt = make_optimizer(opt, shift_lr, n_epochs, steps_per_epoch, kwargs, schedule)
     zbl_opt = make_optimizer(opt, zbl_lr, n_epochs, steps_per_epoch, kwargs, schedule)
+    rep_scale_opt = make_optimizer(opt, rep_scale_lr, n_epochs, steps_per_epoch, kwargs, schedule)
+    rep_prefactor_opt = make_optimizer(opt, rep_prefactor_lr, n_epochs, steps_per_epoch, kwargs, schedule)
 
     partition_optimizers = {
         "w": nn_opt,
@@ -122,7 +126,8 @@ def get_opt(
         "a_num": zbl_opt,
         "coefficients": zbl_opt,
         "exponents": zbl_opt,
-        "rep_scale": zbl_opt,
+        "rep_scale": rep_scale_opt,
+        "rep_prefactor": rep_prefactor_opt,
         "kernel": nn_opt,
         "bias": nn_opt,
         "embedding": emb_opt,

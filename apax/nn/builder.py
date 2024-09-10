@@ -133,12 +133,21 @@ class ModelBuilder:
             apply_mask,
         )
         corrections = []
-        if self.config["use_zbl"]:
-            repulsion = ZBLRepulsion(
+        for correction in corrections:
+            corr_kwargs = correction.model_dump()
+            corr_kwargs.pop("name")
+
+            Correction = correction.get_correction()
+            corr = Correction(
+                **corr_kwargs,
                 apply_mask=apply_mask,
-                r_max=self.config["basis"]["r_max"],
             )
-            corrections.append(repulsion)
+
+            # repulsion = ZBLRepulsion(
+            #     apply_mask=apply_mask,
+            #     r_max=self.config["basis"]["r_max"],
+            # )
+            corrections.append(corr)
 
         model = EnergyModel(
             atomistic_model=atomistic_model,
