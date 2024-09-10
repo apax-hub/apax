@@ -222,7 +222,7 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
         Learning rate of the ZBL correction parameters.
     gradient_clipping: NonNegativeFloat, default = 1000.0
         Per element Gradient clipping value.
-        Default is so high that it effectively disabled.    
+        Default is so high that it effectively disabled.
     schedule : LRSchedule = LinearLR
         Learning rate schedule.
     kwargs : dict, default = {}
