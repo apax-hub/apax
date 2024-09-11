@@ -166,10 +166,10 @@ def run_sim(
     n_inner: int,
     extra_capacity: int,
     rng_key: int,
+    traj_handler: TrajHandler,
     load_momenta: bool = False,
     restart: bool = True,
     checkpoint_interval: int = 50_000,
-    traj_handler: TrajHandler = TrajHandler(),
     dynamics_checks: list[DynamicsCheckBase] = [],
     disable_pbar: bool = False,
 ):
@@ -520,6 +520,7 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
         md_config.buffer_size,
         traj_path,
         md_config.ensemble.dt,
+        properties=md_config.properties,
     )
     # TODO implement correct chunking
 
@@ -531,10 +532,10 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
         n_inner=md_config.n_inner,
         extra_capacity=md_config.extra_capacity,
         load_momenta=md_config.load_momenta,
+        traj_handler=traj_handler,
         rng_key=jax.random.PRNGKey(md_config.seed),
         restart=md_config.restart,
         checkpoint_interval=md_config.checkpoint_interval,
         sim_dir=sim_dir,
-        traj_handler=traj_handler,
         dynamics_checks=dynamics_checks,
     )

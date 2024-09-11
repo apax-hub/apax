@@ -291,11 +291,14 @@ class ApaxCalibrate(ApaxBase):
             ase calculator object
         """
 
+        e_factor = self.metrics["e_factor"]
+        f_factor = self.metrics["f_factor"]
+
         config_file = self.model._parameter["data"]["directory"]
 
         calibration = GlobalCalibration(
-            energy_factor=self.e_factor,
-            forces_factor=self.f_factor,
+            energy_factor=e_factor,
+            forces_factor=f_factor,
         )
         transformations = [calibration]
         if self.transformations:
