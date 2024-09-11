@@ -56,7 +56,7 @@ model:
   nn: [512, 512]
 
   calc_stress: true
-  use_zbl: false
+  # use_zbl: false
 
   b_init: normal
   descriptor_dtype: fp64
