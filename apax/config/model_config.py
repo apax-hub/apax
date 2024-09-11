@@ -95,7 +95,6 @@ class ShallowEnsembleConfig(BaseModel, extra="forbid"):
 EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
 
 
-
 class Correction(BaseModel, extra="forbid"):
     name: str
 
@@ -109,6 +108,7 @@ class ZBLRepulsion(Correction, extra="forbid"):
 
     def get_correction(self):
         from apax.layers.empirical import ZBLRepulsion
+
         return ZBLRepulsion
 
 
@@ -118,6 +118,7 @@ class ExponentialRepulsion(Correction, extra="forbid"):
 
     def get_correction(self):
         from apax.layers.empirical import ExponentialRepulsion
+
         return ExponentialRepulsion
 
 

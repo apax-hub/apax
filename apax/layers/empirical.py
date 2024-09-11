@@ -85,8 +85,9 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
         self.distance = vmap(space.distance, 0, 0)
 
         self.rscale = self.param("rep_scale", nn.initializers.constant(0.1), (119,))
-        self.prefactor = self.param("rep_prefactor", nn.initializers.constant(10.0), (119,))
-
+        self.prefactor = self.param(
+            "rep_prefactor", nn.initializers.constant(10.0), (119,)
+        )
 
     def __call__(self, dr_vec, Z, idx):
         # Z shape n_atoms
@@ -103,11 +104,13 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
 
         # Ensure positive parameters
-        A_i, A_j = 0.1 * jax.numpy.abs(self.prefactor[Z_i]), 0.1 * jax.numpy.abs(self.prefactor[Z_j])
+        A_i, A_j = (
+            0.1 * jax.numpy.abs(self.prefactor[Z_i]),
+            0.1 * jax.numpy.abs(self.prefactor[Z_j]),
+        )
         R_i, R_j = jax.numpy.abs(self.rscale[Z_i]), jax.numpy.abs(self.rscale[Z_j])
 
-        f = A_i * A_j * jnp.exp(- dr * (R_i + R_j) / (R_i * R_j)) / dr ** 2
-
+        f = A_i * A_j * jnp.exp(-dr * (R_i + R_j) / (R_i * R_j)) / dr**2
 
         E_ij = f * cos_cutoff
         if self.apply_mask:

@@ -113,8 +113,12 @@ def get_opt(
     scale_opt = make_optimizer(opt, scale_lr, n_epochs, steps_per_epoch, kwargs, schedule)
     shift_opt = make_optimizer(opt, shift_lr, n_epochs, steps_per_epoch, kwargs, schedule)
     zbl_opt = make_optimizer(opt, zbl_lr, n_epochs, steps_per_epoch, kwargs, schedule)
-    rep_scale_opt = make_optimizer(opt, rep_scale_lr, n_epochs, steps_per_epoch, kwargs, schedule)
-    rep_prefactor_opt = make_optimizer(opt, rep_prefactor_lr, n_epochs, steps_per_epoch, kwargs, schedule)
+    rep_scale_opt = make_optimizer(
+        opt, rep_scale_lr, n_epochs, steps_per_epoch, kwargs, schedule
+    )
+    rep_prefactor_opt = make_optimizer(
+        opt, rep_prefactor_lr, n_epochs, steps_per_epoch, kwargs, schedule
+    )
 
     partition_optimizers = {
         "w": nn_opt,
