@@ -8,18 +8,29 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from apax.md.sim_utils import System
+from apax.utils.helpers import APAX_PROPERTIES
 from apax.utils.jax_md_reduced import space
 
 log = logging.getLogger(__name__)
 
 
 class TrajHandler:
-    def __init__(self) -> None:
-        self.system: System
-        self.sampling_rate: int
-        self.buffer_size: int
-        self.traj_path: Path
-        self.time_step: float
+    def __init__(
+        self,
+        system: System,
+        sampling_rate: int,
+        buffer_size: int,
+        traj_path: Path,
+        time_step: float = 0.5,
+        properties: list[str] = APAX_PROPERTIES,
+    ) -> None:
+        self.atomic_numbers = system.atomic_numbers
+        self.box = system.box
+        self.fractional = np.any(self.box > 1e-6)
+        self.sampling_rate = sampling_rate
+        self.traj_path = traj_path
+        self.time_step = time_step
+        self.properties = properties
 
     def step(self, state_and_energy, transform=None):
         pass
@@ -53,6 +64,7 @@ class TrajHandler:
         atoms.pbc = np.diag(atoms.cell.array) > 1e-6
         predictions = {k: np.array(v) for k, v in predictions.items()}
         predictions["energy"] = predictions["energy"].item()
+        predictions = {k: v for k, v in predictions.items() if k in self.properties}
         atoms.calc = SinglePointCalculator(atoms, **predictions)
         return atoms
 
@@ -65,6 +77,7 @@ class H5TrajHandler(TrajHandler):
         buffer_size: int,
         traj_path: Path,
         time_step: float = 0.5,
+        properties: list[str] = [],
     ) -> None:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
@@ -72,6 +85,7 @@ class H5TrajHandler(TrajHandler):
         self.sampling_rate = sampling_rate
         self.traj_path = traj_path
         self.time_step = time_step
+        self.properties = properties
         self.db = znh5md.IO(
             self.traj_path, timestep=self.time_step, store="time", save_units=False
         )
