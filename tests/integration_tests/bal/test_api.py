@@ -8,31 +8,36 @@ from tests.conftest import initialize_model, load_and_dump_config
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
+
 @pytest.mark.parametrize(
-    "config", ["config.yaml", "config_shallow.yaml"] # ["config_shallow.yaml"]
+    "config",
+    ["config.yaml", "config_shallow.yaml"],  # ["config_shallow.yaml"]
 )
 @pytest.mark.parametrize(
-    "features", [
-    {
-        "name": "ll_grad",
-        "layer_name": "dense_2",
-    },
-    {
-        "name": "ll_force_feat",
-        "strategy": "flatten",
-    },
-    {
-        "name": "full_grad_rp",
-        "num_rp": 100,
-    },
-    ]
+    "features",
+    [
+        {
+            "name": "ll_grad",
+            "layer_name": "dense_2",
+        },
+        {
+            "name": "ll_force_feat",
+            "strategy": "flatten",
+        },
+        {
+            "name": "full_grad_rp",
+            "num_rp": 100,
+        },
+    ],
 )
 @pytest.mark.parametrize(
     "num_data, pbc, calc_results",
     ([20, False, ["energy", "forces"]],),
 )
-def test_kernel_selection(config, features, example_atoms, get_tmp_path, get_sample_input):
-    model_config_path = TEST_PATH / config # "config.yaml"
+def test_kernel_selection(
+    config, features, example_atoms, get_tmp_path, get_sample_input
+):
+    model_config_path = TEST_PATH / config  # "config.yaml"
 
     model_config = load_and_dump_config(model_config_path, get_tmp_path)
 
