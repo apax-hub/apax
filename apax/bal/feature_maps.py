@@ -22,10 +22,18 @@ def extract_feature_params(params: dict, layer_name: str) -> Tuple[dict, dict]:
     """Separate params into those belonging to a selected layer
     and the remaining ones.
     """
+    # print()
+    # print(jax.tree_map(lambda x: x.shape, params))
+    # print()
     p_flat = flatten_dict(params)
 
     feature_layer_params = {k: v for k, v in p_flat.items() if layer_name in k}
     remaining_params = {k: v for k, v in p_flat.items() if layer_name not in k}
+
+    # print(jax.tree_map(lambda x: x.shape, feature_layer_params))
+    # print()
+    # # print(jax.tree_map(lambda x: x.shape, remaining_params))
+    # print()
 
     if len(feature_layer_params.keys()) > 2:  # w and b
         print(feature_layer_params.keys())
@@ -106,7 +114,7 @@ class LastLayerForceFeatures(FeatureTransformation, extra="forbid"):
 
     def apply(self, model: EnergyModel) -> FeatureMap:
         def ll_grad(params, inputs):
-            ll_params, remaining_params = extract_feature_params(params, self.layer_name)
+            ll_params, remaining_params = extract_feature_params(params, self.layer_name)            
 
             energy_fn = lambda *inputs: jnp.mean(model.apply(*inputs))
             force_fn = jax.grad(energy_fn, 1)
@@ -125,9 +133,6 @@ class LastLayerForceFeatures(FeatureTransformation, extra="forbid"):
                 out = force_fn(full_params, R, Z, idx, box, offsets)
                 return out
 
-            ll_params = jax.tree_map(
-                lambda arr: jnp.mean(arr, axis=-1, keepdims=True), ll_params
-            )
             g_ll = jax.jacfwd(inner)(ll_params)
             g_ll = unflatten_dict(g_ll)
 
