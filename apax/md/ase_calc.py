@@ -82,8 +82,18 @@ def make_ensemble(model):
     def ensemble(positions, Z, idx, box, offsets):
         results = model(positions, Z, idx, box, offsets)
         uncertainty = {k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()}
+        ensemble = {k + "_ensemble": v for k, v in results.items()}
         results = {k: jnp.mean(v, axis=0) for k, v in results.items()}
+        if "forces_ensemble" in ensemble.keys():
+            ensemble["forces_ensemble"] = jnp.transpose(
+                ensemble["forces_ensemble"], (1, 2, 0)
+            )
+        if "forces_ensemble" in ensemble.keys():
+            ensemble["stress_ensemble"] = jnp.transpose(
+                ensemble["forces_ensemble"], (1, 2, 0)
+            )
         results.update(uncertainty)
+        results.update(ensemble)
 
         return results
 
