@@ -22,18 +22,10 @@ def extract_feature_params(params: dict, layer_name: str) -> Tuple[dict, dict]:
     """Separate params into those belonging to a selected layer
     and the remaining ones.
     """
-    # print()
-    # print(jax.tree_map(lambda x: x.shape, params))
-    # print()
     p_flat = flatten_dict(params)
 
     feature_layer_params = {k: v for k, v in p_flat.items() if layer_name in k}
     remaining_params = {k: v for k, v in p_flat.items() if layer_name not in k}
-
-    # print(jax.tree_map(lambda x: x.shape, feature_layer_params))
-    # print()
-    # # print(jax.tree_map(lambda x: x.shape, remaining_params))
-    # print()
 
     if len(feature_layer_params.keys()) > 2:  # w and b
         print(feature_layer_params.keys())
@@ -199,7 +191,6 @@ class FullGradientRPFeatures(FeatureTransformation, extra="forbid"):
                 return out
 
             grads = jax.grad(inner)(params)
-            # grads = unflatten_dict(grads)
             grads = jax.tree_map(lambda arr: jnp.mean(arr, axis=-1, keepdims=True), grads)
             g_flat = jax.tree_map(lambda arr: jnp.reshape(arr, (-1,)), grads)
             gs, _ = jax.tree_util.tree_flatten(g_flat)
