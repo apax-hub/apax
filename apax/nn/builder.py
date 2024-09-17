@@ -141,11 +141,6 @@ class ModelBuilder:
                 **corr_kwargs,
                 apply_mask=apply_mask,
             )
-
-            # repulsion = ZBLRepulsion(
-            #     apply_mask=apply_mask,
-            #     r_max=self.config["basis"]["r_max"],
-            # )
             corrections.append(corr)
 
         model = EnergyModel(
