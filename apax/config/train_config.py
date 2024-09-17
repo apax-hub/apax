@@ -236,7 +236,7 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     shift_lr: NonNegativeFloat = 0.05
     zbl_lr: NonNegativeFloat = 0.001
 
-    gradient_clipping: NonNegativeFloat = 10000.0
+    gradient_clipping: NonNegativeFloat = 1000.0
 
     schedule: Union[LinearLR, CyclicCosineLR] = Field(
         LinearLR(name="linear"), discriminator="name"
