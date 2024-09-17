@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import vmap
+from ase import data
 
 from apax.layers.masking import mask_by_neighbor
 from apax.utils.jax_md_reduced import space
@@ -84,7 +85,10 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
     def setup(self):
         self.distance = vmap(space.distance, 0, 0)
 
-        self.rscale = self.param("rep_scale", nn.initializers.constant(0.1), (119,))
+        radii = data.covalent_radii * 0.8
+        self.rscale = self.param("rep_scale", nn.initializers.constant(radii), (119,))
+
+
         self.prefactor = self.param(
             "rep_prefactor", nn.initializers.constant(10.0), (119,)
         )
