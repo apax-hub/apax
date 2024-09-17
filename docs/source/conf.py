@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.abspath("../../"))
 project = "Apax"
 copyright = "2023, Moritz Schäfer, Nico Segreto, Johannes Kästner"
 author = "Moritz Schäfer, Nico Segreto, Johannes Kästner"
-release = "0.6.0"
+release = "0.7.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
