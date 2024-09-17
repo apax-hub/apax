@@ -96,6 +96,8 @@ def get_opt(
     scale_lr: float = 0.001,
     shift_lr: float = 0.05,
     zbl_lr: float = 0.001,
+    rep_scale_lr: float = 0.001,
+    rep_prefactor_lr: float = 0.0001,
     gradient_clipping=1000.0,
     name: str = "adam",
     kwargs: dict = {},
@@ -123,6 +125,8 @@ def get_opt(
     scale_opt = opt_fac.create(scale_lr)
     shift_opt = opt_fac.create(shift_lr)
     zbl_opt = opt_fac.create(zbl_lr)
+    rep_scale_opt = opt_fac.create(rep_scale_lr)
+    rep_prefactor_opt = opt_fac.create(rep_prefactor_lr)
 
     partition_optimizers = {
         "w": nn_opt,
@@ -134,7 +138,8 @@ def get_opt(
         "a_num": zbl_opt,
         "coefficients": zbl_opt,
         "exponents": zbl_opt,
-        "rep_scale": zbl_opt,
+        "rep_scale": rep_scale_opt,
+        "rep_prefactor": rep_prefactor_opt,
         "kernel": nn_opt,
         "bias": nn_opt,
         "embedding": emb_opt,

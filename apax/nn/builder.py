@@ -13,7 +13,6 @@ from apax.layers.descriptor.basis_functions import (
     GaussianBasis,
     RadialFunction,
 )
-from apax.layers.empirical import ZBLRepulsion
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.nn.models import (
@@ -133,12 +132,16 @@ class ModelBuilder:
             apply_mask,
         )
         corrections = []
-        if self.config["use_zbl"]:
-            repulsion = ZBLRepulsion(
+        for correction in corrections:
+            corr_kwargs = correction.model_dump()
+            corr_kwargs.pop("name")
+
+            Correction = correction.get_correction()
+            corr = Correction(
+                **corr_kwargs,
                 apply_mask=apply_mask,
-                r_max=self.config["basis"]["r_max"],
             )
-            corrections.append(repulsion)
+            corrections.append(corr)
 
         model = EnergyModel(
             atomistic_model=atomistic_model,

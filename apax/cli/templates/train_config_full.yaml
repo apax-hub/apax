@@ -56,7 +56,6 @@ model:
   nn: [512, 512]
 
   calc_stress: true
-  use_zbl: false
 
   w_init: normal
   b_init: zeros

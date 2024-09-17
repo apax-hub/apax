@@ -20,7 +20,7 @@ class EmpiricalEnergyTerm(nn.Module):
 
 
 class ZBLRepulsion(EmpiricalEnergyTerm):
-    r_max: float = 6.0
+    r_max: float = 2.0
     apply_mask: bool = True
 
     def setup(self):
@@ -74,4 +74,46 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
         if self.apply_mask:
             E_ij = mask_by_neighbor(E_ij, idx)
         E = 0.5 * rep_scale * fp64_sum(E_ij)
-        return fp64_sum(E)
+        return E
+
+
+class ExponentialRepulsion(EmpiricalEnergyTerm):
+    r_max: float = 2.0
+    apply_mask: bool = True
+
+    def setup(self):
+        self.distance = vmap(space.distance, 0, 0)
+
+        self.rscale = self.param("rep_scale", nn.initializers.constant(0.1), (119,))
+        self.prefactor = self.param(
+            "rep_prefactor", nn.initializers.constant(10.0), (119,)
+        )
+
+    def __call__(self, dr_vec, Z, idx):
+        # Z shape n_atoms
+
+        idx_i, idx_j = idx[0], idx[1]
+
+        # shape: neighbors
+        Z_i, Z_j = Z[idx_i, ...], Z[idx_j, ...]
+
+        # dr shape: neighbors
+        dr = self.distance(dr_vec).astype(self.dtype)
+
+        dr = jnp.clip(dr, a_min=0.02, a_max=self.r_max)
+        cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
+
+        # Ensure positive parameters
+        A_i, A_j = (
+            0.1 * jax.numpy.abs(self.prefactor[Z_i]),
+            0.1 * jax.numpy.abs(self.prefactor[Z_j]),
+        )
+        R_i, R_j = jax.numpy.abs(self.rscale[Z_i]), jax.numpy.abs(self.rscale[Z_j])
+
+        f = A_i * A_j * jnp.exp(-dr * (R_i + R_j) / (R_i * R_j)) / dr**2
+
+        E_ij = f * cos_cutoff
+        if self.apply_mask:
+            E_ij = mask_by_neighbor(E_ij, idx)
+        E = fp64_sum(E_ij)
+        return E
