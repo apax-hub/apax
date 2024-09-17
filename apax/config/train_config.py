@@ -235,6 +235,8 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     scale_lr: NonNegativeFloat = 0.001
     shift_lr: NonNegativeFloat = 0.05
     zbl_lr: NonNegativeFloat = 0.001
+    rep_scale_lr: NonNegativeFloat = 0.001
+    rep_prefactor_lr: NonNegativeFloat = 0.0001
 
     gradient_clipping: NonNegativeFloat = 1000.0
 
