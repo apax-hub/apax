@@ -5,17 +5,11 @@ import numpy as np
 import optax
 from flax import traverse_util
 from flax.core.frozen_dict import freeze
-from optax import contrib
 from optax._src import base
 
+from apax.optimizer.optimizers import ademamix, sam
+
 log = logging.getLogger(__name__)
-
-
-def sam(lr=1e-3, b1=0.9, b2=0.999, rho=0.001, sync_period=2):
-    """A SAM optimizer using Adam for the outer optimizer."""
-    opt = optax.adam(lr, b1=b1, b2=b2)
-    adv_opt = optax.chain(contrib.normalize(), optax.sgd(rho))
-    return contrib.sam(opt, adv_opt, sync_period=sync_period)
 
 
 def cyclic_cosine_decay_schedule(
@@ -37,11 +31,8 @@ def cyclic_cosine_decay_schedule(
     def schedule(count):
         cycle = count // (period * steps_per_epoch)
         step_in_period = jnp.mod(count, period * steps_per_epoch)
-        lr = (
-            init_value
-            / 2
-            * (jnp.cos(np.pi * step_in_period / (period * steps_per_epoch)) + 1)
-        )
+        arg = np.pi * step_in_period / (period * steps_per_epoch)
+        lr = init_value / 2 * (jnp.cos(arg) + 1)
         lr = lr * (decay_factor**cycle)
         return lr
 
@@ -70,16 +61,30 @@ def get_schedule(
     return lr_schedule
 
 
-def make_optimizer(opt, lr, n_epochs, steps_per_epoch, kwargs, schedule):
-    if lr <= 1e-7:
-        optimizer = optax.set_to_zero()
-    else:
-        schedule = get_schedule(lr, n_epochs, steps_per_epoch, schedule)
-        optimizer = optax.chain(
-            opt(schedule, **kwargs),
-            optax.zero_nans(),
-        )
-    return optimizer
+class OptimizerFactory:
+    def __init__(
+        self, opt, n_epochs, steps_per_epoch, gradient_clipping, kwargs, schedule
+    ) -> None:
+        self.opt = opt
+        self.n_epochs = n_epochs
+        self.steps_per_epoch = steps_per_epoch
+        self.gradient_clipping = gradient_clipping
+        self.kwargs = kwargs
+        self.schedule = schedule
+
+    def create(self, lr):
+        if lr <= 1e-7:
+            optimizer = optax.set_to_zero()
+        else:
+            schedule = get_schedule(
+                lr, self.n_epochs, self.steps_per_epoch, self.schedule
+            )
+            optimizer = optax.chain(
+                optax.clip(self.gradient_clipping),
+                self.opt(schedule, **self.kwargs),
+                optax.zero_nans(),
+            )
+        return optimizer
 
 
 def get_opt(
@@ -93,6 +98,7 @@ def get_opt(
     zbl_lr: float = 0.001,
     rep_scale_lr: float = 0.001,
     rep_prefactor_lr: float = 0.0001,
+    gradient_clipping=1000.0,
     name: str = "adam",
     kwargs: dict = {},
     schedule: dict = {},
@@ -105,20 +111,22 @@ def get_opt(
     log.info("Initializing Optimizer")
     if name == "sam":
         opt = sam
+    elif name == "ademamix":
+        opt = ademamix
     else:
         opt = getattr(optax, name)
 
-    nn_opt = make_optimizer(opt, nn_lr, n_epochs, steps_per_epoch, kwargs, schedule)
-    emb_opt = make_optimizer(opt, emb_lr, n_epochs, steps_per_epoch, kwargs, schedule)
-    scale_opt = make_optimizer(opt, scale_lr, n_epochs, steps_per_epoch, kwargs, schedule)
-    shift_opt = make_optimizer(opt, shift_lr, n_epochs, steps_per_epoch, kwargs, schedule)
-    zbl_opt = make_optimizer(opt, zbl_lr, n_epochs, steps_per_epoch, kwargs, schedule)
-    rep_scale_opt = make_optimizer(
-        opt, rep_scale_lr, n_epochs, steps_per_epoch, kwargs, schedule
+    opt_fac = OptimizerFactory(
+        opt, n_epochs, steps_per_epoch, gradient_clipping, kwargs, schedule
     )
-    rep_prefactor_opt = make_optimizer(
-        opt, rep_prefactor_lr, n_epochs, steps_per_epoch, kwargs, schedule
-    )
+
+    nn_opt = opt_fac.create(nn_lr)
+    emb_opt = opt_fac.create(emb_lr)
+    scale_opt = opt_fac.create(scale_lr)
+    shift_opt = opt_fac.create(shift_lr)
+    zbl_opt = opt_fac.create(zbl_lr)
+    rep_scale_opt = opt_fac.create(rep_scale_lr)
+    rep_prefactor_opt = opt_fac.create(rep_prefactor_lr)
 
     partition_optimizers = {
         "w": nn_opt,

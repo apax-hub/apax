@@ -58,7 +58,8 @@ model:
   calc_stress: true
   # use_zbl: false
 
-  b_init: normal
+  w_init: normal
+  b_init: zeros
   descriptor_dtype: fp64
   readout_dtype: fp32
   scale_shift_dtype: fp32
