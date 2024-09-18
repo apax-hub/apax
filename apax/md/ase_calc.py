@@ -310,9 +310,16 @@ class ASECalculator(Calculator):
         model = builder.build_energy_derivative_model(
             apply_mask=True,
             init_box=init_box,
-        )
+        ).apply
 
-        model = partial(model.apply, self.params)
+        if self.n_models > 1:
+            model = jax.vmap(model, in_axes=(0, None, None, None, None, None))
+            # model = make_ensemble(model)
+
+        model = partial(model, self.params)
+
+        if self.n_models > 1:
+            model = make_ensemble(model)
 
         for transformation in self.transformations:
             model = transformation.apply(model)

@@ -121,3 +121,9 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
             E_ij = mask_by_neighbor(E_ij, idx)
         E = fp64_sum(E_ij)
         return E
+
+
+all_corrections = {
+    "zbl" : ZBLRepulsion,
+    "exponential" : ExponentialRepulsion,
+}

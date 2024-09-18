@@ -132,17 +132,16 @@ class ModelBuilder:
             apply_mask,
         )
         corrections = []
-        for correction in corrections:
-            corr_kwargs = correction.model_dump()
-            corr_kwargs.pop("name")
+        for correction in self.config["empirical_corrections"]:
+            name = correction.pop("name")
+            from apax.layers.empirical import all_corrections
 
-            Correction = correction.get_correction()
+            Correction = all_corrections[name]
             corr = Correction(
-                **corr_kwargs,
+                **correction,
                 apply_mask=apply_mask,
             )
             corrections.append(corr)
-
         model = EnergyModel(
             atomistic_model=atomistic_model,
             corrections=corrections,
