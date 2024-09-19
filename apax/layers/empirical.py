@@ -88,7 +88,6 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
         radii = data.covalent_radii * 0.8
         self.rscale = self.param("rep_scale", nn.initializers.constant(radii), (119,))
 
-
         self.prefactor = self.param(
             "rep_prefactor", nn.initializers.constant(10.0), (119,)
         )
@@ -124,6 +123,6 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
 
 
 all_corrections = {
-    "zbl" : ZBLRepulsion,
-    "exponential" : ExponentialRepulsion,
+    "zbl": ZBLRepulsion,
+    "exponential": ExponentialRepulsion,
 }
