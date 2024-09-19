@@ -4,8 +4,8 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import vmap
 from ase import data
+from jax import vmap
 
 from apax.layers.masking import mask_by_neighbor
 from apax.utils.jax_md_reduced import space

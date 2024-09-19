@@ -2,9 +2,6 @@ import logging
 
 import numpy as np
 
-from apax.layers.empirical import all_corrections
-
-
 from apax.config import ModelConfig
 from apax.layers.descriptor import (
     EquivMPRepresentation,
@@ -16,6 +13,7 @@ from apax.layers.descriptor.basis_functions import (
     GaussianBasis,
     RadialFunction,
 )
+from apax.layers.empirical import all_corrections
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.nn.models import (
