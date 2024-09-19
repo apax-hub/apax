@@ -2,6 +2,9 @@ import logging
 
 import numpy as np
 
+from apax.layers.empirical import all_corrections
+
+
 from apax.config import ModelConfig
 from apax.layers.descriptor import (
     EquivMPRepresentation,
@@ -133,9 +136,8 @@ class ModelBuilder:
         )
         corrections = []
         for correction in self.config["empirical_corrections"]:
+            correction = correction.copy()
             name = correction.pop("name")
-            from apax.layers.empirical import all_corrections
-
             Correction = all_corrections[name]
             corr = Correction(
                 **correction,
