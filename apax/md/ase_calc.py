@@ -314,7 +314,6 @@ class ASECalculator(Calculator):
 
         if self.n_models > 1:
             model = jax.vmap(model, in_axes=(0, None, None, None, None, None))
-            # model = make_ensemble(model)
 
         model = partial(model, self.params)
 
