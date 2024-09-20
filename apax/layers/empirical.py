@@ -4,8 +4,8 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import vmap
 from ase import data
+from jax import vmap
 
 from apax.layers.masking import mask_by_neighbor
 from apax.utils.jax_md_reduced import space
@@ -88,7 +88,6 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
         radii = data.covalent_radii * 0.8
         self.rscale = self.param("rep_scale", nn.initializers.constant(radii), (119,))
 
-
         self.prefactor = self.param(
             "rep_prefactor", nn.initializers.constant(10.0), (119,)
         )
@@ -121,3 +120,9 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
             E_ij = mask_by_neighbor(E_ij, idx)
         E = fp64_sum(E_ij)
         return E
+
+
+all_corrections = {
+    "zbl": ZBLRepulsion,
+    "exponential": ExponentialRepulsion,
+}

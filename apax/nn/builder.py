@@ -13,6 +13,7 @@ from apax.layers.descriptor.basis_functions import (
     GaussianBasis,
     RadialFunction,
 )
+from apax.layers.empirical import all_corrections
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.nn.models import (
@@ -132,17 +133,15 @@ class ModelBuilder:
             apply_mask,
         )
         corrections = []
-        for correction in corrections:
-            corr_kwargs = correction.model_dump()
-            corr_kwargs.pop("name")
-
-            Correction = correction.get_correction()
+        for correction in self.config["empirical_corrections"]:
+            correction = correction.copy()
+            name = correction.pop("name")
+            Correction = all_corrections[name]
             corr = Correction(
-                **corr_kwargs,
+                **correction,
                 apply_mask=apply_mask,
             )
             corrections.append(corr)
-
         model = EnergyModel(
             atomistic_model=atomistic_model,
             corrections=corrections,
