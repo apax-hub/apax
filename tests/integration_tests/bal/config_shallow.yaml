@@ -1,0 +1,36 @@
+n_epochs: 2
+
+data:
+  experiment: apax_dummy
+  data_path: dummy_ds
+
+  n_train: 4
+  n_valid: 2
+  batch_size: 2
+  valid_batch_size: 2
+
+model:
+  name: gmnn
+  nn: [32,32]
+  basis:
+    name: gaussian
+    n_basis: 5
+  n_radial: 3
+
+  ensemble:
+    kind: shallow
+    n_members: 4
+    force_variance: true
+
+  descriptor_dtype: fp32
+  readout_dtype: fp32
+  scale_shift_dtype: fp32
+  calc_stress: false
+
+metrics:
+  - name: energy
+    reductions: [mae]
+
+loss:
+  - name: energy
+  - name: forces

@@ -8,6 +8,11 @@ from ipsuite.analysis.ensemble import plot_with_uncertainty
 from ipsuite.configuration_selection.base import BatchConfigurationSelection
 from matplotlib import pyplot as plt
 
+try:
+    from sklearn.decomposition import PCA
+except ImportError:
+    PCA = None
+
 from apax.bal import kernel_selection
 from apax.nodes.model import ApaxBase
 
@@ -29,6 +34,15 @@ class BatchKernelSelection(BatchConfigurationSelection):
         ["max_dist", ]
     n_configurations: int
         Number of samples to be selected.
+    min_distance_threshold: float
+        Minimal allowed distance between selected points before selection stops.
+        Selection stops either if n samples were selected or if the distance is smaller
+        than specified by this criterion.
+        Default is 0 so this criterion will not apply.
+    rank_all: bool
+        If true, ranks all pool samples. Great for visualization but might slow things
+        down if the pool is really large. If false, only the most informative
+        n_configurations are ranked.
     processing_batch_size: int
         Number of samples to be processed in parallel.
         Does not affect the result, just the speed of computing features.
@@ -39,9 +53,14 @@ class BatchKernelSelection(BatchConfigurationSelection):
     models: typing.List[ApaxBase] = zntrack.deps()
     base_feature_map: dict = zntrack.params({"name": "ll_grad", "layer_name": "dense_2"})
     selection_method: str = zntrack.params("max_dist")
-    n_configurations: str = zntrack.params()
+    n_configurations: int = zntrack.params()
+    min_distance_threshold: str = zntrack.params(0.0)
     processing_batch_size: str = zntrack.meta.Text(64)
+    rank_all: bool = zntrack.params(True)
+
     img_selection = zntrack.outs_path(zntrack.nwd / "selection.png")
+    img_distances = zntrack.outs_path(zntrack.nwd / "distances.png")
+    img_features = zntrack.outs_path(zntrack.nwd / "features.png")
 
     def select_atoms(self, atoms_lst: typing.List[ase.Atoms]) -> typing.List[int]:
         if isinstance(self.models, list):
@@ -49,20 +68,50 @@ class BatchKernelSelection(BatchConfigurationSelection):
         else:
             param_files = self.models._parameter["data"]["directory"]
 
-        selected = kernel_selection(
+        if self.rank_all:
+            selection_batch_size = None
+        else:
+            selection_batch_size = self.n_configurations
+
+        ranking, distances, features_train, features_pool = kernel_selection(
             param_files,
             self.train_data,
             atoms_lst,
             self.base_feature_map,
             self.selection_method,
-            selection_batch_size=self.n_configurations,
+            selection_batch_size=selection_batch_size,
             processing_batch_size=self.processing_batch_size,
         )
-        self._get_plot(atoms_lst, selected)
 
-        return list(selected)
+        features_pool = features_pool[ranking]
+        distance_mask = distances > self.min_distance_threshold
 
-    def _get_plot(self, atoms_lst: typing.List[ase.Atoms], indices: typing.List[int]):
+        mask = distance_mask
+        if self.rank_all:
+            # if we rank all, we need to slice the indices to only
+            # select the first n
+            numbers = np.arange(len(distances))
+            number_mask = numbers < self.n_configurations
+            mask = mask & number_mask
+
+        ranking = ranking[mask]
+        features_selection = features_pool[mask]
+        features_remaining = features_pool[~mask]
+
+        false_indices = np.where(~mask)[0]
+        if len(false_indices) > 0:
+            last_selected = false_indices[0] - 1
+        else:
+            last_selected = -1
+
+        self._get_distances_plot(distances, last_selected)
+        self._get_pca_plot(features_train, features_selection, features_remaining)
+        self._get_selection_plot(atoms_lst, ranking)
+        return list(ranking)
+
+    def _get_selection_plot(
+        self, atoms_lst: typing.List[ase.Atoms], indices: typing.List[int]
+    ):
         energies = np.array([atoms.calc.results["energy"] for atoms in atoms_lst])
 
         if "energy_uncertainty" in atoms_lst[0].calc.results.keys():
@@ -82,4 +131,68 @@ class BatchKernelSelection(BatchConfigurationSelection):
 
         ax.plot(indices, energies[indices], "x", color="red")
 
-        fig.savefig(self.img_selection, bbox_inches="tight")
+        fig.savefig(self.img_selection, bbox_inches="tight", dpi=240)
+
+    def _get_distances_plot(self, distances: np.ndarray, last_selected: int):
+        fig, ax = plt.subplots()
+        ax.semilogy(distances, label="sq. distances")
+
+        ax.axvline(last_selected, ls="--", color="gray", label="last selected")
+
+        ax.set_ylabel("Squared distance")
+        ax.set_xlabel("Configuration")
+        ax.legend()
+        fig.savefig(self.img_distances, bbox_inches="tight", dpi=240)
+
+    def _get_pca_plot(
+        self, g_train: np.ndarray, g_selection: np.ndarray, g_remaining: np.ndarray
+    ):
+        if PCA:
+            all_features = [g_train, g_selection]
+            if len(g_remaining) > 0:
+                all_features.append(g_remaining)
+            g_full = np.concatenate(all_features, axis=0)
+            pca = PCA(n_components=2)
+            pca.fit(g_full)
+
+            g_train_2d = pca.transform(g_train)
+            g_selection_2d = pca.transform(g_selection)
+            if len(g_remaining) > 0:
+                g_pool_2d = pca.transform(g_remaining)
+        else:
+            F = g_train.shape[1]
+            W = np.random.randn(F, 2) / np.sqrt(F)
+            g_train_2d = g_train @ W
+            g_selection_2d = g_selection @ W
+            if len(g_remaining) > 0:
+                g_pool_2d = g_remaining @ W
+
+        fig, ax = plt.subplots()
+
+        if len(g_remaining) > 0:
+            ax.scatter(
+                *g_pool_2d.T,
+                color="gray",
+                marker="o",
+                s=5,
+                alpha=0.6,
+                label="Remaining data",
+            )
+
+        ax.scatter(
+            *g_train_2d.T, color="C0", marker="^", s=5, alpha=0.6, label="Train data"
+        )
+        ax.scatter(
+            *g_selection_2d.T,
+            color="red",
+            marker="*",
+            s=5,
+            alpha=0.6,
+            label="Selected data",
+        )
+
+        ax.set_xlabel("dim 1")
+        ax.set_ylabel("dim 2")
+        ax.legend()
+
+        fig.savefig(self.img_features, bbox_inches="tight", dpi=240)

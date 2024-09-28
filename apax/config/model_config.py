@@ -95,6 +95,23 @@ class ShallowEnsembleConfig(BaseModel, extra="forbid"):
 EnsembleConfig = Union[FullEnsembleConfig, ShallowEnsembleConfig]
 
 
+class Correction(BaseModel, extra="forbid"):
+    name: str
+
+
+class ZBLRepulsion(Correction, extra="forbid"):
+    name: Literal["zbl"]
+    r_max: NonNegativeFloat = 2.0
+
+
+class ExponentialRepulsion(Correction, extra="forbid"):
+    name: Literal["exponential"]
+    r_max: NonNegativeFloat = 2.0
+
+
+EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion]
+
+
 class BaseModelConfig(BaseModel, extra="forbid"):
     """
     Configuration for the model.
@@ -135,7 +152,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     ensemble: Optional[EnsembleConfig] = None
 
     # corrections
-    use_zbl: bool = False
+    empirical_corrections: list[EmpiricalCorrection] = []
 
     calc_stress: bool = False
 

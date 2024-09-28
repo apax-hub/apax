@@ -79,8 +79,10 @@ class FeatureModel(nn.Module):
             perturbation,
         )
 
-        gm = self.descriptor(dr_vec, Z, idx)
-        features = jax.vmap(self.readout)(gm)
+        features = self.descriptor(dr_vec, Z, idx)
+
+        if self.readout:
+            features = jax.vmap(self.readout)(features)
 
         if self.mask_atoms:
             features = mask_by_atom(features, Z)
@@ -268,7 +270,9 @@ class ShallowEnsembleModel(nn.Module):
 
             prediction["forces"] = forces_mean
             prediction["forces_uncertainty"] = jnp.sqrt(forces_variance)
-            prediction["forces_ensemble"] = forces_ens
+
+            forces_ens = jnp.transpose(forces_ens, (1, 2, 0))
+            prediction["forces_ensemble"] = forces_ens  # n_atoms x 3 x n_members
 
         else:
             forces_mean = -jax.grad(mean_energy_fn)(R, Z, neighbor, box, offsets)

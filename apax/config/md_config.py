@@ -1,11 +1,11 @@
 import os
-
-# from types import UnionType
 from typing import Literal, Union
 
 import yaml
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveFloat, PositiveInt
 from typing_extensions import Annotated
+
+from apax.utils.helpers import APAX_PROPERTIES
 
 
 class ConstantTempSchedule(BaseModel, extra="forbid"):
@@ -234,6 +234,14 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     extra_capacity : int, default = 0
         | JaxMD allocates a maximal number of neighbors. This argument lets you add
         | additional capacity to avoid recompilation. The default is usually fine.
+
+    dynamics_checks: list[DynamicsCheck]
+        | List of termination criteria. Currently energy and force uncertainty
+        | are available
+    properties: list[str]
+        | Whitelist of properties to be saved in the trajectory.
+        | This does not effect what the model will calculate, e.g..
+        | an ensemble will still calculate uncertainties.
     initial_structure : str, required
         | Path to the starting structure of the simulation.
     sim_dir : str, default = "."
@@ -265,6 +273,8 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     extra_capacity: NonNegativeInt = 0
 
     dynamics_checks: list[DynamicsCheck] = []
+
+    properties: list[str] = APAX_PROPERTIES
 
     initial_structure: str
     load_momenta: bool = False

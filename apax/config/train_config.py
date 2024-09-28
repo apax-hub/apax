@@ -220,6 +220,9 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
         Learning rate of the elemental output shifts.
     zbl_lr : NonNegativeFloat, default = 0.001
         Learning rate of the ZBL correction parameters.
+    gradient_clipping: NonNegativeFloat, default = 1000.0
+        Per element Gradient clipping value.
+        Default is so high that it effectively disabled.
     schedule : LRSchedule = LinearLR
         Learning rate schedule.
     kwargs : dict, default = {}
@@ -232,6 +235,11 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     scale_lr: NonNegativeFloat = 0.001
     shift_lr: NonNegativeFloat = 0.05
     zbl_lr: NonNegativeFloat = 0.001
+    rep_scale_lr: NonNegativeFloat = 0.001
+    rep_prefactor_lr: NonNegativeFloat = 0.0001
+
+    gradient_clipping: NonNegativeFloat = 1000.0
+
     schedule: Union[LinearLR, CyclicCosineLR] = Field(
         LinearLR(name="linear"), discriminator="name"
     )

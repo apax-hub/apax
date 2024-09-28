@@ -52,21 +52,19 @@ class GaussianMomentDescriptor(nn.Module):
         moments = geometric_moments(radial_function, dn, idx_j, n_atoms)
 
         contr_0 = moments[0]
-        contr_1 = jnp.einsum("ari, asi -> rsa", moments[1], moments[1])  # noqa: E501
-        contr_2 = jnp.einsum("arij, asij -> rsa", moments[2], moments[2])  # noqa: E501
-        contr_3 = jnp.einsum("arijk, asijk -> rsa", moments[3], moments[3])  # noqa: E501
+        contr_1 = jnp.einsum("ari, asi -> ars", moments[1], moments[1])  # noqa: E501
+        contr_2 = jnp.einsum("arij, asij -> ars", moments[2], moments[2])  # noqa: E501
+        contr_3 = jnp.einsum("arijk, asijk -> ars", moments[3], moments[3])  # noqa: E501
         contr_4 = jnp.einsum(
-            "arij, asik, atjk -> rsta", moments[2], moments[2], moments[2]
+            "arij, asik, atjk -> arst", moments[2], moments[2], moments[2]
         )  # noqa: E501
-        contr_5 = jnp.einsum("ari, asj, atij -> rsta", moments[1], moments[1], moments[2])  # noqa: E501
+        contr_5 = jnp.einsum("ari, asj, atij -> arst", moments[1], moments[1], moments[2])  # noqa: E501
         contr_6 = jnp.einsum(
-            "arijk, asijl, atkl -> rsta", moments[3], moments[3], moments[2]
+            "arijk, asijl, atkl -> arst", moments[3], moments[3], moments[2]
         )  # noqa: E501
         contr_7 = jnp.einsum(
-            "arijk, asij, atk -> rsta", moments[3], moments[2], moments[1]
+            "arijk, asij, atk -> arst", moments[3], moments[2], moments[1]
         )  # noqa: E501
-
-        n_symm01_features = self.triang_idxs_2d.shape[0] * self.n_radial
 
         tril_2_i, tril_2_j = self.triang_idxs_2d[:, 0], self.triang_idxs_2d[:, 1]
         tril_3_i, tril_3_j, tril_3_k = (
@@ -75,24 +73,16 @@ class GaussianMomentDescriptor(nn.Module):
             self.triang_idxs_3d[:, 2],
         )
 
-        contr_1 = contr_1[tril_2_i, tril_2_j]
-        contr_2 = contr_2[tril_2_i, tril_2_j]
-        contr_3 = contr_3[tril_2_i, tril_2_j]
-        contr_4 = contr_4[tril_3_i, tril_3_j, tril_3_k]
-        contr_5 = contr_5[tril_2_i, tril_2_j]
-        contr_6 = contr_6[tril_2_i, tril_2_j]
+        contr_1 = contr_1[:, tril_2_i, tril_2_j]
+        contr_2 = contr_2[:, tril_2_i, tril_2_j]
+        contr_3 = contr_3[:, tril_2_i, tril_2_j]
+        contr_4 = contr_4[:, tril_3_i, tril_3_j, tril_3_k]
+        contr_5 = contr_5[:, tril_2_i, tril_2_j]
+        contr_6 = contr_6[:, tril_2_i, tril_2_j]
 
-        contr_5 = jnp.reshape(contr_5, [n_symm01_features, -1])
-        contr_6 = jnp.reshape(contr_6, [n_symm01_features, -1])
-        contr_7 = jnp.reshape(contr_7, [self.n_radial**3, -1])
-
-        contr_1 = jnp.transpose(contr_1)
-        contr_2 = jnp.transpose(contr_2)
-        contr_3 = jnp.transpose(contr_3)
-        contr_4 = jnp.transpose(contr_4)
-        contr_5 = jnp.transpose(contr_5)
-        contr_6 = jnp.transpose(contr_6)
-        contr_7 = jnp.transpose(contr_7)
+        contr_5 = jnp.reshape(contr_5, [n_atoms, -1])
+        contr_6 = jnp.reshape(contr_6, [n_atoms, -1])
+        contr_7 = jnp.reshape(contr_7, [n_atoms, -1])
 
         gaussian_moments = [
             contr_0,

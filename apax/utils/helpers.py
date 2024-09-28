@@ -2,6 +2,18 @@ import csv
 
 import yaml
 
+APAX_PROPERTIES = [
+    "energy",
+    "forces",
+    "stress",
+    "forces_uncertainty",
+    "energy_uncertainty",
+    "stress_uncertainty",
+    "energy_ensemble",
+    "forces_ensemble",
+    "stress_ensemble",
+]
+
 
 def setup_ase():
     """Add uncertainty keys to ASE all properties.
@@ -9,15 +21,7 @@ def setup_ase():
     """
     from ase.calculators.calculator import all_properties
 
-    additional_keys = [
-        "forces_uncertainty",
-        "energy_uncertainty",
-        "stress_uncertainty",
-        "energy_ensemble",
-        "forces_ensemble",
-    ]
-
-    for val in additional_keys:
+    for val in APAX_PROPERTIES:
         if val not in all_properties:
             all_properties.append(val)
 

@@ -82,8 +82,18 @@ def make_ensemble(model):
     def ensemble(positions, Z, idx, box, offsets):
         results = model(positions, Z, idx, box, offsets)
         uncertainty = {k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()}
+        ensemble = {k + "_ensemble": v for k, v in results.items()}
         results = {k: jnp.mean(v, axis=0) for k, v in results.items()}
+        if "forces_ensemble" in ensemble.keys():
+            ensemble["forces_ensemble"] = jnp.transpose(
+                ensemble["forces_ensemble"], (1, 2, 0)
+            )
+        if "forces_ensemble" in ensemble.keys():
+            ensemble["stress_ensemble"] = jnp.transpose(
+                ensemble["forces_ensemble"], (1, 2, 0)
+            )
         results.update(uncertainty)
+        results.update(ensemble)
 
         return results
 
@@ -300,9 +310,15 @@ class ASECalculator(Calculator):
         model = builder.build_energy_derivative_model(
             apply_mask=True,
             init_box=init_box,
-        )
+        ).apply
 
-        model = partial(model.apply, self.params)
+        if self.n_models > 1:
+            model = jax.vmap(model, in_axes=(0, None, None, None, None, None))
+
+        model = partial(model, self.params)
+
+        if self.n_models > 1:
+            model = make_ensemble(model)
 
         for transformation in self.transformations:
             model = transformation.apply(model)

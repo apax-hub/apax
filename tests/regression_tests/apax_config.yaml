@@ -30,7 +30,9 @@ model:
   nn: [512, 512]
 
   calc_stress: false
-  use_zbl: true
+  empirical_corrections:
+    - name: exponential
+      r_max: 2.0
 
   b_init: normal
   descriptor_dtype: fp32
