@@ -10,7 +10,42 @@ from keras.callbacks import CSVLogger, TensorBoard
 from apax.config.common import flatten
 from apax.config.train_config import Config
 
+try:
+    from apax.train.mlflow import MLFlowLogger
+except ImportError:
+    MLFlowLogger=None
+
 log = logging.getLogger(__name__)
+
+
+class CallbackCollection:
+    def __init__(self, callbacks: list) -> None:
+        self.callbacks = callbacks
+
+    def on_train_begin(self, logs=None):
+        for cb in self.callbacks:
+            cb.on_train_begin(logs)
+
+    def on_epoch_begin(self, epoch, logs=None):
+        for cb in self.callbacks:
+            cb.on_epoch_begin(epoch)
+
+    def on_train_batch_begin(self, batch, logs=None):
+        for cb in self.callbacks:
+            cb.on_train_batch_begin(batch)
+
+    def on_train_batch_end(self, batch, logs=None):
+        for cb in self.callbacks:
+            cb.on_train_batch_end(batch)
+
+    def on_epoch_end(self, epoch, logs):
+        for cb in self.callbacks:
+            cb.on_epoch_end(epoch, logs)
+
+    def on_train_end(self, logs=None):
+        for cb in self.callbacks:
+            cb.on_train_end( logs)
+
 
 
 def format_str(k):
@@ -102,6 +137,7 @@ def initialize_callbacks(config: Config, model_version_path: Path):
     log.info("Initializing Callbacks")
 
     dummy_model = tf.keras.Model()
+    dummy_model.compile(loss='mse', optimizer='adam')
     callback_dict = {
         "csv": {
             "class": CSVLoggerApax,
@@ -116,35 +152,20 @@ def initialize_callbacks(config: Config, model_version_path: Path):
             "path_arg_name": "log_dir",
             "kwargs": {},
             "model": dummy_model,
+            "write_graph": False,
+        },
+        "mlflow": {
+            "class": MLFlowLogger,
+            "log_path": model_version_path,
+            "path_arg_name": "log_dir",
+            "kwargs": {"run_name": config.data.experiment},
         },
     }
-
-    names = [conf.name for conf in callback_configs]
-    if "csv" in names and "tensorboard" in names:
-        msg = (
-            "Using both csv and tensorboard callbacks is not supported at the moment."
-            " Rerun training with only one of the two."
-        )
-        raise ValueError(msg)
 
     callbacks = []
     for callback_config in callback_configs:
         if callback_config.name == "mlflow":
-            try:
-                import mlflow
-                from mlflow.tensorflow import MLflowCallback
-            except ImportError:
-                log.warning("Make sure MLFlow is installed correctly")
-            mlflow.login()
-            mlflow.tensorflow.autolog()
-            experiment = callback_config.experiment
-            mlflow.set_experiment(experiment)
-
-            params = config.model_dump()
-            params = flatten(params)
-            mlflow.log_params(params)
-            callback = MLflowCallback()
-            callback.set_model(dummy_model)
+            callback = MLFlowLogger(experiment= callback_config.experiment, run_name= config.data.experiment)
         else:
             callback_info = callback_dict[callback_config.name]
 
@@ -156,4 +177,4 @@ def initialize_callbacks(config: Config, model_version_path: Path):
             callback.set_model(callback_info["model"])
         callbacks.append(callback)
 
-    return tf.keras.callbacks.CallbackList([callback])
+    return CallbackCollection(callbacks)
