@@ -37,7 +37,6 @@ class MLFlowLogger:
             return
         mlflow.log_metrics(logs, step=epoch, synchronous=False)
 
-
     def on_train_end(self, logs=None):
         """
         End the current MLFlow run.

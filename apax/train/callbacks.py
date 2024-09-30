@@ -12,7 +12,7 @@ from apax.config.train_config import Config
 try:
     from apax.train.mlflow import MLFlowLogger
 except ImportError:
-    MLFlowLogger=None
+    MLFlowLogger = None
 
 log = logging.getLogger(__name__)
 
@@ -43,8 +43,7 @@ class CallbackCollection:
 
     def on_train_end(self, logs=None):
         for cb in self.callbacks:
-            cb.on_train_end( logs)
-
+            cb.on_train_end(logs)
 
 
 def format_str(k):
@@ -136,7 +135,7 @@ def initialize_callbacks(config: Config, model_version_path: Path):
     log.info("Initializing Callbacks")
 
     dummy_model = tf.keras.Model()
-    dummy_model.compile(loss='mse', optimizer='adam')
+    dummy_model.compile(loss="mse", optimizer="adam")
     callback_dict = {
         "csv": {
             "class": CSVLoggerApax,
@@ -164,7 +163,9 @@ def initialize_callbacks(config: Config, model_version_path: Path):
     callbacks = []
     for callback_config in callback_configs:
         if callback_config.name == "mlflow":
-            callback = MLFlowLogger(experiment= callback_config.experiment, run_name= config.data.experiment)
+            callback = MLFlowLogger(
+                experiment=callback_config.experiment, run_name=config.data.experiment
+            )
         else:
             callback_info = callback_dict[callback_config.name]
 
