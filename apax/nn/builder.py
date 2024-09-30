@@ -126,7 +126,7 @@ class ModelBuilder:
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn=None,
     ):
-        log.debug("Bulding atomistic model")
+        log.debug("Building atomistic model")
         atomistic_model = self.build_atomistic_model(
             scale,
             shift,
@@ -170,7 +170,7 @@ class ModelBuilder:
             and self.config["ensemble"]["kind"] == "shallow"
             and self.config["ensemble"]["n_members"] > 1
         ):
-            log.info("Bulding ShallowEnsemble model")
+            log.info("Building ShallowEnsemble model")
             model = ShallowEnsembleModel(
                 energy_model,
                 calc_stress=self.config["calc_stress"],
@@ -178,7 +178,7 @@ class ModelBuilder:
                 chunk_size=self.config["ensemble"]["chunk_size"],
             )
         else:
-            log.info("Bulding Standard model")
+            log.info("Building Standard model")
             model = EnergyDerivativeModel(
                 energy_model,
                 calc_stress=self.config["calc_stress"],
@@ -191,7 +191,7 @@ class ModelBuilder:
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn=None,
     ):
-        log.info("Bulding LL feature model")
+        log.info("Building LL feature model")
         descriptor = self.build_descriptor(apply_mask)
         readout = self.build_readout(is_feature_fn=True)
 
