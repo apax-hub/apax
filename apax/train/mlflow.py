@@ -1,5 +1,6 @@
 import mlflow
 
+
 class MLFlowLogger:
     def __init__(self, experiment=None, run_name=None):
         """

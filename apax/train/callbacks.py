@@ -7,7 +7,6 @@ import numpy as np
 import tensorflow as tf
 from keras.callbacks import CSVLogger, TensorBoard
 
-from apax.config.common import flatten
 from apax.config.train_config import Config
 
 try:
