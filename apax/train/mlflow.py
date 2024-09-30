@@ -4,14 +4,14 @@ class MLFlowLogger:
     def __init__(self, experiment=None, run_name=None):
         """
         Initialize the MLFlow logger.
-        
+
         :param log_dir: The directory where MLFlow logs will be stored.
         :param experiment_name: Name of the experiment in MLFlow.
         :param run_name: Name of the run to be logged in MLFlow.
         """
         mlflow.login()
         mlflow.set_experiment(experiment)
-        
+
         # Start a new MLFlow run
         self.run = mlflow.start_run(run_name=run_name)
 
@@ -29,7 +29,7 @@ class MLFlowLogger:
 
     def on_train_begin(self, logs=None):
         pass
-    
+
     def on_epoch_end(self, epoch, logs=None):
         """Log metrics at the end of each epoch."""
         if logs is None:
