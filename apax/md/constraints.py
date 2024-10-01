@@ -9,13 +9,11 @@ class ConstraintBase(BaseModel):
         pass
 
 
-
 class FixAtoms(ConstraintBase, extra="forbid"):
     name: Literal["fixatoms"] = "fixatoms"
     indices: list[int]
 
     def create(self, ref_state):
-
         indices = jnp.array(self.indices, dtype=jnp.int64)
 
         ref_position = ref_state.position[indices]
@@ -32,10 +30,4 @@ class FixAtoms(ConstraintBase, extra="forbid"):
         return fn
 
 
-
-
-
-
-Constraint = TypeAdapter(
-    Union[FixAtoms]
-).validate_python
+Constraint = TypeAdapter(Union[FixAtoms]).validate_python

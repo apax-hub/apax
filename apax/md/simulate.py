@@ -255,7 +255,7 @@ def run_sim(
         dynamics_checks,
     )
 
-    constraints = [FixAtoms(indices=[6,8])]
+    constraints = [FixAtoms(indices=[6, 8])]
 
     apply_constraints = create_constraint_function(
         constraints,
@@ -538,9 +538,7 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
 
     constraints = []
     if md_config.constraints:
-        constraint_list = [
-            Constraint(c.model_dump()) for c in md_config.constraints
-        ]
+        constraint_list = [Constraint(c.model_dump()) for c in md_config.constraints]
         constraints.extend(constraint_list)
 
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))

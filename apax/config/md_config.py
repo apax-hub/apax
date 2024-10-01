@@ -211,9 +211,9 @@ class FixAtomsConstraint(BaseModel, extra="forbid"):
     name: Literal["fixatoms"] = "fixatoms"
     indices: list[int]
 
-Constraint = Annotated[
-    Union[FixAtomsConstraint], Field(discriminator="name")
-]
+
+Constraint = Annotated[Union[FixAtomsConstraint], Field(discriminator="name")]
+
 
 class MDConfig(BaseModel, frozen=True, extra="forbid"):
     """
