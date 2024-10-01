@@ -44,16 +44,16 @@ class PiecewiseLinearTempSchedule(ConstantTempSchedule, extra="forbid"):
     """
 
     name: Literal["piecewise"] = "piecewise"
-    values: list[PositiveFloat]
-    steps: list[PositiveInt]
+    temperatures: list[PositiveFloat]
+    durations: list[PositiveInt]
 
     def get_schedule(self):
         from apax.md.schedules import PieceWiseLinearTSchedule
 
         schedule = PieceWiseLinearTSchedule(
             self.T0,
-            self.values,
-            self.steps,
+            self.temperatures,
+            self.durations,
         )
         return schedule
 
