@@ -4,8 +4,8 @@ ensemble:
   temperature_schedule:
     name: piecewise
     T0: 50 # K
-    values: [100, 200, 1000]
-    steps: [10, 20, 30]
+    temperatures: [100, 200, 1000]
+    durations: [10, 20, 30]
 
 duration: 500 # fs
 n_inner: 1
