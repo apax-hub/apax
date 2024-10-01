@@ -281,7 +281,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     extra_capacity: NonNegativeInt = 0
 
     dynamics_checks: list[DynamicsCheck] = []
-    dynamics_checks: list[Constraint] = []
+    constraints: list[Constraint] = []
 
     properties: list[str] = APAX_PROPERTIES
 

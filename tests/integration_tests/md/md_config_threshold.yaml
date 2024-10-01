@@ -15,6 +15,10 @@ restart: True
 dynamics_checks:
   - name: forces_uncertainty
     threshold: 0.01
+constraints:
+  - name: fixatoms
+    indices: [0]
+
 properties:
   - energy
   - forces
