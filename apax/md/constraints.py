@@ -29,11 +29,11 @@ class FixAtoms(ConstraintBase, extra="forbid"):
             force = force.at[indices].set(zero_force)
             state = state.set(position=position, force=force)
             return state
-        
+
         return fn
 
 
-        
+
 
 
 

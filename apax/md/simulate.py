@@ -166,7 +166,7 @@ def create_constraint_function(constraints: list[ConstraintBase], state):
             state = constraint(state)
 
         return state
-    
+
     return apply_constraints
 
 
