@@ -25,11 +25,7 @@ class PieceWiseLinearTSchedule(TSchedule):
 
     def __call__(self, step) -> float:
         T = jnp.interp(
-            step,
-            self.steps,
-            self.temperatures,
-            left=self.T0,
-            right=self.temperatures[-1]
+            step, self.steps, self.temperatures, left=self.T0, right=self.temperatures[-1]
         )
         return T * units.kB
 
