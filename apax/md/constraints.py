@@ -4,7 +4,6 @@ import jax.numpy as jnp
 from pydantic import BaseModel, TypeAdapter
 
 
-
 class ConstraintBase(BaseModel):
     def create(self, state):
         pass
