@@ -18,6 +18,7 @@ from apax.config import Config, MDConfig, parse_config
 from apax.config.md_config import Integrator
 from apax.md.ase_calc import make_ensemble, maybe_vmap
 from apax.md.dynamics_checks import DynamicsCheckBase, DynamicsChecks
+from apax.md.constraints import Constraint, ConstraintBase, FixAtoms
 from apax.md.io import H5TrajHandler, TrajHandler, truncate_trajectory_to_checkpoint
 from apax.md.md_checkpoint import load_md_state
 from apax.md.sim_utils import SimulationFunctions, System
@@ -157,6 +158,18 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_ch
     return on_eval, no_eval
 
 
+def create_constraint_function(constraints: list[ConstraintBase], state):
+    all_constraints = [c.create(state) for c in constraints]
+
+    def apply_constraints(state):
+        for constraint in all_constraints:
+            state = constraint(state)
+
+        return state
+    
+    return apply_constraints
+
+
 def run_sim(
     system: System,
     sim_fns: SimulationFunctions,
@@ -171,6 +184,7 @@ def run_sim(
     restart: bool = True,
     checkpoint_interval: int = 50_000,
     dynamics_checks: list[DynamicsCheckBase] = [],
+    constraints: list[ConstraintBase] = [],
     disable_pbar: bool = False,
 ):
     """
@@ -241,6 +255,14 @@ def run_sim(
         dynamics_checks,
     )
 
+    constraints = [FixAtoms(indices=[6,8])]
+
+    apply_constraints = create_constraint_function(
+        constraints,
+        state,
+    )
+    from jax import debug
+
     @jax.jit
     def sim(state, outer_step, neighbor):  # TODO make more modular
         def body_fn(i, state):
@@ -257,6 +279,9 @@ def run_sim(
             apply_fn_kwargs["kT"] = kT(step)  # Get current Temperature
 
             state = apply_fn(state, neighbor=neighbor, **apply_fn_kwargs)
+
+            state = apply_constraints(state)
+
             nbr_kwargs = nbr_options(state)
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
@@ -511,6 +536,13 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
             DynamicsChecks(check.model_dump()) for check in md_config.dynamics_checks
         ]
         dynamics_checks.extend(check_list)
+
+    constraints = []
+    if md_config.constraints:
+        constraint_list = [
+            Constraint(c.model_dump()) for c in md_config.constraints
+        ]
+        constraints.extend(constraint_list)
 
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
 
