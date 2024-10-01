@@ -89,7 +89,7 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
         self.rscale = self.param("rep_scale", nn.initializers.constant(radii), (119,))
 
         self.prefactor = self.param(
-            "rep_prefactor", nn.initializers.constant(10.0), (119,)
+            "rep_prefactor", nn.initializers.constant(100.0), (119,)
         )
 
     def __call__(self, dr_vec, Z, idx):
@@ -108,8 +108,8 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
 
         # Ensure positive parameters
         A_i, A_j = (
-            0.1 * jax.numpy.abs(self.prefactor[Z_i]),
-            0.1 * jax.numpy.abs(self.prefactor[Z_j]),
+            jax.numpy.abs(self.prefactor[Z_i]),
+            jax.numpy.abs(self.prefactor[Z_j]),
         )
         R_i, R_j = jax.numpy.abs(self.rscale[Z_i]), jax.numpy.abs(self.rscale[Z_j])
 
