@@ -5,7 +5,7 @@ ensemble:
     name: piecewise
     T0: 50 # K
     values: [100, 200, 1000]
-    steps: [10, 20, 30]
+    durations: [10, 10, 10]
 
 duration: 500 # fs
 n_inner: 1

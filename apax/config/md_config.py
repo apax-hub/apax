@@ -35,25 +35,24 @@ class PiecewiseLinearTempSchedule(ConstantTempSchedule, extra="forbid"):
 
     Attributes
     ----------
-    values: list[PositiveFloat]
+    temperatures: list[PositiveFloat]
         List of temperatures to interpolate between.
-    steps: list[PositiveInt]
-        Time steps (not simulation time!) at which the corresponding
-        temperatures should be reached.
-
+    durations: list[PositiveInt]
+        Duration (in time steps) of the interpolation between two
+        subsequent values of `temperatures`.
     """
 
     name: Literal["piecewise"] = "piecewise"
-    values: list[PositiveFloat]
-    steps: list[PositiveInt]
+    temperatures: list[PositiveFloat]
+    durations: list[PositiveInt]
 
     def get_schedule(self):
         from apax.md.schedules import PieceWiseLinearTSchedule
 
         schedule = PieceWiseLinearTSchedule(
             self.T0,
-            self.values,
-            self.steps,
+            self.temperatures,
+            self.durations,
         )
         return schedule
 
