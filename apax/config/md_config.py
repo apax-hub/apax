@@ -44,16 +44,16 @@ class PiecewiseLinearTempSchedule(ConstantTempSchedule, extra="forbid"):
     """
 
     name: Literal["piecewise"] = "piecewise"
-    values: list[PositiveFloat]
-    steps: list[PositiveInt]
+    temperatures: list[PositiveFloat]
+    durations: list[PositiveInt]
 
     def get_schedule(self):
         from apax.md.schedules import PieceWiseLinearTSchedule
 
         schedule = PieceWiseLinearTSchedule(
             self.T0,
-            self.values,
-            self.steps,
+            self.temperatures,
+            self.durations,
         )
         return schedule
 
@@ -207,6 +207,14 @@ DynamicsCheck = Annotated[
 ]
 
 
+class FixAtomsConstraint(BaseModel, extra="forbid"):
+    name: Literal["fixatoms"] = "fixatoms"
+    indices: list[int]
+
+
+Constraint = Annotated[Union[FixAtomsConstraint], Field(discriminator="name")]
+
+
 class MDConfig(BaseModel, frozen=True, extra="forbid"):
     """
     Configuration for a NHC molecular dynamics simulation.
@@ -273,6 +281,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     extra_capacity: NonNegativeInt = 0
 
     dynamics_checks: list[DynamicsCheck] = []
+    constraints: list[Constraint] = []
 
     properties: list[str] = APAX_PROPERTIES
 
