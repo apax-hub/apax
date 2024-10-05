@@ -49,7 +49,6 @@ def compute_calibration_factors(
     Fpred = np.reshape([a.get_forces() for a in new_atoms], (-1,))
 
     Estd = np.array([a.calc.results["energy_uncertainty"] for a in new_atoms]) / num_atoms
-    Fstd = np.reshape([a.calc.results["forces_uncertainty"] for a in new_atoms], (-1,))
 
     e_factor = uct.optimize_recalibration_ratio(
         Epred, Estd, Etrue, criterion, optimizer_bounds=optimizer_bounds
@@ -58,6 +57,7 @@ def compute_calibration_factors(
     if shared_factor:
         f_factor = e_factor
     else:
+        Fstd = np.reshape([a.calc.results["forces_uncertainty"] for a in new_atoms], (-1,))
         f_factor = uct.optimize_recalibration_ratio(
             Fpred, Fstd, Ftrue, criterion, optimizer_bounds=optimizer_bounds
         )
