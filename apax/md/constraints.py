@@ -11,13 +11,14 @@ class ConstraintBase(BaseModel):
     compare to subsequent ones and returns a callable which applies
     the constraint during simulations.
     """
+
     def create(self, ref_state) -> Callable:
         pass
 
 
 class FixAtoms(ConstraintBase, extra="forbid"):
-    """
-    """
+    """ """
+
     name: Literal["fixatoms"] = "fixatoms"
     indices: list[int]
 
