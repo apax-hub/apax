@@ -1,11 +1,11 @@
 ensemble:
   name: nvt
-  dt: 0.1 # fs time step
+  dt: 0.02 # fs time step
   temperature_schedule:
     name: constant
     T0: 1 # K
 
-duration: 5 # fs
+duration: 1 # fs
 n_inner: 5 # compiled innner steps
 sampling_rate: 1  # dump interval
 dr_threshold: 0.5 # Neighborlist skin

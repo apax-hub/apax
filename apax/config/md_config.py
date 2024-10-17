@@ -206,6 +206,14 @@ DynamicsCheck = Annotated[
 ]
 
 
+class FixAtomsConstraint(BaseModel, extra="forbid"):
+    name: Literal["fixatoms"] = "fixatoms"
+    indices: list[int]
+
+
+Constraint = Annotated[Union[FixAtomsConstraint], Field(discriminator="name")]
+
+
 class MDConfig(BaseModel, frozen=True, extra="forbid"):
     """
     Configuration for a NHC molecular dynamics simulation.
@@ -272,6 +280,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     extra_capacity: NonNegativeInt = 0
 
     dynamics_checks: list[DynamicsCheck] = []
+    constraints: list[Constraint] = []
 
     properties: list[str] = APAX_PROPERTIES
 

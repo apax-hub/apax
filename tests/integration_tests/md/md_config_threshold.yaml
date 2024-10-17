@@ -4,7 +4,7 @@ ensemble:
   temperature_schedule:
     name: piecewise
     T0: 50 # K
-    values: [100, 200, 1000]
+    temperatures: [100, 200, 1000]
     durations: [10, 10, 10]
 
 duration: 500 # fs
@@ -15,6 +15,10 @@ restart: True
 dynamics_checks:
   - name: forces_uncertainty
     threshold: 0.01
+constraints:
+  - name: fixatoms
+    indices: [0]
+
 properties:
   - energy
   - forces
