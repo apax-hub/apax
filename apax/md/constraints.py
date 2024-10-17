@@ -1,19 +1,27 @@
-from typing import Literal, Union
+from typing import Callable, Literal, Union
 
 import jax.numpy as jnp
 from pydantic import BaseModel, TypeAdapter
 
 
 class ConstraintBase(BaseModel):
-    def create(self, state):
+    """Base class for constraints.
+    Constraints work by implementing a create method.
+    This method accepts a reference state which to
+    compare to subsequent ones and returns a callable which applies
+    the constraint during simulations.
+    """
+    def create(self, ref_state) -> Callable:
         pass
 
 
 class FixAtoms(ConstraintBase, extra="forbid"):
+    """
+    """
     name: Literal["fixatoms"] = "fixatoms"
     indices: list[int]
 
-    def create(self, ref_state):
+    def create(self, ref_state) -> Callable:
         indices = jnp.array(self.indices, dtype=jnp.int64)
 
         ref_position = ref_state.position[indices]
