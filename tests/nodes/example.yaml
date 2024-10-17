@@ -30,9 +30,6 @@ model:
 
   b_init: zeros
   emb_init: uniform
-  empirical_corrections:
-    - name: exponential
-      r_max: 2.0
 
   descriptor_dtype: fp32
   readout_dtype: fp32

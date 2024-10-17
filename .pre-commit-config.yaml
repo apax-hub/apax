@@ -1,5 +1,4 @@
 exclude: '.git'
-default_stages: [ Nonepre-commitNone ]
 fail_fast: true
 
 repos:
