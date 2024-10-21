@@ -17,13 +17,16 @@ class ConstantTSchedule(TSchedule):
 
 
 class PieceWiseLinearTSchedule(TSchedule):
-    def __init__(self, T0: int, values: list[float], steps: list[int]):
+    def __init__(self, T0: int, temperatures: list[float], durations: list[int]):
         self.T0 = T0
-        self.values = jnp.array(values)
+        self.temperatures = jnp.array(temperatures)
+        steps = np.cumsum(durations)
         self.steps = jnp.array(steps)
 
     def __call__(self, step) -> float:
-        T = jnp.interp(step, self.steps, self.values, left=self.T0, right=self.values[-1])
+        T = jnp.interp(
+            step, self.steps, self.temperatures, left=self.T0, right=self.temperatures[-1]
+        )
         return T * units.kB
 
 
