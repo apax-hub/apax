@@ -11,8 +11,8 @@ import zntrack.utils
 
 from apax.md.simulate import run_md
 
-from .model import ApaxBase
-from .utils import check_duplicate_keys
+from apax.nodes.model import ApaxBase
+from apax.nodes.utils import check_duplicate_keys
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class ApaxJaxMD(zntrack.Node):
     data_id: int = zntrack.params(-1)
 
     model: ApaxBase = zntrack.deps()
-    repeat = zntrack.params(None)
+    repeat: typing.Optional[bool] = zntrack.params(None)
 
     config: str = zntrack.params_path(None)
 
@@ -47,14 +47,11 @@ class ApaxJaxMD(zntrack.Node):
         zntrack.nwd / "initial_structure.extxyz"
     )
 
-    _parameter: dict = None
-
-    def _post_load_(self) -> None:
-        self._handle_parameter_file()
+    _parameter: typing.Optional[dict] = None        
 
     def _handle_parameter_file(self):
-        with self.state.use_tmp_path():
-            self._parameter = yaml.safe_load(pathlib.Path(self.config).read_text())
+        with self.state.fs.open(self.config, "r") as f:
+            self._parameter = yaml.safe_load(f)
 
         custom_parameters = {
             "sim_dir": self.sim_dir.as_posix(),
@@ -62,16 +59,19 @@ class ApaxJaxMD(zntrack.Node):
         }
         check_duplicate_keys(custom_parameters, self._parameter, log)
         self._parameter.update(custom_parameters)
+    
+    def _write_initial_structure(self):
+        atoms = self.data[self.data_id]
+        if self.repeat is not None:
+            atoms = atoms.repeat(self.repeat)
+        ase.io.write(self.init_struc_dir.as_posix(), atoms)
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
-
+        self._handle_parameter_file()
         if not self.state.restarted:
-            atoms = self.data[self.data_id]
-            if self.repeat is not None:
-                atoms = atoms.repeat(self.repeat)
-            ase.io.write(self.init_struc_dir.as_posix(), atoms)
-
+            self._write_initial_structure()
+            
         run_md(self.model._parameter, self._parameter, log_level="info")
 
     @functools.cached_property

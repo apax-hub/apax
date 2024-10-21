@@ -1,14 +1,17 @@
 import logging
 
-import zntrack.utils
-from ipsuite import base
+import zntrack
+import ase
+import znh5md
+import pathlib
 
-from .model import Apax
+from apax.nodes.model import Apax
+import h5py
 
 log = logging.getLogger(__name__)
 
 
-class ApaxBatchPrediction(base.ProcessAtoms):
+class ApaxBatchPrediction(zntrack.Node):
     """Create and Save the predictions from model on atoms.
 
     Attributes
@@ -24,13 +27,20 @@ class ApaxBatchPrediction(base.ProcessAtoms):
     predictions: list[Atoms] the atoms that have the predicted properties from model
     """
 
-    _module_ = "apax.nodes"
+    data: list[ase.Atoms] = zntrack.deps()
 
     model: Apax = zntrack.deps()
     batch_size: int = zntrack.params(1)
+    frames_path: pathlib.Path = zntrack.outs_path(zntrack.nwd / "frames.h5")
 
     def run(self):
-        self.atoms = []
         calc = self.model.get_calculator()
-        data = self.get_data()
-        self.atoms = calc.batch_eval(data, self.batch_size)
+        frames = calc.batch_eval(self.data, self.batch_size)
+        znh5md.write(self.frames_path, frames)
+    
+    @property
+    def frames(self) -> list[ase.Atoms]:
+        with self.state.fs.open(self.frames_path, "rb") as f:
+            with h5py.File(f, "r") as h5:
+                return znh5md.IO(file_handle=h5)[:]
+
