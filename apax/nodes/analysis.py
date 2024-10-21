@@ -43,4 +43,3 @@ class ApaxBatchPrediction(zntrack.Node):
         with self.state.fs.open(self.frames_path, "rb") as f:
             with h5py.File(f, "r") as h5:
                 return znh5md.IO(file_handle=h5)[:]
-
