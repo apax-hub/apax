@@ -1,6 +1,7 @@
 import logging
 import pathlib
 import typing as t
+import functools
 
 import ase.io
 import numpy as np
@@ -20,7 +21,11 @@ log = logging.getLogger(__name__)
 
 
 class ApaxBase(zntrack.Node):
-    pass
+
+    parameter: dict
+
+    def get_calculator(self, **kwargs):
+        raise NotImplementedError
 
 
 class Apax(ApaxBase):
@@ -42,11 +47,11 @@ class Apax(ApaxBase):
 
     data: list = zntrack.deps()
     config: str = zntrack.params_path()
-    validation_data = zntrack.deps()
-    model: t.Optional[t.Any] = zntrack.deps(None)
+    validation_data: list[ase.Atoms] = zntrack.deps()
+    model: t.Optional[ApaxBase] = zntrack.deps(None)
     nl_skin: float = zntrack.params(0.5)
     transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
-    log_level: str = zntrack.meta.Text("info")
+    log_level: str = "info" 
 
     model_directory: pathlib.Path = zntrack.outs_path(zntrack.nwd / "apax_model")
 
@@ -55,38 +60,34 @@ class Apax(ApaxBase):
         zntrack.nwd / "val_atoms.extxyz"
     )
 
-    metrics = zntrack.metrics()
+    metrics : dict = zntrack.metrics()
 
-    _parameter: dict = None
+    @functools.cached_property
+    def parameter(self) -> dict:
+        parameter = yaml.safe_load(self.state.fs.read_text(self.config))
 
-    def _post_load_(self) -> None:
-        self._handle_parameter_file()
-
-    def _handle_parameter_file(self):
-        self._parameter = yaml.safe_load(self.state.fs.read_text(self.config))
-
-        with self.state.use_tmp_path():
-            custom_parameters = {
+        custom_parameters = {
                 "directory": self.model_directory.as_posix(),
                 "experiment": "",
                 "train_data_path": self.train_data_file.as_posix(),
                 "val_data_path": self.validation_data_file.as_posix(),
-            }
+        }
 
-            if self.model is not None:
-                param_files = self.model._parameter["data"]["directory"]
-                base_path = {"base_model_checkpoint": param_files}
-                try:
-                    self._parameter["checkpoints"].update(base_path)
-                except KeyError:
-                    self._parameter["checkpoints"] = base_path
+        if self.model is not None:
+            param_files = self.model.parameter["data"]["directory"]
+            base_path = {"base_model_checkpoint": param_files}
+            try:
+                parameter["checkpoints"].update(base_path)
+            except KeyError:
+                parameter["checkpoints"] = base_path
 
-            check_duplicate_keys(custom_parameters, self._parameter["data"], log)
-            self._parameter["data"].update(custom_parameters)
+        check_duplicate_keys(custom_parameters, parameter["data"], log)
+        parameter["data"].update(custom_parameters)
+        return parameter
 
     def train_model(self):
         """Train the model using `apax.train.run`"""
-        apax_run(self._parameter, log_level=self.log_level)
+        apax_run(self.parameter, log_level=self.log_level)
 
     def get_metrics(self):
         """In addition to the plots write a model metric"""
@@ -104,7 +105,7 @@ class Apax(ApaxBase):
         if self.state.restarted and csv_path.is_file():
             metrics_df = pd.read_csv(self.model_directory / "log.csv")
 
-            if metrics_df["epoch"].iloc[-1] >= self._parameter["n_epochs"] - 1:
+            if metrics_df["epoch"].iloc[-1] >= self.parameter["n_epochs"] - 1:
                 return
 
         self.train_model()
@@ -156,8 +157,7 @@ class ApaxEnsemble(ApaxBase):
         calc:
             ase calculator object
         """
-
-        param_files = [m._parameter["data"]["directory"] for m in self.models]
+        param_files = [m.parameter["data"]["directory"] for m in self.models]
 
         transformations = []
         if self.transformations:
@@ -192,14 +192,9 @@ class ApaxImport(zntrack.Node):
     nl_skin: float = zntrack.params(0.5)
     transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
 
-    _parameter: dict = None
-
-    def _post_load_(self) -> None:
-        self._handle_parameter_file()
-
-    def _handle_parameter_file(self):
-        with self.state.use_tmp_path():
-            self._parameter = yaml.safe_load(pathlib.Path(self.config).read_text())
+    @functools.cached_property
+    def parameter(self) -> dict:
+        return yaml.safe_load(self.state.fs.read_text(self.config))
 
     def get_calculator(self, **kwargs) -> ase.calculators.calculator.Calculator:
         """Property to return a model specific ase calculator object.
@@ -210,8 +205,8 @@ class ApaxImport(zntrack.Node):
             ase calculator object
         """
 
-        directory = self._parameter["data"]["directory"]
-        exp = self._parameter["data"]["experiment"]
+        directory = self.parameter["data"]["directory"]
+        exp = self.parameter["data"]["experiment"]
         model_dir = directory + "/" + exp
 
         transformations = []
@@ -251,7 +246,7 @@ class ApaxCalibrate(ApaxBase):
         See the apax documentation for available methods.
     """
 
-    model: t.Any = zntrack.deps()
+    model: ApaxBase = zntrack.deps()
     validation_data: list[Atoms] = zntrack.deps()
     batch_size: int = zntrack.params(32)
     criterion: str = zntrack.params("ma_cal")
@@ -294,7 +289,7 @@ class ApaxCalibrate(ApaxBase):
         e_factor = self.metrics["e_factor"]
         f_factor = self.metrics["f_factor"]
 
-        config_file = self.model._parameter["data"]["directory"]
+        config_file = self.model.parameter["data"]["directory"]
 
         calibration = GlobalCalibration(
             energy_factor=e_factor,
