@@ -1,6 +1,7 @@
 import os
 import pathlib
 import shutil
+import subprocess
 
 import zntrack
 
@@ -14,6 +15,8 @@ MD_CONFIG_PATH = pathlib.Path(__file__).parent / "md.yaml"
 
 def test_n_jax_md(tmp_path, get_md22_stachyose):
     os.chdir(tmp_path)
+    subprocess.run(["git", "init"], check=True)
+    subprocess.run(["dvc", "init"], check=True)
     shutil.copy(CONFIG_PATH, tmp_path / "example.yaml")
     shutil.copy(MD_CONFIG_PATH, tmp_path / "md.yaml")
     proj = zntrack.Project()
@@ -22,7 +25,7 @@ def test_n_jax_md(tmp_path, get_md22_stachyose):
         model = Apax(data=data.atoms, validation_data=data.atoms, config="example.yaml")
         md = ApaxJaxMD(model=model, config="md.yaml", data=data.atoms)
 
-    proj.run()
+    proj.repro()
 
     md = md.from_rev()
     assert len(md.atoms) == 50
