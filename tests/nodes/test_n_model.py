@@ -1,7 +1,7 @@
 import os
 import pathlib
-import sys
 import subprocess
+import sys
 
 try:
     import ipsuite as ips
