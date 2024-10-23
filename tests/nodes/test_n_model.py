@@ -1,6 +1,7 @@
 import os
 import pathlib
 import sys
+import subprocess
 
 try:
     import ipsuite as ips
@@ -32,6 +33,8 @@ def save_config_with_seed(path: str, seed: int = 1) -> None:
 
 def test_n_train_model(tmp_path, get_md22_stachyose):
     os.chdir(tmp_path)
+    subprocess.run(["git", "init"], check=True)
+    subprocess.run(["dvc", "init"], check=True)
     save_config_with_seed(tmp_path / "example.yaml")
     proj = zntrack.Project()
     with proj:
@@ -52,6 +55,8 @@ def test_n_train_model(tmp_path, get_md22_stachyose):
 @pytest.mark.skipif("ipsuite" not in sys.modules, reason="requires new ipsuite release")
 def test_n_train_2_model(tmp_path, get_md22_stachyose):
     os.chdir(tmp_path)
+    subprocess.run(["git", "init"], check=True)
+    subprocess.run(["dvc", "init"], check=True)
 
     save_config_with_seed(tmp_path / "example.yaml")
     save_config_with_seed(tmp_path / "example2.yaml", seed=2)
