@@ -268,7 +268,7 @@ class ASECalculator(Calculator):
 
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
-        
+
         if self.save_to_atoms: # Work for both cases. True and a non-empty list.
             if self.save_to_atoms is True: # Work only if bool True
                 for k, v in self.results.items():
