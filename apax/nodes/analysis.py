@@ -37,7 +37,7 @@ class ApaxBatchPrediction(zntrack.Node):
         calc = self.model.get_calculator()
         frames = calc.batch_eval(self.data, self.batch_size)
         znh5md.write(self.frames_path, frames)
-    
+
     @property
     def frames(self) -> list[ase.Atoms]:
         with self.state.fs.open(self.frames_path, "rb") as f:

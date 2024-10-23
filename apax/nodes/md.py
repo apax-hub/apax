@@ -47,7 +47,7 @@ class ApaxJaxMD(zntrack.Node):
         zntrack.nwd / "initial_structure.extxyz"
     )
 
-    _parameter: typing.Optional[dict] = None        
+    _parameter: typing.Optional[dict] = None
 
     def _handle_parameter_file(self):
         with self.state.fs.open(self.config, "r") as f:
@@ -59,7 +59,7 @@ class ApaxJaxMD(zntrack.Node):
         }
         check_duplicate_keys(custom_parameters, self._parameter, log)
         self._parameter.update(custom_parameters)
-    
+
     def _write_initial_structure(self):
         atoms = self.data[self.data_id]
         if self.repeat is not None:
@@ -71,7 +71,7 @@ class ApaxJaxMD(zntrack.Node):
         self._handle_parameter_file()
         if not self.state.restarted:
             self._write_initial_structure()
-            
+
         run_md(self.model._parameter, self._parameter, log_level="info")
 
     @functools.cached_property
