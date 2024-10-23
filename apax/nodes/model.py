@@ -257,7 +257,7 @@ class ApaxCalibrate(ApaxBase):
 
     nl_skin: float = zntrack.params(0.5)
 
-    metrics = zntrack.metrics()
+    metrics: dict = zntrack.metrics()
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
