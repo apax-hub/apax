@@ -21,7 +21,6 @@ log = logging.getLogger(__name__)
 
 
 class ApaxBase(zntrack.Node):
-
     parameter: dict
 
     def get_calculator(self, **kwargs):
@@ -60,17 +59,17 @@ class Apax(ApaxBase):
         zntrack.nwd / "val_atoms.extxyz"
     )
 
-    metrics : dict = zntrack.metrics()
+    metrics: dict = zntrack.metrics()
 
     @functools.cached_property
     def parameter(self) -> dict:
         parameter = yaml.safe_load(self.state.fs.read_text(self.config))
 
         custom_parameters = {
-                "directory": self.model_directory.as_posix(),
-                "experiment": "",
-                "train_data_path": self.train_data_file.as_posix(),
-                "val_data_path": self.validation_data_file.as_posix(),
+            "directory": self.model_directory.as_posix(),
+            "experiment": "",
+            "train_data_path": self.train_data_file.as_posix(),
+            "val_data_path": self.validation_data_file.as_posix(),
         }
 
         if self.model is not None:
