@@ -12,7 +12,7 @@ def test_add_data(tmp_path, get_md22_stachyose):
     with proj:
         data = AddData(file=get_md22_stachyose)
 
-    proj.run()
+    proj.repro()
     data = data.from_rev()
     assert isinstance(data.atoms, list)
     assert len(data.atoms) == 50

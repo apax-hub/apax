@@ -38,7 +38,7 @@ def test_n_train_model(tmp_path, get_md22_stachyose):
         data = AddData(file=get_md22_stachyose)
         model = Apax(data=data.atoms, validation_data=data.atoms, config="example.yaml")
 
-    proj.run()
+    proj.repro()
 
     model = model.from_rev()
     data = data.from_rev()
@@ -91,7 +91,7 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
             x=kernel_selection.atoms, y=prediction.atoms
         )
 
-    proj.run()
+    proj.repro()
 
     model = ensemble.from_rev()
     data = data.from_rev()

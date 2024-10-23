@@ -22,7 +22,7 @@ def test_n_jax_md(tmp_path, get_md22_stachyose):
         model = Apax(data=data.atoms, validation_data=data.atoms, config="example.yaml")
         md = ApaxJaxMD(model=model, config="md.yaml", data=data.atoms)
 
-    proj.run()
+    proj.repro()
 
     md = md.from_rev()
     assert len(md.atoms) == 50
