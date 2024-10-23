@@ -1,12 +1,12 @@
 import logging
-
-import zntrack
-import ase
-import znh5md
 import pathlib
 
-from apax.nodes.model import Apax
+import ase
 import h5py
+import znh5md
+import zntrack
+
+from apax.nodes.model import Apax
 
 log = logging.getLogger(__name__)
 
