@@ -164,7 +164,7 @@ class ASECalculator(Calculator):
         self.n_models = check_for_ensemble(self.params)
         self.padding_factor = padding_factor
         self.padded_length = 0
-        self.save_to_atoms: bool|list[str] = kwargs.get("save_to_atoms")
+        self.save_to_atoms: bool | list[str] = kwargs.get("save_to_atoms")
         if self.model_config.model.calc_stress:
             self.implemented_properties.append("stress")
 
@@ -269,8 +269,8 @@ class ASECalculator(Calculator):
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
 
-        if self.save_to_atoms: # Works for both cases. True and a non-empty list.
-            if self.save_to_atoms is True: # Works only if bool is True
+        if self.save_to_atoms:  # Works for both cases. True and a non-empty list.
+            if self.save_to_atoms is True:  # Works only if bool is True
                 for k, v in self.results.items():
                     if isinstance(v, float):
                         atoms.info[k] = v
@@ -285,8 +285,7 @@ class ASECalculator(Calculator):
                         else:
                             atoms.arrays[k] = v
                 except Exception:
-                    pass # add proper error handling
-
+                    pass  # add proper error handling
 
     def batch_eval(
         self, atoms_list: list[ase.Atoms], batch_size: int = 64, silent: bool = False
