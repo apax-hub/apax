@@ -10,7 +10,6 @@ import znh5md
 import zntrack.utils
 
 from apax.md.simulate import run_md
-
 from apax.nodes.model import ApaxBase
 from apax.nodes.utils import check_duplicate_keys
 

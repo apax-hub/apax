@@ -1,7 +1,7 @@
+import functools
 import logging
 import pathlib
 import typing as t
-import functools
 
 import ase.io
 import numpy as np
