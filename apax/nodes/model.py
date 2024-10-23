@@ -47,7 +47,6 @@ class Apax(ApaxBase):
     nl_skin: float = zntrack.params(0.5)
     transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
     log_level: str = zntrack.meta.Text("info")
-
     model_directory: pathlib.Path = zntrack.outs_path(zntrack.nwd / "apax_model")
 
     train_data_file: pathlib.Path = zntrack.outs_path(zntrack.nwd / "train_atoms.extxyz")
@@ -122,6 +121,7 @@ class Apax(ApaxBase):
                 model_dir=self.model_directory,
                 dr_threshold=self.nl_skin,
                 transformations=transformations,
+                **kwargs,
             )
             return calc
 
