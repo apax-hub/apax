@@ -29,9 +29,10 @@ class AtomisticModel(nn.Module):
     Allesmbles descriptor, readout (NNs) and output scale-shifting.
     """
 
-    descriptor: nn.Module = GaussianMomentDescriptor()
+    representation: nn.Module = GaussianMomentDescriptor()
     readout: nn.Module = AtomisticReadout()
     scale_shift: nn.Module = PerElementScaleShift()
+    additional_properties: list[nn.Module] = field(default_factory=lambda: [])
     mask_atoms: bool = True
 
     def __call__(
@@ -40,19 +41,24 @@ class AtomisticModel(nn.Module):
         Z: Array,
         idx: Array,
     ) -> Array:
-        gm = self.descriptor(dr_vec, Z, idx)
-        h = jax.vmap(self.readout)(gm)
-        output = self.scale_shift(h, Z)
+        descriptor = self.representation(dr_vec, Z, idx)
+        h = jax.vmap(self.readout)(descriptor)
+        E_i = self.scale_shift(h, Z)
+
+        aux_pred = {}
+        for property_head in self.additional_properties:
+            result = property_head(descriptor)
+            aux_pred.update(result)
 
         if self.mask_atoms:
-            output = mask_by_atom(output, Z)
-        return output
+            E_i = mask_by_atom(E_i, Z)
+        return E_i, aux_pred
 
 
 class FeatureModel(nn.Module):
     """Model wrapps some submodel (e.g. a descriptor) to supply distance computation."""
 
-    descriptor: nn.Module = GaussianMomentDescriptor()
+    representation: nn.Module = GaussianMomentDescriptor()
     readout: nn.Module = AtomisticReadout()
     should_average: bool = False
     init_box: np.array = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
@@ -79,7 +85,7 @@ class FeatureModel(nn.Module):
             perturbation,
         )
 
-        features = self.descriptor(dr_vec, Z, idx)
+        features = self.representation(dr_vec, Z, idx)
 
         if self.readout:
             features = jax.vmap(self.readout)(features)
@@ -124,25 +130,24 @@ class EnergyModel(nn.Module):
         # Model Core
         # shape Natoms
         # shape shallow ens: Natoms x Nensemble
-        atomic_energies = self.atomistic_model(dr_vec, Z, idx)
+        E_i, aux_pred = self.atomistic_model(dr_vec, Z, idx)
 
         # check for shallow ensemble
-        is_shallow_ensemble = atomic_energies.shape[1] > 1
-        if is_shallow_ensemble:
-            total_energies_ensemble = fp64_sum(atomic_energies, axis=0)
+        is_shallow_ensemble = E_i.shape[1] > 1
+        if is_shallow_ensemble: # is this necessary or is using sum with axis=0 enough?
+            total_energies_ensemble = fp64_sum(E_i, axis=0)
             # shape Nensemble
-            result = total_energies_ensemble
+            energy = total_energies_ensemble
         else:
             # shape ()
-            result = fp64_sum(atomic_energies)
+            energy = fp64_sum(E_i)
 
         # Corrections
         for correction in self.corrections:
             energy_correction = correction(dr_vec, Z, idx)
-            result = result + energy_correction
+            energy = energy + energy_correction
 
-        # TODO think of nice abstraction for predicting additional properties
-        return result
+        return energy
 
 
 class EnergyDerivativeModel(nn.Module):
@@ -191,15 +196,6 @@ def make_mean_energy_fn(energy_fn):
         return E_mean
 
     return mean_energy_fn
-
-
-def make_single_member_gradient(energy_model, idx):
-    def energy_i_fn(R, Z, neighbor, box, offsets):
-        Ei = energy_model(R, Z, neighbor, box, offsets)[idx]
-        return Ei
-
-    grad_i_fn = jax.grad(energy_i_fn)
-    return grad_i_fn
 
 
 def make_member_chunk_jac(energy_model, start, end):
