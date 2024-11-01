@@ -17,7 +17,6 @@ from apax.layers.empirical import all_corrections
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.nn.models import (
-    AtomisticModel,
     EnergyDerivativeModel,
     EnergyModel,
     FeatureModel,
@@ -105,18 +104,18 @@ class ModelBuilder:
         )
         return scale_shift
 
-    def build_atomistic_model(
-        self,
-        scale,
-        shift,
-        apply_mask,
-    ):
-        descriptor = self.build_descriptor(apply_mask)
-        readout = self.build_readout()
-        scale_shift = self.build_scale_shift(scale, shift)
+    # def build_atomistic_model(
+    #     self,
+    #     scale,
+    #     shift,
+    #     apply_mask,
+    # ):
+    #     descriptor = self.build_descriptor(apply_mask)
+    #     readout = self.build_readout()
+    #     scale_shift = self.build_scale_shift(scale, shift)
 
-        atomistic_model = AtomisticModel(descriptor, readout, scale_shift)
-        return atomistic_model
+    #     atomistic_model = AtomisticModel(descriptor, readout, scale_shift)
+    #     return atomistic_model
 
     def build_energy_model(
         self,
@@ -127,11 +126,15 @@ class ModelBuilder:
         inference_disp_fn=None,
     ):
         log.debug("Building atomistic model")
-        atomistic_model = self.build_atomistic_model(
-            scale,
-            shift,
-            apply_mask,
-        )
+        # atomistic_model = self.build_atomistic_model(
+        #     scale,
+        #     shift,
+        #     apply_mask,
+        # )
+        descriptor = self.build_descriptor(apply_mask)
+        readout = self.build_readout()
+        scale_shift = self.build_scale_shift(scale, shift)
+
         corrections = []
         for correction in self.config["empirical_corrections"]:
             correction = correction.copy()
@@ -142,8 +145,11 @@ class ModelBuilder:
                 apply_mask=apply_mask,
             )
             corrections.append(corr)
+
         model = EnergyModel(
-            atomistic_model=atomistic_model,
+            representation=descriptor,
+            readout=readout,
+            scale_shift=scale_shift,
             corrections=corrections,
             init_box=init_box,
             inference_disp_fn=inference_disp_fn,
