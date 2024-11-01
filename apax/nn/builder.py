@@ -14,6 +14,7 @@ from apax.layers.descriptor.basis_functions import (
     RadialFunction,
 )
 from apax.layers.empirical import all_corrections
+from apax.layers.properties import PropertyHead
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.nn.models import (
@@ -79,19 +80,25 @@ class ModelBuilder:
     ):
         raise NotImplementedError("use a subclass to facilitate this")
 
-    def build_readout(self, is_feature_fn=False):
-        if self.config["ensemble"] and self.config["ensemble"]["kind"] == "shallow":
-            n_shallow_ensemble = self.config["ensemble"]["n_members"]
+    def build_readout(self, head_config, is_feature_fn=False):
+
+        has_ensemble = "ensemble" in head_config.keys() and head_config["ensemble"]
+        if has_ensemble and head_config["ensemble"]["kind"] == "shallow":
+            n_shallow_ensemble = head_config["ensemble"]["n_members"]
+        elif "n_shallow_ensemble" in head_config.keys(): 
+            n_shallow_ensemble = head_config["n_shallow_ensemble"]
         else:
             n_shallow_ensemble = 0
+
+        import jax.numpy as jnp
         readout = AtomisticReadout(
-            units=self.config["nn"],
-            b_init=self.config["b_init"],
-            w_init=self.config["w_init"],
-            use_ntk=self.config["use_ntk"],
+            units=head_config["nn"],
+            b_init=head_config["b_init"],
+            w_init=head_config["w_init"],
+            use_ntk=head_config["use_ntk"],
             is_feature_fn=is_feature_fn,
             n_shallow_ensemble=n_shallow_ensemble,
-            dtype=self.config["readout_dtype"],
+            dtype=jnp.float64, #head_config["readout_dtype"],
         )
         return readout
 
@@ -103,38 +110,23 @@ class ModelBuilder:
             dtype=self.config["scale_shift_dtype"],
         )
         return scale_shift
+    
+    def build_property_heads(self, apply_mask: bool=True):
+        property_heads = []
+        for head in self.config["property_heads"]:
+            readout = self.build_readout(head)
+            phead = PropertyHead(
+                pname=head["name"],
+                aggregation=head["aggregation"],
+                mode=head["mode"],
+                readout=readout,
+                apply_mask=apply_mask,
+            )
+            property_heads.append(phead)
 
-    # def build_atomistic_model(
-    #     self,
-    #     scale,
-    #     shift,
-    #     apply_mask,
-    # ):
-    #     descriptor = self.build_descriptor(apply_mask)
-    #     readout = self.build_readout()
-    #     scale_shift = self.build_scale_shift(scale, shift)
+        return property_heads
 
-    #     atomistic_model = AtomisticModel(descriptor, readout, scale_shift)
-    #     return atomistic_model
-
-    def build_energy_model(
-        self,
-        scale=1.0,
-        shift=0.0,
-        apply_mask=True,
-        init_box: np.array = np.array([0.0, 0.0, 0.0]),
-        inference_disp_fn=None,
-    ):
-        log.debug("Building atomistic model")
-        # atomistic_model = self.build_atomistic_model(
-        #     scale,
-        #     shift,
-        #     apply_mask,
-        # )
-        descriptor = self.build_descriptor(apply_mask)
-        readout = self.build_readout()
-        scale_shift = self.build_scale_shift(scale, shift)
-
+    def build_corrections(self, apply_mask: bool=True):
         corrections = []
         for correction in self.config["empirical_corrections"]:
             correction = correction.copy()
@@ -146,10 +138,31 @@ class ModelBuilder:
             )
             corrections.append(corr)
 
+        return corrections
+
+
+    def build_energy_model(
+        self,
+        scale=1.0,
+        shift=0.0,
+        apply_mask=True,
+        init_box: np.array = np.array([0.0, 0.0, 0.0]),
+        inference_disp_fn=None,
+    ):
+        log.debug("Building atomistic model")
+
+        descriptor = self.build_descriptor(apply_mask)
+        readout = self.build_readout(self.config)
+        scale_shift = self.build_scale_shift(scale, shift)
+
+        property_heads = self.build_property_heads(apply_mask=apply_mask)
+        corrections = self.build_corrections(apply_mask=apply_mask)
+
         model = EnergyModel(
             representation=descriptor,
             readout=readout,
             scale_shift=scale_shift,
+            property_heads=property_heads,
             corrections=corrections,
             init_box=init_box,
             inference_disp_fn=inference_disp_fn,
