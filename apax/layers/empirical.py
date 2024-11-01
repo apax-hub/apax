@@ -123,22 +123,38 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
         return E
 
 
+class DirectCoulomb(EmpiricalEnergyTerm):
+
+    # apply_mask: bool = True
+    # TODO scale
+
+
+    def __call__(self, R, dr_vec, Z, idx, box, properties):
+        if not "charge" in properties:
+            raise KeyError("property 'charge' not found. Make sure to predict it in the model section")
+        
+        q = properties["charge"]
+        idx_i, idx_j = idx[0], idx[1]
+
+        # shape: neighbors
+        qi, qj = q[idx_i, ...], q[idx_j, ...]
+
+        Ec = qi * qj / dr_vec
+
+        # TODO mask, cutoff
+
+
+        return Ec
+
+
+
 class LatentEwald(EmpiricalEnergyTerm):
     """
     """
     kgrid: list[int] = field(default_factory=lambda: [2,2,2])
-    simga: float = 1.0
-    # apply_mask: bool = True
+    sigma: float = 1.0
+    apply_mask: bool = True
 
-    def setup(self):
-        self.distance = vmap(space.distance, 0, 0)
-
-        radii = data.covalent_radii * 0.8
-        self.rscale = self.param("rep_scale", nn.initializers.constant(radii), (119,))
-
-        self.prefactor = self.param(
-            "rep_prefactor", nn.initializers.constant(100.0), (119,)
-        )
 
     def __call__(self, R, dr_vec, Z, idx, box, properties):
         # Z shape n_atoms
@@ -147,7 +163,7 @@ class LatentEwald(EmpiricalEnergyTerm):
         
         q = properties["charge"]
 
-        V = ...
+        V = jnp.linalg.det(box)
         Lx, Ly, Lz = jnp.linalg.norm(box, axis=1)
 
         k_range_x = 2 * np.pi * jnp.arange(1,self.kgrid[0]) / Lx
@@ -156,18 +172,19 @@ class LatentEwald(EmpiricalEnergyTerm):
 
         kx, ky, kz = jnp.meshgrid(k_range_x, k_range_y, k_range_z)
         k = jnp.reshape(jnp.stack((kx, ky, kz), axis=-1), (-1, 3))
+        
+
         k2 = jnp.sum(k**2, axis=-1)
 
-
-        sf_k =q * jnp.exp(1j * jnp.einsum('id,jd->ij', k, R))
-        sf = jnp.sum(sf_k, axis=1)
+        sf_k =q * jnp.exp(1j * jnp.einsum('id,jd->ij', R, k))
+        sf = jnp.sum(sf_k, axis=0)
         S2 = jnp.abs(sf)**2
 
+
         # TODO mask by atom
-        E_lr = jnp.sum(jnp.exp(-k2 * (self.sigma**2)/2) / k2 * S2) / V
+        E_lr = - jnp.sum(jnp.exp(-k2 * (self.sigma**2)/2) / k2 * S2) / V
 
         return E_lr
-
 
 
 

@@ -9,7 +9,7 @@ from apax.layers.ntk_linear import NTKLinear
 
 
 class AtomisticReadout(nn.Module):
-    units: List[int] = field(default_factory=lambda: [512, 512])
+    units: List[int] = field(default_factory=lambda: [32, 32])
     activation_fn: Callable = swish
     w_init: str = "normal"
     b_init: str = "zeros"
@@ -43,4 +43,5 @@ class AtomisticReadout(nn.Module):
 
     def __call__(self, x):
         h = self.sequential(x)
+        # TODO should we move aggregation here?
         return h

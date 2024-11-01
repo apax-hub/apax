@@ -26,8 +26,6 @@ def get_neighbor_mask(idx):
 
 
 class So3kratesRepresentation(nn.Module):
-    # cutoff: float = 5.0
-    # num_radial_features: int = 32
     basis_fn: nn.Module = BesselBasis()
     num_layers: int = 1
     max_degree: int = 3

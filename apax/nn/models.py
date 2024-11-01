@@ -74,7 +74,7 @@ class EnergyModel(nn.Module):
     representation: nn.Module = GaussianMomentDescriptor()
     readout: nn.Module = AtomisticReadout()
     scale_shift: nn.Module = PerElementScaleShift()
-    additional_properties: list[nn.Module] = field(default_factory=lambda: [])
+    property_heads: list[nn.Module] = field(default_factory=lambda: [])
     corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: [])
     init_box: np.array = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
     mask_atoms: bool = True
@@ -121,8 +121,8 @@ class EnergyModel(nn.Module):
             energy = fp64_sum(E_i)
 
         properties = {}
-        for property_head in self.additional_properties:
-            result = property_head(g)
+        for property_head in self.property_heads:
+            result = property_head(g, R, dr_vec, Z, idx, box)
             properties.update(result)
 
         # Corrections

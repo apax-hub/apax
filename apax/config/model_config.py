@@ -108,8 +108,30 @@ class ExponentialRepulsion(Correction, extra="forbid"):
     name: Literal["exponential"]
     r_max: NonNegativeFloat = 2.0
 
+class LatentEwald(Correction, extra="forbid"):
+    name: Literal["latent_ewald"]
+    kgrid: list
+    sigma: float=1.0
 
-EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion]
+
+EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion, LatentEwald]
+
+
+
+class PropertyHead(BaseModel, extra="forbid"):
+    """
+    """
+    name: str
+    aggregation: str = "none"
+    mode: str = "l0"
+
+    nn: List[PositiveInt] = [128, 128]
+    n_shallow_members : int = 0
+    w_init: Literal["normal", "lecun"] = "lecun"
+    b_init: Literal["normal", "zeros"] = "zeros"
+    use_ntk: bool = False
+    readout_dtype: Literal["fp32", "fp64"] = "fp32"
+
 
 
 class BaseModelConfig(BaseModel, extra="forbid"):
@@ -151,6 +173,8 @@ class BaseModelConfig(BaseModel, extra="forbid"):
 
     ensemble: Optional[EnsembleConfig] = None
 
+    property_heads: list[PropertyHead] = []
+
     # corrections
     empirical_corrections: list[EmpiricalCorrection] = []
 
@@ -160,6 +184,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     readout_dtype: Literal["fp32", "fp64"] = "fp32"
     scale_shift_dtype: Literal["fp32", "fp64"] = "fp64"
 
+    # TODO move get_dict to layers
     def get_dict(self):
         import jax.numpy as jnp
 
