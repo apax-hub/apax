@@ -113,6 +113,7 @@ def atoms_to_labels(
     atoms_list: list[Atoms],
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
+    additional_properties: list[str] = [],
 ) -> dict[str, dict[str, list]]:
     """Converts an list of ASE atoms to a dict of labels
     Units are adjusted if ASE compatible and provided in the inputpipeline.
@@ -133,10 +134,11 @@ def atoms_to_labels(
         "energy": [],
         "stress": [],
     }
-    # for key in atoms_list[0].calc.results.keys():
-    #     if key not in labels.keys():
-    #         placeholder = {key: []}
-    #         labels.update(placeholder)
+    property_names = [p[0] for p in additional_properties]
+    for key in property_names:
+        if key not in labels.keys():
+            placeholder = {key: []}
+            labels.update(placeholder)
 
     for atoms in atoms_list:
         for key, val in atoms.calc.results.items():
@@ -148,8 +150,8 @@ def atoms_to_labels(
                 factor = unit_dict[energy_unit] / (unit_dict[pos_unit] ** 3)
                 stress = atoms.get_stress(voigt=False) * factor
                 labels[key].append(stress * atoms.cell.volume)
-            # else:
-            #     labels[key].append(atoms.calc.results[key])
+            elif key in property_names:
+                labels[key].append(atoms.calc.results[key])
 
     labels = prune_dict(labels)
     return labels

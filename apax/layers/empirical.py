@@ -192,4 +192,5 @@ all_corrections = {
     "zbl": ZBLRepulsion,
     "exponential": ExponentialRepulsion,
     "latent_ewald": LatentEwald,
+    "direct_coulomb": DirectCoulomb,
 }

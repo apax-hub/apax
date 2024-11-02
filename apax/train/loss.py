@@ -189,7 +189,13 @@ class Loss:
         batch_losses = self.loss_fn(
             label, prediction, self.name, self.parameters
         )
-        loss = self.weight * jnp.sum(jnp.mean(batch_losses, axis=0)) / divisor
+
+        axes_to_add = len(batch_losses.shape) -1
+        for _ in range(axes_to_add):
+            divisor = divisor[...,None]
+
+        arg = batch_losses / divisor
+        loss = self.weight * jnp.sum(jnp.mean(arg, axis=0)) 
         return loss
 
 
