@@ -52,6 +52,9 @@ def stress_times_vol(energy_fn, position: Array, box, **kwargs) -> Array:
 
 
 class PropertyHead(nn.Module):
+    """
+    the readout is currently limited to a single number
+    """
 
     pname: str
     readout: nn.Module = AtomisticReadout()
@@ -85,23 +88,26 @@ class PropertyHead(nn.Module):
         if self.mode == "l0":
             p_i = p_i
         elif self.mode == "l1":
+            Rc = R - jnp.mean(R, axis=0, keepdims=True)
+            r_hat = Rc / jnp.linalg.norm(Rc, axis=1)[:,None]
             p_i = p_i * R
         elif self.mode == "symmetric_traceless_l2":
-            r_hat = R / jnp.linalg.norm(R, axis=1)
+            Rc = R - jnp.mean(R, axis=0, keepdims=True)
+            r_hat = Rc / jnp.linalg.norm(Rc, axis=1)[:,None]
             r_rt = jnp.einsum("ni, nj -> nij", r_hat, r_hat)
             I = jnp.eye(3)
             symmetrized = 3*r_rt - I
-            p_i = p_i * symmetrized
+            p_i = p_i[...,None] * symmetrized
         else:
             raise KeyError("unknown symmetry option")
         
         if self.aggregation == "none":
             result = p_i
         elif self.aggregation == "sum":
-            result = fp64_sum(p_i)
+            result = fp64_sum(p_i, axis=0)
         elif self.aggregation == "mean":
             natoms = R.shape[0]
-            result = fp64_sum(p_i) / natoms
+            result = fp64_sum(p_i, axis=0) / natoms
         else:
             raise KeyError("unknown aggregation")
 
