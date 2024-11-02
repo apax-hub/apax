@@ -136,7 +136,6 @@ class DataConfig(BaseModel, extra="forbid"):
     n_valid: PositiveInt = 100
     batch_size: PositiveInt = 32
     valid_batch_size: PositiveInt = 100
-    additional_properties_info: dict[str, str] = {}
 
     shift_method: str = "per_element_regression_shift"
     shift_options: dict = {"energy_regularisation": 1.0}
