@@ -381,71 +381,52 @@ class BatchProcessor:
         self.stress = stress
 
     def __call__(self, samples: list[dict]):
+        n_samples = len(samples)
+        max_atoms = np.max([inp[0]["n_atoms"] for inp in samples])
+        max_atoms = round_up_to_multiple(max_atoms, 10)
+
         inputs = {
-            "numbers": [],
-            "n_atoms": [],
-            "positions": [],
-            "box": [],
-            "idx": [],
-            "offsets": [],
+            "numbers": np.zeros((n_samples, max_atoms), dtype=np.int16),
+            "n_atoms": np.zeros(n_samples, dtype=np.int16),
+            "positions": np.zeros((n_samples, max_atoms, 3), dtype=np.float64),
+            "box": np.zeros((n_samples, 3, 3), dtype=np.float32),
         }
 
         labels = {
-            "energy": [],
+            "energy": np.zeros(n_samples, dtype=np.float64),
         }
 
         if self.forces:
-            labels["forces"] = []
-        if self.stress:
-            labels["stress"] = []
+            labels["forces"] = np.zeros((n_samples, max_atoms, 3), dtype=np.float64)
 
-        for sample in samples:
-            inp, lab = sample
+        idxs = []
+        offsets = []
+        for i, (inp, lab) in enumerate(samples):
+            inputs["numbers"][i,:inp["n_atoms"]] = inp["numbers"]
+            inputs["n_atoms"][i] = inp["n_atoms"]
+            inputs["positions"][i, :inp["n_atoms"]] = inp["positions"]
+            inputs["box"][i] = inp["box"]
 
-            inputs["numbers"].append(inp["numbers"])
-            inputs["n_atoms"].append(inp["n_atoms"])
-            inputs["positions"].append(inp["positions"])
-            inputs["box"].append(inp["box"])
-            idx, offsets = compute_nl(inp["positions"], inp["box"], self.cutoff)
-            inputs["idx"].append(idx)
-            inputs["offsets"].append(offsets)
+            idx, offset = compute_nl(inp["positions"], inp["box"], self.cutoff)
+            idxs.append(idx)
+            offsets.append(offset)
 
-            labels["energy"].append(lab["energy"])
+            labels["energy"][i] = lab["energy"]
             if self.forces:
-                labels["forces"].append(lab["forces"])
-            if self.stress:
-                labels["stress"].append(lab["stress"])
+                labels["forces"][i, :inp["n_atoms"]] = lab["forces"]
 
-        max_atoms = np.max(inputs["n_atoms"])
-        max_nbrs = np.max([idx.shape[1] for idx in inputs["idx"]])
 
-        # max_atoms = next_power_of_two(max_atoms)
-        max_atoms = round_up_to_multiple(max_atoms, 10)
-        max_nbrs = next_power_of_two(max_nbrs)
-        # max_nbrs = round_up_to_multiple(max_nbrs, 2000)
+        max_nbrs = np.max([idx.shape[1] for idx in idxs])
+        max_nbrs = next_power_of_two(max_nbrs) # TODO better intervals
 
-        for i in range(len(inputs["n_atoms"])):
-            inputs["idx"][i], inputs["offsets"][i] = pad_nl(
-                inputs["idx"][i], inputs["offsets"][i], max_nbrs
-            )
+        inputs["idx"] = np.zeros((n_samples, 2, max_nbrs), dtype=np.int16)
+        inputs["offsets"] = np.zeros((n_samples, max_nbrs, 3), dtype=np.float64)
 
-            zeros_to_add = max_atoms - inputs["numbers"][i].shape[0]
-            inputs["positions"][i] = np.pad(
-                inputs["positions"][i], ((0, zeros_to_add), (0, 0)), "constant"
-            )
-            inputs["numbers"][i] = np.pad(
-                inputs["numbers"][i], (0, zeros_to_add), "constant"
-            ).astype(np.int16)
+        for i, (idx, offset) in enumerate(zip(idxs, offsets)):
+            inputs["idx"][i,:,:idx.shape[1]] = idx
+            inputs["offsets"][i,:offset.shape[0],:] = offset
 
-            if "forces" in labels:
-                labels["forces"][i] = np.pad(
-                    labels["forces"][i], ((0, zeros_to_add), (0, 0)), "constant"
-                )
-
-        inputs = {k: np.array(v) for k, v in inputs.items()}
-        labels = {k: np.array(v) for k, v in labels.items()}
         return inputs, labels
-
 
 class PerBatchPaddedDataset(InMemoryDataset):
     """Dataset with padding that leverages multiprocessing and optimized buffering."""
