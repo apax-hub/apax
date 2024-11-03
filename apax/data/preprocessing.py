@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from matscipy.neighbours import neighbour_list
+from vesin import NeighborList
 
 log = logging.getLogger(__name__)
 
@@ -49,10 +50,14 @@ def compute_nl(positions, box, r_max):
 
     else:
         positions = positions @ box
-        idxs_i, idxs_j, offsets = neighbour_list(
-            "ijS", positions=positions, cutoff=r_max, cell=box, pbc=[True, True, True]
+        calculator = NeighborList(cutoff=4.2, full_list=True)
+        idxs_i, idxs_j, offsets = calculator.compute(
+            points=positions,
+            box=box,
+            periodic=True,
+            quantities="ijS"
         )
-        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int16)
+        neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
         offsets = np.matmul(offsets, box)
     return neighbor_idxs, offsets
 
