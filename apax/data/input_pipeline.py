@@ -1,8 +1,10 @@
 import logging
 import multiprocessing
+import time
 import uuid
 from collections import deque
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from threading import Event
 from pathlib import Path
 from random import shuffle
 from typing import Dict, Iterator, Optional
@@ -358,6 +360,20 @@ def next_power_of_two(x):
     return 1 << (int(x) - 1).bit_length()
 
 
+def round_up_to_multiple(value, multiple):
+    """
+    Rounds up the given integer `value` to the next multiple of `multiple`.
+
+    Parameters:
+    - value (int): The integer to round up.
+    - multiple (int): The multiple to round up to.
+
+    Returns:
+    - int: The rounded-up value.
+    """
+    return int(np.ceil(value / multiple) * multiple)
+
+
 class BatchProcessor:
     def __init__(self, cutoff, forces=True, stress=False) -> None:
         self.cutoff = cutoff
@@ -403,8 +419,10 @@ class BatchProcessor:
         max_atoms = np.max(inputs["n_atoms"])
         max_nbrs = np.max([idx.shape[1] for idx in inputs["idx"]])
 
-        max_atoms = next_power_of_two(max_atoms)
+        # max_atoms = next_power_of_two(max_atoms)
+        max_atoms = round_up_to_multiple(max_atoms, 10)
         max_nbrs = next_power_of_two(max_nbrs)
+        # max_nbrs = round_up_to_multiple(max_nbrs, 2000)
 
         for i in range(len(inputs["n_atoms"])):
             inputs["idx"][i], inputs["offsets"][i] = pad_nl(
@@ -430,16 +448,7 @@ class BatchProcessor:
 
 
 class PerBatchPaddedDataset(InMemoryDataset):
-    """Dataset which pads everything (atoms, neighbors)
-    to the next larges power of two.
-    This limits the compute wasted due to padding at the (negligible)
-    cost of some recompilations.
-    The NL is computed on-the-fly in parallel for `num_workers` of batches.
-    Does not use tf.data.
-
-    Most performant option for datasets with significantly differently sized systems
-    (e.g. MaterialsProject, SPICE).
-    """
+    """Dataset with padding that leverages multiprocessing and optimized buffering."""
 
     def __init__(
         self,
@@ -455,12 +464,6 @@ class PerBatchPaddedDataset(InMemoryDataset):
         pre_shuffle=False,
     ) -> None:
         self.cutoff = cutoff
-
-        if n_jit_steps > 1:
-            raise NotImplementedError(
-                "PerBatchPaddedDataset is not yet compatible with multi step jit"
-            )
-
         self.n_jit_steps = n_jit_steps
         self.n_epochs = n_epochs
         self.n_data = len(atoms_list)
@@ -470,13 +473,12 @@ class PerBatchPaddedDataset(InMemoryDataset):
         if num_workers:
             self.num_workers = num_workers
         else:
-            self.num_workers = multiprocessing.cpu_count()
-        self.buffer_size = num_workers * 2
-        self.batch_size = bs
+            self.num_workers = multiprocessing.cpu_count() - 1
 
         self.sample_atoms = atoms_list[0]
-        self.inputs = atoms_to_inputs(atoms_list, pos_unit)
 
+        # Transform atoms into inputs and labels
+        self.inputs = atoms_to_inputs(atoms_list, pos_unit)
         self.labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
         label_keys = self.labels.keys()
 
@@ -493,56 +495,68 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.count = 0
         self.reset_every = reset_every
         self.max_count = self.n_epochs * self.steps_per_epoch()
-        self.buffer = deque()
+        from queue import Queue
+        self.buffer_size = min(600, self.steps_per_epoch())
+        self.buffer = Queue(maxsize=self.buffer_size)
 
         self.process_pool = ProcessPoolExecutor(self.num_workers)
+        self.thread_pool = ThreadPoolExecutor(1)  # Single thread for buffering batches
+        self.epoch_finished = False
+        self.needs_data = Event()
+
+    def enqueue_batches(self):
+        """Function to enqueue batches on a side thread."""
+        while self.count < self.steps_per_epoch() * self.n_epochs:
+            self.needs_data.wait()  # Efficient waiting
+            num_batches = min(self.buffer_size - self.buffer.qsize(), self.steps_per_epoch() - self.count)
+            if num_batches > 0:
+                self.enqueue(num_batches)
+            self.needs_data.clear()  # Reset event
 
     def enqueue(self, num_batches):
         start = self.count * self.batch_size
 
+        # # Split data into chunks and submit tasks to the process pool
         dataset_chunks = [
             self.data[start + self.batch_size * i : start + self.batch_size * (i + 1)]
-            for i in range(0, num_batches)
+            for i in range(num_batches)
         ]
-        for batch in self.process_pool.map(self.prepare_batch, dataset_chunks):
-            self.buffer.append(batch)
-
+        
+        # Using submit and as_completed for faster batch retrieval
+        futures = [self.process_pool.submit(self.prepare_batch, chunk) for chunk in dataset_chunks]
+        for future in as_completed(futures):
+            batch = future.result()
+            self.buffer.put(batch)
+        
         self.count += num_batches
 
     def __iter__(self):
         for n in range(self.n_epochs):
             self.count = 0
-            self.buffer = deque()
-
-            # reinitialize PPE from time to time to avoid memory leak
-            if n % self.reset_every == 0:
-                self.process_pool = ProcessPoolExecutor(self.num_workers)
+            self.buffer.queue.clear()  # Reset buffer
 
             if self.should_shuffle:
                 shuffle(self.data)
 
-            self.enqueue(min(self.buffer_size, self.n_data // self.batch_size))
+            # Start pre-filling the buffer
+            self.thread_pool.submit(self.enqueue_batches)
 
             for i in range(self.steps_per_epoch()):
-                batch = self.buffer.popleft()
-                yield batch
+                if self.buffer.qsize() < (self.buffer_size * 0.75):
+                    self.needs_data.set()  # Trigger buffer refill
+                while self.buffer.empty():
+                    time.sleep(0.001)
+                print(self.buffer.qsize())
+                yield self.buffer.get()
 
-                current_buffer_len = len(self.buffer)
-                space = self.buffer_size - current_buffer_len
-
-                if space >= self.num_workers:
-                    more_data = min(space, self.steps_per_epoch() - self.count)
-                    more_data = max(more_data, 0)
-                    if more_data > 0:
-                        self.enqueue(more_data)
+        self.thread_pool.shutdown(wait=True)  # Shutdown thread pool
+        self.process_pool.shutdown(wait=True) 
 
     def shuffle_and_batch(self, sharding):
         self.should_shuffle = True
-
         ds = prefetch_to_single_device(
             iter(self), 2, sharding, n_step_jit=self.n_jit_steps > 1
         )
-
         return ds
 
     def batch(self, sharding) -> Iterator[jax.Array]:
@@ -554,6 +568,9 @@ class PerBatchPaddedDataset(InMemoryDataset):
 
     def make_signature(self) -> None:
         pass
+
+    # def cleanup(self):
+    #     self.thread_pool.shutdown(cancel_futures=True)
 
 
 dataset_dict = {
