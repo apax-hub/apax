@@ -488,7 +488,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
     def enqueue_batches(self):
         """Function to enqueue batches on a side thread."""
         while self.count < self.steps_per_epoch() * self.n_epochs:
-            self.needs_data.wait()  # Efficient waiting
+            self.needs_data.wait()
             num_batches = min(self.buffer_size - self.buffer.qsize(), self.steps_per_epoch() - self.count)
             if num_batches > 0:
                 self.enqueue(num_batches)
@@ -527,11 +527,17 @@ class PerBatchPaddedDataset(InMemoryDataset):
                     self.needs_data.set()  # Trigger buffer refill
                 while self.buffer.empty():
                     time.sleep(0.001)
-                print(self.buffer.qsize())
+                # print(self.buffer.qsize())
                 yield self.buffer.get()
 
-        self.thread_pool.shutdown(wait=True)  # Shutdown thread pool
-        self.process_pool.shutdown(wait=True) 
+        # self.thread_pool.shutdown(wait=False, cancel_futures=True)
+        # self.process_pool.shutdown(wait=True, cancel_futures=True)
+        self.needs_data.clear()
+        self.buffer.queue.clear()
+        # self.buffer.task_done()
+        # print("done")
+        self.thread_pool.shutdown(wait=False, cancel_futures=True)
+        self.process_pool.shutdown(wait=False, cancel_futures=True) 
 
     def shuffle_and_batch(self, sharding):
         self.should_shuffle = True
@@ -550,8 +556,8 @@ class PerBatchPaddedDataset(InMemoryDataset):
     def make_signature(self) -> None:
         pass
 
-    # def cleanup(self):
-    #     self.thread_pool.shutdown(cancel_futures=True)
+    def cleanup(self):
+        pass
 
 
 dataset_dict = {
