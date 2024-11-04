@@ -116,4 +116,3 @@ class PropertyHead(nn.Module):
 
 
         return {self.pname: result}
-
