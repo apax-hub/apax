@@ -483,12 +483,15 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.process_pool = ProcessPoolExecutor(self.num_workers)
         self.thread_pool = ThreadPoolExecutor(1)  # Single thread for buffering batches
         self.epoch_finished = False
+        self.enqueue_future = None
         self.needs_data = Event()
 
     def enqueue_batches(self):
         """Function to enqueue batches on a side thread."""
         while self.count < self.steps_per_epoch() * self.n_epochs:
             self.needs_data.wait()
+            if self.epoch_finished:
+                break
             num_batches = min(self.buffer_size - self.buffer.qsize(), self.steps_per_epoch() - self.count)
             if num_batches > 0:
                 self.enqueue(num_batches)
@@ -515,29 +518,25 @@ class PerBatchPaddedDataset(InMemoryDataset):
         for n in range(self.n_epochs):
             self.count = 0
             self.buffer.queue.clear()  # Reset buffer
+            self.epoch_finished = False
 
             if self.should_shuffle:
                 shuffle(self.data)
 
             # Start pre-filling the buffer
-            self.thread_pool.submit(self.enqueue_batches)
+            self.enqueue_future = self.thread_pool.submit(self.enqueue_batches)
 
             for i in range(self.steps_per_epoch()):
                 if self.buffer.qsize() < (self.buffer_size * 0.75):
                     self.needs_data.set()  # Trigger buffer refill
                 while self.buffer.empty():
                     time.sleep(0.001)
-                # print(self.buffer.qsize())
                 yield self.buffer.get()
 
-        # self.thread_pool.shutdown(wait=False, cancel_futures=True)
-        # self.process_pool.shutdown(wait=True, cancel_futures=True)
-        self.needs_data.clear()
-        self.buffer.queue.clear()
-        # self.buffer.task_done()
-        # print("done")
-        self.thread_pool.shutdown(wait=False, cancel_futures=True)
-        self.process_pool.shutdown(wait=False, cancel_futures=True) 
+            self.epoch_finished = True
+            self.needs_data.set()
+            self.enqueue_future.result()
+
 
     def shuffle_and_batch(self, sharding):
         self.should_shuffle = True
@@ -557,7 +556,13 @@ class PerBatchPaddedDataset(InMemoryDataset):
         pass
 
     def cleanup(self):
-        pass
+        self.epoch_finished = True
+        self.needs_data.set()
+        self.enqueue_future.result()
+        self.needs_data.clear()
+        self.thread_pool.shutdown(wait=True, cancel_futures=True)
+        self.process_pool.shutdown(wait=True, cancel_futures=True)
+        self.buffer.queue.clear()
 
 
 dataset_dict = {
