@@ -505,13 +505,13 @@ class PerBatchPaddedDataset(InMemoryDataset):
             self.data[start + self.batch_size * i : start + self.batch_size * (i + 1)]
             for i in range(num_batches)
         ]
-        
+
         # Using submit and as_completed for faster batch retrieval
         futures = [self.process_pool.submit(self.prepare_batch, chunk) for chunk in dataset_chunks]
         for future in as_completed(futures):
             batch = future.result()
             self.buffer.put(batch)
-        
+
         self.count += num_batches
 
     def __iter__(self):
