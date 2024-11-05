@@ -14,7 +14,7 @@ def test_weighted_squared_error():
     name = "energy"
     label = {"energy": jnp.array([[0.1, 0.4, 0.2, -0.5], [0.1, -0.1, 0.8, 0.6]])}
 
-    loss = weighted_squared_error(label, label, name, divisor=1.0)
+    loss = weighted_squared_error(label, label, name)
     loss = jnp.sum(loss)
     ref = 0.0
     assert loss.shape == ()
@@ -28,14 +28,9 @@ def test_weighted_squared_error():
             ]
         )
     }
-    loss = weighted_squared_error(label, pred, name, divisor=1.0)
+    loss = weighted_squared_error(label, pred, name)
     loss = jnp.sum(loss)
     ref = 0.25
-    assert abs(loss - ref) < 1e-6
-
-    loss = weighted_squared_error(label, pred, name, divisor=2.0)
-    loss = jnp.sum(loss)
-    ref = 0.125
     assert abs(loss - ref) < 1e-6
 
 

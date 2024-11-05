@@ -36,14 +36,14 @@ def test_apax_variable_size():
 
     model = EnergyDerivativeModel(
         EnergyModel(
-            descriptor=GaussianMomentDescriptor(apply_mask=False),
+            representation=GaussianMomentDescriptor(apply_mask=False),
             scale_shift=PerElementScaleShift(scale=scale, shift=shift),
             mask_atoms=False,
         )
     )
     model_padded = EnergyDerivativeModel(
         EnergyModel(
-            descriptor=GaussianMomentDescriptor(apply_mask=True),
+            representation=GaussianMomentDescriptor(apply_mask=True),
             scale_shift=PerElementScaleShift(scale=scale, shift=shift),
             mask_atoms=True,
         )
@@ -87,9 +87,10 @@ def test_energy_model():
     model = EnergyModel()
 
     params = model.init(key, R, Z, idx, box, offsets)
-    result = model.apply(params, R, Z, idx, box, offsets)
+    energy, properties = model.apply(params, R, Z, idx, box, offsets)
 
-    assert result.shape == ()
+    assert energy.shape == ()
+    assert isinstance(properties, dict)
 
 
 def test_energy_force_model():
