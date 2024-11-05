@@ -19,8 +19,6 @@ data:
     processing: cached
     shuffle_buffer_size: 1000
 
-  additional_properties_info: {}
-
   n_train: 1000
   n_valid: 100
 
