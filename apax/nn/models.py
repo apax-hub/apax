@@ -159,7 +159,7 @@ class EnergyDerivativeModel(nn.Module):
 
         if self.calc_stress:
             stress = stress_times_vol(
-                self.energy_model, R, box, Z=Z, neighbor=neighbor, offsets=offsets
+                make_energy_only_model(self.energy_model), R, box, Z=Z, neighbor=neighbor, offsets=offsets
             )
             prediction["stress"] = stress
 

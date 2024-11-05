@@ -43,7 +43,7 @@ def stress_times_vol(energy_fn, position: Array, box, **kwargs) -> Array:
     identity = jnp.eye(dim, dtype=position.dtype)
 
     def U(eps):
-        return energy_fn(position, box=box, perturbation=(identity + eps), **kwargs)[0]
+        return energy_fn(position, box=box, perturbation=(identity + eps), **kwargs)
 
     dUdV = jax.grad(U)
     return dUdV(zero)
