@@ -305,6 +305,17 @@ class CSVCallback(BaseModel, frozen=True, extra="forbid"):
 
     name: Literal["csv"]
 
+class TCSVCallback(BaseModel, frozen=True, extra="forbid"):
+    """
+    Configuration of the CSVCallback.
+
+    Parameters
+    ----------
+    name: Keyword of the callback used..
+    """
+
+    name: Literal["tcsv"]
+
 
 class TBCallback(BaseModel, frozen=True, extra="forbid"):
     """
@@ -333,7 +344,7 @@ class MLFlowCallback(BaseModel, frozen=True, extra="forbid"):
 
 
 CallBack = Annotated[
-    Union[CSVCallback, TBCallback, MLFlowCallback], Field(discriminator="name")
+    Union[CSVCallback, TCSVCallback, TBCallback, MLFlowCallback], Field(discriminator="name")
 ]
 
 

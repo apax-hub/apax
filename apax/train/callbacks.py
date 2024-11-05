@@ -2,6 +2,11 @@ import collections
 import csv
 import logging
 from pathlib import Path
+import csv
+import threading
+import queue
+import time
+import os
 
 import numpy as np
 import tensorflow as tf
@@ -130,6 +135,129 @@ class CSVLoggerApax(CSVLogger):
         self.csv_file.flush()
 
 
+class ThreadedCSVLogger:
+    def __init__(self, filepath, flush_interval=1.0):
+        """
+        Initialize the ThreadedCSVLogger.
+        
+        :param filepath: Path to the CSV file where logs will be saved.
+        :param fieldnames: List of fieldnames (keys) for the CSV file. If not provided,
+                           fieldnames will be inferred from the first logged metrics.
+        :param flush_interval: Time interval (in seconds) to flush the log to the file.
+        """
+        self.filepath = filepath
+        self.flush_interval = flush_interval
+        self.queue = queue.Queue()
+        self.stop_event = threading.Event()
+        self.thread = threading.Thread(target=self._writer_thread)
+        self.csv_file = None
+        self.writer = None
+        self.headers_written = False
+        self.last_epoch = -1  # Track the last logged epoch
+
+        # Check if the file already exists and recover the last epoch
+        if os.path.exists(self.filepath):
+            self._recover_last_epoch()
+
+        # Start the background thread for logging
+        self.thread.start()
+    
+    def set_model(self, *args, **kwargs):
+        pass
+
+    def on_epoch_begin(self, epoch, logs=None):
+        pass
+
+    def on_train_batch_begin(self, batch, logs=None):
+        pass
+
+    def on_train_batch_end(self, batch, logs=None):
+        pass
+
+    def on_train_begin(self, logs=None):
+        pass
+
+    def _recover_last_epoch(self):
+        """Recover the last logged epoch from the CSV file if it exists."""
+        try:
+            with open(self.filepath, 'r') as f:
+                reader = csv.DictReader(f)
+                last_row = None
+                for row in reader:
+                    last_row = row
+                if last_row and 'epoch' in last_row:
+                    self.last_epoch = int(last_row['epoch'])
+                self.fieldnames = reader.fieldnames
+                self.headers_written = True  # Headers were already written
+        except (csv.Error, FileNotFoundError):
+            pass  # Handle potential CSV read errors if the file is corrupted or does not exist
+
+    def on_epoch_end(self, epoch, logs):
+        """
+        Log a dictionary of metrics to the CSV file asynchronously.
+        
+        :param metrics_dict: Dictionary containing metric names as keys and their values.
+        """
+        self.queue.put((epoch, logs))
+
+    def _writer_thread(self):
+        """
+        Internal method that runs in a separate thread, writing metrics to the CSV file.
+        """
+        # Open the file in append mode
+        with open(self.filepath, mode='a', newline='') as csv_file:
+            self.csv_file = csv_file
+            self.writer = csv.DictWriter(self.csv_file, fieldnames=self.fieldnames)
+
+            # Write the headers if needed
+            if not self.headers_written and self.fieldnames:
+                self.writer.writeheader()
+                self.headers_written = True
+
+            while not self.stop_event.is_set() or not self.queue.empty():
+                try:
+                    # Try to get a batch of logs from the queue (wait max flush_interval)
+                    epoch, logs = self.queue.get(timeout=self.flush_interval)
+                    metrics = logs.copy()
+                    metrics["epoch"] = epoch
+                    self._write_row(metrics)
+                except queue.Empty:
+                    pass  # Timeout reached, no new logs, but continue running
+
+                # Optionally flush the file
+                self.csv_file.flush()
+
+    def _write_row(self, metrics_dict):
+        """
+        Write a single row of metrics to the CSV file.
+        
+        :param metrics_dict: Dictionary containing metric names and values.
+        """
+        fieldnames = list(metrics_dict.keys())
+        self.writer.fieldnames = fieldnames
+
+        # Write headers once we have the fieldnames
+        if not self.headers_written:
+            self.writer.writeheader()
+            self.headers_written = True
+        
+        self.writer.writerow(metrics_dict)
+
+    def on_train_end(self, logs=None):
+        """
+        Signal the logger to stop and wait for the background thread to finish.
+        """
+        self.stop_event.set()
+        self.thread.join()
+
+
+
+
+
+
+
+
+
 def initialize_callbacks(config: Config, model_version_path: Path):
     callback_configs = config.callbacks
     log.info("Initializing Callbacks")
@@ -143,6 +271,13 @@ def initialize_callbacks(config: Config, model_version_path: Path):
             "path_arg_name": "filename",
             "kwargs": {"append": True},
             "model": dummy_model,
+        },
+        "tcsv": {
+            "class": ThreadedCSVLogger,
+            "log_path": model_version_path / "log.csv",
+            "kwargs": {},
+            "model": None,
+            "path_arg_name": "filepath",
         },
         "tensorboard": {
             "class": TensorBoard,
