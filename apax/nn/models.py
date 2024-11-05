@@ -17,6 +17,7 @@ from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.utils.jax_md_reduced import partition
 from apax.utils.math import fp64_sum
+from apax.utils.transform import make_energy_only_model
 
 DisplacementFn = Callable[[Array, Array], Array]
 MDModel = Tuple[partition.NeighborFn, Callable, Callable]
@@ -174,16 +175,16 @@ def make_mean_energy_fn(energy_fn):
         offsets,
         perturbation=None,
     ):
-        e_ens, properties = energy_fn(R, Z, neighbor, box, offsets, perturbation)
+        e_ens, _ = energy_fn(R, Z, neighbor, box, offsets, perturbation)
         E_mean = jnp.mean(e_ens)
-        return E_mean, properties
+        return E_mean
 
     return mean_energy_fn
 
 
 def make_member_chunk_jac(energy_model, start, end):
     def energy_chunk_fn(R, Z, neighbor, box, offsets):
-        Ei, properties = energy_model(R, Z, neighbor, box, offsets)[start:end]
+        Ei = energy_model(R, Z, neighbor, box, offsets)[start:end]
         return Ei
 
     grad_i_fn = jax.jacrev(energy_chunk_fn) # TODO
@@ -209,7 +210,9 @@ class ShallowEnsembleModel(nn.Module):
         offsets,
     ):
         energy_ens, properties = self.energy_model(R, Z, neighbor, box, offsets)
+        # The two functions below drop the calculation of properties
         mean_energy_fn = make_mean_energy_fn(self.energy_model)
+        energy_fn = make_energy_only_model(self.energy_model)
 
         n_ens = energy_ens.shape[0]
         divisor = 1 / (n_ens - 1)
@@ -225,7 +228,7 @@ class ShallowEnsembleModel(nn.Module):
 
         if self.force_variance:
             if not self.chunk_size:
-                forces_ens = -jax.jacrev(self.energy_model)(R, Z, neighbor, box, offsets)
+                forces_ens = -jax.jacrev(energy_fn)(R, Z, neighbor, box, offsets)
             else:
                 with jax.ensure_compile_time_eval():
                     if not n_ens % self.chunk_size == 0:
@@ -236,7 +239,7 @@ class ShallowEnsembleModel(nn.Module):
                 start = 0
                 for _ in range(n_ens // self.chunk_size):
                     end = start + self.chunk_size
-                    jac_i_fn = make_member_chunk_jac(self.energy_model, start, end)
+                    jac_i_fn = make_member_chunk_jac(energy_fn, start, end)
                     force_i = -jac_i_fn(R, Z, neighbor, box, offsets)
                     forces_ens.append(force_i)
                     start = end

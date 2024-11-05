@@ -16,6 +16,7 @@ from apax.train.checkpoints import (
     check_for_ensemble,
     restore_parameters,
 )
+from apax.utils.transform import make_energy_only_model
 
 
 def create_feature_fn(
@@ -152,10 +153,11 @@ def kernel_selection(
     Builder = config.model.get_builder()
     builder = Builder(config.model.get_dict(), n_species=119)
 
-    model = builder.build_energy_model(apply_mask=True, init_box=init_box)
+    energy_model = builder.build_energy_model(apply_mask=True, init_box=init_box)
+    energy_model = make_energy_only_model(energy_model.apply)
 
     feature_fn = create_feature_fn(
-        model, params, base_feature_map, feature_transforms, is_ensemble
+        energy_model, params, base_feature_map, feature_transforms, is_ensemble
     )
     g = compute_features(feature_fn, dataset)
     km = kernel.KernelMatrix(g, n_train)
