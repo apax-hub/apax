@@ -65,6 +65,8 @@ class ApaxJaxMD(zntrack.Node):
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
+        if not self._parameter:
+            self._handle_parameter_file()
 
         if not self.state.restarted:
             atoms = self.data[self.data_id]
