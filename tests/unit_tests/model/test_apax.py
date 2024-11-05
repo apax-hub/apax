@@ -4,7 +4,7 @@ import numpy as np
 
 from apax.layers.descriptor import GaussianMomentDescriptor
 from apax.layers.scaling import PerElementScaleShift
-from apax.nn.models import AtomisticModel, EnergyDerivativeModel, EnergyModel
+from apax.nn.models import EnergyDerivativeModel, EnergyModel
 
 
 def test_apax_variable_size():
@@ -36,20 +36,16 @@ def test_apax_variable_size():
 
     model = EnergyDerivativeModel(
         EnergyModel(
-            AtomisticModel(
-                descriptor=GaussianMomentDescriptor(apply_mask=False),
-                scale_shift=PerElementScaleShift(scale=scale, shift=shift),
-                mask_atoms=False,
-            ),
+            descriptor=GaussianMomentDescriptor(apply_mask=False),
+            scale_shift=PerElementScaleShift(scale=scale, shift=shift),
+            mask_atoms=False,
         )
     )
     model_padded = EnergyDerivativeModel(
         EnergyModel(
-            AtomisticModel(
-                descriptor=GaussianMomentDescriptor(apply_mask=True),
-                scale_shift=PerElementScaleShift(scale=scale, shift=shift),
-                mask_atoms=True,
-            ),
+            descriptor=GaussianMomentDescriptor(apply_mask=True),
+            scale_shift=PerElementScaleShift(scale=scale, shift=shift),
+            mask_atoms=True,
         )
     )
 
@@ -64,36 +60,6 @@ def test_apax_variable_size():
 
     assert (results["energy"] - results_padded["energy"]) < 1e-6
     assert np.all(results["forces"] - results_padded["forces"][:-1, :] < 1e-6)  # 1e-6
-
-
-def test_atomistic_model():
-    key = jax.random.PRNGKey(0)
-
-    dR = np.array(
-        [
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [-1.0, 0.0, 0.0],
-            [-1.0, 1.0, 0.0],
-            [0.0, -1.0, 0.0],
-            [1.0, -1.0, 0.0],
-        ]
-    )
-    Z = np.array([1, 2, 2])
-
-    idx = np.array(
-        [
-            [1, 2, 0, 2, 0, 1],
-            [0, 0, 1, 1, 2, 2],
-        ]
-    )
-
-    model = AtomisticModel(mask_atoms=False)
-
-    params = model.init(key, dR, Z, idx)
-    result = model.apply(params, dR, Z, idx)
-
-    assert result.shape == (3, 1)
 
 
 def test_energy_model():
