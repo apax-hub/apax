@@ -132,7 +132,7 @@ class DirectCoulomb(EmpiricalEnergyTerm):
     def __call__(self, R, dr_vec, Z, idx, box, properties):
         if not "charge" in properties:
             raise KeyError("property 'charge' not found. Make sure to predict it in the model section")
-        
+
         q = properties["charge"]
         idx_i, idx_j = idx[0], idx[1]
 
@@ -160,7 +160,7 @@ class LatentEwald(EmpiricalEnergyTerm):
         # Z shape n_atoms
         if not "charge" in properties:
             raise KeyError("property 'charge' not found. Make sure to predict it in the model section")
-        
+
         q = properties["charge"]
 
         V = jnp.linalg.det(box)
@@ -172,7 +172,7 @@ class LatentEwald(EmpiricalEnergyTerm):
 
         kx, ky, kz = jnp.meshgrid(k_range_x, k_range_y, k_range_z)
         k = jnp.reshape(jnp.stack((kx, ky, kz), axis=-1), (-1, 3))
-        
+
 
         k2 = jnp.sum(k**2, axis=-1)
 

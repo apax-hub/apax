@@ -85,7 +85,7 @@ class ModelBuilder:
         has_ensemble = "ensemble" in head_config.keys() and head_config["ensemble"]
         if has_ensemble and head_config["ensemble"]["kind"] == "shallow":
             n_shallow_ensemble = head_config["ensemble"]["n_members"]
-        elif "n_shallow_ensemble" in head_config.keys(): 
+        elif "n_shallow_ensemble" in head_config.keys():
             n_shallow_ensemble = head_config["n_shallow_ensemble"]
         else:
             n_shallow_ensemble = 0
@@ -110,7 +110,7 @@ class ModelBuilder:
             dtype=self.config["scale_shift_dtype"],
         )
         return scale_shift
-    
+
     def build_property_heads(self, apply_mask: bool=True):
         property_heads = []
         for head in self.config["property_heads"]:

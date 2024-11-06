@@ -195,7 +195,7 @@ class Loss:
             divisor = divisor[...,None]
 
         arg = batch_losses / divisor
-        loss = self.weight * jnp.sum(jnp.mean(arg, axis=0)) 
+        loss = self.weight * jnp.sum(jnp.mean(arg, axis=0))
         return loss
 
 

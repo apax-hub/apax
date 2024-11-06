@@ -84,13 +84,13 @@ def compute_property_shapes(config):
 
     if len(property_configs) == 0:
         return additional_properties
-    
+
     for pconf in property_configs:
         name = pconf["name"]
         shape = []
         if pconf["aggregation"] == "none":
             shape.append("natoms")
-        
+
         feature_shapes = {"l0": [1], "l1": [3], "symmetric_traceless_l2": [3,3]}
 
         shape.extend(feature_shapes[pconf["mode"]])
@@ -99,7 +99,7 @@ def compute_property_shapes(config):
 
     return additional_properties
 
-        
+
 
 
 

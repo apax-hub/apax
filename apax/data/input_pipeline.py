@@ -161,7 +161,7 @@ class InMemoryDataset:
             labels["forces"] = np.pad(
                 labels["forces"], ((0, zeros_to_add), (0, 0)), "constant"
             )
-        
+
         for prop in self.additional_properties:
             name, shape = prop
             if shape[0] == "natoms":
@@ -173,7 +173,7 @@ class InMemoryDataset:
         # print(labels)
         inputs = {k: tf.constant(v) for k, v in inputs.items()}
         labels = {k: tf.constant(v) for k, v in labels.items()}
-        
+
         return (inputs, labels)
 
     def enqueue(self, num_elements):

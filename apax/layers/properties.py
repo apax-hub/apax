@@ -100,7 +100,7 @@ class PropertyHead(nn.Module):
             p_i = p_i[...,None] * symmetrized
         else:
             raise KeyError("unknown symmetry option")
-        
+
         if self.aggregation == "none":
             result = p_i
         elif self.aggregation == "sum":

@@ -107,7 +107,7 @@ class EnergyModel(nn.Module):
         g = self.representation(dr_vec, Z, idx)
         h = jax.vmap(self.readout)(g)
         E_i = self.scale_shift(h, Z)
-        
+
         if self.mask_atoms:
             E_i = mask_by_atom(E_i, Z)
 
