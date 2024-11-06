@@ -1,7 +1,6 @@
 import dataclasses
 from typing import List
 
-import einops
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsc

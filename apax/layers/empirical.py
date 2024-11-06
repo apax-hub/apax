@@ -130,7 +130,7 @@ class DirectCoulomb(EmpiricalEnergyTerm):
 
 
     def __call__(self, R, dr_vec, Z, idx, box, properties):
-        if not "charge" in properties:
+        if "charge" not in properties:
             raise KeyError("property 'charge' not found. Make sure to predict it in the model section")
 
         q = properties["charge"]
@@ -158,7 +158,7 @@ class LatentEwald(EmpiricalEnergyTerm):
 
     def __call__(self, R, dr_vec, Z, idx, box, properties):
         # Z shape n_atoms
-        if not "charge" in properties:
+        if "charge" not in properties:
             raise KeyError("property 'charge' not found. Make sure to predict it in the model section")
 
         q = properties["charge"]

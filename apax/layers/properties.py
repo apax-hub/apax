@@ -1,17 +1,10 @@
-from dataclasses import field
-from typing import Any
 
 import flax.linen as nn
 import jax
-from jax import Array
 import jax.numpy as jnp
-import numpy as np
-from ase import data
-from jax import vmap
+from jax import Array
 
-from apax.layers.masking import mask_by_neighbor
 from apax.layers.readout import AtomisticReadout
-from apax.utils.jax_md_reduced import space
 from apax.utils.math import fp64_sum
 
 
