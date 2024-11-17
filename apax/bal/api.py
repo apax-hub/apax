@@ -151,7 +151,7 @@ def kernel_selection(
     _, init_box = dataset.init_input()
 
     Builder = config.model.get_builder()
-    builder = Builder(config.model.get_dict(), n_species=119)
+    builder = Builder(config.model.model_dump(), n_species=119)
 
     energy_model = builder.build_energy_model(apply_mask=True, init_box=init_box)
     energy_model = make_energy_only_model(energy_model.apply)
