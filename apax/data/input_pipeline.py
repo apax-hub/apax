@@ -375,15 +375,18 @@ def round_up_to_multiple(value, multiple):
 
 
 class BatchProcessor:
-    def __init__(self, cutoff, forces=True, stress=False) -> None:
+    def __init__(self, cutoff, atom_padding: int, nl_padding: int, forces=True, stress=False) -> None:
         self.cutoff = cutoff
+        self.atom_padding = atom_padding
+        self.nl_padding = nl_padding
+
         self.forces = forces
         self.stress = stress
 
     def __call__(self, samples: list[dict]):
         n_samples = len(samples)
         max_atoms = np.max([inp[0]["n_atoms"] for inp in samples])
-        max_atoms = round_up_to_multiple(max_atoms, 10)
+        max_atoms = round_up_to_multiple(max_atoms, self.atom_padding)
 
         inputs = {
             "numbers": np.zeros((n_samples, max_atoms), dtype=np.int16),
@@ -417,6 +420,7 @@ class BatchProcessor:
 
         max_nbrs = np.max([idx.shape[1] for idx in idxs])
         max_nbrs = next_power_of_two(max_nbrs)  # TODO better intervals
+        max_nbrs = round_up_to_multiple(max_nbrs, self.nl_padding)
 
         inputs["idx"] = np.zeros((n_samples, 2, max_nbrs), dtype=np.int16)
         inputs["offsets"] = np.zeros((n_samples, max_nbrs, 3), dtype=np.float64)
@@ -439,7 +443,8 @@ class PerBatchPaddedDataset(InMemoryDataset):
         n_epochs,
         n_jit_steps=1,
         num_workers: Optional[int] = None,
-        reset_every: int = 10,
+        atom_padding: int = 10,
+        nl_padding: int = 2000,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
         pre_shuffle=False,
@@ -471,10 +476,10 @@ class PerBatchPaddedDataset(InMemoryDataset):
 
         forces = "forces" in label_keys
         stress = "stress" in label_keys
-        self.prepare_batch = BatchProcessor(cutoff, forces, stress)
+        self.prepare_batch = BatchProcessor(cutoff, forces, stress, atom_padding, nl_padding)
 
         self.count = 0
-        self.reset_every = reset_every
+        
         self.max_count = self.n_epochs * self.steps_per_epoch()
         from queue import Queue
 

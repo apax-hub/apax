@@ -76,14 +76,16 @@ class PBPDatset(DatasetConfig, extra="forbid"):
     ----------
     num_workers : int
         | Number of batches to be processed in parallel.
-    reset_every : int
-        | Number of epochs before reinitializing the ProcessPoolExcecutor.
-        | Avoids memory leaks.
+    atom_padding : int
+        | Next nearest integer to which to pad per-atom arrays (positions, forces, ...).
+    nl_padding: int
+        | Next nearest integer to which to pad neighborlists.
     """
 
     processing: Literal["pbp"] = "pbp"
     num_workers: PositiveInt = 10
-    reset_every: PositiveInt = 10
+    atom_padding: PositiveInt = 10
+    nl_padding: PositiveInt = 2000
 
 
 class DataConfig(BaseModel, extra="forbid"):
