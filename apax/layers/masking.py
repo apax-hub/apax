@@ -1,4 +1,3 @@
-import einops
 
 
 def mask_by_atom(arr, Z):

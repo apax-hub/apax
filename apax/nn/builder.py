@@ -1,7 +1,6 @@
 import logging
 
 import numpy as np
-import jax.numpy as jnp
 
 from apax.config import ModelConfig
 from apax.layers.descriptor import (

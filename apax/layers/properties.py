@@ -3,9 +3,9 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
+from apax.layers.masking import mask_by_atom
 from apax.layers.readout import AtomisticReadout
 from apax.utils.math import fp64_sum
-from apax.layers.masking import mask_by_atom
 
 
 def stress_times_vol(energy_fn, position: Array, box, **kwargs) -> Array:

@@ -88,7 +88,7 @@ def compute_property_shapes(config: Config):
     loss_names = [loss.name for loss in config.loss]
     for pconf in property_configs:
         name = pconf["name"]
-        if not name in loss_names:
+        if name not in loss_names:
             continue
         shape = []
         if pconf["aggregation"] == "none":
