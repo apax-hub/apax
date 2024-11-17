@@ -16,6 +16,26 @@ unit_dict = {
 }
 
 
+def str_to_dtype(x):
+    # print(x)
+    # quit()
+    if isinstance(x, str):
+        if x == "fp32":
+            y =  jnp.float32
+        elif x == "fp64":
+            y =  jnp.float64
+        elif x == "fp16":
+            y =  jnp.float16
+        elif x == "fp128":
+            y =  jnp.float128
+        else:
+            raise KeyError(f"unknown dtype {x}")
+        return y
+    else:
+        return x
+
+
+
 def tf_to_jax_dict(data_dict: dict[str, list]) -> dict:
     """Converts a dict of tf.Tensors to a dict of jax.numpy.arrays.
     tf.Tensors must be padded.

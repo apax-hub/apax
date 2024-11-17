@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+import jax.numpy as jnp
 
 from apax.config import ModelConfig
 from apax.layers.descriptor import (
@@ -90,7 +91,14 @@ class ModelBuilder:
         else:
             n_shallow_ensemble = 0
 
-        import jax.numpy as jnp
+        if "readout_dtype" in head_config:
+            dtype = head_config["readout_dtype"]
+        elif "dtype" in head_config:
+            dtype = head_config["dtype"]
+        else:
+            raise KeyError("No dtype specified in config")
+
+        
         readout = AtomisticReadout(
             units=head_config["nn"],
             b_init=head_config["b_init"],
@@ -98,7 +106,7 @@ class ModelBuilder:
             use_ntk=head_config["use_ntk"],
             is_feature_fn=is_feature_fn,
             n_shallow_ensemble=n_shallow_ensemble,
-            dtype=jnp.float64, #head_config["readout_dtype"],
+            dtype=dtype,
         )
         return readout
 
@@ -209,7 +217,7 @@ class ModelBuilder:
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn=None,
     ):
-        log.info("Building LL feature model")
+        log.info("Building feature model")
         descriptor = self.build_descriptor(apply_mask)
         readout = self.build_readout(is_feature_fn=True)
 

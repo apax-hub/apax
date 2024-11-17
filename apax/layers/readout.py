@@ -6,6 +6,7 @@ import jax.numpy as jnp
 
 from apax.layers.activation import swish
 from apax.layers.ntk_linear import NTKLinear
+from apax.utils.convert import str_to_dtype
 
 
 class AtomisticReadout(nn.Module):
@@ -26,6 +27,8 @@ class AtomisticReadout(nn.Module):
                 readout_unit = [self.n_shallow_ensemble]
             units += readout_unit
 
+        dtype = str_to_dtype(self.dtype)
+
         dense = []
         for ii, n_hidden in enumerate(units):
             layer = NTKLinear(
@@ -33,7 +36,7 @@ class AtomisticReadout(nn.Module):
                 w_init=self.w_init,
                 b_init=self.b_init,
                 use_ntk=self.use_ntk,
-                dtype=self.dtype,
+                dtype=dtype,
                 name=f"dense_{ii}",
             )
             dense.append(layer)

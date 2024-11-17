@@ -6,6 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from apax.layers.initializers import uniform_range
+from apax.utils.convert import str_to_dtype
 
 
 class GaussianBasis(nn.Module):
@@ -15,6 +16,8 @@ class GaussianBasis(nn.Module):
     dtype: Any = jnp.float32
 
     def setup(self):
+        dtype = str_to_dtype(self.dtype)
+        
         self.betta = self.n_basis**2 / self.r_max**2
         self.rad_norm = (2.0 * self.betta / np.pi) ** 0.25
         shifts = self.r_min + (self.r_max - self.r_min) / self.n_basis * np.arange(
@@ -23,7 +26,7 @@ class GaussianBasis(nn.Module):
 
         # shape: 1 x n_basis
         shifts = einops.repeat(shifts, "n_basis -> 1 n_basis")
-        self.shifts = jnp.asarray(shifts, dtype=self.dtype)
+        self.shifts = jnp.asarray(shifts, dtype=dtype)
 
     def __call__(self, dr):
         dr = einops.repeat(dr, "neighbors -> neighbors 1")
@@ -47,7 +50,8 @@ class BesselBasis(nn.Module):
     dtype: Any = jnp.float32
 
     def setup(self):
-        self.n = jnp.arange(self.n_basis, dtype=self.dtype)
+        dtype = str_to_dtype(self.dtype)
+        self.n = jnp.arange(self.n_basis, dtype=dtype)
 
     def __call__(self, dr):
         dr = einops.repeat(dr, "neighbors -> neighbors 1")
@@ -69,9 +73,10 @@ class RadialFunction(nn.Module):
     dtype: Any = jnp.float32
 
     def setup(self):
+        dtype = str_to_dtype(self.dtype)
         self.r_max = self.basis_fn.r_max
         self.embed_norm = jnp.array(
-            1.0 / np.sqrt(self.basis_fn.n_basis), dtype=self.dtype
+            1.0 / np.sqrt(self.basis_fn.n_basis), dtype=dtype
         )
         if self.one_sided_dist:
             lower_bound = 0.0
@@ -81,7 +86,7 @@ class RadialFunction(nn.Module):
         if self.emb_init is not None:
             self._n_radial = self.n_radial
             if self.emb_init == "uniform":
-                emb_initializer = uniform_range(lower_bound, 1.0, dtype=self.dtype)
+                emb_initializer = uniform_range(lower_bound, 1.0, dtype=dtype)
                 self.embeddings = self.param(
                     "atomic_type_embedding",
                     emb_initializer,
@@ -91,7 +96,7 @@ class RadialFunction(nn.Module):
                         self.n_radial,
                         self.basis_fn.n_basis,
                     ),
-                    self.dtype,
+                    dtype,
                 )
             else:
                 raise ValueError(
@@ -102,7 +107,8 @@ class RadialFunction(nn.Module):
             self._n_radial = self.basis_fn.n_basis
 
     def __call__(self, dr, Z_i, Z_j):
-        dr = dr.astype(self.dtype)
+        dtype = str_to_dtype(self.dtype)
+        dr = dr.astype(dtype)
         # basis shape: neighbors x n_basis
         basis = self.basis_fn(dr)
 
@@ -128,6 +134,6 @@ class RadialFunction(nn.Module):
 
         radial_function = radial_function * cutoff
 
-        assert radial_function.dtype == self.dtype
+        assert radial_function.dtype == dtype
 
         return radial_function
