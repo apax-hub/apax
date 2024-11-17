@@ -479,7 +479,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.prepare_batch = BatchProcessor(cutoff, forces, stress, atom_padding, nl_padding)
 
         self.count = 0
-        
+
         self.max_count = self.n_epochs * self.steps_per_epoch()
         from queue import Queue
 
