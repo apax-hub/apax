@@ -94,16 +94,13 @@ def compute_property_shapes(config: Config):
         if pconf["aggregation"] == "none":
             shape.append("natoms")
 
-        feature_shapes = {"l0": [1], "l1": [3], "symmetric_traceless_l2": [3,3]}
+        feature_shapes = {"l0": [1], "l1": [3], "symmetric_traceless_l2": [3, 3]}
 
         shape.extend(feature_shapes[pconf["mode"]])
 
         additional_properties.append((name, shape))
 
     return additional_properties
-
-
-
 
 
 def initialize_datasets(config: Config):

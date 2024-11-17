@@ -1,4 +1,3 @@
-
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
@@ -54,9 +53,7 @@ class PropertyHead(nn.Module):
     mode: str = "l0"
     apply_mask: bool = True
 
-
     def setup(self):
-
         n_species = 119
         scale_init = nn.initializers.constant(1.0)
         self.scale = self.param(
@@ -87,15 +84,14 @@ class PropertyHead(nn.Module):
             p_i = p_i
         elif self.mode == "l1":
             Rc = R - jnp.mean(R, axis=0, keepdims=True)
-            r_hat = Rc / jnp.linalg.norm(Rc, axis=1)[:,None]
+            r_hat = Rc / jnp.linalg.norm(Rc, axis=1)[:, None]
             p_i = p_i * R
         elif self.mode == "symmetric_traceless_l2":
             Rc = R - jnp.mean(R, axis=0, keepdims=True)
-            r_hat = Rc / jnp.linalg.norm(Rc, axis=1)[:,None]
+            r_hat = Rc / jnp.linalg.norm(Rc, axis=1)[:, None]
             r_rt = jnp.einsum("ni, nj -> nij", r_hat, r_hat)
             I = jnp.eye(3)
             symmetrized = 3*r_rt - I
-            print(symmetrized.shape)
             p_i = p_i[...,None] * symmetrized
         else:
             raise KeyError("unknown symmetry option")

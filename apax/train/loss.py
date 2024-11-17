@@ -104,7 +104,7 @@ def force_angle_loss(
     """
     label, prediction = label[name], prediction[name]
     dotp = normed_dotp(label, prediction)
-    return (1.0 - dotp)
+    return 1.0 - dotp
 
 
 def force_angle_div_force_label(
@@ -184,14 +184,12 @@ class Loss:
     def __call__(self, inputs: dict, prediction: dict, label: dict) -> float:
         # TODO we may want to insert an additional `mask` argument for this method
 
-        divisor = inputs["n_atoms"]**self.atoms_exponent
-        batch_losses = self.loss_fn(
-            label, prediction, self.name, self.parameters
-        )
+        divisor = inputs["n_atoms"] ** self.atoms_exponent
+        batch_losses = self.loss_fn(label, prediction, self.name, self.parameters)
 
-        axes_to_add = len(batch_losses.shape) -1
+        axes_to_add = len(batch_losses.shape) - 1
         for _ in range(axes_to_add):
-            divisor = divisor[...,None]
+            divisor = divisor[..., None]
 
         arg = batch_losses / divisor
         loss = self.weight * jnp.sum(jnp.mean(arg, axis=0))
