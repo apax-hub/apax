@@ -170,7 +170,6 @@ class InMemoryDataset:
                 labels[name], pad_shape, "constant"
             )
 
-        # print(labels)
         inputs = {k: tf.constant(v) for k, v in inputs.items()}
         labels = {k: tf.constant(v) for k, v in labels.items()}
 

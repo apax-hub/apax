@@ -20,8 +20,6 @@ class NTKLinear(nn.Module):
 
     @nn.compact
     def __call__(self, inputs):
-        print(self.dtype)
-        # quit()
         dtype = str_to_dtype(self.dtype)
         inputs = inputs.astype(dtype)
 

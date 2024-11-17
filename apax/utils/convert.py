@@ -17,8 +17,6 @@ unit_dict = {
 
 
 def str_to_dtype(x):
-    # print(x)
-    # quit()
     if isinstance(x, str):
         if x == "fp32":
             y =  jnp.float32
