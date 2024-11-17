@@ -17,7 +17,7 @@ class GaussianBasis(nn.Module):
 
     def setup(self):
         dtype = str_to_dtype(self.dtype)
-        
+
         self.betta = self.n_basis**2 / self.r_max**2
         self.rad_norm = (2.0 * self.betta / np.pi) ** 0.25
         shifts = self.r_min + (self.r_max - self.r_min) / self.n_basis * np.arange(
