@@ -10,7 +10,6 @@ from ase import units
 from ase.io import read
 from flax.training import checkpoints
 from jax.experimental import io_callback
-from jax.experimental.host_callback import barrier_wait
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -368,7 +367,6 @@ def run_sim(
     sim_pbar.update(n_steps - sim_pbar.n)
     sim_pbar.close()
 
-    barrier_wait()
     ckpt = {"state": state, "step": step}
     checkpoints.save_checkpoint(
         ckpt_dir=ckpt_dir.resolve(),
