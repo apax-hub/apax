@@ -77,7 +77,7 @@ def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
     return LossCollection(loss_funcs)
 
 
-def compute_property_shapes(config):
+def compute_property_shapes(config: Config):
     property_configs = [p.model_dump() for p in config.model.property_heads]
 
     additional_properties = []
@@ -85,8 +85,11 @@ def compute_property_shapes(config):
     if len(property_configs) == 0:
         return additional_properties
 
+    loss_names = [loss.name for loss in config.loss]
     for pconf in property_configs:
         name = pconf["name"]
+        if not name in loss_names:
+            continue
         shape = []
         if pconf["aggregation"] == "none":
             shape.append("natoms")

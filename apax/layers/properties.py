@@ -120,6 +120,9 @@ class PropertyHead(nn.Module):
         
         if is_ensemble:
             divisor = 1 / (n_ens - 1)
+            if self.aggregation == "none":
+                result = jnp.swapaxes(result, 0,1)
+
             mean = jnp.mean(result, axis=0)
             uncertainty = divisor * fp64_sum((mean - result)**2, axis=0)
             output[self.pname] = mean
