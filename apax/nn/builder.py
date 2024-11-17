@@ -97,7 +97,7 @@ class ModelBuilder:
         else:
             raise KeyError("No dtype specified in config")
 
-        
+
         readout = AtomisticReadout(
             units=head_config["nn"],
             b_init=head_config["b_init"],

@@ -95,7 +95,7 @@ class PropertyHead(nn.Module):
             p_i = p_i[...,None] * symmetrized
         else:
             raise KeyError("unknown symmetry option")
-        
+
         if is_ensemble:
             p_i = jnp.swapaxes(p_i, 0,1) # natoms, nens, features...
 
@@ -113,7 +113,7 @@ class PropertyHead(nn.Module):
             raise KeyError("unknown aggregation")
 
         output = {self.pname: result}
-        
+
         if is_ensemble:
             divisor = 1 / (n_ens - 1)
             if self.aggregation == "none":
