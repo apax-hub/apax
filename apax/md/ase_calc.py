@@ -214,18 +214,17 @@ class ASECalculator(Calculator):
                 points=atoms.positions,
                 box=atoms.cell.array,
                 periodic=np.any(atoms.pbc),
-                quantities="ijS"
+                quantities="ijS",
             )
             self.padded_length = int(len(idxs_i) * self.padding_factor)
 
     def set_neighbours_and_offsets(self, atoms, box):
-
         calculator = NeighborList(cutoff=self.r_max, full_list=True)
         idxs_i, idxs_j, offsets = calculator.compute(
             points=atoms.positions,
             box=atoms.cell.array,
             periodic=np.any(atoms.pbc),
-            quantities="ijS"
+            quantities="ijS",
         )
         if len(idxs_i) > self.padded_length:
             print("neighbor list overflowed, extending.")

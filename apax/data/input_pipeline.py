@@ -402,9 +402,9 @@ class BatchProcessor:
         idxs = []
         offsets = []
         for i, (inp, lab) in enumerate(samples):
-            inputs["numbers"][i,:inp["n_atoms"]] = inp["numbers"]
+            inputs["numbers"][i, : inp["n_atoms"]] = inp["numbers"]
             inputs["n_atoms"][i] = inp["n_atoms"]
-            inputs["positions"][i, :inp["n_atoms"]] = inp["positions"]
+            inputs["positions"][i, : inp["n_atoms"]] = inp["positions"]
             inputs["box"][i] = inp["box"]
 
             idx, offset = compute_nl(inp["positions"], inp["box"], self.cutoff)
@@ -413,20 +413,20 @@ class BatchProcessor:
 
             labels["energy"][i] = lab["energy"]
             if self.forces:
-                labels["forces"][i, :inp["n_atoms"]] = lab["forces"]
-
+                labels["forces"][i, : inp["n_atoms"]] = lab["forces"]
 
         max_nbrs = np.max([idx.shape[1] for idx in idxs])
-        max_nbrs = next_power_of_two(max_nbrs) # TODO better intervals
+        max_nbrs = next_power_of_two(max_nbrs)  # TODO better intervals
 
         inputs["idx"] = np.zeros((n_samples, 2, max_nbrs), dtype=np.int16)
         inputs["offsets"] = np.zeros((n_samples, max_nbrs, 3), dtype=np.float64)
 
         for i, (idx, offset) in enumerate(zip(idxs, offsets)):
-            inputs["idx"][i,:,:idx.shape[1]] = idx
-            inputs["offsets"][i,:offset.shape[0],:] = offset
+            inputs["idx"][i, :, : idx.shape[1]] = idx
+            inputs["offsets"][i, : offset.shape[0], :] = offset
 
         return inputs, labels
+
 
 class PerBatchPaddedDataset(InMemoryDataset):
     """Dataset with padding that leverages multiprocessing and optimized buffering."""
@@ -477,6 +477,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.reset_every = reset_every
         self.max_count = self.n_epochs * self.steps_per_epoch()
         from queue import Queue
+
         self.buffer_size = min(600, self.steps_per_epoch())
         self.buffer = Queue(maxsize=self.buffer_size)
 
@@ -492,7 +493,10 @@ class PerBatchPaddedDataset(InMemoryDataset):
             self.needs_data.wait()
             if self.epoch_finished:
                 break
-            num_batches = min(self.buffer_size - self.buffer.qsize(), self.steps_per_epoch() - self.count)
+            num_batches = min(
+                self.buffer_size - self.buffer.qsize(),
+                self.steps_per_epoch() - self.count,
+            )
             if num_batches > 0:
                 self.enqueue(num_batches)
             self.needs_data.clear()  # Reset event
@@ -507,7 +511,10 @@ class PerBatchPaddedDataset(InMemoryDataset):
         ]
 
         # Using submit and as_completed for faster batch retrieval
-        futures = [self.process_pool.submit(self.prepare_batch, chunk) for chunk in dataset_chunks]
+        futures = [
+            self.process_pool.submit(self.prepare_batch, chunk)
+            for chunk in dataset_chunks
+        ]
         for future in as_completed(futures):
             batch = future.result()
             self.buffer.put(batch)
@@ -536,7 +543,6 @@ class PerBatchPaddedDataset(InMemoryDataset):
             self.epoch_finished = True
             self.needs_data.set()
             self.enqueue_future.result()
-
 
     def shuffle_and_batch(self, sharding):
         self.should_shuffle = True
