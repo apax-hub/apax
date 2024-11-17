@@ -9,8 +9,8 @@ import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
 from flax.core.frozen_dict import freeze, unfreeze
-from vesin import NeighborList, ase_neighbor_list
 from tqdm import trange
+from vesin import NeighborList
 
 from apax.data.input_pipeline import (
     CachedInMemoryDataset,

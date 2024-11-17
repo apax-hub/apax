@@ -4,9 +4,9 @@ import time
 import uuid
 from collections import deque
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
-from threading import Event
 from pathlib import Path
 from random import shuffle
+from threading import Event
 from typing import Dict, Iterator, Optional
 
 import jax
