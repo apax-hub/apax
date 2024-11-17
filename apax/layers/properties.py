@@ -6,6 +6,7 @@ from jax import Array
 
 from apax.layers.readout import AtomisticReadout
 from apax.utils.math import fp64_sum
+from apax.layers.masking import mask_by_atom
 
 
 def stress_times_vol(energy_fn, position: Array, box, **kwargs) -> Array:
@@ -42,8 +43,6 @@ def stress_times_vol(energy_fn, position: Array, box, **kwargs) -> Array:
     return dUdV(zero)
 
 
-
-
 class PropertyHead(nn.Module):
     """
     the readout is currently limited to a single number
@@ -72,9 +71,15 @@ class PropertyHead(nn.Module):
 
     def __call__(self, g, R, dr_vec, Z, idx, box):
 
-        # TODO shallow ensemble
-
         h = jax.vmap(self.readout)(g)
+
+        is_ensemble = False
+        if jnp.size(h, axis=1) > 1:
+            # ensemble detected
+            is_ensemble = True
+            n_ens = jnp.size(h, axis=1)
+            h = h[...,None]
+            h = jnp.transpose(h, (1,0,2))
 
         p_i = h * self.scale[Z]  + self.shift_param[Z]
 
@@ -90,9 +95,16 @@ class PropertyHead(nn.Module):
             r_rt = jnp.einsum("ni, nj -> nij", r_hat, r_hat)
             I = jnp.eye(3)
             symmetrized = 3*r_rt - I
+            print(symmetrized.shape)
             p_i = p_i[...,None] * symmetrized
         else:
             raise KeyError("unknown symmetry option")
+        
+        if is_ensemble:
+            p_i = jnp.swapaxes(p_i, 0,1) # natoms, nens, features...
+
+        if self.apply_mask:
+            p_i = mask_by_atom(p_i, Z)
 
         if self.aggregation == "none":
             result = p_i
@@ -104,8 +116,13 @@ class PropertyHead(nn.Module):
         else:
             raise KeyError("unknown aggregation")
 
-        if self.apply_mask:
-            pass
+        output = {self.pname: result}
+        
+        if is_ensemble:
+            divisor = 1 / (n_ens - 1)
+            mean = jnp.mean(result, axis=0)
+            uncertainty = divisor * fp64_sum((mean - result)**2, axis=0)
+            output[self.pname] = mean
+            output[self.pname + "_uncertainty"] = uncertainty
 
-
-        return {self.pname: result}
+        return output

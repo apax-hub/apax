@@ -85,8 +85,8 @@ class ModelBuilder:
         has_ensemble = "ensemble" in head_config.keys() and head_config["ensemble"]
         if has_ensemble and head_config["ensemble"]["kind"] == "shallow":
             n_shallow_ensemble = head_config["ensemble"]["n_members"]
-        elif "n_shallow_ensemble" in head_config.keys():
-            n_shallow_ensemble = head_config["n_shallow_ensemble"]
+        elif "n_shallow_members" in head_config.keys():
+            n_shallow_ensemble = head_config["n_shallow_members"]
         else:
             n_shallow_ensemble = 0
 
@@ -123,7 +123,6 @@ class ModelBuilder:
                 apply_mask=apply_mask,
             )
             property_heads.append(phead)
-
         return property_heads
 
     def build_corrections(self, apply_mask: bool=True):
