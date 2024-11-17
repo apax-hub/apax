@@ -9,8 +9,8 @@ import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
 from flax.core.frozen_dict import freeze, unfreeze
-from tqdm import trange
 from vesin import NeighborList
+from tqdm import trange
 
 from apax.data.input_pipeline import (
     CachedInMemoryDataset,
@@ -210,15 +210,16 @@ class ASECalculator(Calculator):
                 self.neighbors = self.neighbor_fn.allocate(positions)
         else:
             calculator = NeighborList(cutoff=self.r_max, full_list=True)
-            idxs_i = calculator.compute(
+            idxs_i, _, _ = calculator.compute(
                 points=atoms.positions,
                 box=atoms.cell.array,
                 periodic=np.any(atoms.pbc),
-                quantities="i"
+                quantities="ijS"
             )
             self.padded_length = int(len(idxs_i) * self.padding_factor)
 
     def set_neighbours_and_offsets(self, atoms, box):
+
         calculator = NeighborList(cutoff=self.r_max, full_list=True)
         idxs_i, idxs_j, offsets = calculator.compute(
             points=atoms.positions,
@@ -226,10 +227,8 @@ class ASECalculator(Calculator):
             periodic=np.any(atoms.pbc),
             quantities="ijS"
         )
-
         if len(idxs_i) > self.padded_length:
             print("neighbor list overflowed, extending.")
-            self.padded_length = int(len(idxs_i) * self.padding_factor)
             self.initialize(atoms)
 
         zeros_to_add = self.padded_length - len(idxs_i)
