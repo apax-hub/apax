@@ -9,6 +9,7 @@ from ase import data
 from jax import vmap
 
 from apax.layers.masking import mask_by_neighbor
+from apax.utils.convert import str_to_dtype
 from apax.utils.jax_md_reduced import space
 from apax.utils.math import fp64_sum
 
@@ -47,6 +48,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
         )
 
     def __call__(self, R, dr_vec, Z, idx, box, properties):
+        dtype = str_to_dtype(self.dtype)
         # Z shape n_atoms
 
         idx_i, idx_j = idx[0], idx[1]
@@ -55,7 +57,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
         Z_i, Z_j = Z[idx_i, ...], Z[idx_j, ...]
 
         # dr shape: neighbors
-        dr = self.distance(dr_vec).astype(self.dtype)
+        dr = self.distance(dr_vec).astype(dtype)
 
         dr = jnp.clip(dr, a_min=0.02, a_max=self.r_max)
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
@@ -94,15 +96,16 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
         )
 
     def __call__(self, R, dr_vec, Z, idx, box, properties):
-        # Z shape n_atoms
+        dtype = str_to_dtype(self.dtype)
 
+        # Z shape n_atoms
         idx_i, idx_j = idx[0], idx[1]
 
         # shape: neighbors
         Z_i, Z_j = Z[idx_i, ...], Z[idx_j, ...]
 
         # dr shape: neighbors
-        dr = self.distance(dr_vec).astype(self.dtype)
+        dr = self.distance(dr_vec).astype(dtype)
 
         dr = jnp.clip(dr, a_min=0.02, a_max=self.r_max)
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
