@@ -124,14 +124,14 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
 
 
 class DirectCoulomb(EmpiricalEnergyTerm):
-
     # apply_mask: bool = True
     # TODO scale
 
-
     def __call__(self, R, dr_vec, Z, idx, box, properties):
         if "charge" not in properties:
-            raise KeyError("property 'charge' not found. Make sure to predict it in the model section")
+            raise KeyError(
+                "property 'charge' not found. Make sure to predict it in the model section"
+            )
 
         q = properties["charge"]
         idx_i, idx_j = idx[0], idx[1]
@@ -143,49 +143,45 @@ class DirectCoulomb(EmpiricalEnergyTerm):
 
         # TODO mask, cutoff
 
-
         return Ec
 
 
-
 class LatentEwald(EmpiricalEnergyTerm):
-    """
-    """
-    kgrid: list[int] = field(default_factory=lambda: [2,2,2])
+    """ """
+
+    kgrid: list[int] = field(default_factory=lambda: [2, 2, 2])
     sigma: float = 1.0
     apply_mask: bool = True
-
 
     def __call__(self, R, dr_vec, Z, idx, box, properties):
         # Z shape n_atoms
         if "charge" not in properties:
-            raise KeyError("property 'charge' not found. Make sure to predict it in the model section")
+            raise KeyError(
+                "property 'charge' not found. Make sure to predict it in the model section"
+            )
 
         q = properties["charge"]
 
         V = jnp.linalg.det(box)
         Lx, Ly, Lz = jnp.linalg.norm(box, axis=1)
 
-        k_range_x = 2 * np.pi * jnp.arange(1,self.kgrid[0]) / Lx
-        k_range_y = 2 * np.pi * jnp.arange(1,self.kgrid[1]) / Ly
-        k_range_z = 2 * np.pi * jnp.arange(1,self.kgrid[2]) / Lz
+        k_range_x = 2 * np.pi * jnp.arange(1, self.kgrid[0]) / Lx
+        k_range_y = 2 * np.pi * jnp.arange(1, self.kgrid[1]) / Ly
+        k_range_z = 2 * np.pi * jnp.arange(1, self.kgrid[2]) / Lz
 
         kx, ky, kz = jnp.meshgrid(k_range_x, k_range_y, k_range_z)
         k = jnp.reshape(jnp.stack((kx, ky, kz), axis=-1), (-1, 3))
 
-
         k2 = jnp.sum(k**2, axis=-1)
 
-        sf_k =q * jnp.exp(1j * jnp.einsum('id,jd->ij', R, k))
+        sf_k = q * jnp.exp(1j * jnp.einsum("id,jd->ij", R, k))
         sf = jnp.sum(sf_k, axis=0)
-        S2 = jnp.abs(sf)**2
-
+        S2 = jnp.abs(sf) ** 2
 
         # TODO mask by atom
-        E_lr = - jnp.sum(jnp.exp(-k2 * (self.sigma**2)/2) / k2 * S2) / V
+        E_lr = -jnp.sum(jnp.exp(-k2 * (self.sigma**2) / 2) / k2 * S2) / V
 
         return E_lr
-
 
 
 all_corrections = {

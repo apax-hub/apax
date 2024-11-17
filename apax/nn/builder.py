@@ -81,7 +81,6 @@ class ModelBuilder:
         raise NotImplementedError("use a subclass to facilitate this")
 
     def build_readout(self, head_config, is_feature_fn=False):
-
         has_ensemble = "ensemble" in head_config.keys() and head_config["ensemble"]
         if has_ensemble and head_config["ensemble"]["kind"] == "shallow":
             n_shallow_ensemble = head_config["ensemble"]["n_members"]
@@ -91,6 +90,7 @@ class ModelBuilder:
             n_shallow_ensemble = 0
 
         import jax.numpy as jnp
+
         readout = AtomisticReadout(
             units=head_config["nn"],
             b_init=head_config["b_init"],
@@ -98,7 +98,7 @@ class ModelBuilder:
             use_ntk=head_config["use_ntk"],
             is_feature_fn=is_feature_fn,
             n_shallow_ensemble=n_shallow_ensemble,
-            dtype=jnp.float64, #head_config["readout_dtype"],
+            dtype=jnp.float64,  # head_config["readout_dtype"],
         )
         return readout
 
@@ -111,7 +111,7 @@ class ModelBuilder:
         )
         return scale_shift
 
-    def build_property_heads(self, apply_mask: bool=True):
+    def build_property_heads(self, apply_mask: bool = True):
         property_heads = []
         for head in self.config["property_heads"]:
             readout = self.build_readout(head)
@@ -126,7 +126,7 @@ class ModelBuilder:
 
         return property_heads
 
-    def build_corrections(self, apply_mask: bool=True):
+    def build_corrections(self, apply_mask: bool = True):
         corrections = []
         for correction in self.config["empirical_corrections"]:
             correction = correction.copy()
@@ -139,7 +139,6 @@ class ModelBuilder:
             corrections.append(corr)
 
         return corrections
-
 
     def build_energy_model(
         self,

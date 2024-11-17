@@ -87,7 +87,9 @@ def fit(
 
     state, start_epoch = load_state(state, latest_dir)
     if start_epoch >= n_epochs:
-        print(f"Training has already completed ({start_epoch} >= {n_epochs}). Nothing to be done")
+        print(
+            f"Training has already completed ({start_epoch} >= {n_epochs}). Nothing to be done"
+        )
         return
 
     devices = len(jax.devices())

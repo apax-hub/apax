@@ -87,7 +87,7 @@ class InMemoryDataset:
         n_jit_steps=1,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
-        additional_properties: list[tuple]= [],
+        additional_properties: list[tuple] = [],
         pre_shuffle=False,
         shuffle_buffer_size=1000,
         ignore_labels=False,
@@ -111,14 +111,15 @@ class InMemoryDataset:
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
         if atoms_list[0].calc and not ignore_labels:
-            self.labels = atoms_to_labels(atoms_list, pos_unit, energy_unit, additional_properties)
+            self.labels = atoms_to_labels(
+                atoms_list, pos_unit, energy_unit, additional_properties
+            )
         else:
             self.labels = None
 
         self.count = 0
         self.buffer = deque()
         self.file = Path(cache_path) / str(uuid.uuid4())
-
 
         self.enqueue(min(self.buffer_size, self.n_data))
 
@@ -165,10 +166,8 @@ class InMemoryDataset:
         for prop in self.additional_properties:
             name, shape = prop
             if shape[0] == "natoms":
-                pad_shape = [(0, zeros_to_add)] + [(0,0)] * (len(shape)-1)
-                labels[name] = np.pad(
-                labels[name], pad_shape, "constant"
-            )
+                pad_shape = [(0, zeros_to_add)] + [(0, 0)] * (len(shape) - 1)
+                labels[name] = np.pad(labels[name], pad_shape, "constant")
 
         # print(labels)
         inputs = {k: tf.constant(v) for k, v in inputs.items()}
@@ -219,9 +218,7 @@ class InMemoryDataset:
             if shape[0] == "natoms":
                 shape[0] = self.max_atoms
 
-            sig = tf.TensorSpec(
-                tuple(shape), dtype=tf.float64, name=name
-            )
+            sig = tf.TensorSpec(tuple(shape), dtype=tf.float64, name=name)
             label_signature[name] = sig
         signature = (input_signature, label_signature)
         return signature
@@ -383,7 +380,9 @@ def next_power_of_two(x):
 
 
 class BatchProcessor:
-    def __init__(self, cutoff, forces=True, stress=False, additional_properties = []) -> None:
+    def __init__(
+        self, cutoff, forces=True, stress=False, additional_properties=[]
+    ) -> None:
         self.cutoff = cutoff
         self.forces = forces
         self.stress = stress
@@ -452,10 +451,8 @@ class BatchProcessor:
             for prop in self.additional_properties:
                 name, shape = prop
                 if shape[0] == "natoms":
-                    pad_shape = [(0, zeros_to_add)] + [(0,0)] * (len(shape)-1)
-                    labels[name] = np.pad(
-                    labels[name], pad_shape, "constant"
-                )
+                    pad_shape = [(0, zeros_to_add)] + [(0, 0)] * (len(shape) - 1)
+                    labels[name] = np.pad(labels[name], pad_shape, "constant")
 
         inputs = {k: np.array(v) for k, v in inputs.items()}
         labels = {k: np.array(v) for k, v in labels.items()}
@@ -512,7 +509,9 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.sample_atoms = atoms_list[0]
         self.inputs = atoms_to_inputs(atoms_list, pos_unit)
 
-        self.labels = atoms_to_labels(atoms_list, pos_unit, energy_unit, additional_properties)
+        self.labels = atoms_to_labels(
+            atoms_list, pos_unit, energy_unit, additional_properties
+        )
         label_keys = self.labels.keys()
 
         self.data = list(

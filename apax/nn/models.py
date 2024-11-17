@@ -113,7 +113,7 @@ class EnergyModel(nn.Module):
 
         # check for shallow ensemble
         is_shallow_ensemble = E_i.shape[1] > 1
-        if is_shallow_ensemble: # is this necessary or is using sum with axis=0 enough?
+        if is_shallow_ensemble:  # is this necessary or is using sum with axis=0 enough?
             total_energies_ensemble = fp64_sum(E_i, axis=0)
             # shape Nensemble
             energy = total_energies_ensemble
@@ -159,7 +159,12 @@ class EnergyDerivativeModel(nn.Module):
 
         if self.calc_stress:
             stress = stress_times_vol(
-                make_energy_only_model(self.energy_model), R, box, Z=Z, neighbor=neighbor, offsets=offsets
+                make_energy_only_model(self.energy_model),
+                R,
+                box,
+                Z=Z,
+                neighbor=neighbor,
+                offsets=offsets,
             )
             prediction["stress"] = stress
 
@@ -187,7 +192,7 @@ def make_member_chunk_jac(energy_model, start, end):
         Ei = energy_model(R, Z, neighbor, box, offsets)[start:end]
         return Ei
 
-    grad_i_fn = jax.jacrev(energy_chunk_fn) # TODO
+    grad_i_fn = jax.jacrev(energy_chunk_fn)  # TODO
     return grad_i_fn
 
 

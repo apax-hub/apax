@@ -1,4 +1,3 @@
-
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
@@ -42,8 +41,6 @@ def stress_times_vol(energy_fn, position: Array, box, **kwargs) -> Array:
     return dUdV(zero)
 
 
-
-
 class PropertyHead(nn.Module):
     """
     the readout is currently limited to a single number
@@ -55,9 +52,7 @@ class PropertyHead(nn.Module):
     mode: str = "l0"
     apply_mask: bool = True
 
-
     def setup(self):
-
         n_species = 119
         scale_init = nn.initializers.constant(1.0)
         self.scale = self.param(
@@ -71,26 +66,25 @@ class PropertyHead(nn.Module):
         )
 
     def __call__(self, g, R, dr_vec, Z, idx, box):
-
         # TODO shallow ensemble
 
         h = jax.vmap(self.readout)(g)
 
-        p_i = h * self.scale[Z]  + self.shift_param[Z]
+        p_i = h * self.scale[Z] + self.shift_param[Z]
 
         if self.mode == "l0":
             p_i = p_i
         elif self.mode == "l1":
             Rc = R - jnp.mean(R, axis=0, keepdims=True)
-            r_hat = Rc / jnp.linalg.norm(Rc, axis=1)[:,None]
+            r_hat = Rc / jnp.linalg.norm(Rc, axis=1)[:, None]
             p_i = p_i * R
         elif self.mode == "symmetric_traceless_l2":
             Rc = R - jnp.mean(R, axis=0, keepdims=True)
-            r_hat = Rc / jnp.linalg.norm(Rc, axis=1)[:,None]
+            r_hat = Rc / jnp.linalg.norm(Rc, axis=1)[:, None]
             r_rt = jnp.einsum("ni, nj -> nij", r_hat, r_hat)
             I = jnp.eye(3)
-            symmetrized = 3*r_rt - I
-            p_i = p_i[...,None] * symmetrized
+            symmetrized = 3 * r_rt - I
+            p_i = p_i[..., None] * symmetrized
         else:
             raise KeyError("unknown symmetry option")
 
@@ -106,6 +100,5 @@ class PropertyHead(nn.Module):
 
         if self.apply_mask:
             pass
-
 
         return {self.pname: result}
