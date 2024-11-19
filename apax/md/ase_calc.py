@@ -149,7 +149,7 @@ class ASECalculator(Calculator):
             Function transformations applied on top of the EnergyDerivativeModel.
             Transfomrations are implemented under `apax.md.transformations`.
         padding_factor:
-            Multiple of the fallback Matscipy NL's amount of neighbors.
+            Multiple of the fallback vesin's amount of neighbors.
             This NL will be padded to `len(neighbors) * padding_factor`
             on NL initialization.
         """
