@@ -5,10 +5,10 @@ import uuid
 from collections import deque
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
+from queue import Queue
 from random import shuffle
 from threading import Event
 from typing import Dict, Iterator, Optional
-from queue import Queue
 
 import jax
 import jax.numpy as jnp
