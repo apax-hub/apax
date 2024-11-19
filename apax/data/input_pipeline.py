@@ -375,7 +375,9 @@ def round_up_to_multiple(value, multiple):
 
 
 class BatchProcessor:
-    def __init__(self, cutoff, atom_padding: int, nl_padding: int, forces=True, stress=False) -> None:
+    def __init__(
+        self, cutoff, atom_padding: int, nl_padding: int, forces=True, stress=False
+    ) -> None:
         self.cutoff = cutoff
         self.atom_padding = atom_padding
         self.nl_padding = nl_padding
@@ -476,10 +478,12 @@ class PerBatchPaddedDataset(InMemoryDataset):
 
         forces = "forces" in label_keys
         stress = "stress" in label_keys
-        self.prepare_batch = BatchProcessor(cutoff, forces, stress, atom_padding, nl_padding)
+        self.prepare_batch = BatchProcessor(
+            cutoff, forces, stress, atom_padding, nl_padding
+        )
 
         self.count = 0
-        
+
         self.max_count = self.n_epochs * self.steps_per_epoch()
         from queue import Queue
 
