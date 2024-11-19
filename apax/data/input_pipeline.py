@@ -8,6 +8,7 @@ from pathlib import Path
 from random import shuffle
 from threading import Event
 from typing import Dict, Iterator, Optional
+from queue import Queue
 
 import jax
 import jax.numpy as jnp
@@ -421,7 +422,6 @@ class BatchProcessor:
                 labels["forces"][i, : inp["n_atoms"]] = lab["forces"]
 
         max_nbrs = np.max([idx.shape[1] for idx in idxs])
-        max_nbrs = next_power_of_two(max_nbrs)  # TODO better intervals
         max_nbrs = round_up_to_multiple(max_nbrs, self.nl_padding)
 
         inputs["idx"] = np.zeros((n_samples, 2, max_nbrs), dtype=np.int16)
@@ -435,7 +435,24 @@ class BatchProcessor:
 
 
 class PerBatchPaddedDataset(InMemoryDataset):
-    """Dataset with padding that leverages multiprocessing and optimized buffering."""
+    """Dataset with padding that leverages multiprocessing and optimized buffering.
+
+    Per-atom and per-neighbor arrays are padded to the next multiple of a user specified integer.
+    This limits the compute wasted due to padding at the (negligible) cost of some recompilations.
+    Since the padding occurs on a per-batch basis, it is the most performant option for datasets with significantly differently sized systems (e.g. MaterialsProject, SPICE).
+
+    Further, the neighborlist is computed on-the-fly in parallel on a side thread.
+    Does not use tf.data.
+
+    Attributes
+    ----------
+    num_workers : int
+        Number of processes to use for preprocessing batches.
+    atom_padding : int
+        Pad extensive arrays (positions, etc.) to next multiple of this integer.
+    nl_padding : int
+        Pad neighborlist arrays to next multiple of this integer.
+    """
 
     def __init__(
         self,
@@ -485,7 +502,6 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.count = 0
 
         self.max_count = self.n_epochs * self.steps_per_epoch()
-        from queue import Queue
 
         self.buffer_size = min(600, self.steps_per_epoch())
         self.buffer = Queue(maxsize=self.buffer_size)
@@ -513,7 +529,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
     def enqueue(self, num_batches):
         start = self.count * self.batch_size
 
-        # # Split data into chunks and submit tasks to the process pool
+        # Split data into chunks and submit tasks to the process pool
         dataset_chunks = [
             self.data[start + self.batch_size * i : start + self.batch_size * (i + 1)]
             for i in range(num_batches)
