@@ -67,7 +67,6 @@ class PropertyHead(nn.Module):
         )
 
     def __call__(self, g, R, dr_vec, Z, idx, box):
-
         h = jax.vmap(self.readout)(g)
 
         is_ensemble = False
@@ -75,10 +74,10 @@ class PropertyHead(nn.Module):
             # ensemble detected
             is_ensemble = True
             n_ens = jnp.size(h, axis=1)
-            h = h[...,None]
-            h = jnp.transpose(h, (1,0,2))
+            h = h[..., None]
+            h = jnp.transpose(h, (1, 0, 2))
 
-        p_i = h * self.scale[Z]  + self.shift_param[Z]
+        p_i = h * self.scale[Z] + self.shift_param[Z]
 
         if self.mode == "l0":
             p_i = p_i
@@ -91,13 +90,13 @@ class PropertyHead(nn.Module):
             r_hat = Rc / jnp.linalg.norm(Rc, axis=1)[:, None]
             r_rt = jnp.einsum("ni, nj -> nij", r_hat, r_hat)
             I = jnp.eye(3)
-            symmetrized = 3*r_rt - I
-            p_i = p_i[...,None] * symmetrized
+            symmetrized = 3 * r_rt - I
+            p_i = p_i[..., None] * symmetrized
         else:
             raise KeyError("unknown symmetry option")
 
         if is_ensemble:
-            p_i = jnp.swapaxes(p_i, 0,1) # natoms, nens, features...
+            p_i = jnp.swapaxes(p_i, 0, 1)  # natoms, nens, features...
 
         if self.apply_mask:
             p_i = mask_by_atom(p_i, Z)
@@ -117,10 +116,10 @@ class PropertyHead(nn.Module):
         if is_ensemble:
             divisor = 1 / (n_ens - 1)
             if self.aggregation == "none":
-                result = jnp.swapaxes(result, 0,1)
+                result = jnp.swapaxes(result, 0, 1)
 
             mean = jnp.mean(result, axis=0)
-            uncertainty = divisor * fp64_sum((mean - result)**2, axis=0)
+            uncertainty = divisor * fp64_sum((mean - result) ** 2, axis=0)
             output[self.pname] = mean
             output[self.pname + "_uncertainty"] = uncertainty
 

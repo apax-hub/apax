@@ -75,9 +75,7 @@ class RadialFunction(nn.Module):
     def setup(self):
         dtype = str_to_dtype(self.dtype)
         self.r_max = self.basis_fn.r_max
-        self.embed_norm = jnp.array(
-            1.0 / np.sqrt(self.basis_fn.n_basis), dtype=dtype
-        )
+        self.embed_norm = jnp.array(1.0 / np.sqrt(self.basis_fn.n_basis), dtype=dtype)
         if self.one_sided_dist:
             lower_bound = 0.0
         else:
