@@ -5,10 +5,10 @@ import uuid
 from collections import deque
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
+from queue import Queue
 from random import shuffle
 from threading import Event
 from typing import Dict, Iterator, Optional
-from queue import Queue
 
 import jax
 import jax.numpy as jnp
@@ -404,6 +404,8 @@ class BatchProcessor:
 
         if self.forces:
             labels["forces"] = np.zeros((n_samples, max_atoms, 3), dtype=np.float64)
+        if self.stress:
+            labels["stress"] = np.zeros((n_samples, 3, 3), dtype=np.float64)
 
         idxs = []
         offsets = []
@@ -420,6 +422,9 @@ class BatchProcessor:
             labels["energy"][i] = lab["energy"]
             if self.forces:
                 labels["forces"][i, : inp["n_atoms"]] = lab["forces"]
+            if self.stress:
+                labels["stress"][i] = lab["stress"]
+
 
         max_nbrs = np.max([idx.shape[1] for idx in idxs])
         max_nbrs = round_up_to_multiple(max_nbrs, self.nl_padding)
@@ -496,7 +501,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         forces = "forces" in label_keys
         stress = "stress" in label_keys
         self.prepare_batch = BatchProcessor(
-            cutoff, forces, stress, atom_padding, nl_padding
+            cutoff, atom_padding, nl_padding, forces, stress
         )
 
         self.count = 0
