@@ -275,7 +275,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     duration: PositiveFloat
     n_inner: PositiveInt = 100
     sampling_rate: PositiveInt = 10
-    buffer_size: PositiveInt = 100
+    buffer_size: PositiveInt = 5000
     dr_threshold: PositiveFloat = 0.5
     extra_capacity: NonNegativeInt = 0
 

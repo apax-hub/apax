@@ -24,7 +24,7 @@ data:
   n_train: 1000
   n_valid: 100
 
-  batch_size: 32
+  batch_size: 8
   valid_batch_size: 100
 
   shift_method: "per_element_regression_shift"
@@ -38,11 +38,17 @@ data:
 
 model:
   name: gmnn
+  use_ntk: false
   basis:
-    name: gaussian
-    n_basis: 7
-    r_max: 6.0
-    r_min: 0.5
+    name: bessel
+    n_basis: 16
+    r_max: 6.5
+
+  # if you would like to use emirical repulsion corrections
+  # with the following example.
+  # empirical_corrections:
+  #   - name: exponential
+  #     r_max: 1.5
 
   ensemble: null
   # if you would like to train model ensembles, this can be achieved with
@@ -53,15 +59,15 @@ model:
 
   n_radial: 5
   n_contr: 8
-  nn: [512, 512]
+  nn: [256, 256]
 
-  calc_stress: true
+  calc_stress: false
 
-  w_init: normal
+  w_init: lecun
   b_init: zeros
-  descriptor_dtype: fp64
+  descriptor_dtype: fp32
   readout_dtype: fp32
-  scale_shift_dtype: fp32
+  scale_shift_dtype: fp64
   emb_init: uniform
 
 loss:
@@ -86,15 +92,17 @@ metrics:
 optimizer:
   name: adam
   kwargs: {}
-  emb_lr: 0.03
-  nn_lr: 0.03
+  emb_lr: 0.01
+  nn_lr: 0.01
   scale_lr: 0.001
-  shift_lr: 0.05
+  shift_lr: 0.03
   zbl_lr: 0.001
   schedule:
-    name: linear
-    transition_begin: 0
-    end_value: 1e-6
+    name: cyclic_cosine
+    period: 20
+    decay_factor: 0.90
+
+
 callbacks:
 - name: csv
 

@@ -42,4 +42,4 @@ class CyclicCosineLR(LRSchedule, frozen=True, extra="forbid"):
 
     name: Literal["cyclic_cosine"]
     period: int = 20
-    decay_factor: NonNegativeFloat = 1.0
+    decay_factor: NonNegativeFloat = 0.90

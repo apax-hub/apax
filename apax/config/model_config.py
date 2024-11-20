@@ -42,7 +42,7 @@ class BesselBasisConfig(BaseModel, extra="forbid"):
     """
 
     name: Literal["bessel"] = "bessel"
-    n_basis: PositiveInt = 7
+    n_basis: PositiveInt = 16
     r_max: PositiveFloat = 6.0
 
 
