@@ -1,4 +1,3 @@
-import functools
 import logging
 import pathlib
 import typing
@@ -73,8 +72,8 @@ class ApaxJaxMD(zntrack.Node):
 
         run_md(self.model._parameter, self._parameter, log_level="info")
 
-    @functools.cached_property
-    def atoms(self) -> typing.List[ase.Atoms]:
+    @property
+    def frames(self) -> typing.List[ase.Atoms]:
         with self.state.fs.open(self.sim_dir / "md.h5", "rb") as f:
             with h5py.File(f) as file:
                 return znh5md.IO(file_handle=file)[:]

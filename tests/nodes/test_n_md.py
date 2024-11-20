@@ -22,10 +22,10 @@ def test_n_jax_md(tmp_path, get_md22_stachyose):
     proj = zntrack.Project()
     with proj:
         data = AddData(file=get_md22_stachyose)
-        model = Apax(data=data.atoms, validation_data=data.atoms, config="example.yaml")
-        md = ApaxJaxMD(model=model, config="md.yaml", data=data.atoms)
+        model = Apax(data=data.frames, validation_data=data.frames, config="example.yaml")
+        md = ApaxJaxMD(model=model, config="md.yaml", data=data.frames)
 
     proj.repro()
 
     md = md.from_rev()
-    assert len(md.atoms) == 50
+    assert len(md.frames) == 50

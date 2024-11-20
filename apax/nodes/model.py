@@ -21,7 +21,6 @@ log = logging.getLogger(__name__)
 
 
 class ApaxBase(zntrack.Node):
-    parameter: dict
 
     def get_calculator(self, **kwargs):
         raise NotImplementedError
@@ -61,7 +60,7 @@ class Apax(ApaxBase):
 
     metrics: dict = zntrack.metrics()
 
-    @functools.cached_property
+    @property
     def parameter(self) -> dict:
         parameter = yaml.safe_load(self.state.fs.read_text(self.config))
 
@@ -191,7 +190,7 @@ class ApaxImport(zntrack.Node):
     nl_skin: float = zntrack.params(0.5)
     transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
 
-    @functools.cached_property
+    @property
     def parameter(self) -> dict:
         return yaml.safe_load(self.state.fs.read_text(self.config))
 

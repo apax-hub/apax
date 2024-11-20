@@ -11,8 +11,8 @@ class AddData(zntrack.Node):
     def run(self):
         pass
 
-    @functools.cached_property
-    def atoms(self) -> list[ase.Atoms]:
+    @property
+    def frames(self) -> list[ase.Atoms]:
         data = []
         for atoms in ase.io.iread(self.file):
             data.append(atoms)

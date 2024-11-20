@@ -39,14 +39,14 @@ def test_n_train_model(tmp_path, get_md22_stachyose):
     proj = zntrack.Project()
     with proj:
         data = AddData(file=get_md22_stachyose)
-        model = Apax(data=data.atoms, validation_data=data.atoms, config="example.yaml")
+        model = Apax(data=data.frames, validation_data=data.frames, config="example.yaml")
 
     proj.repro()
 
     model = model.from_rev()
     data = data.from_rev()
 
-    atoms = data.atoms[0]
+    atoms = data.frames[0]
     atoms.calc = model.get_calculator()
 
     assert atoms.get_potential_energy() < 0
@@ -67,11 +67,11 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
     )
     with proj:
         data = AddData(file=get_md22_stachyose)
-        model1 = Apax(data=data.atoms, validation_data=data.atoms, config="example.yaml")
-        model2 = Apax(data=data.atoms, validation_data=data.atoms, config="example2.yaml")
+        model1 = Apax(data=data.frames, validation_data=data.frames, config="example.yaml")
+        model2 = Apax(data=data.frames, validation_data=data.frames, config="example2.yaml")
         ensemble = ApaxEnsemble(models=[model1, model2])
         md = ips.calculators.ASEMD(
-            data=data.atoms,
+            data=data.frames,
             model=ensemble,
             thermostat=thermostat,
             steps=20,
@@ -85,7 +85,7 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
         selection_batch_size = 3
         kernel_selection = apax.nodes.BatchKernelSelection(
             data=md.atoms,
-            train_data=data.atoms,
+            train_data=data.frames,
             models=[model1, model2],
             n_configurations=selection_batch_size,
             processing_batch_size=4,
@@ -101,7 +101,7 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
     model = ensemble.from_rev()
     data = data.from_rev()
 
-    atoms = data.atoms[0]
+    atoms = data.frames[0]
     atoms.calc = model.get_calculator()
 
     assert atoms.get_potential_energy() < 0

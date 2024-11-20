@@ -26,7 +26,7 @@ matscipy = "^0.8.0"
 znh5md = "^0.3"
 pydantic = "^2.3.0"
 jax = "^0.4.25"
-zntrack = {version = "^0.8.0a4", optional = true}
+zntrack = {version = "^0.8.0a8", optional = true}
 mlflow = {version = "^2", optional = true}
 orbax-checkpoint = "0.5.16"
 flax = "0.8.4"
