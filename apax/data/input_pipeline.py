@@ -425,7 +425,6 @@ class BatchProcessor:
             if self.stress:
                 labels["stress"][i] = lab["stress"]
 
-
         max_nbrs = np.max([idx.shape[1] for idx in idxs])
         max_nbrs = round_up_to_multiple(max_nbrs, self.nl_padding)
 
