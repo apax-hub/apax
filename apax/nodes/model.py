@@ -1,4 +1,3 @@
-import functools
 import logging
 import pathlib
 import typing as t
