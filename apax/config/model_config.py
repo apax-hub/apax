@@ -84,11 +84,11 @@ class ShallowEnsembleConfig(BaseModel, extra="forbid"):
         If set to an integer, the jacobian of ensemble energies wrt. to positions will be computed
         in chunks of that size. This sacrifices some performance for the possibility to use relatively
         large ensemble sizes.
-        
+
     Hint
     ----------
     Loss type hase to be changed to a probabalistic loss like 'nll' or 'crps'
-    
+
     """
 
     kind: Literal["shallow"] = "shallow"

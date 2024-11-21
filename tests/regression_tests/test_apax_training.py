@@ -44,10 +44,10 @@ def test_regression_model_training(get_md22_stachyose, get_tmp_path):
         "val_forces_mse": 0.00423,
         "val_loss": 0.05094,
     }
-    
+
     for key in comparison_metrics.keys():
         print((np.array(current_metrics[key])[-1]))
-            
+
     for key in comparison_metrics.keys():
         assert (
             abs(np.array(current_metrics[key])[-1] - comparison_metrics[key]) < 0.015
