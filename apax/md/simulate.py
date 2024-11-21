@@ -255,8 +255,6 @@ def run_sim(
         dynamics_checks,
     )
 
-    # constraints = [FixAtoms(indices=[6, 8])]
-
     apply_constraints = create_constraint_function(
         constraints,
         state,
