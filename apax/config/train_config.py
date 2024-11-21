@@ -118,7 +118,10 @@ class DataConfig(BaseModel, extra="forbid"):
         | dict of property name, shape (ragged or fixed) pairs. Currently unused.
     energy_regularisation :
         | Magnitude of the regularization in the per-element energy regression.
-
+    pos_unit : str, default = "Ang"
+        unit of length
+    energy_unit : str, default = "eV"
+        unit of energy
     """
 
     directory: str
@@ -210,16 +213,20 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     ----------
     name : str, default = "adam"
         Name of the optimizer. Can be any `optax` optimizer.
-    emb_lr : NonNegativeFloat, default = 0.02
+    emb_lr : NonNegativeFloat, default = 0.01
         Learning rate of the elemental embedding contraction coefficients.
-    nn_lr : NonNegativeFloat, default = 0.03
+    nn_lr : NonNegativeFloat, default = 0.01
         Learning rate of the neural network parameters.
     scale_lr : NonNegativeFloat, default = 0.001
         Learning rate of the elemental output scaling factors.
-    shift_lr : NonNegativeFloat, default = 0.05
+    shift_lr : NonNegativeFloat, default = 0.03
         Learning rate of the elemental output shifts.
     zbl_lr : NonNegativeFloat, default = 0.001
         Learning rate of the ZBL correction parameters.
+    rep_scale_lr : NonNegativeFloat, default = 0.001
+        LR for the length scale of thes exponential repulsion potential.
+    rep_prefactor_lr : NonNegativeFloat, default = 0.0001
+        LR for the strength of the exponential repulsion potential.
     gradient_clipping: NonNegativeFloat, default = 1000.0
         Per element Gradient clipping value.
         Default is so high that it effectively disabled.
@@ -230,10 +237,10 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     """
 
     name: str = "adam"
-    emb_lr: NonNegativeFloat = 0.02
-    nn_lr: NonNegativeFloat = 0.03
+    emb_lr: NonNegativeFloat = 0.01
+    nn_lr: NonNegativeFloat = 0.01
     scale_lr: NonNegativeFloat = 0.001
-    shift_lr: NonNegativeFloat = 0.05
+    shift_lr: NonNegativeFloat = 0.03
     zbl_lr: NonNegativeFloat = 0.001
     rep_scale_lr: NonNegativeFloat = 0.001
     rep_prefactor_lr: NonNegativeFloat = 0.0001
@@ -362,7 +369,7 @@ class CheckpointConfig(BaseModel, extra="forbid"):
     reset_layers: List of layer names for which the parameters will be reinitialized.
     """
 
-    ckpt_interval: PositiveInt = 1
+    ckpt_interval: PositiveInt = 500
     base_model_checkpoint: Optional[str] = None
     reset_layers: List[str] = []
 

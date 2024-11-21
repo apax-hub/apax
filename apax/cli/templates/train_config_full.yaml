@@ -1,7 +1,6 @@
 n_epochs: <NUMBER OF EPOCHS>
 seed: 1
 patience: null
-n_jitted_steps: 1
 data_parallel: True
 weight_average: null
 
@@ -24,7 +23,7 @@ data:
   n_train: 1000
   n_valid: 100
 
-  batch_size: 8
+  batch_size: 4
   valid_batch_size: 100
 
   shift_method: "per_element_regression_shift"
@@ -38,23 +37,23 @@ data:
 
 model:
   name: gmnn
-  use_ntk: false
   basis:
     name: bessel
     n_basis: 16
     r_max: 6.5
 
+  ensemble: null
   # if you would like to use emirical repulsion corrections
   # with the following example.
   # empirical_corrections:
   #   - name: exponential
   #     r_max: 1.5
 
-  ensemble: null
-  # if you would like to train model ensembles, this can be achieved with
-  # the following example.
+  # if you would like to train model ensembles, this can be
+  # achieved with the following example.
+  # Hint: loss type hase to be changed to a probabalistic loss like nll or crps
   # ensemble:
-  #  kind: full
+  #  kind: shallow
   #  n_members: N
 
   n_radial: 5
@@ -69,6 +68,7 @@ model:
   readout_dtype: fp32
   scale_shift_dtype: fp64
   emb_init: uniform
+  use_ntk: false
 
 loss:
 - name: energy
@@ -99,15 +99,14 @@ optimizer:
   zbl_lr: 0.001
   schedule:
     name: cyclic_cosine
-    period: 20
-    decay_factor: 0.90
-
+    period: 40
+    decay_factor: 0.93
 
 callbacks:
 - name: csv
 
 checkpoints:
-  ckpt_interval: 1
+  ckpt_interval: 500
   # The options below are used for transfer learning
   base_model_checkpoint: null
   reset_layers: []

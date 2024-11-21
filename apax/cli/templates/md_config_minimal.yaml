@@ -13,7 +13,7 @@ ensemble:
 duration: <DURATION> # fs
 n_inner: 100 # compiled innner steps
 sampling_rate: 10  # dump interval
-buffer_size: 100
+buffer_size: 2500
 dr_threshold: 0.5 # Neighborlist skin
 extra_capacity: 0
 

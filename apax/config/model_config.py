@@ -35,15 +35,15 @@ class BesselBasisConfig(BaseModel, extra="forbid"):
 
     Parameters
     ----------
-    n_basis : PositiveInt, default = 7
+    n_basis : PositiveInt, default = 16
         Number of uncontracted basis functions.
-    r_max : PositiveFloat, default = 6.0
+    r_max : PositiveFloat, default = 6.5
         Cutoff radius of the descriptor.
     """
 
     name: Literal["bessel"] = "bessel"
     n_basis: PositiveInt = 16
-    r_max: PositiveFloat = 6.0
+    r_max: PositiveFloat = 6.5
 
 
 BasisConfig = Union[GaussianBasisConfig, BesselBasisConfig]
@@ -84,6 +84,11 @@ class ShallowEnsembleConfig(BaseModel, extra="forbid"):
         If set to an integer, the jacobian of ensemble energies wrt. to positions will be computed
         in chunks of that size. This sacrifices some performance for the possibility to use relatively
         large ensemble sizes.
+        
+    Hint
+    ----------
+    Loss type hase to be changed to a probabalistic loss like 'nll' or 'crps'
+    
     """
 
     kind: Literal["shallow"] = "shallow"
@@ -101,12 +106,12 @@ class Correction(BaseModel, extra="forbid"):
 
 class ZBLRepulsion(Correction, extra="forbid"):
     name: Literal["zbl"]
-    r_max: NonNegativeFloat = 2.0
+    r_max: NonNegativeFloat = 1.5
 
 
 class ExponentialRepulsion(Correction, extra="forbid"):
     name: Literal["exponential"]
-    r_max: NonNegativeFloat = 2.0
+    r_max: NonNegativeFloat = 1.5
 
 
 EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion]
@@ -120,13 +125,13 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     ----------
     basis : BasisConfig, default = GaussianBasisConfig()
         Configuration for primitive basis funtions.
-    nn : List[PositiveInt], default = [512, 512]
+    nn : List[PositiveInt], default = [256, 256]
         Number of hidden layers and units in those layers.
-    w_init : Literal["normal", "lecun"], default = "normal"
+    w_init : Literal["normal", "lecun"], default = "lecun"
         Initialization scheme for the neural network weights.
-    b_init : Literal["normal", "zeros"], default = "normal"
+    b_init : Literal["normal", "zeros"], default = "zeros"
         Initialization scheme for the neural network biases.
-    use_ntk : bool, default = True
+    use_ntk : bool, default = False
         Whether or not to use NTK parametrization.
     ensemble : Optional[EnsembleConfig], default = None
         What kind of model ensemble to use (optional).
@@ -134,17 +139,17 @@ class BaseModelConfig(BaseModel, extra="forbid"):
         Whether to include the ZBL correction.
     calc_stress : bool, default = False
         Whether to calculate stress during model evaluation.
-    descriptor_dtype : Literal["fp32", "fp64"], default = "fp64"
+    descriptor_dtype : Literal["fp32", "fp64"], default = "fp32"
         Data type for descriptor calculations.
     readout_dtype : Literal["fp32", "fp64"], default = "fp32"
         Data type for readout calculations.
-    scale_shift_dtype : Literal["fp32", "fp64"], default = "fp32"
+    scale_shift_dtype : Literal["fp32", "fp64"], default = "fp64"
         Data type for scale and shift parameters.
     """
 
     basis: BasisConfig = Field(BesselBasisConfig(name="bessel"), discriminator="name")
 
-    nn: List[PositiveInt] = [128, 128]
+    nn: List[PositiveInt] = [256, 256]
     w_init: Literal["normal", "lecun"] = "lecun"
     b_init: Literal["normal", "zeros"] = "zeros"
     use_ntk: bool = False

@@ -234,7 +234,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
         | `jax.lax.fori_loop` loop). Also determines atoms buffer size.
     sampling_rate : int, default = 10
         | Interval between saving frames.
-    buffer_size : int, default = 100
+    buffer_size : int, default = 2500
         | Number of collected frames to be dumped at once.
     dr_threshold : float, default = 0.5
         | Skin of the neighborlist.
@@ -275,7 +275,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     duration: PositiveFloat
     n_inner: PositiveInt = 100
     sampling_rate: PositiveInt = 10
-    buffer_size: PositiveInt = 5000
+    buffer_size: PositiveInt = 2500
     dr_threshold: PositiveFloat = 0.5
     extra_capacity: NonNegativeInt = 0
 
