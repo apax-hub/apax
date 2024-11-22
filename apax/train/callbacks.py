@@ -49,6 +49,7 @@ class CallbackCollection:
         for cb in self.callbacks:
             cb.on_test_batch_end(batch, logs)
 
+
 def format_str(k):
     return f"{k:.5f}"
 

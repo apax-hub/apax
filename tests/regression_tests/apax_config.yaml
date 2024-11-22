@@ -77,7 +77,7 @@ optimizer:
   zbl_lr: 0.001
   schedule:
     name: linear
-    
+
 callbacks:
   - name: csv
 
