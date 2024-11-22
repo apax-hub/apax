@@ -10,7 +10,7 @@ data:
   n_train: 1000
   n_valid: 100
 
-  batch_size: 32
+  batch_size: 4
   valid_batch_size: 100
 
   shift_method: "per_element_regression_shift"
@@ -22,22 +22,22 @@ data:
 model:
   name: gmnn
   basis:
-    name: gaussian
-    n_basis: 7
+    name: bessel
+    n_basis: 16
     r_max: 6.5
-    r_min: 0.5
+
   n_radial: 5
-  nn: [512, 512]
+  nn: [256, 256]
 
   calc_stress: false
   empirical_corrections:
     - name: exponential
       r_max: 2.0
 
-  b_init: normal
+  b_init: zeros
   descriptor_dtype: fp32
   readout_dtype: fp32
-  scale_shift_dtype: fp32
+  scale_shift_dtype: fp64
 
 metrics:
   - name: energy
@@ -54,15 +54,15 @@ metrics:
 
 loss:
   - name: energy
-    atoms_exponent: 2
+    atoms_exponent: 1
     weight: 1.0
   - name: forces
     atoms_exponent: 1
-    weight: 8.0
-  - loss_type: cosine_sim
-    atoms_exponent: 1
-    name: forces
-    weight: 0.1
+    weight: 4.0
+  # - loss_type: cosine_sim
+  #   atoms_exponent: 1
+  #   name: forces
+  #   weight: 0.1
   # - loss_type: structures
   #   name: stress
   #   weight: 1.0
@@ -70,11 +70,13 @@ loss:
 optimizer:
   name: adam
   kwargs: {}
-  emb_lr: 0.02
-  nn_lr: 0.03
+  emb_lr: 0.01
+  nn_lr: 0.01
   scale_lr: 0.001
-  shift_lr: 0.05
+  shift_lr: 0.03
   zbl_lr: 0.001
+  schedule:
+    name: linear
 
 callbacks:
   - name: csv
