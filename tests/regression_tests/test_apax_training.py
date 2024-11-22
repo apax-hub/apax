@@ -49,6 +49,4 @@ def test_regression_model_training(get_md22_stachyose, get_tmp_path):
         print((np.array(current_metrics[key])[-1]))
 
     for key in comparison_metrics.keys():
-        assert (
-            abs((np.array(current_metrics[key])[-1] - comparison_metrics[key])) < 0.01
-        )
+        assert abs((np.array(current_metrics[key])[-1] - comparison_metrics[key])) < 0.01
