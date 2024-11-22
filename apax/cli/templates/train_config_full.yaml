@@ -40,7 +40,7 @@ model:
   basis:
     name: bessel
     n_basis: 16
-    r_max: 6.5
+    r_max: 5.0
 
   ensemble: null
   # if you would like to use emirical repulsion corrections
@@ -92,11 +92,11 @@ metrics:
 optimizer:
   name: adam
   kwargs: {}
-  emb_lr: 0.01
-  nn_lr: 0.01
-  scale_lr: 0.001
-  shift_lr: 0.03
-  zbl_lr: 0.001
+  emb_lr: 0.001
+  nn_lr: 0.001
+  scale_lr: 0.0001
+  shift_lr: 0.003
+  zbl_lr: 0.0001
   schedule:
     name: cyclic_cosine
     period: 40

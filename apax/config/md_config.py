@@ -229,7 +229,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
         | Time step in fs.
     duration : float, required
         | Total simulation time in fs.
-    n_inner : int, default = 100
+    n_inner : int, default = 500
         | Number of compiled simulation steps (i.e. number of iterations of the
         | `jax.lax.fori_loop` loop). Also determines atoms buffer size.
     sampling_rate : int, default = 10
@@ -273,7 +273,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     )
 
     duration: PositiveFloat
-    n_inner: PositiveInt = 100
+    n_inner: PositiveInt = 500
     sampling_rate: PositiveInt = 10
     buffer_size: PositiveInt = 2500
     dr_threshold: PositiveFloat = 0.5

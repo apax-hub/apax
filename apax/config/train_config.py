@@ -213,15 +213,15 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     ----------
     name : str, default = "adam"
         Name of the optimizer. Can be any `optax` optimizer.
-    emb_lr : NonNegativeFloat, default = 0.01
+    emb_lr : NonNegativeFloat, default = 0.001
         Learning rate of the elemental embedding contraction coefficients.
-    nn_lr : NonNegativeFloat, default = 0.01
+    nn_lr : NonNegativeFloat, default = 0.001
         Learning rate of the neural network parameters.
-    scale_lr : NonNegativeFloat, default = 0.001
+    scale_lr : NonNegativeFloat, default = 0.0001
         Learning rate of the elemental output scaling factors.
-    shift_lr : NonNegativeFloat, default = 0.03
+    shift_lr : NonNegativeFloat, default = 0.003
         Learning rate of the elemental output shifts.
-    zbl_lr : NonNegativeFloat, default = 0.001
+    zbl_lr : NonNegativeFloat, default = 0.0001
         Learning rate of the ZBL correction parameters.
     rep_scale_lr : NonNegativeFloat, default = 0.001
         LR for the length scale of thes exponential repulsion potential.
@@ -237,11 +237,11 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     """
 
     name: str = "adam"
-    emb_lr: NonNegativeFloat = 0.01
-    nn_lr: NonNegativeFloat = 0.01
-    scale_lr: NonNegativeFloat = 0.001
-    shift_lr: NonNegativeFloat = 0.03
-    zbl_lr: NonNegativeFloat = 0.001
+    emb_lr: NonNegativeFloat = 0.001
+    nn_lr: NonNegativeFloat = 0.001
+    scale_lr: NonNegativeFloat = 0.0001
+    shift_lr: NonNegativeFloat = 0.003
+    zbl_lr: NonNegativeFloat = 0.0001
     rep_scale_lr: NonNegativeFloat = 0.001
     rep_prefactor_lr: NonNegativeFloat = 0.0001
 

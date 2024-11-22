@@ -37,13 +37,13 @@ class BesselBasisConfig(BaseModel, extra="forbid"):
     ----------
     n_basis : PositiveInt, default = 16
         Number of uncontracted basis functions.
-    r_max : PositiveFloat, default = 6.5
+    r_max : PositiveFloat, default = 5.0
         Cutoff radius of the descriptor.
     """
 
     name: Literal["bessel"] = "bessel"
     n_basis: PositiveInt = 16
-    r_max: PositiveFloat = 6.5
+    r_max: PositiveFloat = 5.0
 
 
 BasisConfig = Union[GaussianBasisConfig, BesselBasisConfig]
