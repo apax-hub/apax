@@ -428,8 +428,8 @@ class BatchProcessor:
             name, shape = prop
             if shape[0] == "natoms":
                 shape = [max_atoms] + shape[1:]
+            shape = [n_samples] + shape
             labels[name] = np.zeros(shape, dtype=np.float64)
-
         if self.forces:
             labels["forces"] = np.zeros((n_samples, max_atoms, 3), dtype=np.float64)
         if self.stress:
@@ -539,7 +539,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         forces = "forces" in label_keys
         stress = "stress" in label_keys
         self.prepare_batch = BatchProcessor(
-            cutoff, atom_padding, nl_padding, forces, stress
+            cutoff, atom_padding, nl_padding, forces, stress, additional_properties
         )
 
         self.count = 0
