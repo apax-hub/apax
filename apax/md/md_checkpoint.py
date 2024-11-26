@@ -1,6 +1,6 @@
 import logging
-from pathlib import Path
 import typing as t
+from pathlib import Path
 
 from flax.training import checkpoints
 
