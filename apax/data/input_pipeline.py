@@ -397,7 +397,7 @@ def round_up_to_multiple(value, multiple):
 
 class BatchProcessor:
     def __init__(
-        
+
         self, cutoff, atom_padding: int, nl_padding: int, forces=True, stress=False
     , additional_properties=[]
     ) -> None:
@@ -452,7 +452,7 @@ class BatchProcessor:
                 labels["forces"][i, : inp["n_atoms"]] = lab["forces"]
             if self.stress:
                 labels["stress"][i] = lab["stress"]
-            
+
             for prop in self.additional_properties:
                 name, shape = prop
                 if shape[0] == "natoms":
