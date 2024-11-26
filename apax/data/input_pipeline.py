@@ -424,6 +424,11 @@ class BatchProcessor:
         labels = {
             "energy": np.zeros(n_samples, dtype=np.float64),
         }
+        for prop in self.additional_properties:
+            name, shape = prop
+            if shape[0] == "natoms":
+                shape = [max_atoms] + shape[1:]
+            labels[name] = np.zeros(shape, dtype=np.float64)
 
         if self.forces:
             labels["forces"] = np.zeros((n_samples, max_atoms, 3), dtype=np.float64)
@@ -451,9 +456,9 @@ class BatchProcessor:
             for prop in self.additional_properties:
                 name, shape = prop
                 if shape[0] == "natoms":
-                    zeros_to_add = ... # TODO
-                    pad_shape = [(0, zeros_to_add)] + [(0, 0)] * (len(shape) - 1)
-                    labels[name] = np.pad(labels[name], pad_shape, "constant")
+                    labels[name][i, : inp["n_atoms"]] = lab[name]
+                else:
+                    labels[name][i] = lab[name]
 
         max_nbrs = np.max([idx.shape[1] for idx in idxs])
         max_nbrs = round_up_to_multiple(max_nbrs, self.nl_padding)
