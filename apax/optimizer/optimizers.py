@@ -1,6 +1,6 @@
 from typing import NamedTuple
 
-import chex
+import jax
 import jax.numpy as jnp
 import optax
 from jax import tree_util as jtu
@@ -10,8 +10,8 @@ from optax.tree_utils import tree_zeros_like
 
 
 class ScaleByAdemamixState(NamedTuple):
-    count: chex.Array
-    count_m2: chex.Array
+    count: jax.Array
+    count_m2: jax.Array
     m1: base.Updates
     m2: base.Updates
     nu: base.Updates
