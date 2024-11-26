@@ -120,7 +120,6 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=Fal
         0, test_ds.n_data, desc="Structure", ncols=100, disable=False, leave=True
     )
     for batch_idx in range(test_ds.n_data):
-        callbacks.on_test_batch_begin(batch_idx)
         batch = next(batch_test_ds)
         batch_start_time = time.time()
 

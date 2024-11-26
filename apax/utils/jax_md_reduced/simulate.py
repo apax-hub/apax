@@ -290,6 +290,7 @@ def nve(energy_or_force_fn, shift_fn, kT, dt=1e-3, **sim_kwargs):
     @jit
     def step_fn(state, **kwargs):
         _dt = kwargs.pop("dt", dt)
+        _ = kwargs.pop("kT")
         return velocity_verlet(force_fn, shift_fn, _dt, state, **kwargs)
 
     return init_fn, step_fn

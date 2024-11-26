@@ -2,6 +2,7 @@
 [![Read the Docs](https://readthedocs.org/projects/apax/badge/)](https://apax.readthedocs.io/en/latest/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10040710.svg)](https://doi.org/10.5281/zenodo.10040710)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Discord](https://img.shields.io/discord/1034511611802689557)](https://discord.gg/7ncfwhsnm4)
 
 `apax`[1] is a high-performance, extendable package for training of and inference with atomistic neural networks.
 It implements the Gaussian Moment Neural Network model [2, 3].

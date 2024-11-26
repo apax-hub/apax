@@ -1,10 +1,13 @@
 import logging
 import multiprocessing
+import time
 import uuid
 from collections import deque
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
+from queue import Queue
 from random import shuffle
+from threading import Event
 from typing import Dict, Iterator, Optional
 
 import jax
@@ -378,96 +381,111 @@ def next_power_of_two(x):
     return 1 << (int(x) - 1).bit_length()
 
 
+def round_up_to_multiple(value, multiple):
+    """
+    Rounds up the given integer `value` to the next multiple of `multiple`.
+
+    Parameters:
+    - value (int): The integer to round up.
+    - multiple (int): The multiple to round up to.
+
+    Returns:
+    - int: The rounded-up value.
+    """
+    return int(np.ceil(value / multiple) * multiple)
+
+
 class BatchProcessor:
     def __init__(
-        self, cutoff, forces=True, stress=False, additional_properties=[]
+        
+        self, cutoff, atom_padding: int, nl_padding: int, forces=True, stress=False
+    , additional_properties=[]
     ) -> None:
         self.cutoff = cutoff
+        self.atom_padding = atom_padding
+        self.nl_padding = nl_padding
+
         self.forces = forces
         self.stress = stress
         self.additional_properties = additional_properties
 
     def __call__(self, samples: list[dict]):
+        n_samples = len(samples)
+        max_atoms = np.max([inp[0]["n_atoms"] for inp in samples])
+        max_atoms = round_up_to_multiple(max_atoms, self.atom_padding)
+
         inputs = {
-            "numbers": [],
-            "n_atoms": [],
-            "positions": [],
-            "box": [],
-            "idx": [],
-            "offsets": [],
+            "numbers": np.zeros((n_samples, max_atoms), dtype=np.int16),
+            "n_atoms": np.zeros(n_samples, dtype=np.int16),
+            "positions": np.zeros((n_samples, max_atoms, 3), dtype=np.float64),
+            "box": np.zeros((n_samples, 3, 3), dtype=np.float32),
         }
 
         labels = {
-            "energy": [],
+            "energy": np.zeros(n_samples, dtype=np.float64),
         }
 
         if self.forces:
-            labels["forces"] = []
+            labels["forces"] = np.zeros((n_samples, max_atoms, 3), dtype=np.float64)
         if self.stress:
-            labels["stress"] = []
+            labels["stress"] = np.zeros((n_samples, 3, 3), dtype=np.float64)
 
-        for sample in samples:
-            inp, lab = sample
+        idxs = []
+        offsets = []
+        for i, (inp, lab) in enumerate(samples):
+            inputs["numbers"][i, : inp["n_atoms"]] = inp["numbers"]
+            inputs["n_atoms"][i] = inp["n_atoms"]
+            inputs["positions"][i, : inp["n_atoms"]] = inp["positions"]
+            inputs["box"][i] = inp["box"]
 
-            inputs["numbers"].append(inp["numbers"])
-            inputs["n_atoms"].append(inp["n_atoms"])
-            inputs["positions"].append(inp["positions"])
-            inputs["box"].append(inp["box"])
-            idx, offsets = compute_nl(inp["positions"], inp["box"], self.cutoff)
-            inputs["idx"].append(idx)
-            inputs["offsets"].append(offsets)
+            idx, offset = compute_nl(inp["positions"], inp["box"], self.cutoff)
+            idxs.append(idx)
+            offsets.append(offset)
 
-            labels["energy"].append(lab["energy"])
+            labels["energy"][i] = lab["energy"]
             if self.forces:
-                labels["forces"].append(lab["forces"])
+                labels["forces"][i, : inp["n_atoms"]] = lab["forces"]
             if self.stress:
-                labels["stress"].append(lab["stress"])
-
-        max_atoms = np.max(inputs["n_atoms"])
-        max_nbrs = np.max([idx.shape[1] for idx in inputs["idx"]])
-
-        max_atoms = next_power_of_two(max_atoms)
-        max_nbrs = next_power_of_two(max_nbrs)
-
-        for i in range(len(inputs["n_atoms"])):
-            inputs["idx"][i], inputs["offsets"][i] = pad_nl(
-                inputs["idx"][i], inputs["offsets"][i], max_nbrs
-            )
-
-            zeros_to_add = max_atoms - inputs["numbers"][i].shape[0]
-            inputs["positions"][i] = np.pad(
-                inputs["positions"][i], ((0, zeros_to_add), (0, 0)), "constant"
-            )
-            inputs["numbers"][i] = np.pad(
-                inputs["numbers"][i], (0, zeros_to_add), "constant"
-            ).astype(np.int16)
-
-            if "forces" in labels:
-                labels["forces"][i] = np.pad(
-                    labels["forces"][i], ((0, zeros_to_add), (0, 0)), "constant"
-                )
-
+                labels["stress"][i] = lab["stress"]
+            
             for prop in self.additional_properties:
                 name, shape = prop
                 if shape[0] == "natoms":
+                    zeros_to_add = ... # TODO
                     pad_shape = [(0, zeros_to_add)] + [(0, 0)] * (len(shape) - 1)
                     labels[name] = np.pad(labels[name], pad_shape, "constant")
 
-        inputs = {k: np.array(v) for k, v in inputs.items()}
-        labels = {k: np.array(v) for k, v in labels.items()}
+        max_nbrs = np.max([idx.shape[1] for idx in idxs])
+        max_nbrs = round_up_to_multiple(max_nbrs, self.nl_padding)
+
+        inputs["idx"] = np.zeros((n_samples, 2, max_nbrs), dtype=np.int16)
+        inputs["offsets"] = np.zeros((n_samples, max_nbrs, 3), dtype=np.float64)
+
+        for i, (idx, offset) in enumerate(zip(idxs, offsets)):
+            inputs["idx"][i, :, : idx.shape[1]] = idx
+            inputs["offsets"][i, : offset.shape[0], :] = offset
+
         return inputs, labels
 
 
 class PerBatchPaddedDataset(InMemoryDataset):
-    """Dataset which pads everything (atoms, neighbors)
-    to the next larges power of two.
-    This limits the compute wasted due to padding at the (negligible)
-    cost of some recompilations.
-    The NL is computed on-the-fly in parallel for `num_workers` of batches.
+    """Dataset with padding that leverages multiprocessing and optimized buffering.
+
+    Per-atom and per-neighbor arrays are padded to the next multiple of a user specified integer.
+    This limits the compute wasted due to padding at the (negligible) cost of some recompilations.
+    Since the padding occurs on a per-batch basis, it is the most performant option for datasets with significantly differently sized systems (e.g. MaterialsProject, SPICE).
+
+    Further, the neighborlist is computed on-the-fly in parallel on a side thread.
     Does not use tf.data.
 
-    Most performant option for datasets with significantly differently sized systems
-    (e.g. MaterialsProject, SPICE).
+    Attributes
+    ----------
+    num_workers : int
+        Number of processes to use for preprocessing batches.
+    atom_padding : int
+        Pad extensive arrays (positions, etc.) to next multiple of this integer.
+    nl_padding : int
+        Pad neighborlist arrays to next multiple of this integer.
     """
 
     def __init__(
@@ -478,19 +496,14 @@ class PerBatchPaddedDataset(InMemoryDataset):
         n_epochs,
         n_jit_steps=1,
         num_workers: Optional[int] = None,
-        reset_every: int = 10,
+        atom_padding: int = 10,
+        nl_padding: int = 2000,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
         additional_properties=[],
         pre_shuffle=False,
     ) -> None:
         self.cutoff = cutoff
-
-        if n_jit_steps > 1:
-            raise NotImplementedError(
-                "PerBatchPaddedDataset is not yet compatible with multi step jit"
-            )
-
         self.n_jit_steps = n_jit_steps
         self.n_epochs = n_epochs
         self.n_data = len(atoms_list)
@@ -501,13 +514,12 @@ class PerBatchPaddedDataset(InMemoryDataset):
         if num_workers:
             self.num_workers = num_workers
         else:
-            self.num_workers = multiprocessing.cpu_count()
-        self.buffer_size = num_workers * 2
-        self.batch_size = bs
+            self.num_workers = multiprocessing.cpu_count() - 1
 
         self.sample_atoms = atoms_list[0]
-        self.inputs = atoms_to_inputs(atoms_list, pos_unit)
 
+        # Transform atoms into inputs and labels
+        self.inputs = atoms_to_inputs(atoms_list, pos_unit)
         self.labels = atoms_to_labels(
             atoms_list, pos_unit, energy_unit, additional_properties
         )
@@ -521,61 +533,85 @@ class PerBatchPaddedDataset(InMemoryDataset):
 
         forces = "forces" in label_keys
         stress = "stress" in label_keys
-        self.prepare_batch = BatchProcessor(cutoff, forces, stress)
+        self.prepare_batch = BatchProcessor(
+            cutoff, atom_padding, nl_padding, forces, stress
+        )
 
         self.count = 0
-        self.reset_every = reset_every
+
         self.max_count = self.n_epochs * self.steps_per_epoch()
-        self.buffer = deque()
+
+        self.buffer_size = min(600, self.steps_per_epoch())
+        self.buffer = Queue(maxsize=self.buffer_size)
 
         self.process_pool = ProcessPoolExecutor(self.num_workers)
+        self.thread_pool = ThreadPoolExecutor(1)  # Single thread for buffering batches
+        self.epoch_finished = False
+        self.enqueue_future = None
+        self.needs_data = Event()
+
+    def enqueue_batches(self):
+        """Function to enqueue batches on a side thread."""
+        while self.count < self.steps_per_epoch() * self.n_epochs:
+            self.needs_data.wait()
+            if self.epoch_finished:
+                break
+            num_batches = min(
+                self.buffer_size - self.buffer.qsize(),
+                self.steps_per_epoch() - self.count,
+            )
+            if num_batches > 0:
+                self.enqueue(num_batches)
+            self.needs_data.clear()  # Reset event
 
     def enqueue(self, num_batches):
         start = self.count * self.batch_size
 
+        # Split data into chunks and submit tasks to the process pool
         dataset_chunks = [
             self.data[start + self.batch_size * i : start + self.batch_size * (i + 1)]
-            for i in range(0, num_batches)
+            for i in range(num_batches)
         ]
-        for batch in self.process_pool.map(self.prepare_batch, dataset_chunks):
-            self.buffer.append(batch)
+
+        # Using submit and as_completed for faster batch retrieval
+        futures = [
+            self.process_pool.submit(self.prepare_batch, chunk)
+            for chunk in dataset_chunks
+        ]
+        for future in as_completed(futures):
+            batch = future.result()
+            self.buffer.put(batch)
 
         self.count += num_batches
 
     def __iter__(self):
         for n in range(self.n_epochs):
             self.count = 0
-            self.buffer = deque()
-
-            # reinitialize PPE from time to time to avoid memory leak
-            if n % self.reset_every == 0:
-                self.process_pool = ProcessPoolExecutor(self.num_workers)
+            self.buffer.queue.clear()  # Reset buffer
+            self.epoch_finished = False
 
             if self.should_shuffle:
                 shuffle(self.data)
 
-            self.enqueue(min(self.buffer_size, self.n_data // self.batch_size))
+            # Start pre-filling the buffer
+            self.enqueue_future = self.thread_pool.submit(self.enqueue_batches)
 
             for i in range(self.steps_per_epoch()):
-                batch = self.buffer.popleft()
-                yield batch
+                if self.buffer.qsize() < (self.buffer_size * 0.75):
+                    self.needs_data.set()  # Trigger buffer refill
+                while self.buffer.empty():
+                    time.sleep(0.001)
+                yield self.buffer.get()
 
-                current_buffer_len = len(self.buffer)
-                space = self.buffer_size - current_buffer_len
-
-                if space >= self.num_workers:
-                    more_data = min(space, self.steps_per_epoch() - self.count)
-                    more_data = max(more_data, 0)
-                    if more_data > 0:
-                        self.enqueue(more_data)
+            self.epoch_finished = True
+            self.needs_data.set()
+            self.enqueue_future.result()
 
     def shuffle_and_batch(self, sharding):
         self.should_shuffle = True
-
         ds = prefetch_to_single_device(
             iter(self), 2, sharding, n_step_jit=self.n_jit_steps > 1
         )
-
         return ds
 
     def batch(self, sharding) -> Iterator[jax.Array]:
@@ -587,6 +623,15 @@ class PerBatchPaddedDataset(InMemoryDataset):
 
     def make_signature(self) -> None:
         pass
+
+    def cleanup(self):
+        self.epoch_finished = True
+        self.needs_data.set()
+        self.enqueue_future.result()
+        self.needs_data.clear()
+        self.thread_pool.shutdown(wait=True, cancel_futures=True)
+        self.process_pool.shutdown(wait=True, cancel_futures=True)
+        self.buffer.queue.clear()
 
 
 dataset_dict = {
