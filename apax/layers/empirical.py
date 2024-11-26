@@ -126,29 +126,6 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
         return E
 
 
-class DirectCoulomb(EmpiricalEnergyTerm):
-    # apply_mask: bool = True
-    # TODO scale
-
-    def __call__(self, R, dr_vec, Z, idx, box, properties):
-        if "charge" not in properties:
-            raise KeyError(
-                "property 'charge' not found. Make sure to predict it in the model section"
-            )
-
-        q = properties["charge"]
-        idx_i, idx_j = idx[0], idx[1]
-
-        # shape: neighbors
-        qi, qj = q[idx_i, ...], q[idx_j, ...]
-
-        Ec = qi * qj / dr_vec
-
-        # TODO mask, cutoff
-
-        return Ec
-
-
 class LatentEwald(EmpiricalEnergyTerm):
     """ """
 
@@ -191,5 +168,4 @@ all_corrections = {
     "zbl": ZBLRepulsion,
     "exponential": ExponentialRepulsion,
     "latent_ewald": LatentEwald,
-    "direct_coulomb": DirectCoulomb,
 }
