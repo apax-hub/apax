@@ -22,6 +22,12 @@ model:
     n_members: 4
     force_variance: true
 
+  empirical_corrections:
+    - name: zbl
+      r_max: 1.5
+    - name: exponential
+      r_max: 1.5
+
   descriptor_dtype: fp64
   readout_dtype: fp32
   scale_shift_dtype: fp64
