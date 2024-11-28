@@ -18,7 +18,7 @@ tensorflow = "^2.12.0"
 optax = "^0.1.3"
 einops = "^0.6.0"
 clu = "^0.0.7"
-typer = "^0.7"
+typer = "^0.13"
 lazy-loader = "^0.2"
 znh5md = "^0.3"
 pydantic = "^2.3.0"
@@ -28,7 +28,7 @@ flax = "0.8.4"
 uncertainty-toolbox = "^0.1.1"
 e3x = "^1.0.2"
 vesin = "^0.2.0"
-zntrack = {version = "^0.7.3", optional = true}
+zntrack = {version = "^0.8", optional = true}
 mlflow = {version = "^2", optional = true}
 
 [tool.poetry.extras]
