@@ -1,23 +1,21 @@
-import pytest
 import jax.numpy as jnp
+import pytest
 
 from apax.layers.empirical import LatentEwald
+
 
 @pytest.fixture
 def setup_data():
     n_atoms = 4
 
-    R = jnp.array([[0.0, 0.0, 0.0],
-                   [1.0, 0.0, 0.0],
-                   [0.0, 1.0, 0.0],
-                   [0.0, 0.0, 1.0]])
+    R = jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
     dr_vec = None
     Z = jnp.array([1, 1, 1, 1])
     idx = None
-    box = jnp.array([[3.0, 0.0, 0.0],
-                     [0.0, 3.0, 0.0],
-                     [0.0, 0.0, 3.0]])
-    properties = {"charge": jnp.array([1.0, -1.0, 1.0, -1.0])[:,None]}  # Charges on atoms
+    box = jnp.array([[3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]])
+    properties = {
+        "charge": jnp.array([1.0, -1.0, 1.0, -1.0])[:, None]
+    }  # Charges on atoms
 
     return R, dr_vec, Z, idx, box, properties
 
