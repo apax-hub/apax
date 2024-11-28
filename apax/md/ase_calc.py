@@ -9,8 +9,8 @@ import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
 from flax.core.frozen_dict import freeze, unfreeze
-from matscipy.neighbours import neighbour_list
 from tqdm import trange
+from vesin import NeighborList
 
 from apax.data.input_pipeline import (
     CachedInMemoryDataset,
@@ -149,7 +149,7 @@ class ASECalculator(Calculator):
             Function transformations applied on top of the EnergyDerivativeModel.
             Transfomrations are implemented under `apax.md.transformations`.
         padding_factor:
-            Multiple of the fallback Matscipy NL's amount of neighbors.
+            Multiple of the fallback vesin's amount of neighbors.
             This NL will be padded to `len(neighbors) * padding_factor`
             on NL initialization.
         """
@@ -209,15 +209,25 @@ class ASECalculator(Calculator):
             else:
                 self.neighbors = self.neighbor_fn.allocate(positions)
         else:
-            idxs_i = neighbour_list("i", atoms, self.r_max)
+            calculator = NeighborList(cutoff=self.r_max, full_list=True)
+            idxs_i, _, _ = calculator.compute(
+                points=atoms.positions,
+                box=atoms.cell.array,
+                periodic=np.any(atoms.pbc),
+                quantities="ijS",
+            )
             self.padded_length = int(len(idxs_i) * self.padding_factor)
 
     def set_neighbours_and_offsets(self, atoms, box):
-        idxs_i, idxs_j, offsets = neighbour_list("ijS", atoms, self.r_max)
-
+        calculator = NeighborList(cutoff=self.r_max, full_list=True)
+        idxs_i, idxs_j, offsets = calculator.compute(
+            points=atoms.positions,
+            box=atoms.cell.array,
+            periodic=np.any(atoms.pbc),
+            quantities="ijS",
+        )
         if len(idxs_i) > self.padded_length:
             print("neighbor list overflowed, extending.")
-            self.padded_length = int(len(idxs_i) * self.padding_factor)
             self.initialize(atoms)
 
         zeros_to_add = self.padded_length - len(idxs_i)

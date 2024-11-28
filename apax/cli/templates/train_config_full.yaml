@@ -1,7 +1,6 @@
 n_epochs: <NUMBER OF EPOCHS>
 seed: 1
 patience: null
-n_jitted_steps: 1
 data_parallel: True
 weight_average: null
 
@@ -24,7 +23,7 @@ data:
   n_train: 1000
   n_valid: 100
 
-  batch_size: 32
+  batch_size: 4
   valid_batch_size: 100
 
   shift_method: "per_element_regression_shift"
@@ -39,30 +38,37 @@ data:
 model:
   name: gmnn
   basis:
-    name: gaussian
-    n_basis: 7
-    r_max: 6.0
-    r_min: 0.5
+    name: bessel
+    n_basis: 16
+    r_max: 5.0
 
   ensemble: null
-  # if you would like to train model ensembles, this can be achieved with
-  # the following example.
+  # if you would like to use emirical repulsion corrections
+  # with the following example.
+  # empirical_corrections:
+  #   - name: exponential
+  #     r_max: 1.5
+
+  # if you would like to train model ensembles, this can be
+  # achieved with the following example.
+  # Hint: loss type hase to be changed to a probabalistic loss like nll or crps
   # ensemble:
-  #  kind: full
+  #  kind: shallow
   #  n_members: N
 
   n_radial: 5
   n_contr: 8
-  nn: [512, 512]
+  nn: [256, 256]
 
-  calc_stress: true
+  calc_stress: false
 
-  w_init: normal
+  w_init: lecun
   b_init: zeros
-  descriptor_dtype: fp64
+  descriptor_dtype: fp32
   readout_dtype: fp32
-  scale_shift_dtype: fp32
+  scale_shift_dtype: fp64
   emb_init: uniform
+  use_ntk: false
 
 loss:
 - name: energy
@@ -86,20 +92,21 @@ metrics:
 optimizer:
   name: adam
   kwargs: {}
-  emb_lr: 0.03
-  nn_lr: 0.03
-  scale_lr: 0.001
-  shift_lr: 0.05
-  zbl_lr: 0.001
+  emb_lr: 0.001
+  nn_lr: 0.001
+  scale_lr: 0.0001
+  shift_lr: 0.003
+  zbl_lr: 0.0001
   schedule:
-    name: linear
-    transition_begin: 0
-    end_value: 1e-6
+    name: cyclic_cosine
+    period: 40
+    decay_factor: 0.93
+
 callbacks:
 - name: csv
 
 checkpoints:
-  ckpt_interval: 1
+  ckpt_interval: 500
   # The options below are used for transfer learning
   base_model_checkpoint: null
   reset_layers: []

@@ -10,14 +10,13 @@ from ase import units
 from ase.io import read
 from flax.training import checkpoints
 from jax.experimental import io_callback
-from jax.experimental.host_callback import barrier_wait
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from apax.config import Config, MDConfig, parse_config
 from apax.config.md_config import Integrator
 from apax.md.ase_calc import make_ensemble, maybe_vmap
-from apax.md.constraints import Constraint, ConstraintBase, FixAtoms
+from apax.md.constraints import Constraint, ConstraintBase
 from apax.md.dynamics_checks import DynamicsCheckBase, DynamicsChecks
 from apax.md.io import H5TrajHandler, TrajHandler, truncate_trajectory_to_checkpoint
 from apax.md.md_checkpoint import load_md_state
@@ -255,8 +254,6 @@ def run_sim(
         dynamics_checks,
     )
 
-    constraints = [FixAtoms(indices=[6, 8])]
-
     apply_constraints = create_constraint_function(
         constraints,
         state,
@@ -367,7 +364,6 @@ def run_sim(
     sim_pbar.update(n_steps - sim_pbar.n)
     sim_pbar.close()
 
-    barrier_wait()
     ckpt = {"state": state, "step": step}
     checkpoints.save_checkpoint(
         ckpt_dir=ckpt_dir.resolve(),
