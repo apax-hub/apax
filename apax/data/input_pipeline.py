@@ -397,9 +397,13 @@ def round_up_to_multiple(value, multiple):
 
 class BatchProcessor:
     def __init__(
-
-        self, cutoff, atom_padding: int, nl_padding: int, forces=True, stress=False
-    , additional_properties=[]
+        self,
+        cutoff,
+        atom_padding: int,
+        nl_padding: int,
+        forces=True,
+        stress=False,
+        additional_properties=[],
     ) -> None:
         self.cutoff = cutoff
         self.atom_padding = atom_padding
