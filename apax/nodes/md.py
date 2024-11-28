@@ -58,7 +58,7 @@ class ApaxJaxMD(zntrack.Node):
         parameter.update(custom_parameters)
 
         return parameter
-        
+
 
     def _write_initial_structure(self):
         atoms = self.data[self.data_id]
