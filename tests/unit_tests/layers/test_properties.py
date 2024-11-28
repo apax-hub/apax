@@ -1,8 +1,10 @@
-import pytest
 import jax
 import jax.numpy as jnp
+import pytest
+
 from apax.layers.properties import PropertyHead
 from apax.layers.readout import AtomisticReadout
+
 
 @pytest.fixture
 def setup_data():

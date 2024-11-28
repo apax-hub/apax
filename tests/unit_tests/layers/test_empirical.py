@@ -1,7 +1,8 @@
-import pytest
 import jax.numpy as jnp
+import pytest
 
 from apax.layers.empirical import LatentEwald
+
 
 @pytest.fixture
 def setup_data():
