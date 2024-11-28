@@ -12,11 +12,8 @@ class AddData(zntrack.Node):
 
     @property
     def frames(self) -> list[ase.Atoms]:
-        data = []
-        for atoms in ase.io.iread(self.file):
-            data.append(atoms)
-            if len(data) == 50:
-                return data
+        with self.state.fs.open(self.file, "r") as f:
+            return list(ase.io.iread(f))
 
 
 def check_duplicate_keys(dict_a: dict, dict_b: dict, log: logging.Logger) -> None:

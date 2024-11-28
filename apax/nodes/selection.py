@@ -1,5 +1,6 @@
 import logging
 import typing
+from pathlib import Path
 
 import ase.io
 import numpy as np
@@ -91,16 +92,16 @@ class BatchKernelSelection(zntrack.Node):
     selected_ids: list[int] = zntrack.outs(independent=True)
 
     models: typing.List[ApaxBase] = zntrack.deps()
-    base_feature_map: dict = zntrack.params({"name": "ll_grad", "layer_name": "dense_2"})
+    base_feature_map: dict = zntrack.params(default_factory= lambda: {"name": "ll_grad", "layer_name": "dense_2"})
     selection_method: str = zntrack.params("max_dist")
     n_configurations: int = zntrack.params()
     min_distance_threshold: int = zntrack.params(0.0)
     processing_batch_size: int = zntrack.params(64)
     rank_all: bool = zntrack.params(True)
 
-    img_selection = zntrack.outs_path(zntrack.nwd / "selection.png")
-    img_distances = zntrack.outs_path(zntrack.nwd / "distances.png")
-    img_features = zntrack.outs_path(zntrack.nwd / "features.png")
+    img_selection: Path = zntrack.outs_path(zntrack.nwd / "selection.png")
+    img_distances: Path = zntrack.outs_path(zntrack.nwd / "distances.png")
+    img_features: Path = zntrack.outs_path(zntrack.nwd / "features.png")
 
     def get_data(self) -> list[ase.Atoms]:
         """Get the atoms data to process."""

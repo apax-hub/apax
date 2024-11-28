@@ -47,7 +47,7 @@ class Apax(ApaxBase):
     model: t.Optional[ApaxBase] = zntrack.deps(None)
     nl_skin: float = zntrack.params(0.5)
     transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
-    log_level: str = "info"
+    log_level: str = zntrack.params("info")
 
     model_directory: pathlib.Path = zntrack.outs_path(zntrack.nwd / "apax_model")
 

@@ -159,3 +159,5 @@ md_config.yaml
 *.extxyz
 *.traj
 *.npz
+
+/models
