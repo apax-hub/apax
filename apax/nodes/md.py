@@ -59,7 +59,6 @@ class ApaxJaxMD(zntrack.Node):
 
         return parameter
 
-
     def _write_initial_structure(self):
         atoms = self.data[self.data_id]
         if self.repeat is not None:
