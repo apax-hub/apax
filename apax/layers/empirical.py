@@ -67,7 +67,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
         a_num = self.a_num
         coefficients = jax.nn.softplus(self.coefficients)
         exponents = self.exponents
-        rep_scale = jax.nn.softplus(self.rep_scale).item()
+        rep_scale = jax.nn.softplus(self.rep_scale)[0]
 
         a_divisor = Z_i**a_exp + Z_j**a_exp
         dist = dr * a_divisor / a_num
@@ -127,7 +127,9 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
 
 
 class LatentEwald(EmpiricalEnergyTerm):
-    """ """
+    """ Latent Ewald summation by Cheng https://arxiv.org/abs/2408.15165
+    Requires a property head which predicts 'charge' per atom.
+    """
 
     kgrid: list[int] = field(default_factory=lambda: [2, 2, 2])
     sigma: float = 1.0
