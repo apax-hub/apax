@@ -67,8 +67,12 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
     )
     with proj:
         data = AddData(file=get_md22_stachyose)
-        model1 = Apax(data=data.frames, validation_data=data.frames, config="example.yaml")
-        model2 = Apax(data=data.frames, validation_data=data.frames, config="example2.yaml")
+        model1 = Apax(
+            data=data.frames, validation_data=data.frames, config="example.yaml"
+        )
+        model2 = Apax(
+            data=data.frames, validation_data=data.frames, config="example2.yaml"
+        )
         ensemble = ApaxEnsemble(models=[model1, model2])
         md = ips.calculators.ASEMD(
             data=data.frames,
