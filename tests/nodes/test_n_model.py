@@ -95,9 +95,9 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
             processing_batch_size=4,
         )
 
-        prediction = ips.analysis.Prediction(data=kernel_selection.atoms, model=ensemble)
+        prediction = ips.analysis.Prediction(data=kernel_selection.frames, model=ensemble)
         analysis = ips.analysis.PredictionMetrics(
-            x=kernel_selection.atoms, y=prediction.atoms
+            x=kernel_selection.frames, y=prediction.atoms
         )
 
     proj.repro()
@@ -110,11 +110,7 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
 
     assert atoms.get_potential_energy() < 0
 
-    uncertainty_selection.load()
-    kernel_selection.load()
-    md.load()
-
     uncertainties = [x.calc.results["energy_uncertainty"] for x in md.atoms]
     assert [md.atoms[np.argmax(uncertainties)]] == uncertainty_selection.atoms
 
-    assert len(kernel_selection.atoms) == selection_batch_size
+    assert len(kernel_selection.frames) == selection_batch_size

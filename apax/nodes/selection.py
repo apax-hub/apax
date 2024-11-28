@@ -116,12 +116,12 @@ class BatchKernelSelection(zntrack.Node):
         self.selected_ids = self.select_atoms(self.data)
 
     @property
-    def atoms(self) -> list[ase.Atoms]:
+    def frames(self) -> list[ase.Atoms]:
         """Get a list of the selected atoms objects."""
         return [atoms for i, atoms in enumerate(self.data) if i in self.selected_ids]
 
     @property
-    def excluded_atoms(self) -> list[ase.Atoms]:
+    def excluded_frames(self) -> list[ase.Atoms]:
         """Get a list of the atoms objects that were not selected."""
         return [atoms for i, atoms in enumerate(self.data) if i not in self.selected_ids]
 
