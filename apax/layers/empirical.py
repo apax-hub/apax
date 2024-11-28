@@ -8,7 +8,7 @@ import numpy as np
 from ase import data
 from jax import vmap
 
-from apax.layers.masking import mask_by_neighbor
+from apax.layers.masking import mask_by_atom, mask_by_neighbor
 from apax.utils.convert import str_to_dtype
 from apax.utils.jax_md_reduced import space
 from apax.utils.math import fp64_sum
@@ -67,7 +67,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
         a_num = self.a_num
         coefficients = jax.nn.softplus(self.coefficients)
         exponents = self.exponents
-        rep_scale = jax.nn.softplus(self.rep_scale)
+        rep_scale = jax.nn.softplus(self.rep_scale).item()
 
         a_divisor = Z_i**a_exp + Z_j**a_exp
         dist = dr * a_divisor / a_num
@@ -155,11 +155,12 @@ class LatentEwald(EmpiricalEnergyTerm):
         k2 = jnp.sum(k**2, axis=-1)
 
         sf_k = q * jnp.exp(1j * jnp.einsum("id,jd->ij", R, k))
+        if self.apply_mask:
+            sf_k = mask_by_atom(sf_k, Z)
         sf = jnp.sum(sf_k, axis=0)
         S2 = jnp.abs(sf) ** 2
 
-        # TODO mask by atom
-        E_lr = -jnp.sum(jnp.exp(-k2 * (self.sigma**2) / 2) / k2 * S2) / V
+        E_lr = -fp64_sum(jnp.exp(-k2 * (self.sigma**2) / 2) / k2 * S2) / V
 
         return E_lr
 
