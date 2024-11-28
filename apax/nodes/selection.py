@@ -93,7 +93,9 @@ class BatchKernelSelection(zntrack.Node):
     selected_ids: list[int] = zntrack.outs(independent=True)
 
     models: typing.List[ApaxBase] = zntrack.deps()
-    base_feature_map: dict = zntrack.params(default_factory= lambda: {"name": "ll_grad", "layer_name": "dense_2"})
+    base_feature_map: dict = zntrack.params(
+        default_factory=lambda: {"name": "ll_grad", "layer_name": "dense_2"}
+    )
     selection_method: str = zntrack.params("max_dist")
     n_configurations: int = zntrack.params()
     min_distance_threshold: int = zntrack.params(0.0)
