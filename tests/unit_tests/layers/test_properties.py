@@ -13,10 +13,10 @@ def setup_data():
 
     g = jnp.ones((n_atoms, n_features))
     R = jnp.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 1.0, 0.0], [0.0, 1.0, 1.0]])  # atom positions
-    dr_vec = None 
+    dr_vec = None
     Z = jnp.array([1, 6, 8, 1, 6])  # atomic numbers
-    idx = None  
-    box = None  
+    idx = None
+    box = None
 
     return g, R, dr_vec, Z, idx, box
 
@@ -24,7 +24,7 @@ def setup_data():
 def test_property_head(setup_data):
     """Test PropertyHead class functionality."""
     g, R, dr_vec, Z, idx, box = setup_data
-    
+
     # Instantiate PropertyHead
     property_head = PropertyHead(pname="property")
 
