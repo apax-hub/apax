@@ -20,7 +20,6 @@ log = logging.getLogger(__name__)
 
 
 class ApaxBase(zntrack.Node):
-
     def get_calculator(self, **kwargs):
         raise NotImplementedError
 
