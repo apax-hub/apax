@@ -4,8 +4,6 @@ import typing
 import ase.io
 import numpy as np
 import zntrack.utils
-from ipsuite.analysis.ensemble import plot_with_uncertainty
-from ipsuite.configuration_selection.base import BatchConfigurationSelection
 from matplotlib import pyplot as plt
 
 try:
@@ -19,7 +17,46 @@ from apax.nodes.model import ApaxBase
 log = logging.getLogger(__name__)
 
 
-class BatchKernelSelection(BatchConfigurationSelection):
+def plot_with_uncertainty(value, ylabel: str, xlabel: str, x=None, **kwargs) -> tuple:
+    """Parameters
+    ----------
+    value: data of shape (n, m) where n is the number of ensembles.
+    x: optional x values of shape (m,)
+
+    Returns
+    -------
+
+    """
+    if isinstance(value, dict):
+        data = value
+    else:
+        data = {
+            "mean": np.mean(value, axis=0),
+            "std": np.std(value, axis=0),
+            "max": np.max(value, axis=0),
+            "min": np.min(value, axis=0),
+        }
+
+    fig, ax = plt.subplots(**kwargs)
+    if x is None:
+        x = np.arange(len(data["mean"]))
+    ax.fill_between(
+        x,
+        data["mean"] + data["std"],
+        data["mean"] - data["std"],
+        facecolor="lightblue",
+    )
+    if "max" in data:
+        ax.plot(x, data["max"], linestyle="--", color="darkcyan")
+    if "min" in data:
+        ax.plot(x, data["min"], linestyle="--", color="darkcyan")
+    ax.plot(x, data["mean"], color="black")
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel(xlabel)
+
+    return fig, ax, data
+
+class BatchKernelSelection(zntrack.Node):
     """Interface to the batch active learning methods implemented in apax.
     Check the apax documentation for a list and explanation of implemented properties.
 
@@ -48,7 +85,10 @@ class BatchKernelSelection(BatchConfigurationSelection):
         Does not affect the result, just the speed of computing features.
     """
 
-    _module_ = "apax.nodes"
+    data: list[ase.Atoms] = zntrack.deps()
+    train_data: list[ase.Atoms] = zntrack.deps()
+
+    selected_ids: list[int] = zntrack.outs(independent=True)
 
     models: typing.List[ApaxBase] = zntrack.deps()
     base_feature_map: dict = zntrack.params({"name": "ll_grad", "layer_name": "dense_2"})
@@ -61,6 +101,29 @@ class BatchKernelSelection(BatchConfigurationSelection):
     img_selection = zntrack.outs_path(zntrack.nwd / "selection.png")
     img_distances = zntrack.outs_path(zntrack.nwd / "distances.png")
     img_features = zntrack.outs_path(zntrack.nwd / "features.png")
+
+    def get_data(self) -> list[ase.Atoms]:
+        """Get the atoms data to process."""
+        if self.data is not None:
+            return self.data
+        else:
+            raise ValueError("No data given.")
+
+    def run(self):
+        """ZnTrack Node Run method."""
+
+        log.debug(f"Selecting from {len(self.data)} configurations.")
+        self.selected_ids = self.select_atoms(self.data)
+
+    @property
+    def atoms(self) -> list[ase.Atoms]:
+        """Get a list of the selected atoms objects."""
+        return [atoms for i, atoms in enumerate(self.data) if i in self.selected_ids]
+
+    @property
+    def excluded_atoms(self) -> list[ase.Atoms]:
+        """Get a list of the atoms objects that were not selected."""
+        return [atoms for i, atoms in enumerate(self.data) if i not in self.selected_ids]
 
     def select_atoms(self, atoms_lst: typing.List[ase.Atoms]) -> typing.List[int]:
         if isinstance(self.models, list):
