@@ -56,6 +56,7 @@ def plot_with_uncertainty(value, ylabel: str, xlabel: str, x=None, **kwargs) -> 
 
     return fig, ax, data
 
+
 class BatchKernelSelection(zntrack.Node):
     """Interface to the batch active learning methods implemented in apax.
     Check the apax documentation for a list and explanation of implemented properties.
