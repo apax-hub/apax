@@ -94,8 +94,8 @@ class BatchKernelSelection(zntrack.Node):
     base_feature_map: dict = zntrack.params({"name": "ll_grad", "layer_name": "dense_2"})
     selection_method: str = zntrack.params("max_dist")
     n_configurations: int = zntrack.params()
-    min_distance_threshold: str = zntrack.params(0.0)
-    processing_batch_size: str = zntrack.meta.Text(64)
+    min_distance_threshold: int = zntrack.params(0.0)
+    processing_batch_size: int = zntrack.params(64)
     rank_all: bool = zntrack.params(True)
 
     img_selection = zntrack.outs_path(zntrack.nwd / "selection.png")
