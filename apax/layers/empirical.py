@@ -127,7 +127,7 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
 
 
 class LatentEwald(EmpiricalEnergyTerm):
-    """ Latent Ewald summation by Cheng https://arxiv.org/abs/2408.15165
+    """Latent Ewald summation by Cheng https://arxiv.org/abs/2408.15165
     Requires a property head which predicts 'charge' per atom.
     """
 
