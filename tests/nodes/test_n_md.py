@@ -21,7 +21,7 @@ def test_n_jax_md(tmp_path, get_md22_stachyose):
     shutil.copy(MD_CONFIG_PATH, tmp_path / "md.yaml")
     proj = zntrack.Project()
     with proj:
-        data = AddData(file=get_md22_stachyose)
+        data = AddData(file=get_md22_stachyose, stop=100)
         model = Apax(data=data.frames, validation_data=data.frames, config="example.yaml")
         md = ApaxJaxMD(model=model, config="md.yaml", data=data.frames)
 
