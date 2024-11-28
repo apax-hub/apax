@@ -38,7 +38,7 @@ def test_n_train_model(tmp_path, get_md22_stachyose):
     save_config_with_seed(tmp_path / "example.yaml")
     proj = zntrack.Project()
     with proj:
-        data = AddData(file=get_md22_stachyose)
+        data = AddData(file=get_md22_stachyose, stop=100)
         model = Apax(data=data.frames, validation_data=data.frames, config="example.yaml")
 
     proj.repro()
@@ -66,7 +66,7 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
         time_step=1.0, temperature=100.0, friction=0.01
     )
     with proj:
-        data = AddData(file=get_md22_stachyose)
+        data = AddData(file=get_md22_stachyose, stop=100)
         model1 = Apax(
             data=data.frames, validation_data=data.frames, config="example.yaml"
         )

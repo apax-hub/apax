@@ -45,18 +45,20 @@ class ApaxJaxMD(zntrack.Node):
         zntrack.nwd / "initial_structure.extxyz"
     )
 
-    _parameter: typing.Optional[dict] = None
-
-    def _handle_parameter_file(self):
+    @property
+    def parameter(self) -> dict:
         with self.state.fs.open(self.config, "r") as f:
-            self._parameter = yaml.safe_load(f)
+            parameter = yaml.safe_load(f)
 
         custom_parameters = {
             "sim_dir": self.sim_dir.as_posix(),
             "initial_structure": self.init_struc_dir.as_posix(),
         }
-        check_duplicate_keys(custom_parameters, self._parameter, log)
-        self._parameter.update(custom_parameters)
+        check_duplicate_keys(custom_parameters, parameter, log)
+        parameter.update(custom_parameters)
+
+        return parameter
+        
 
     def _write_initial_structure(self):
         atoms = self.data[self.data_id]
@@ -66,11 +68,10 @@ class ApaxJaxMD(zntrack.Node):
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
-        self._handle_parameter_file()
         if not self.state.restarted:
             self._write_initial_structure()
 
-        run_md(self.model._parameter, self._parameter, log_level="info")
+        run_md(self.model.parameter, self.parameter, log_level="info")
 
     @property
     def frames(self) -> typing.List[ase.Atoms]:

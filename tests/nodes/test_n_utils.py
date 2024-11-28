@@ -13,7 +13,7 @@ def test_add_data(tmp_path, get_md22_stachyose):
     subprocess.run(["dvc", "init"], check=True)
     proj = zntrack.Project()
     with proj:
-        data = AddData(file=get_md22_stachyose)
+        data = AddData(file=get_md22_stachyose, stop=50)
 
     proj.repro()
     data = data.from_rev()
