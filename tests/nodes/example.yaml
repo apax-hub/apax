@@ -20,13 +20,13 @@ model:
   name: gmnn
   basis:
     name: gaussian
-    r_max: 5.5
+    r_max: 5.0
     r_min: 0.7
     n_basis: 7
   n_radial: 5
   nn:
-  - 512
-  - 512
+  - 16
+  - 16
 
   b_init: zeros
   emb_init: uniform

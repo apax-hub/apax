@@ -1,4 +1,3 @@
-import functools
 import logging
 import pathlib
 import typing
@@ -10,9 +9,8 @@ import znh5md
 import zntrack.utils
 
 from apax.md.simulate import run_md
-
-from .model import ApaxBase
-from .utils import check_duplicate_keys
+from apax.nodes.model import ApaxBase
+from apax.nodes.utils import check_duplicate_keys
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +26,7 @@ class ApaxJaxMD(zntrack.Node):
         index of the configuration from the data list to use
     model: ApaxModel
         model to use for the simulation
-    repeat: float
+    repeat: None|int|tuple[int, int, int]
         number of repeats
     config: str
         path to the MD simulation parameter file
@@ -38,7 +36,7 @@ class ApaxJaxMD(zntrack.Node):
     data_id: int = zntrack.params(-1)
 
     model: ApaxBase = zntrack.deps()
-    repeat = zntrack.params(None)
+    repeat: None | int | tuple[int, int, int] = zntrack.params(None)
 
     config: str = zntrack.params_path(None)
 
@@ -47,37 +45,35 @@ class ApaxJaxMD(zntrack.Node):
         zntrack.nwd / "initial_structure.extxyz"
     )
 
-    _parameter: dict = None
-
-    def _post_load_(self) -> None:
-        self._handle_parameter_file()
-
-    def _handle_parameter_file(self):
-        with self.state.use_tmp_path():
-            self._parameter = yaml.safe_load(pathlib.Path(self.config).read_text())
+    @property
+    def parameter(self) -> dict:
+        with self.state.fs.open(self.config, "r") as f:
+            parameter = yaml.safe_load(f)
 
         custom_parameters = {
             "sim_dir": self.sim_dir.as_posix(),
             "initial_structure": self.init_struc_dir.as_posix(),
         }
-        check_duplicate_keys(custom_parameters, self._parameter, log)
-        self._parameter.update(custom_parameters)
+        check_duplicate_keys(custom_parameters, parameter, log)
+        parameter.update(custom_parameters)
+
+        return parameter
+
+    def _write_initial_structure(self):
+        atoms = self.data[self.data_id]
+        if self.repeat is not None:
+            atoms = atoms.repeat(self.repeat)
+        ase.io.write(self.init_struc_dir.as_posix(), atoms)
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
-        if not self._parameter:
-            self._handle_parameter_file()
-
         if not self.state.restarted:
-            atoms = self.data[self.data_id]
-            if self.repeat is not None:
-                atoms = atoms.repeat(self.repeat)
-            ase.io.write(self.init_struc_dir.as_posix(), atoms)
+            self._write_initial_structure()
 
-        run_md(self.model._parameter, self._parameter, log_level="info")
+        run_md(self.model.parameter, self.parameter, log_level="info")
 
-    @functools.cached_property
-    def atoms(self) -> typing.List[ase.Atoms]:
+    @property
+    def frames(self) -> typing.List[ase.Atoms]:
         with self.state.fs.open(self.sim_dir / "md.h5", "rb") as f:
             with h5py.File(f) as file:
                 return znh5md.IO(file_handle=file)[:]
