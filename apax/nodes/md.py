@@ -26,7 +26,7 @@ class ApaxJaxMD(zntrack.Node):
         index of the configuration from the data list to use
     model: ApaxModel
         model to use for the simulation
-    repeat: float
+    repeat: None|int|tuple[int, int, int]
         number of repeats
     config: str
         path to the MD simulation parameter file
@@ -36,7 +36,7 @@ class ApaxJaxMD(zntrack.Node):
     data_id: int = zntrack.params(-1)
 
     model: ApaxBase = zntrack.deps()
-    repeat: typing.Optional[bool] = zntrack.params(None)
+    repeat: None|int|tuple[int, int, int] = zntrack.params(None)
 
     config: str = zntrack.params_path(None)
 

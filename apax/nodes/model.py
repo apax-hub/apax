@@ -41,7 +41,7 @@ class Apax(ApaxBase):
         verbosity of logging during training
     """
 
-    data: list = zntrack.deps()
+    data: list[ase.Atoms] = zntrack.deps()
     config: str = zntrack.params_path()
     validation_data: list[ase.Atoms] = zntrack.deps()
     model: t.Optional[ApaxBase] = zntrack.deps(None)
