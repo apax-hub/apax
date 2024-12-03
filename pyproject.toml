@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "apax"
-version = "0.7.0"
+version = "0.9.0"
 description = "Atomistic Learned Potential Package in JAX"
 authors = ["Moritz René Schäfer <schaefer@theochem.uni-stuttgart.de>", "Nico Segreto <segreto@theochem.uni-stuttgart.de>"]
 keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
@@ -20,7 +20,7 @@ einops = "^0.6.0"
 clu = "^0.0.7"
 typer = "^0.13"
 lazy-loader = "^0.2"
-znh5md = "^0.3"
+znh5md = "^0.4"
 pydantic = "^2.3.0"
 jax = "^0.4.25"
 orbax-checkpoint = "0.5.16"
