@@ -4,12 +4,6 @@ import jax
 import jax.numpy as jnp
 
 
-@dataclasses.dataclass
-class FunctionTransformation:
-    def apply(self, model):
-        raise NotImplementedError
-
-
 def make_biased_energy_force_fn(bias_fn):
     def biased_energy_force_fn(positions, Z, idx, box, offsets):
         bias_and_grad_fn = jax.value_and_grad(bias_fn, has_aux=True)
@@ -29,7 +23,8 @@ def make_biased_energy_force_fn(bias_fn):
     return biased_energy_force_fn
 
 
-class UncertaintyDrivenDynamics(FunctionTransformation):
+@dataclasses.dataclass
+class UncertaintyDrivenDynamics:
     """
     UDD requires an uncertainty aware model.
     It drives the dynamics towards higher uncertainty regions
@@ -67,7 +62,8 @@ class UncertaintyDrivenDynamics(FunctionTransformation):
         return udd_energy_force
 
 
-class GaussianAcceleratedMolecularDynamics(FunctionTransformation):
+@dataclasses.dataclass
+class GaussianAcceleratedMolecularDynamics:
     """
     Applies a boost potential to the system that pulls it towards a target energy.
     https://pubs.acs.org/doi/10.1021/acs.jctc.5b00436
