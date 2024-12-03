@@ -192,7 +192,7 @@ def make_member_chunk_jac(energy_model, start, end):
         Ei = energy_model(R, Z, neighbor, box, offsets)[start:end]
         return Ei
 
-    grad_i_fn = jax.jacrev(energy_chunk_fn)  # TODO
+    grad_i_fn = jax.jacrev(energy_chunk_fn)
     return grad_i_fn
 
 
