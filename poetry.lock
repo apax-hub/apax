@@ -3145,18 +3145,22 @@ zookeeper = ["kazoo (>=2.8.0)"]
 
 [[package]]
 name = "lazy-loader"
-version = "0.2"
-description = "lazy_loader"
+version = "0.4"
+description = "Makes it easy to load subpackages and functions on demand."
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "lazy_loader-0.2-py3-none-any.whl", hash = "sha256:c35875f815c340f823ce3271ed645045397213f961b40ad0c0d395c3f5218eeb"},
-    {file = "lazy_loader-0.2.tar.gz", hash = "sha256:0edc7a5175c400acb108f283749951fefdadedeb00adcec6e88b974a9254f18a"},
+    {file = "lazy_loader-0.4-py3-none-any.whl", hash = "sha256:342aa8e14d543a154047afb4ba8ef17f5563baad3fc610d7b15b213b0f119efc"},
+    {file = "lazy_loader-0.4.tar.gz", hash = "sha256:47c75182589b91a4e1a85a136c074285a5ad4d9f39c63e0d7fb76391c4574cd1"},
 ]
 
+[package.dependencies]
+packaging = "*"
+
 [package.extras]
-lint = ["pre-commit (>=3.1)"]
-test = ["pytest (>=7.2)", "pytest-cov (>=4.0)"]
+dev = ["changelist (==0.5)"]
+lint = ["pre-commit (==3.7.0)"]
+test = ["pytest (>=7.4)", "pytest-cov (>=4.1)"]
 
 [[package]]
 name = "libclang"
@@ -7315,4 +7319,4 @@ zntrack = ["zntrack"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<4.0"
-content-hash = "4a2497c92d439f99c7da739e9a7b4ea89894ac844513fb86fd5f395ff96c7056"
+content-hash = "195093fecebea1b7b6ee157538bd2e15563507a8b8997eb86ba14f080bf724af"
