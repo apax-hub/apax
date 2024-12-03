@@ -13,6 +13,7 @@ from myrto.so3krates.so3krates import TransformerBlock
 from myrto.utils.safe import masked
 
 from apax.layers.descriptor.basis_functions import BesselBasis
+from apax.utils.convert import str_to_dtype
 
 
 def get_node_mask(Z):
@@ -26,8 +27,6 @@ def get_neighbor_mask(idx):
 
 
 class So3kratesRepresentation(nn.Module):
-    # cutoff: float = 5.0
-    # num_radial_features: int = 32
     basis_fn: nn.Module = BesselBasis()
     num_layers: int = 1
     max_degree: int = 3
@@ -48,7 +47,8 @@ class So3kratesRepresentation(nn.Module):
         Z: Array,
         idx: Array,
     ):
-        dr_vec = dr_vec.astype(self.dtype)
+        dtype = str_to_dtype(self.dtype)
+        dr_vec = dr_vec.astype(dtype)
 
         R_ij = dr_vec
         i, j = idx[0], idx[1]

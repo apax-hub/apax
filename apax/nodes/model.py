@@ -93,6 +93,7 @@ class Apax(ApaxBase):
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
+
         if not self.state.restarted:
             ase.io.write(self.train_data_file.as_posix(), self.data)
             ase.io.write(self.validation_data_file.as_posix(), self.validation_data)

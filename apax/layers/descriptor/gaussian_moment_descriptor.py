@@ -9,6 +9,7 @@ from apax.layers.descriptor.basis_functions import RadialFunction
 from apax.layers.descriptor.moments import geometric_moments
 from apax.layers.descriptor.triangular_indices import tril_2d_indices, tril_3d_indices
 from apax.layers.masking import mask_by_neighbor
+from apax.utils.convert import str_to_dtype
 from apax.utils.jax_md_reduced import space
 
 
@@ -28,7 +29,8 @@ class GaussianMomentDescriptor(nn.Module):
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
 
     def __call__(self, dr_vec, Z, neighbor_idxs):
-        dr_vec = dr_vec.astype(self.dtype)
+        dtype = str_to_dtype(self.dtype)
+        dr_vec = dr_vec.astype(dtype)
         # Z shape n_atoms
         n_atoms = Z.shape[0]
 
@@ -97,5 +99,5 @@ class GaussianMomentDescriptor(nn.Module):
 
         # gaussian_moments shape: n_atoms x n_features
         gaussian_moments = jnp.concatenate(gaussian_moments[: self.n_contr], axis=-1)
-        assert gaussian_moments.dtype == self.dtype
+        assert gaussian_moments.dtype == dtype
         return gaussian_moments

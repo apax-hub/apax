@@ -90,6 +90,7 @@ class InMemoryDataset:
         n_jit_steps=1,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
+        additional_properties: list[tuple] = [],
         pre_shuffle=False,
         shuffle_buffer_size=1000,
         ignore_labels=False,
@@ -102,6 +103,7 @@ class InMemoryDataset:
         self.n_data = len(atoms_list)
         self.batch_size = self.validate_batch_size(bs)
         self.pos_unit = pos_unit
+        self.additional_properties = additional_properties
 
         if pre_shuffle:
             shuffle(atoms_list)
@@ -112,7 +114,9 @@ class InMemoryDataset:
         self.max_atoms = max_atoms
         self.max_nbrs = max_nbrs
         if atoms_list[0].calc and not ignore_labels:
-            self.labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
+            self.labels = atoms_to_labels(
+                atoms_list, pos_unit, energy_unit, additional_properties
+            )
         else:
             self.labels = None
 
@@ -161,8 +165,16 @@ class InMemoryDataset:
             labels["forces"] = np.pad(
                 labels["forces"], ((0, zeros_to_add), (0, 0)), "constant"
             )
+
+        for prop in self.additional_properties:
+            name, shape = prop
+            if shape[0] == "natoms":
+                pad_shape = [(0, zeros_to_add)] + [(0, 0)] * (len(shape) - 1)
+                labels[name] = np.pad(labels[name], pad_shape, "constant")
+
         inputs = {k: tf.constant(v) for k, v in inputs.items()}
         labels = {k: tf.constant(v) for k, v in labels.items()}
+
         return (inputs, labels)
 
     def enqueue(self, num_elements):
@@ -202,6 +214,14 @@ class InMemoryDataset:
             label_signature["stress"] = tf.TensorSpec(
                 (3, 3), dtype=tf.float64, name="stress"
             )
+
+        for prop in self.additional_properties:
+            name, shape = prop
+            if shape[0] == "natoms":
+                shape[0] = self.max_atoms
+
+            sig = tf.TensorSpec(tuple(shape), dtype=tf.float64, name=name)
+            label_signature[name] = sig
         signature = (input_signature, label_signature)
         return signature
 
@@ -377,7 +397,13 @@ def round_up_to_multiple(value, multiple):
 
 class BatchProcessor:
     def __init__(
-        self, cutoff, atom_padding: int, nl_padding: int, forces=True, stress=False
+        self,
+        cutoff,
+        atom_padding: int,
+        nl_padding: int,
+        forces=True,
+        stress=False,
+        additional_properties=[],
     ) -> None:
         self.cutoff = cutoff
         self.atom_padding = atom_padding
@@ -385,6 +411,7 @@ class BatchProcessor:
 
         self.forces = forces
         self.stress = stress
+        self.additional_properties = additional_properties
 
     def __call__(self, samples: list[dict]):
         n_samples = len(samples)
@@ -401,7 +428,12 @@ class BatchProcessor:
         labels = {
             "energy": np.zeros(n_samples, dtype=np.float64),
         }
-
+        for prop in self.additional_properties:
+            name, shape = prop
+            if shape[0] == "natoms":
+                shape = [max_atoms] + shape[1:]
+            shape = [n_samples] + shape
+            labels[name] = np.zeros(shape, dtype=np.float64)
         if self.forces:
             labels["forces"] = np.zeros((n_samples, max_atoms, 3), dtype=np.float64)
         if self.stress:
@@ -424,6 +456,13 @@ class BatchProcessor:
                 labels["forces"][i, : inp["n_atoms"]] = lab["forces"]
             if self.stress:
                 labels["stress"][i] = lab["stress"]
+
+            for prop in self.additional_properties:
+                name, shape = prop
+                if shape[0] == "natoms":
+                    labels[name][i, : inp["n_atoms"]] = lab[name]
+                else:
+                    labels[name][i] = lab[name]
 
         max_nbrs = np.max([idx.shape[1] for idx in idxs])
         max_nbrs = round_up_to_multiple(max_nbrs, self.nl_padding)
@@ -470,6 +509,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         nl_padding: int = 2000,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
+        additional_properties=[],
         pre_shuffle=False,
     ) -> None:
         self.cutoff = cutoff
@@ -478,6 +518,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.n_data = len(atoms_list)
         self.batch_size = self.validate_batch_size(bs)
         self.pos_unit = pos_unit
+        self.additional_properties = additional_properties
 
         if num_workers:
             self.num_workers = num_workers
@@ -488,7 +529,9 @@ class PerBatchPaddedDataset(InMemoryDataset):
 
         # Transform atoms into inputs and labels
         self.inputs = atoms_to_inputs(atoms_list, pos_unit)
-        self.labels = atoms_to_labels(atoms_list, pos_unit, energy_unit)
+        self.labels = atoms_to_labels(
+            atoms_list, pos_unit, energy_unit, additional_properties
+        )
         label_keys = self.labels.keys()
 
         self.data = list(
@@ -500,7 +543,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         forces = "forces" in label_keys
         stress = "stress" in label_keys
         self.prepare_batch = BatchProcessor(
-            cutoff, atom_padding, nl_padding, forces, stress
+            cutoff, atom_padding, nl_padding, forces, stress, additional_properties
         )
 
         self.count = 0

@@ -137,7 +137,7 @@ def get_sample_input():
 
 def initialize_model(model_config, sample_input):
     Builder = model_config.model.get_builder()
-    builder = Builder(model_config.model.get_dict())
+    builder = Builder(model_config.model.model_dump())
     model = builder.build_energy_derivative_model()
     rng_key = jax.random.PRNGKey(model_config.seed)
     params = model.init(rng_key, *sample_input)

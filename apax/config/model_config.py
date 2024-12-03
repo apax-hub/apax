@@ -114,7 +114,28 @@ class ExponentialRepulsion(Correction, extra="forbid"):
     r_max: NonNegativeFloat = 1.5
 
 
-EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion]
+class LatentEwald(Correction, extra="forbid"):
+    name: Literal["latent_ewald"]
+    kgrid: list
+    sigma: float = 1.0
+
+
+EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion, LatentEwald]
+
+
+class PropertyHead(BaseModel, extra="forbid"):
+    """ """
+
+    name: str
+    aggregation: str = "none"
+    mode: str = "l0"
+
+    nn: List[PositiveInt] = [128, 128]
+    n_shallow_members: int = 0
+    w_init: Literal["normal", "lecun"] = "lecun"
+    b_init: Literal["normal", "zeros"] = "zeros"
+    use_ntk: bool = False
+    dtype: Literal["fp32", "fp64"] = "fp32"
 
 
 class BaseModelConfig(BaseModel, extra="forbid"):
@@ -156,6 +177,8 @@ class BaseModelConfig(BaseModel, extra="forbid"):
 
     ensemble: Optional[EnsembleConfig] = None
 
+    property_heads: list[PropertyHead] = []
+
     # corrections
     empirical_corrections: list[EmpiricalCorrection] = []
 
@@ -164,17 +187,6 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     descriptor_dtype: Literal["fp32", "fp64"] = "fp32"
     readout_dtype: Literal["fp32", "fp64"] = "fp32"
     scale_shift_dtype: Literal["fp32", "fp64"] = "fp64"
-
-    def get_dict(self):
-        import jax.numpy as jnp
-
-        model_dict = self.model_dump()
-        prec_dict = {"fp32": jnp.float32, "fp64": jnp.float64}
-        model_dict["descriptor_dtype"] = prec_dict[model_dict["descriptor_dtype"]]
-        model_dict["readout_dtype"] = prec_dict[model_dict["readout_dtype"]]
-        model_dict["scale_shift_dtype"] = prec_dict[model_dict["scale_shift_dtype"]]
-
-        return model_dict
 
 
 class GMNNConfig(BaseModelConfig, extra="forbid"):

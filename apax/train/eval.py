@@ -186,7 +186,7 @@ def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
         n_full_models = 1
 
     Builder = config.model.get_builder()
-    builder = Builder(config.model.get_dict(), n_species=119)
+    builder = Builder(config.model.model_dump(), n_species=119)
     model = builder.build_energy_derivative_model(
         apply_mask=True,
         init_box=init_box,

@@ -87,9 +87,10 @@ def fit(
 
     state, start_epoch = load_state(state, latest_dir)
     if start_epoch >= n_epochs:
-        raise ValueError(
-            f"n_epochs <= current epoch from checkpoint ({n_epochs} <= {start_epoch})"
+        print(
+            f"Training has already completed ({start_epoch} >= {n_epochs}). Nothing to be done"
         )
+        return
 
     devices = len(jax.devices())
     if devices > 1 and data_parallel:

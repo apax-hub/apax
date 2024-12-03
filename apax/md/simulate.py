@@ -27,6 +27,7 @@ from apax.train.checkpoints import (
 )
 from apax.train.run import setup_logging
 from apax.utils.jax_md_reduced import partition, quantity, simulate, space
+from apax.utils.transform import make_energy_only_model
 
 log = logging.getLogger(__name__)
 
@@ -34,12 +35,12 @@ log = logging.getLogger(__name__)
 def create_energy_fn(model, params, numbers, n_models, shallow=False):
     def full_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
         vmodel = jax.vmap(model, (0, None, None, None, None, None, None), 0)
-        energies = vmodel(params, R, Z, neighbor, box, offsets, perturbation)
+        energies, _ = vmodel(params, R, Z, neighbor, box, offsets, perturbation)
         energy = jnp.mean(energies)
         return energy
 
     def shallow_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
-        energies = model(params, R, Z, neighbor, box, offsets, perturbation)
+        energies, _ = model(params, R, Z, neighbor, box, offsets, perturbation)
         energy = jnp.mean(energies)
         return energy
 
@@ -49,7 +50,7 @@ def create_energy_fn(model, params, numbers, n_models, shallow=False):
         else:
             energy_fn = full_ensemble
     else:
-        energy_fn = model
+        energy_fn = make_energy_only_model(model)
 
     energy_fn = partial(
         energy_fn,
@@ -452,7 +453,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         )
 
     Builder = model_config.model.get_builder()
-    builder = Builder(model_config.model.get_dict())
+    builder = Builder(model_config.model.model_dump())
     energy_model = builder.build_energy_model(
         apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
     )

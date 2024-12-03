@@ -1,4 +1,4 @@
 from .builder import ModelBuilder
-from .models import AtomisticModel, EnergyDerivativeModel, EnergyModel
+from .models import EnergyDerivativeModel, EnergyModel
 
-__all__ = ["AtomisticModel", "EnergyModel", "EnergyDerivativeModel", "ModelBuilder"]
+__all__ = ["EnergyModel", "EnergyDerivativeModel", "ModelBuilder"]

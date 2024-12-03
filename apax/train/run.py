@@ -77,6 +77,32 @@ def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
     return LossCollection(loss_funcs)
 
 
+def compute_property_shapes(config: Config):
+    property_configs = [p.model_dump() for p in config.model.property_heads]
+
+    additional_properties = []
+
+    if len(property_configs) == 0:
+        return additional_properties
+
+    loss_names = [loss.name for loss in config.loss]
+    for pconf in property_configs:
+        name = pconf["name"]
+        if name not in loss_names:
+            continue
+        shape = []
+        if pconf["aggregation"] == "none":
+            shape.append("natoms")
+
+        feature_shapes = {"l0": [1], "l1": [3], "symmetric_traceless_l2": [3, 3]}
+
+        shape.extend(feature_shapes[pconf["mode"]])
+
+        additional_properties.append((name, shape))
+
+    return additional_properties
+
+
 def initialize_datasets(config: Config):
     """
     Initialize training and validation datasets based on the provided configuration.
@@ -106,6 +132,8 @@ def initialize_datasets(config: Config):
     if processing == "cached":
         dataset_kwargs["cache_path"] = config.data.model_version_path
 
+    additional_properties = compute_property_shapes(config)
+
     train_ds = Dataset(
         train_raw_ds,
         config.model.basis.r_max,
@@ -115,6 +143,7 @@ def initialize_datasets(config: Config):
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
         pre_shuffle=True,
+        additional_properties=additional_properties,
         **dataset_kwargs,
     )
     val_ds = Dataset(
@@ -124,6 +153,7 @@ def initialize_datasets(config: Config):
         config.n_epochs,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
+        additional_properties=additional_properties,
         **dataset_kwargs,
     )
     ds_stats = compute_scale_shift_parameters(
@@ -165,7 +195,7 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
 
     sample_input, init_box = train_ds.init_input()
     Builder = config.model.get_builder()
-    builder = Builder(config.model.get_dict())
+    builder = Builder(config.model.model_dump())
     model = builder.build_energy_derivative_model(
         scale=ds_stats.elemental_scale,
         shift=ds_stats.elemental_shift,

@@ -8,6 +8,7 @@ import jax.numpy as jnp
 
 from apax.layers.descriptor.basis_functions import BesselBasis
 from apax.layers.masking import mask_by_neighbor
+from apax.utils.convert import str_to_dtype
 
 
 class EquivMPRepresentation(nn.Module):
@@ -21,7 +22,8 @@ class EquivMPRepresentation(nn.Module):
 
     @nn.compact
     def __call__(self, dr_vec, Z, neighbor_idxs):
-        dr_vec = dr_vec.astype(self.dtype)
+        dtype = str_to_dtype(self.dtype)
+        dr_vec = dr_vec.astype(dtype)
 
         idx_i, idx_j = neighbor_idxs[0], neighbor_idxs[1]
         # 1. Calculate displacement vectors.
@@ -47,7 +49,7 @@ class EquivMPRepresentation(nn.Module):
         x = e3x.nn.Embed(
             num_embeddings=self.max_atomic_number + 1, features=self.features
         )(Z)
-        x = x.astype(self.dtype)
+        x = x.astype(dtype)
 
         # 4. Perform iterations (message-passing + atom-wise refinement).
         for i in range(self.num_iterations):
@@ -66,8 +68,8 @@ class EquivMPRepresentation(nn.Module):
                 # In intermediate iterations, the message-pass should consider all possible coupling paths.
                 y = e3x.nn.MessagePass()(x, basis, dst_idx=idx_i, src_idx=idx_j)
 
-            x = x.astype(self.dtype)
-            y = y.astype(self.dtype)
+            x = x.astype(dtype)
+            y = y.astype(dtype)
             y = e3x.nn.add(x, y)
 
             # Atom-wise refinement MLP.

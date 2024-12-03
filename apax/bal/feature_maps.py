@@ -65,7 +65,7 @@ class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
                     inputs["box"],
                     inputs["offsets"],
                 )
-                out = model.apply(full_params, R, Z, idx, box, offsets)
+                out = model(full_params, R, Z, idx, box, offsets)
                 # take mean in case of shallow ensemble
                 # no effect for single model
                 out = jnp.mean(out)
@@ -108,7 +108,7 @@ class LastLayerForceFeatures(FeatureTransformation, extra="forbid"):
         def ll_grad(params, inputs):
             ll_params, remaining_params = extract_feature_params(params, self.layer_name)
 
-            energy_fn = lambda *inputs: jnp.mean(model.apply(*inputs))
+            energy_fn = lambda *inputs: jnp.mean(model(*inputs))
             force_fn = jax.grad(energy_fn, 1)
 
             def inner(ll_params):
@@ -184,7 +184,7 @@ class FullGradientRPFeatures(FeatureTransformation, extra="forbid"):
                     inputs["box"],
                     inputs["offsets"],
                 )
-                out = model.apply(params, R, Z, idx, box, offsets)
+                out = model(params, R, Z, idx, box, offsets)
                 # take mean in case of shallow ensemble
                 # no effect for single model
                 out = jnp.mean(out)
@@ -214,7 +214,7 @@ class IdentityFeatures(FeatureTransformation, extra="forbid"):
     name: Literal["identity"]
 
     def apply(self, model: EnergyModel) -> FeatureMap:
-        return model.apply
+        return model
 
 
 FeatureMapOptions = TypeAdapter(
