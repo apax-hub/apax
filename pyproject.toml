@@ -29,10 +29,11 @@ uncertainty-toolbox = "^0.1.1"
 e3x = "^1.0.2"
 vesin = "^0.2.0"
 zntrack = {version = "^0.8", optional = true}
+plotly = {version = "^5.24", optional = true}
 mlflow = {version = "^2", optional = true}
 
 [tool.poetry.extras]
-zntrack = ["zntrack"]
+zntrack = ["zntrack", "plotly"]
 mlflow = ["mlflow"]
 
 [tool.poetry.scripts]
