@@ -7,13 +7,17 @@ import numpy as np
 import zntrack.utils
 from matplotlib import pyplot as plt
 
+import plotly.graph_objects as go
+import plotly.io as pio
+
+from apax.bal import kernel_selection
+from apax.nodes.model import ApaxBase
+
 try:
     from sklearn.decomposition import PCA
 except ImportError:
     PCA = None
 
-from apax.bal import kernel_selection
-from apax.nodes.model import ApaxBase
 
 log = logging.getLogger(__name__)
 
@@ -105,6 +109,10 @@ class BatchKernelSelection(zntrack.Node):
     img_selection: Path = zntrack.outs_path(zntrack.nwd / "selection.png")
     img_distances: Path = zntrack.outs_path(zntrack.nwd / "distances.png")
     img_features: Path = zntrack.outs_path(zntrack.nwd / "features.png")
+
+    pio_selection: Path = zntrack.outs_path(zntrack.nwd / "selection.json")
+    pio_distances: Path = zntrack.outs_path(zntrack.nwd / "distances.json")
+    pio_features: Path = zntrack.outs_path(zntrack.nwd / "features.json")
 
     def get_data(self) -> list[ase.Atoms]:
         """Get the atoms data to process."""
@@ -263,3 +271,160 @@ class BatchKernelSelection(zntrack.Node):
         ax.legend()
 
         fig.savefig(self.img_features, bbox_inches="tight", dpi=240)
+
+
+
+
+
+    def _get_plotly_selection_plot(self, atoms_lst, indices):
+        energies = np.array([atoms.calc.results["energy"] for atoms in atoms_lst])
+
+        if "energy_uncertainty" in atoms_lst[0].calc.results.keys():
+            uncertainty = np.array(
+                [atoms.calc.results["energy_uncertainty"] for atoms in atoms_lst]
+            )
+            fig = go.Figure()
+            fig.add_trace(
+                go.Scatter(
+                    y=energies,
+                    mode="lines",
+                    name="Energy",
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    y=energies + uncertainty,
+                    mode="lines",
+                    line=dict(dash="dash"),
+                    name="Energy + Uncertainty",
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    y=energies - uncertainty,
+                    mode="lines",
+                    line=dict(dash="dash"),
+                    name="Energy - Uncertainty",
+                )
+            )
+        else:
+            fig = go.Figure()
+            fig.add_trace(
+                go.Scatter(
+                    y=energies,
+                    mode="lines",
+                    name="Energy",
+                )
+            )
+
+        fig.add_trace(
+            go.Scatter(
+                x=indices,
+                y=energies[indices],
+                mode="markers",
+                marker=dict(color="red", size=10),
+                name="Selected Configurations",
+            )
+        )
+
+        fig.update_layout(
+            title="Energy Plot",
+            xaxis_title="Configuration",
+            yaxis_title="Energy",
+        )
+        pio.write_json(fig, self.pio_selection)
+
+    def _get_plotly_distances_plot(self, distances, last_selected):
+        fig = go.Figure()
+        fig.add_trace(
+            go.Scatter(
+                y=distances,
+                mode="lines",
+                name="Squared Distances",
+            )
+        )
+        fig.add_vline(
+            x=last_selected,
+            line=dict(dash="dash", color="gray"),
+            annotation_text="Last Selected",
+        )
+
+        fig.update_layout(
+            title="Squared Distances Plot",
+            xaxis_title="Configuration",
+            yaxis_title="Squared Distance (Log Scale)",
+            yaxis_type="log",
+        )
+        pio.write_json(fig, self.pio_distances)
+
+    def _get_plotly_pca_plot(self, g_train, g_selection, g_remaining):
+        if PCA:
+            all_features = [g_train, g_selection]
+            if len(g_remaining) > 0:
+                all_features.append(g_remaining)
+            g_full = np.concatenate(all_features, axis=0)
+            pca = PCA(n_components=2)
+            pca.fit(g_full)
+
+            g_train_2d = pca.transform(g_train)
+            g_selection_2d = pca.transform(g_selection)
+            if len(g_remaining) > 0:
+                g_pool_2d = pca.transform(g_remaining)
+        else:
+            F = g_train.shape[1]
+            W = np.random.randn(F, 2) / np.sqrt(F)
+            g_train_2d = g_train @ W
+            g_selection_2d = g_selection @ W
+            if len(g_remaining) > 0:
+                g_pool_2d = g_remaining @ W
+
+        fig = go.Figure()
+
+        if len(g_remaining) > 0:
+            fig.add_trace(
+                go.Scatter(
+                    x=g_pool_2d[:, 0],
+                    y=g_pool_2d[:, 1],
+                    mode="markers",
+                    marker=dict(color="gray", size=5, opacity=0.6),
+                    name="Remaining Data",
+                )
+            )
+
+        fig.add_trace(
+            go.Scatter(
+                x=g_train_2d[:, 0],
+                y=g_train_2d[:, 1],
+                mode="markers",
+                marker=dict(color="blue", size=5, symbol="triangle-up", opacity=0.6),
+                name="Train Data",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=g_selection_2d[:, 0],
+                y=g_selection_2d[:, 1],
+                mode="markers",
+                marker=dict(color="red", size=10, symbol="star", opacity=0.6),
+                name="Selected Data",
+            )
+        )
+
+        fig.update_layout(
+            title="PCA Projection",
+            xaxis_title="Dimension 1",
+            yaxis_title="Dimension 2",
+            legend=dict(title="Data Type"),
+        )
+        pio.write_json(fig, self.pio_features)
+
+    @property
+    def figures(self) -> dict[str, go.Figure]:
+        """Get the plotly figures."""
+        with self.state.fs.open(self.pio_selection) as f:
+            selection = pio.read_json(f)
+        with self.state.fs.open(self.pio_distances) as f:
+            distances = pio.read_json(f)
+        with self.state.fs.open(self.pio_features) as f:
+            features = pio.read_json(f)
+        return {"selection": selection, "distances": distances, "features": features}
