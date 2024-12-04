@@ -174,7 +174,7 @@ class BatchKernelSelection(zntrack.Node):
         self._get_distances_plot(distances, last_selected)
         self._get_pca_plot(features_train, features_selection, features_remaining)
         self._get_selection_plot(atoms_lst, ranking)
-        return list(ranking)
+        return [int(x) for x in ranking]
 
     def _get_selection_plot(
         self, atoms_lst: typing.List[ase.Atoms], indices: typing.List[int]
