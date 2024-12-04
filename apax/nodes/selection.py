@@ -4,11 +4,10 @@ from pathlib import Path
 
 import ase.io
 import numpy as np
-import zntrack.utils
-from matplotlib import pyplot as plt
-
 import plotly.graph_objects as go
 import plotly.io as pio
+import zntrack.utils
+from matplotlib import pyplot as plt
 
 from apax.bal import kernel_selection
 from apax.nodes.model import ApaxBase
