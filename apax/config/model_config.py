@@ -289,4 +289,25 @@ class So3kratesConfig(BaseModelConfig, extra="forbid"):
         return So3kratesBuilder
 
 
-ModelConfig = Union[GMNNConfig, EquivMPConfig, So3kratesConfig]
+class MACEConfig(BaseModelConfig, extra="forbid"):
+    """
+    Configuration for the mace model.
+
+    Parameters
+    ----------
+    param_path: str
+        Path to pretrained model
+    """
+
+    name: Literal["mace"] = "mace"
+
+    param_path: str
+
+    def get_builder(self):
+        from apax.nn.builder import MACEBuilder
+
+        return MACEBuilder
+
+
+
+ModelConfig = Union[GMNNConfig, EquivMPConfig, So3kratesConfig, MACEConfig]

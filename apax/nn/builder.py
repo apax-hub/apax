@@ -7,6 +7,7 @@ from apax.layers.descriptor import (
     EquivMPRepresentation,
     GaussianMomentDescriptor,
     So3kratesRepresentation,
+    MACERepresentation,
 )
 from apax.layers.descriptor.basis_functions import (
     BesselBasis,
@@ -278,4 +279,15 @@ class So3kratesBuilder(ModelBuilder):
             transform_input_features=self.config["transform_input_features"],
             dtype=self.config["descriptor_dtype"],
         )
+        return descriptor
+
+
+class MACEBuilder(ModelBuilder):
+    def build_descriptor(
+        self,
+        apply_mask,
+    ):
+        # For loading a pretrained model, we don't need to supply hyperparameters
+        # For a more flexible integration, we can supply hyperparameters from self.config
+        descriptor = MACERepresentation(self.config["param_path"])
         return descriptor

@@ -6,4 +6,9 @@ try:
 except ImportError:
     So3kratesRepresentation = None
 
-__all__ = ["GaussianMomentDescriptor", "EquivMPRepresentation", "So3kratesRepresentation"]
+try:
+    from apax.layers.descriptor.mace import MACERepresentation
+except ImportError:
+    MACERepresentation = None
+
+__all__ = ["GaussianMomentDescriptor", "EquivMPRepresentation", "So3kratesRepresentation", "MACERepresentation"]
