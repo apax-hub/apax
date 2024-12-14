@@ -62,7 +62,7 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
     save_config_with_seed(tmp_path / "example2.yaml", seed=2)
 
     proj = zntrack.Project(automatic_node_names=True)
-    thermostat = ips.calculators.LangevinThermostat(
+    thermostat = ips.LangevinThermostat(
         time_step=1.0, temperature=100.0, friction=0.01
     )
     with proj:
@@ -74,7 +74,7 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
             data=data.frames, validation_data=data.frames, config="example2.yaml"
         )
         ensemble = ApaxEnsemble(models=[model1, model2])
-        md = ips.calculators.ASEMD(
+        md = ips.ASEMD(
             data=data.frames,
             model=ensemble,
             thermostat=thermostat,
@@ -82,22 +82,22 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
             sampling_rate=1,
         )
 
-        uncertainty_selection = ips.configuration_selection.ThresholdSelection(
-            data=md, n_configurations=1, threshold=0.0001
+        uncertainty_selection = ips.ThresholdSelection(
+            data=md.frames, n_configurations=1, threshold=0.0001
         )
 
         selection_batch_size = 3
         kernel_selection = apax.nodes.BatchKernelSelection(
-            data=md.atoms,
+            data=md.frames,
             train_data=data.frames,
             models=[model1, model2],
             n_configurations=selection_batch_size,
             processing_batch_size=4,
         )
 
-        prediction = ips.analysis.Prediction(data=kernel_selection.frames, model=ensemble)
-        analysis = ips.analysis.PredictionMetrics(
-            x=kernel_selection.frames, y=prediction.atoms
+        prediction = ips.Prediction(data=kernel_selection.frames, model=ensemble)
+        analysis = ips.PredictionMetrics(
+            x=kernel_selection.frames, y=prediction.frames
         )
 
     proj.repro()
@@ -110,7 +110,7 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
 
     assert atoms.get_potential_energy() < 0
 
-    uncertainties = [x.calc.results["energy_uncertainty"] for x in md.atoms]
-    assert [md.atoms[np.argmax(uncertainties)]] == uncertainty_selection.atoms
+    uncertainties = [x.calc.results["energy_uncertainty"] for x in md.frames]
+    assert [md.frames[np.argmax(uncertainties)]] == uncertainty_selection.frames
 
     assert len(kernel_selection.frames) == selection_batch_size
