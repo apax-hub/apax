@@ -131,9 +131,9 @@ class BatchKernelSelection(zntrack.Node):
 
     def select_atoms(self, atoms_lst: typing.List[ase.Atoms]) -> typing.List[int]:
         if isinstance(self.models, list):
-            param_files = [m._parameter["data"]["directory"] for m in self.models]
+            param_files = [m.parameter["data"]["directory"] for m in self.models]
         else:
-            param_files = self.models._parameter["data"]["directory"]
+            param_files = self.models.parameter["data"]["directory"]
 
         if self.rank_all:
             selection_batch_size = None
