@@ -138,9 +138,9 @@ class BatchKernelSelection(zntrack.Node):
 
     def select_atoms(self, atoms_lst: typing.List[ase.Atoms]) -> typing.List[int]:
         if isinstance(self.models, list):
-            param_files = [m._parameter["data"]["directory"] for m in self.models]
+            param_files = [m.parameter["data"]["directory"] for m in self.models]
         else:
-            param_files = self.models._parameter["data"]["directory"]
+            param_files = self.models.parameter["data"]["directory"]
 
         if self.rank_all:
             selection_batch_size = None
@@ -181,7 +181,7 @@ class BatchKernelSelection(zntrack.Node):
         self._get_distances_plot(distances, last_selected)
         self._get_pca_plot(features_train, features_selection, features_remaining)
         self._get_selection_plot(atoms_lst, ranking)
-        return list(ranking)
+        return [int(x) for x in ranking]
 
     def _get_selection_plot(
         self, atoms_lst: typing.List[ase.Atoms], indices: typing.List[int]
