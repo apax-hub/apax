@@ -62,9 +62,7 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
     save_config_with_seed(tmp_path / "example2.yaml", seed=2)
 
     proj = zntrack.Project(automatic_node_names=True)
-    thermostat = ips.LangevinThermostat(
-        time_step=1.0, temperature=100.0, friction=0.01
-    )
+    thermostat = ips.LangevinThermostat(time_step=1.0, temperature=100.0, friction=0.01)
     with proj:
         data = AddData(file=get_md22_stachyose, stop=100)
         model1 = Apax(
@@ -96,9 +94,7 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
         )
 
         prediction = ips.Prediction(data=kernel_selection.frames, model=ensemble)
-        analysis = ips.PredictionMetrics(
-            x=kernel_selection.frames, y=prediction.frames
-        )
+        analysis = ips.PredictionMetrics(x=kernel_selection.frames, y=prediction.frames)
 
     proj.repro()
 
