@@ -7,12 +7,14 @@ from apax.layers.descriptor import (
     EquivMPRepresentation,
     GaussianMomentDescriptor,
     So3kratesRepresentation,
+    MACERepresentation,
 )
 from apax.layers.descriptor.basis_functions import (
     BesselBasis,
     GaussianBasis,
     RadialFunction,
 )
+from apax.layers.descriptor.newmodel import NewModel
 from apax.layers.empirical import all_corrections
 from apax.layers.properties import PropertyHead
 from apax.layers.readout import AtomisticReadout
@@ -277,5 +279,29 @@ class So3kratesBuilder(ModelBuilder):
             cutoff_fn=self.config["cutoff_fn"],
             transform_input_features=self.config["transform_input_features"],
             dtype=self.config["descriptor_dtype"],
+        )
+        return descriptor
+
+
+class MACEBuilder(ModelBuilder):
+    def build_descriptor(
+        self,
+        apply_mask,
+    ):
+        # For loading a pretrained model, we don't need to supply hyperparameters
+        # For a more flexible integration, we can supply hyperparameters from self.config
+        descriptor = MACERepresentation(self.config["param_path"])
+        return descriptor
+    
+
+    
+class NewBuilder(ModelBuilder):
+    def build_descriptor(
+        self,
+        apply_mask,
+    ):
+        descriptor = NewModel(
+            basis_fn=self.build_basis_function(),
+            apply_mask=apply_mask,
         )
         return descriptor

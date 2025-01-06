@@ -120,6 +120,7 @@ class EnergyModel(nn.Module):
         else:
             # shape ()
             energy = fp64_sum(E_i)
+            # energy = E_i
 
         properties = {}
         for property_head in self.property_heads:
@@ -131,7 +132,7 @@ class EnergyModel(nn.Module):
             energy_correction = correction(R, dr_vec, Z, idx, box, properties)
             energy = energy + energy_correction
 
-        return energy, properties
+        return energy , properties
 
 
 class EnergyDerivativeModel(nn.Module):
@@ -153,9 +154,26 @@ class EnergyDerivativeModel(nn.Module):
     ):
         ef_function = jax.value_and_grad(self.energy_model, has_aux=True)
         (energy, properties), neg_forces = ef_function(R, Z, neighbor, box, offsets)
+        # ef_function = jax.value_and_grad(self.energy_model, has_aux=True)
+        # def ef_function(R, Z, neighbor, box, offsets):
+        #     E_i = self.energy_model(R, Z, neighbor, box, offsets)
+        #     energy = fp64_sum(E_i)
+
+        #     forces = []
+        #     for i in range(R.shape[0]):
+        #         def Ei(pos, R, Z, neighbor, box, offsets):
+        #             R = R.at[i].set(pos)
+        #             return self.energy_model(R, Z, neighbor, box, offsets)[i][0]
+        #         Fn = jax.grad(Ei)(R[i], R, Z, neighbor, box, offsets)
+        #         forces.append(Fn)
+        #         print(Fn.shape)
+        #     Fineg = jnp.array(forces)
+        #     return energy, Fineg
+        
+        # energy, neg_forces = ef_function(R, Z, neighbor, box, offsets)
         forces = -neg_forces
         prediction = {"energy": energy, "forces": forces}
-        prediction.update(properties)
+        # prediction.update(properties)
 
         if self.calc_stress:
             stress = stress_times_vol(

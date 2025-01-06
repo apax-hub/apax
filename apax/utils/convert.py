@@ -26,6 +26,8 @@ def str_to_dtype(x):
             y = jnp.float16
         elif x == "fp128":
             y = jnp.float128
+        elif x == "bfloat":
+            y = jnp.bfloat16
         else:
             raise KeyError(f"unknown dtype {x}")
         return y
