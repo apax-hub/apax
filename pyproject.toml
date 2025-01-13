@@ -1,8 +1,15 @@
 [project]
 name = "apax"
 version = "0.9.2"
-description = "Add your description here"
+description = "Atomistic Learned Potential Package in JAX"
+keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
+license = "MIT"
 readme = "README.md"
+authors = [
+    { name = "Moritz René Schäfer", email = "schaefer@theochem.uni-stuttgart.de" },
+    { name = "Nico Segreto", email = "segreto@theochem.uni-stuttgart.de" },
+]
+
 requires-python = ">=3.12"
 dependencies = [
     "ase>=3.24.0",
