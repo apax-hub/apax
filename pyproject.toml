@@ -53,3 +53,23 @@ apax = 'apax.cli.apax_app:app'
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+
+[tool.ruff]
+line-length = 90
+
+[tool.ruff.lint]
+select = ["E", "F", "C", "I", "E"]
+extend-ignore = [
+    "E501", "E731", "E741", "E402", "F841", "F811", "C901", "E203", "E402"
+]
+
+[tool.coverage.run]
+branch = true
+source = ["apax"]
+
+[tool.pytest.ini_options]
+filterwarnings = ["ignore::FutureWarning:jax.*scatter",]
+markers = [
+    "slow: mark a test as slow and should only run explicitly"
+]
