@@ -68,6 +68,12 @@ extend-ignore = [
 branch = true
 source = ["apax"]
 
+[tool.coverage.html]
+directory = "coverage_html_report"
+
+[tool.coverage.report]
+show_missing = true
+
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::FutureWarning:jax.*scatter",]
 markers = [
