@@ -15,7 +15,6 @@ dependencies = [
     "numpy>=1.23",
     "optax>=0.2.4",
     "orbax-checkpoint>=0.11.0",
-    "pandas>=1.5.3",
     "pydantic>=2.10.5",
     "tensorflow>=2.12.0",
     "typer>=0.13.0",
@@ -26,12 +25,12 @@ dependencies = [
 
 
 [project.optional-dependencies]
-zntrack = [
-    "pygit2>=1.17.0",
-    "zntrack>=0.8.0",
-]
+zntrack = []
 mlflow = [
     "mlflow>=2.19.0",
+]
+ipsuite = [
+    "ipsuite>=0.2.3",
 ]
 
 [dependency-groups]
