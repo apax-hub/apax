@@ -66,7 +66,7 @@ class CSVLoggerApax(CSVLogger):
             if isinstance(k, str):
                 return k
             elif isinstance(k, collections.abc.Iterable) and not is_zero_dim_ndarray:
-                return f"\"[{', '.join(map(format_str, k))}]\""
+                return f'"[{", ".join(map(format_str, k))}]"'
             else:
                 return format_str(k)
 
@@ -108,7 +108,7 @@ class CSVLoggerApax(CSVLogger):
             if isinstance(k, str):
                 return k
             elif isinstance(k, collections.abc.Iterable) and not is_zero_dim_ndarray:
-                return f"\"[{', '.join(map(format_str, k))}]\""
+                return f'"[{", ".join(map(format_str, k))}]"'
             else:
                 return format_str(k)
 
