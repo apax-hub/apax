@@ -22,7 +22,7 @@ jobs:
         python-version-file: "pyproject.toml"
 
     - name: Install the project
-      run: uv sync --all-extras --dev
+      run: uv sync --all-extras --no-extra cuda --dev
 
     - name: Unit Tests
       run: |
