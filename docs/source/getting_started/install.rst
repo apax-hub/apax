@@ -25,13 +25,13 @@ you can install Apax from GitHub directly
 For Developers
 --------------
 
-As a developer, you first need to install Poetry_.
+As a developer, you first need to install uv_.
 You can obtain it by running
 
 .. highlight:: bash
 .. code-block:: bash
 
-    curl -sSL https://install.python-poetry.org | python3 -
+    pip install uv
 
 
 You can then clone and install the project.
@@ -41,7 +41,7 @@ You can then clone and install the project.
 
     git clone https://github.com/apax-hub/apax.git <dest_dir>
     cd <dest_dir>
-    poetry install
+    uv sync --all-extras --dev
 
 
 =========================
@@ -61,4 +61,4 @@ CUDA 12:
 See the `Jax installation instructions <https://github.com/google/jax#installation>`_ for more details.
 
 
-.. _Poetry: https://python-poetry.org/
+.. _uv: https://astral.sh/blog/uv
