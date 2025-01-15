@@ -17,9 +17,6 @@ build:
     - uv venv $READTHEDOCS_VIRTUALENV_PATH
     - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH uv --preview pip install .[docs]
     # - python -m sphinx -T -b html -d docs/_build/doctrees -D language=en docs/source $READTHEDOCS_OUTPUT/html
-      # - pip install poetry
-      # - poetry config virtualenvs.create false
-      # - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH poetry install --with docs #poetry install --with=docs
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:
