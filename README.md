@@ -17,20 +17,12 @@ Apax is available on PyPI with a CPU version of JAX.
 pip install apax
 ```
 
-For more detailed instructions, please refer to the [documentation](https://apax.readthedocs.io/en/latest/).
-
-
-### CUDA Support
-If you want to enable GPU support (only on Linux), please overwrite the jaxlib version:
-
-CUDA 12:
+If you want to enable GPU support (only on Linux), please run 
 ```bash
-pip install -U "jax[cuda12]"
+pip install "apax[cuda]"
 ```
 
-See the [Jax installation instructions](https://github.com/google/jax#installation) for more details.
-
-
+For more detailed instructions, please refer to the [documentation](https://apax.readthedocs.io/en/latest/).
 
 ## Usage
 
