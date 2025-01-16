@@ -2,10 +2,10 @@
 Installation
 ============
 
-The standard installation installs the CPU version of Apax. To enable GPU 
-support (available only on **Linux**), install Apax with the extra CUDA 
-dependencies. See the 
-`Jax installation instructions <https://github.com/google/jax#installation>`_ 
+The standard installation installs the CPU version of Apax. To enable GPU
+support (available only on **Linux**), install Apax with the extra CUDA
+dependencies. See the
+`Jax installation instructions <https://github.com/google/jax#installation>`_
 for more details.
 
 From PyPI
@@ -82,7 +82,7 @@ and install it.
 Extra Dependencies
 ------------------
 
-If you want to use Apax in the IPSuite framework and use the predefined 
+If you want to use Apax in the IPSuite framework and use the predefined
 `apax.nodes`, you can install the extra dependencies for IPSuite:
 
 .. highlight:: bash
