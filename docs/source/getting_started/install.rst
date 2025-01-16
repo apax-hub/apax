@@ -2,31 +2,52 @@
 Installation
 ============
 
-From PyPI (soon)
+The standard installation installs the CPU version of Apax. To enable GPU 
+support (available only on **Linux**), install Apax with the extra CUDA 
+dependencies. See the 
+`Jax installation instructions <https://github.com/google/jax#installation>`_ 
+for more details.
+
+From PyPI
+---------
+
+**CPU:**
 
 .. highlight:: bash
 .. code-block:: bash
 
     pip install apax
 
+**GPU:**
+
+.. highlight:: bash
+.. code-block:: bash
+
+    pip install "apax[cuda]"
 
 From GitHub
 -----------
 
-If you would like to have a pre-release version,
-you can install Apax from GitHub directly
+For a pre-release version, install Apax directly from GitHub.
+
+**CPU:**
 
 .. highlight:: bash
 .. code-block:: bash
 
     pip install git+https://github.com/apax-hub/apax.git
 
+**GPU:**
+
+.. highlight:: bash
+.. code-block:: bash
+
+    pip install apax[cuda] git+https://github.com/apax-hub/apax.git
 
 For Developers
 --------------
 
-As a developer, you first need to install uv_.
-You can obtain it by running
+To set up a development environment, first install `uv`_.
 
 .. highlight:: bash
 .. code-block:: bash
@@ -34,36 +55,46 @@ You can obtain it by running
     pip install uv
 
 
-You can then clone and install the project.
+Then clone the project from GitHub,
 
 .. highlight:: bash
 .. code-block:: bash
 
     git clone https://github.com/apax-hub/apax.git <dest_dir>
     cd <dest_dir>
-    uv sync --all-extras --no-extra cuda
 
+and install it.
 
-=========================
-CUDA Support (Linux only)
-=========================
-
-Note that all of the above only install the CPU version.
-If you want to enable GPU support, please install Apax in one of the following ways:
-
+**CPU:**
 
 .. highlight:: bash
 .. code-block:: bash
 
-    pip install "apax[cuda]"
+    uv sync --all-extras --no-extra cuda
 
+**GPU:**
 
 .. highlight:: bash
 .. code-block:: bash
 
     uv sync --extra cuda
 
-See the `Jax installation instructions <https://github.com/google/jax#installation>`_ for more details.
+Extra Dependencies
+------------------
 
+If you want to use Apax in the IPSuite framework and use the predefined 
+`apax.nodes`, you can install the extra dependencies for IPSuite:
+
+.. highlight:: bash
+.. code-block:: bash
+
+    pip install "apax[ipsuite]"
+
+Additionally, you have the option to install the extra dependencies for MLFlow:
+
+.. highlight:: bash
+.. code-block:: bash
+
+    pip install "apax[mlflow]"
 
 .. _uv: https://astral.sh/blog/uv
