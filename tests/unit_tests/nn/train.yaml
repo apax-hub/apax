@@ -1,0 +1,16 @@
+n_epochs: 1000
+
+data:
+  directory: test
+  experiment: feature_model
+  data_path: example.h5
+
+loss:
+  - name: energy
+
+model:
+  name: gmnn
+  nn:
+    - 128
+    - 64
+    - 32

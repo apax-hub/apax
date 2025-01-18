@@ -35,7 +35,7 @@ TEST_PATH = pathlib.Path(__file__).parent.resolve()
     ([20, False, ["energy", "forces"]],),
 )
 def test_kernel_selection(
-    config, features, example_atoms, get_tmp_path, get_sample_input
+    config, features, example_atoms_list, get_tmp_path, get_sample_input
 ):
     model_config_path = TEST_PATH / config  # "config.yaml"
 
@@ -54,10 +54,10 @@ def test_kernel_selection(
         overwrite=True,
     )
 
-    num_data = len(example_atoms)
+    num_data = len(example_atoms_list)
     n_train = num_data // 2
-    train_atoms = example_atoms[:n_train]
-    pool_atoms = example_atoms[n_train:]
+    train_atoms = example_atoms_list[:n_train]
+    pool_atoms = example_atoms_list[n_train:]
 
     base_fm_options = features
     selection_method = "max_dist"
