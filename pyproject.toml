@@ -1,72 +1,89 @@
-[tool.poetry]
+[project]
 name = "apax"
-version = "0.9.2"
+version = "0.10.0"
 description = "Atomistic Learned Potential Package in JAX"
-authors = ["Moritz René Schäfer <schaefer@theochem.uni-stuttgart.de>", "Nico Segreto <segreto@theochem.uni-stuttgart.de>"]
 keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
 license = "MIT"
 readme = "README.md"
-packages = [{include = "apax"}]
-documentation = "https://apax.readthedocs.io/en/latest/"
-repository = "https://github.com/apax-hub/apax"
+authors = [
+    { name = "Moritz René Schäfer", email = "schaefer@theochem.uni-stuttgart.de" },
+    { name = "Nico Segreto", email = "segreto@theochem.uni-stuttgart.de" },
+]
 
-[tool.poetry.dependencies]
-python = ">=3.10,<4.0"
-numpy = "^1.23"
-ase = "^3.22.1"
-tensorflow = "^2.12.0"
-optax = "^0.1.3"
-einops = "^0.6.0"
-clu = "^0.0.7"
-typer = "^0.13"
-lazy-loader = "^0.4"
-znh5md = "^0.4"
-pydantic = "^2.3.0"
-jax = "^0.4.25"
-orbax-checkpoint = "0.5.16"
-flax = "0.8.4"
-uncertainty-toolbox = "^0.1.1"
-e3x = "^1.0.2"
-vesin = "^0.2.0"
-zntrack = {version = "^0.8", optional = true}
-plotly = {version = "^5.24", optional = true}
-mlflow = {version = "^2", optional = true}
+requires-python = ">=3.10"
+dependencies = [
+    "ase>=3.24.0",
+    "clu>=0.0.12",
+    "e3x>=1.0.2",
+    "einops>=0.8.0",
+    "flax>=0.10.2",
+    "jax>=0.4.38",
+    "lazy-loader>=0.4",
+    "numpy>=1.23",
+    "optax>=0.2.4",
+    "orbax-checkpoint>=0.11.0",
+    "pydantic>=2.10.5",
+    "tensorflow>=2.12.0",
+    "typer>=0.13.0",
+    "uncertainty-toolbox>=0.1.1",
+    "vesin>=0.3.0",
+    "znh5md>=0.4.2",
+]
 
-[tool.poetry.extras]
-zntrack = ["zntrack", "plotly"]
-mlflow = ["mlflow"]
 
-[tool.poetry.scripts]
+
+
+[project.optional-dependencies]
+cuda = ["jax[cuda]"]
+mlflow = [
+    "mlflow>=2.19.0",
+]
+ipsuite = [
+    "ipsuite>=0.2.3",
+]
+
+docs = [
+    "sphinx>=7.2.6",
+    "sphinx-rtd-theme>=1.3.0",
+    "myst-parser>=2.0.0",
+    "sphinx-copybutton>=0.5.2",
+    "furo>=2023.9.10",
+    "nbsphinx>=0.9.3",
+    "nbsphinx-link>=1.3.0",
+    "ipykernel>=6.29.3",
+    "pandoc>=2.3",
+]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.6.10",
+    "matplotlib>=3.10.0",
+    "pre-commit>=4.0.1",
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+]
+lint = [
+    "ruff>=0.9.1",
+]
+
+
+
+[project.scripts]
 apax = 'apax.cli.apax_app:app'
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.2.0"
-pytest-cov = "^4.0.0"
-pytest-xdist = "^3.0.2"
-coverage = {extras = ["toml"], version = "^6.4.2"}
-matplotlib = "^3.6.2"
-pre-commit = "^2.20.0"
-ruff = "^0.5"
-
-[tool.poetry.group.docs.dependencies]
-sphinx = "^7.2.6"
-sphinx-rtd-theme = "^1.3.0"
-myst-parser = "^2.0.0"
-sphinx-copybutton = "^0.5.2"
-furo = "^2023.9.10"
-nbsphinx = "^0.9.3"
-nbsphinx-link = "^1.3.0"
-ipykernel = "^6.29.3"
-pandoc = "^2.3"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.pytest.ini_options]
-filterwarnings = ["ignore::FutureWarning:jax.*scatter",]
-markers = [
-    "slow: mark a test as slow and should only run explicitly"
+
+[tool.ruff]
+line-length = 90
+
+[tool.ruff.lint]
+select = ["E", "F", "C", "I", "E"]
+extend-ignore = [
+    "E501", "E731", "E741", "E402", "F841", "F811", "C901", "E203", "E402"
 ]
 
 [tool.coverage.run]
@@ -79,11 +96,8 @@ directory = "coverage_html_report"
 [tool.coverage.report]
 show_missing = true
 
-[tool.ruff]
-line-length = 90
-
-[tool.ruff.lint]
-select = ["E", "F", "C", "I", "E"]
-extend-ignore = [
-    "E501", "E731", "E741", "E402", "F841", "F811", "C901", "E203", "E402"
+[tool.pytest.ini_options]
+filterwarnings = ["ignore::FutureWarning:jax.*scatter",]
+markers = [
+    "slow: mark a test as slow and should only run explicitly"
 ]

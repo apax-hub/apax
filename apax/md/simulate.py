@@ -323,11 +323,13 @@ def run_sim(
         )
 
         if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
-            raise ValueError(f"NaN encountered, simulation aborted after {step+1} steps.")
+            raise ValueError(
+                f"NaN encountered, simulation aborted after {step + 1} steps."
+            )
 
         if not all_checks_passed:
             with logging_redirect_tqdm():
-                log.critical(f"One or more dynamics checks failed at step: {step+1}")
+                log.critical(f"One or more dynamics checks failed at step: {step + 1}")
             break
 
         if neighbor.did_buffer_overflow:
