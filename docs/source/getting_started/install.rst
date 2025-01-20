@@ -2,63 +2,99 @@
 Installation
 ============
 
-From PyPI (soon)
+The standard installation installs the CPU version of Apax. To enable GPU
+support (available only on **Linux**), install Apax with the extra CUDA
+dependencies. See the
+`Jax installation instructions <https://github.com/google/jax#installation>`_
+for more details.
+
+From PyPI
+---------
+
+**CPU:**
 
 .. highlight:: bash
 .. code-block:: bash
 
     pip install apax
 
+**GPU:**
+
+.. highlight:: bash
+.. code-block:: bash
+
+    pip install "apax[cuda]"
 
 From GitHub
 -----------
 
-If you would like to have a pre-release version,
-you can install Apax from GitHub directly
+For a pre-release version, install Apax directly from GitHub.
+
+**CPU:**
 
 .. highlight:: bash
 .. code-block:: bash
 
     pip install git+https://github.com/apax-hub/apax.git
 
-
-For Developers
---------------
-
-As a developer, you first need to install Poetry_.
-You can obtain it by running
+**GPU:**
 
 .. highlight:: bash
 .. code-block:: bash
 
-    curl -sSL https://install.python-poetry.org | python3 -
+    pip install apax[cuda] git+https://github.com/apax-hub/apax.git
+
+For Developers
+--------------
+
+To set up a development environment, first install `uv`_.
+
+.. highlight:: bash
+.. code-block:: bash
+
+    pip install uv
 
 
-You can then clone and install the project.
+Then clone the project from GitHub,
 
 .. highlight:: bash
 .. code-block:: bash
 
     git clone https://github.com/apax-hub/apax.git <dest_dir>
     cd <dest_dir>
-    poetry install
 
+and install it.
 
-=========================
-CUDA Support (Linux only)
-=========================
-
-Note that all of the above only install the CPU version.
-If you want to enable GPU support, please overwrite the jaxlib version:
-
-CUDA 12:
+**CPU:**
 
 .. highlight:: bash
 .. code-block:: bash
 
-    pip install -U "jax[cuda12]"
+    uv sync --all-extras --no-extra cuda
 
-See the `Jax installation instructions <https://github.com/google/jax#installation>`_ for more details.
+**GPU:**
 
+.. highlight:: bash
+.. code-block:: bash
 
-.. _Poetry: https://python-poetry.org/
+    uv sync --extra cuda
+
+Extra Dependencies
+------------------
+
+If you want to use Apax in the IPSuite framework and use the predefined
+`apax.nodes`, you can install the extra dependencies for IPSuite:
+
+.. highlight:: bash
+.. code-block:: bash
+
+    pip install "apax[ipsuite]"
+
+Additionally, you have the option to install the extra dependencies for MLFlow:
+
+.. highlight:: bash
+.. code-block:: bash
+
+    pip install "apax[mlflow]"
+
+.. _uv: https://astral.sh/blog/uv
