@@ -18,7 +18,7 @@ def test_builder_feature_model():
     model = builder.build_energy_model()
     key = jax.random.PRNGKey(0)
     params = model.init(key, R, Z, idx, box, offsets)
-    
+
     model = builder.build_feature_model(only_use_n_layers=0, init_box=box)
     out = model.apply(params, R, Z, idx, box, offsets)
     assert out.shape == (360,)

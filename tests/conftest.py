@@ -79,7 +79,7 @@ def example_atoms_list(num_data: int, pbc: bool, calc_results: List[str]) -> Ato
     for _ in range(num_data):
         num_atoms = np.random.randint(10, 15)
         atoms = create_example_atoms(num_atoms, pbc, calc_results)
-        
+
         atoms_list.append(atoms)
 
     return atoms_list
