@@ -31,8 +31,6 @@ dependencies = [
 ]
 
 
-
-
 [project.optional-dependencies]
 cuda = ["jax[cuda]"]
 mlflow = [
@@ -40,6 +38,7 @@ mlflow = [
 ]
 ipsuite = [
     "ipsuite>=0.2.3",
+    "plotly>=5.24.1",
 ]
 
 docs = [
