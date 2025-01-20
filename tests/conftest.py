@@ -37,7 +37,6 @@ def create_cell(a: float, lattice: str) -> np.ndarray:
     return cells[lattice]
 
 
-
 def create_example_atoms(num_atoms: int, pbc: bool = False, calc_results=[]):
     numbers = np.random.randint(1, 119, size=num_atoms)
     cell_const = np.random.uniform(low=10.0, high=12.0)

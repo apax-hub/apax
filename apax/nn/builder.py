@@ -222,7 +222,9 @@ class ModelBuilder:
     ):
         log.info("Building feature model")
         descriptor = self.build_descriptor(apply_mask)
-        readout = self.build_readout(self.config,is_feature_fn=True, only_use_n_layers=only_use_n_layers)
+        readout = self.build_readout(
+            self.config, is_feature_fn=True, only_use_n_layers=only_use_n_layers
+        )
 
         model = FeatureModel(
             descriptor,
