@@ -1,7 +1,8 @@
 import pathlib
+
 import jax
+
 from apax.config.common import parse_config
-from apax.nn.models import EnergyModel
 from apax.utils.data import make_minimal_input
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
