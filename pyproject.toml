@@ -4,7 +4,7 @@ version = "0.10.1"
 description = "Atomistic Learned Potential Package in JAX"
 keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
 readme = "README.md"
-license = { file = "LICENSE" }
+# license = { file = "LICENSE" }
 authors = [
     { name = "Moritz René Schäfer", email = "schaefer@theochem.uni-stuttgart.de" },
     { name = "Nico Segreto", email = "segreto@theochem.uni-stuttgart.de" },
