@@ -75,6 +75,9 @@ apax = 'apax.cli.apax_app:app'
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+license-files = []
+
 [tool.ruff]
 line-length = 90
 
