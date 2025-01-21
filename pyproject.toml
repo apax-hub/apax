@@ -3,7 +3,6 @@ name = "apax"
 version = "0.10.0"
 description = "Atomistic Learned Potential Package in JAX"
 keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
-license = "MIT"
 readme = "README.md"
 authors = [
     { name = "Moritz René Schäfer", email = "schaefer@theochem.uni-stuttgart.de" },
@@ -73,9 +72,8 @@ apax = 'apax.cli.apax_app:app'
 
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
 [tool.ruff]
 line-length = 90
