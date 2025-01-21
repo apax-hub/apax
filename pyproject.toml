@@ -1,6 +1,6 @@
 [project]
 name = "apax"
-version = "0.10.1"
+version = "0.10.2"
 description = "Atomistic Learned Potential Package in JAX"
 keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
 readme = "README.md"
@@ -71,16 +71,16 @@ lint = [
 apax = 'apax.cli.apax_app:app'
 
 
-# [build-system]
-# requires = ["setuptools"]
-# build-backend = "setuptools.build_meta"
-
-# [tool.setuptools]
-# license-files = []
-
 [build-system]
-requires = ["hatchling==1.26.3"]
-build-backend = "hatchling.build"
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+license-files = []
+
+# [build-system]
+# requires = ["hatchling==1.26.3"]
+# build-backend = "hatchling.build"
 
 
 
