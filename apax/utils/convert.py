@@ -164,7 +164,7 @@ def atoms_to_labels(
     for atoms in atoms_list[1:]:
         common_keys &= set(atoms.calc.results.keys())
     log.info(f"Labels found in the dataset: {common_keys}")
-    
+
     for atoms in atoms_list:
         for key in common_keys:
             val = atoms.calc.results[key]
@@ -175,7 +175,7 @@ def atoms_to_labels(
             elif key == "stress":
                 factor = unit_dict[energy_unit] / (unit_dict[pos_unit] ** 3)
                 stress = atoms.get_stress(voigt=False) * factor
-                labels[key].append(stress * atoms.cell.volume)        
+                labels[key].append(stress * atoms.cell.volume)
             elif key in property_names:
                 labels[key].append(val)
 
