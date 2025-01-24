@@ -2,8 +2,11 @@ import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
 from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
+import logging
 
 from apax.utils.jax_md_reduced import space
+
+log = logging.getLogger(__name__)
 
 DTYPE = np.float64
 unit_dict = {
@@ -157,8 +160,14 @@ def atoms_to_labels(
             placeholder = {key: []}
             labels.update(placeholder)
 
+    common_keys = set(atoms_list[0].calc.results.keys())
+    for atoms in atoms_list[1:]:
+        common_keys &= set(atoms.calc.results.keys())
+    log.info(f"Labels found in the dataset: {common_keys}")
+    
     for atoms in atoms_list:
-        for key, val in atoms.calc.results.items():
+        for key in common_keys:
+            val = atoms.calc.results[key]
             if key == "forces":
                 labels[key].append(val * unit_dict[energy_unit] / unit_dict[pos_unit])
             elif key == "energy":
@@ -166,9 +175,9 @@ def atoms_to_labels(
             elif key == "stress":
                 factor = unit_dict[energy_unit] / (unit_dict[pos_unit] ** 3)
                 stress = atoms.get_stress(voigt=False) * factor
-                labels[key].append(stress * atoms.cell.volume)
+                labels[key].append(stress * atoms.cell.volume)        
             elif key in property_names:
-                labels[key].append(atoms.calc.results[key])
+                labels[key].append(val)
 
     labels = prune_dict(labels)
     return labels
