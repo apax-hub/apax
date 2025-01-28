@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 
-from apax.layers.ntk_linear import NTKLinear
+from apax.layers.linear import Linear
 
 
 def test_ntk_linear():
@@ -9,7 +9,7 @@ def test_ntk_linear():
 
     x = jnp.linspace(-1, 1, num=20)
 
-    linear = NTKLinear(32, dtype=jnp.float32)
+    linear = Linear(32, dtype=jnp.float32)
     params = linear.init(key, x)
     result = linear.apply(params, x)
 

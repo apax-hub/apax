@@ -171,6 +171,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     basis: BasisConfig = Field(BesselBasisConfig(name="bessel"), discriminator="name")
 
     nn: List[PositiveInt] = [256, 256]
+    num_fidelities: int = 0
     w_init: Literal["normal", "lecun"] = "lecun"
     b_init: Literal["normal", "zeros"] = "zeros"
     use_ntk: bool = False

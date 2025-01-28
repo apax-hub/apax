@@ -92,6 +92,7 @@ class EnergyModel(nn.Module):
         box,
         offsets,
         perturbation=None,
+        fidelity=None,
     ):
         dr_vec, idx = self.compute_distances(
             R,
@@ -105,8 +106,11 @@ class EnergyModel(nn.Module):
         # shape Natoms
         # shape shallow ens: Natoms x Nensemble
         g = self.representation(dr_vec, Z, idx)
-        h = jax.vmap(self.readout)(g)
-        E_i = self.scale_shift(h, Z)
+        h = jax.vmap(self.readout)(g, fidelity)
+        E_i = self.scale_shift(h, Z, fidelity)
+
+        if fidelity:
+            E_i = E_i * fidelity
 
         if self.mask_atoms:
             E_i = mask_by_atom(E_i, Z)
@@ -123,12 +127,12 @@ class EnergyModel(nn.Module):
 
         properties = {}
         for property_head in self.property_heads:
-            result = property_head(g, R, dr_vec, Z, idx, box)
+            result = property_head(g, R, dr_vec, Z, idx, box) # add fidelity
             properties.update(result)
 
         # Corrections
         for correction in self.corrections:
-            energy_correction = correction(R, dr_vec, Z, idx, box, properties)
+            energy_correction = correction(R, dr_vec, Z, idx, box, properties) # add fidelity
             energy = energy + energy_correction
 
         return energy, properties
@@ -150,9 +154,10 @@ class EnergyDerivativeModel(nn.Module):
         neighbor: Union[partition.NeighborList, Array],
         box,
         offsets,
+        fidelity=None,
     ):
         ef_function = jax.value_and_grad(self.energy_model, has_aux=True)
-        (energy, properties), neg_forces = ef_function(R, Z, neighbor, box, offsets)
+        (energy, properties), neg_forces = ef_function(R, Z, neighbor, box, offsets, fidelity)
         forces = -neg_forces
         prediction = {"energy": energy, "forces": forces}
         prediction.update(properties)
@@ -164,7 +169,7 @@ class EnergyDerivativeModel(nn.Module):
                 box,
                 Z=Z,
                 neighbor=neighbor,
-                offsets=offsets,
+                offsets=offsets, # add fidelity
             )
             prediction["stress"] = stress
 

@@ -15,8 +15,8 @@ from apax.layers.descriptor.basis_functions import (
 )
 from apax.layers.empirical import all_corrections
 from apax.layers.properties import PropertyHead
-from apax.layers.readout import AtomisticReadout
-from apax.layers.scaling import PerElementScaleShift
+from apax.layers.readout import AtomisticReadout, MultifidelityAtomisticReadout
+from apax.layers.scaling import MultiFidelityPerElementScaleShift, PerElementScaleShift
 from apax.nn.models import (
     EnergyDerivativeModel,
     EnergyModel,
@@ -96,24 +96,46 @@ class ModelBuilder:
         else:
             raise KeyError("No dtype specified in config")
 
-        readout = AtomisticReadout(
-            units=head_config["nn"],
-            b_init=head_config["b_init"],
-            w_init=head_config["w_init"],
-            use_ntk=head_config["use_ntk"],
-            is_feature_fn=is_feature_fn,
-            n_shallow_ensemble=n_shallow_ensemble,
-            dtype=dtype,
-        )
+
+        if "num_fidelities" not in head_config:
+            readout = AtomisticReadout(
+                units=head_config["nn"],
+                b_init=head_config["b_init"],
+                w_init=head_config["w_init"],
+                use_ntk=head_config["use_ntk"],
+                is_feature_fn=is_feature_fn,
+                n_shallow_ensemble=n_shallow_ensemble,
+                dtype=dtype,
+            )
+        else:
+            readout = MultifidelityAtomisticReadout(
+                units=head_config["nn"],
+                num_fidelities = head_config["num_fidelities"],
+                b_init=head_config["b_init"],
+                w_init=head_config["w_init"],
+                use_ntk=head_config["use_ntk"],
+                is_feature_fn=is_feature_fn,
+                n_shallow_ensemble=n_shallow_ensemble,
+                dtype=dtype,
+            )
+
         return readout
 
-    def build_scale_shift(self, scale, shift):
-        scale_shift = PerElementScaleShift(
-            n_species=self.n_species,
-            scale=scale,
-            shift=shift,
-            dtype=self.config["scale_shift_dtype"],
-        )
+    def build_scale_shift(self, scale, shift, num_fidelities=0):
+        if num_fidelities == 0 :
+            scale_shift = PerElementScaleShift(
+                n_species=self.n_species,
+                scale=scale,
+                shift=shift,
+                dtype=self.config["scale_shift_dtype"],
+            )
+        else:
+            scale_shift = MultiFidelityPerElementScaleShift(
+                n_species=self.n_species,
+                scale=scale,
+                shift=shift,
+                dtype=self.config["scale_shift_dtype"],
+            )
         return scale_shift
 
     def build_property_heads(self, apply_mask: bool = True):

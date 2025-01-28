@@ -4,7 +4,7 @@ import jax.numpy as jnp
 from apax.utils.convert import str_to_dtype
 
 
-class NTKLinear(nn.Module):
+class Linear(nn.Module):
     """Linear layer with activation.
     Corresponds to an NTK layer with "normal" and "zeros" for w and b initialization
     and "use_ntk" set to True.
