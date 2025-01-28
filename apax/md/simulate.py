@@ -379,16 +379,18 @@ def run_sim(
     traj_handler.write()
     traj_handler.close()
     end = time.time()
-    elapsed_time = end - start
+    elapsed_wall_time = end - start
+    elapsed_sim_time = step * ensemble.dt / 1000
 
-    ps_per_s = total_sim_time / elapsed_time
+
+    ps_per_s = elapsed_sim_time / elapsed_wall_time
     nanosec_per_day = ps_per_s / 1e3 * 60 * 60 * 24
 
-    sec_per_step = elapsed_time / n_steps
+    sec_per_step = elapsed_wall_time / n_steps
     n_atoms = system.positions.shape[0]
     musec_per_step_per_atom = sec_per_step * 1e6 / n_atoms
 
-    log.info("simulation finished after: %.2f s", elapsed_time)
+    log.info("simulation finished after: %.2f s", elapsed_wall_time)
     log.info(
         "performance summary: %.2f ns/day, %.2f mu s/step/atom",
         nanosec_per_day,
