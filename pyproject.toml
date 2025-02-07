@@ -29,9 +29,6 @@ dependencies = [
     "znh5md>=0.4.2",
 ]
 
-
-
-
 [project.optional-dependencies]
 cuda = ["jax[cuda]"]
 mlflow = [
@@ -65,11 +62,14 @@ lint = [
     "ruff>=0.9.1",
 ]
 
-
-
 [project.scripts]
 apax = 'apax.cli.apax_app:app'
 
+[project.urls]
+Repository = "https://github.com/apax-hub/apax"
+Releases = "https://github.com/apax-hub/apax/releases"
+Discord = "https://discord.gg/7ncfwhsnm4"
+Documentation = "https://apax.readthedocs.io/"
 
 [build-system]
 requires = ["setuptools"]
@@ -77,12 +77,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 license-files = []
-
-# [build-system]
-# requires = ["hatchling==1.26.3"]
-# build-backend = "hatchling.build"
-
-
 
 [tool.ruff]
 line-length = 90
