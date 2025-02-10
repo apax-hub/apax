@@ -72,8 +72,8 @@ Discord = "https://discord.gg/7ncfwhsnm4"
 Documentation = "https://apax.readthedocs.io/"
 
 [build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.setuptools]
 license-files = []
