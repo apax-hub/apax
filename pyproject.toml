@@ -8,6 +8,7 @@ authors = [
     { name = "Moritz René Schäfer", email = "schaefer@theochem.uni-stuttgart.de" },
     { name = "Nico Segreto", email = "segreto@theochem.uni-stuttgart.de" },
 ]
+license = "Apache-2.0"
 
 requires-python = ">=3.10"
 dependencies = [
@@ -74,9 +75,6 @@ Documentation = "https://apax.readthedocs.io/"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.setuptools]
-license-files = []
 
 [tool.ruff]
 line-length = 90
