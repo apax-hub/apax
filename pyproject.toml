@@ -8,7 +8,7 @@ authors = [
     { name = "Moritz René Schäfer", email = "schaefer@theochem.uni-stuttgart.de" },
     { name = "Nico Segreto", email = "segreto@theochem.uni-stuttgart.de" },
 ]
-license = "Apache-2.0"
+license = "MIT"
 
 requires-python = ">=3.10"
 dependencies = [
