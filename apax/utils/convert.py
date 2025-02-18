@@ -150,20 +150,35 @@ def atoms_to_labels(
     """
 
     labels = {
-        "forces": [],
+        # "forces": [],
         "energy": [],
-        "stress": [],
+        # "stress": [],
     }
+    # property_names = [p[0] for p in additional_properties]
+    # for key in property_names:
+    #     if key not in labels.keys():
+    #         placeholder = {key: []}
+    #         labels.update(placeholder)
+
+    common_keys = set(atoms_list[0].calc.results.keys())
+    for atoms in atoms_list[1:]:
+        common_keys &= set(atoms.calc.results.keys())
+    log.info(f"Labels found in the dataset: {common_keys}")
+
     property_names = [p[0] for p in additional_properties]
     for key in property_names:
         if key not in labels.keys():
             placeholder = {key: []}
             labels.update(placeholder)
 
-    common_keys = set(atoms_list[0].calc.results.keys())
-    for atoms in atoms_list[1:]:
-        common_keys &= set(atoms.calc.results.keys())
-    log.info(f"Labels found in the dataset: {common_keys}")
+    for key in labels.keys():
+        if not key in common_keys:
+            log.error(f"Label {key} missing at least in one structure")
+    
+    for key in common_keys:
+        if key not in labels.keys():
+            placeholder = {key: []}
+            labels.update(placeholder)
 
     for atoms in atoms_list:
         for key in common_keys:

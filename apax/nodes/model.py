@@ -2,6 +2,8 @@ import logging
 import pathlib
 import typing as t
 
+import ase.calculators
+import ase.calculators.singlepoint
 import ase.io
 import numpy as np
 import pandas as pd
@@ -95,6 +97,29 @@ class Apax(ApaxBase):
         """Primary method to run which executes all steps of the model training"""
 
         if not self.state.restarted:
+            common_keys = set(self.data[0].calc.results.keys())
+            for atoms in self.data[1:]:
+                common_keys &= set(atoms.calc.results.keys())
+            for atoms in self.validation_data:
+                common_keys &= set(atoms.calc.results.keys())
+
+            for atoms in self.data:
+                results = {}
+                for key in common_keys:
+                    results[key] = atoms.calc.results[key]
+                    
+                calc = ase.calculators.singlepoint.SinglePointCalculator(atoms, **results)
+                atoms.calc = calc
+                
+            for atoms in self.validation_data:
+                results = {}
+                for key in common_keys:
+                    results[key] = atoms.calc.results[key]
+                    
+                calc = ase.calculators.singlepoint.SinglePointCalculator(atoms, **results)
+                atoms.calc = calc
+                
+                
             ase.io.write(self.train_data_file.as_posix(), self.data)
             ase.io.write(self.validation_data_file.as_posix(), self.validation_data)
 
