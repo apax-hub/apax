@@ -154,11 +154,6 @@ def atoms_to_labels(
         "energy": [],
         # "stress": [],
     }
-    # property_names = [p[0] for p in additional_properties]
-    # for key in property_names:
-    #     if key not in labels.keys():
-    #         placeholder = {key: []}
-    #         labels.update(placeholder)
 
     common_keys = set(atoms_list[0].calc.results.keys())
     for atoms in atoms_list[1:]:
