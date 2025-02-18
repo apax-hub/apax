@@ -1,8 +1,9 @@
+import logging
+
 import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
 from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
-import logging
 
 from apax.utils.jax_md_reduced import space
 
@@ -167,7 +168,7 @@ def atoms_to_labels(
             labels.update(placeholder)
 
     for key in labels.keys():
-        if not key in common_keys:
+        if key not in common_keys:
             log.error(f"Label {key} missing at least in one structure")
 
     for key in common_keys:
