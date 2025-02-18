@@ -174,7 +174,7 @@ def atoms_to_labels(
     for key in labels.keys():
         if not key in common_keys:
             log.error(f"Label {key} missing at least in one structure")
-    
+
     for key in common_keys:
         if key not in labels.keys():
             placeholder = {key: []}

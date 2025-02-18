@@ -107,19 +107,19 @@ class Apax(ApaxBase):
                 results = {}
                 for key in common_keys:
                     results[key] = atoms.calc.results[key]
-                    
+
                 calc = ase.calculators.singlepoint.SinglePointCalculator(atoms, **results)
                 atoms.calc = calc
-                
+
             for atoms in self.validation_data:
                 results = {}
                 for key in common_keys:
                     results[key] = atoms.calc.results[key]
-                    
+
                 calc = ase.calculators.singlepoint.SinglePointCalculator(atoms, **results)
                 atoms.calc = calc
-                
-                
+
+
             ase.io.write(self.train_data_file.as_posix(), self.data)
             ase.io.write(self.validation_data_file.as_posix(), self.validation_data)
 
