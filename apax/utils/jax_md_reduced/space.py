@@ -171,7 +171,7 @@ def square_distance(dR: Array) -> Array:
 def periodic_general(
     box: Box, fractional_coordinates: bool = True, wrapped: bool = True
 ) -> Space:
-    """Periodic boundary conditions on a parallelepiped.
+    r"""Periodic boundary conditions on a parallelepiped.
 
     This function defines a simulation on a parallelepiped, :math:`X`, formed by
     applying an affine transformation, :math:`T`, to the unit hypercube
