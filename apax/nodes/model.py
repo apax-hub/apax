@@ -2,6 +2,8 @@ import logging
 import pathlib
 import typing as t
 
+import ase.calculators
+import ase.calculators.singlepoint
 import ase.io
 import numpy as np
 import pandas as pd
@@ -95,8 +97,50 @@ class Apax(ApaxBase):
         """Primary method to run which executes all steps of the model training"""
 
         if not self.state.restarted:
-            ase.io.write(self.train_data_file.as_posix(), self.data)
-            ase.io.write(self.validation_data_file.as_posix(), self.validation_data)
+            common_keys = set(self.data[0].calc.results.keys())
+            for atoms in self.data[1:]:
+                common_keys &= set(atoms.calc.results.keys())
+            for atoms in self.validation_data:
+                common_keys &= set(atoms.calc.results.keys())
+            log.warning(f"common keys = {common_keys}")
+
+            new_frames = []
+            for atoms in self.data:
+                results = {}
+                for key in common_keys:
+                    results[key] = atoms.calc.results[key]
+
+                symbols = atoms.get_chemical_symbols()
+                pbc = atoms.get_pbc()
+                positions = atoms.get_positions()
+                cell = atoms.get_cell()
+
+
+                new_atoms = ase.Atoms(symbols=symbols, positions=positions, cell=cell, pbc=pbc)
+
+                calc = ase.calculators.singlepoint.SinglePointCalculator(new_atoms, **results)
+                new_atoms.calc = calc
+                new_frames.append(new_atoms)
+
+            new_val_frames = []
+            for atoms in self.validation_data:
+                results = {}
+                for key in common_keys:
+                    results[key] = atoms.calc.results[key]
+
+                symbols = atoms.get_chemical_symbols()
+                pbc = atoms.get_pbc()
+                positions = atoms.get_positions()
+                cell = atoms.get_cell()
+
+                new_val_atoms = ase.Atoms(symbols=symbols, positions=positions, cell=cell, pbc=pbc)
+
+                calc = ase.calculators.singlepoint.SinglePointCalculator(new_val_atoms, **results)
+                new_val_atoms.calc = calc
+                new_val_frames.append(new_val_atoms)
+
+            ase.io.write(self.train_data_file.as_posix(), new_frames)
+            ase.io.write(self.validation_data_file.as_posix(), new_val_frames)
 
         csv_path = self.model_directory / "log.csv"
         if self.state.restarted and csv_path.is_file():
