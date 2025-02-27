@@ -80,7 +80,9 @@ class ModelBuilder:
     ):
         raise NotImplementedError("use a subclass to facilitate this")
 
-    def build_readout(self, head_config, is_feature_fn=False, only_use_n_layers: None | int =None):
+    def build_readout(
+        self, head_config, is_feature_fn=False, only_use_n_layers: None | int = None
+    ):
         has_ensemble = "ensemble" in head_config.keys() and head_config["ensemble"]
         if has_ensemble and head_config["ensemble"]["kind"] == "shallow":
             n_shallow_ensemble = head_config["ensemble"]["n_members"]
