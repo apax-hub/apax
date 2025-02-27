@@ -95,7 +95,7 @@ class ModelBuilder:
             dtype = head_config["dtype"]
         else:
             raise KeyError("No dtype specified in config")
-        
+
         nn_layers = head_config["nn"]
         if only_use_n_layers is not None:
             nn_layers = nn_layers[:only_use_n_layers]
@@ -222,7 +222,9 @@ class ModelBuilder:
     ):
         log.info("Building feature model")
         descriptor = self.build_descriptor(apply_mask)
-        readout = self.build_readout(self.config,is_feature_fn=True, only_use_n_layers=only_use_n_layers)
+        readout = self.build_readout(
+            self.config, is_feature_fn=True, only_use_n_layers=only_use_n_layers
+        )
 
         model = FeatureModel(
             descriptor,
