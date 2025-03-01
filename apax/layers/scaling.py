@@ -66,9 +66,15 @@ class MultiFidelityPerElementScaleShift(nn.Module):
         else:
             n_species = self.n_species
 
-        if len(scale.shape) == 1:
+        scale = jnp.stack([scale,scale], axis=1)
+        shift = jnp.stack([shift,shift], axis=1)
+        
+        # print(scale.shape)
+        # quit()
+
+        if len(scale.shape) == 2:
             scale = einops.repeat(scale, "species fidelity -> species fidelity 1")
-        if len(shift.shape) == 1:
+        if len(shift.shape) == 2:
             shift = einops.repeat(shift, "species fidelity -> species fidelity 1")
         scale_init = nn.initializers.constant(scale)
         shift_init = nn.initializers.constant(shift)
@@ -88,7 +94,12 @@ class MultiFidelityPerElementScaleShift(nn.Module):
         # scale[Z] shape: n_atoms x 1
         x = x.astype(dtype)
 
+        # print("scale", self.scale_param[Z].shape)
+        # print(x.shape)
+
         out = self.scale_param[Z] * x + self.shift_param[Z]
+        # print(out.shape)
+        # quit()
 
         assert out.dtype == dtype
         return out

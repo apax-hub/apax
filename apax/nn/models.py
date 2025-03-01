@@ -66,6 +66,7 @@ class FeatureModel(nn.Module):
             features = jnp.mean(features, axis=0)
         return features
 
+from jax import debug
 
 class EnergyModel(nn.Module):
     """Model which post processes the output of an atomistic model and
@@ -106,17 +107,26 @@ class EnergyModel(nn.Module):
         # shape Natoms
         # shape shallow ens: Natoms x Nensemble
         g = self.representation(dr_vec, Z, idx)
-        h = jax.vmap(self.readout)(g, fidelity)
-        E_i = self.scale_shift(h, Z, fidelity)
+        h = jax.vmap(self.readout)(g)
+        # print(h.shape)
+        E_i = self.scale_shift(h, Z)
+        print(E_i.shape)
+
+        debug.print("pre {x}", x=E_i)
 
         if fidelity:
             E_i = E_i * fidelity
+            debug.print("fid {x}", x=fidelity)
+            debug.print("psot {x}", x=E_i)
+            E_i = fp64_sum(E_i, axis=1)
+
+        print(E_i.shape)
 
         if self.mask_atoms:
             E_i = mask_by_atom(E_i, Z)
 
         # check for shallow ensemble
-        is_shallow_ensemble = E_i.shape[1] > 1
+        is_shallow_ensemble = E_i.shape[2] > 1
         if is_shallow_ensemble:  # is this necessary or is using sum with axis=0 enough?
             total_energies_ensemble = fp64_sum(E_i, axis=0)
             # shape Nensemble
@@ -124,6 +134,9 @@ class EnergyModel(nn.Module):
         else:
             # shape ()
             energy = fp64_sum(E_i)
+
+        # print(energy.shape)
+        quit()
 
         properties = {}
         for property_head in self.property_heads:

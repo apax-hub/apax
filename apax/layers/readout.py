@@ -57,28 +57,31 @@ class MultifidelityAtomisticReadout(nn.Module):
     w_init: str = "normal"
     b_init: str = "zeros"
     use_ntk: bool = False
-    n_shallow_ensemble: int = 0
+    n_shallow_ensemble: int = 1
     is_feature_fn: bool = False
     dtype: Any = jnp.float32
 
     def setup(self):
         units = list(self.units)
         if not self.is_feature_fn:
-            readout_unit = [1]
-            if self.n_shallow_ensemble > 0:
-                readout_unit = [self.n_shallow_ensemble]
+            readout_unit = [self.num_fidelities * self.n_shallow_ensemble]
             units += readout_unit
 
         dtype = str_to_dtype(self.dtype)
-
-        self. sequentials = []
-        for i in range(self.num_fidelities):
-            sequential = self.make_sequential(units, dtype, i)
-            self.sequentials.append(sequential)
+        # sequentials = []
+        # for i in range(self.num_fidelities):
+        #     print("i",i)
+        #     seq = self.make_sequential(units, dtype, i)
+        #     print(seq)
+        #     sequentials.append(seq)
+        # self.sequentials = sequentials
+        # print(self.sequentials)
+        # quit()
+        self.sequential = self.make_sequential(units, dtype)
 
         # consider shared layers
 
-    def make_sequential(self, units, dtype, idx):
+    def make_sequential(self, units, dtype):
         dense = []
         for ii, n_hidden in enumerate(units):
             layer = Linear(
@@ -92,15 +95,20 @@ class MultifidelityAtomisticReadout(nn.Module):
             dense.append(layer)
             if ii < len(units) - 1:
                 dense.append(swish)
-        self.sequential = nn.Sequential(dense, name=f"readout_{idx}")
+        sequential = nn.Sequential(dense, name="readout")
+        return sequential
 
     def __call__(self, x):
-        h = []
+        # h = []
         
-        for seq in self.sequentials:
-            h.append(seq(x))
+        # for seq in self.sequential:
+        #     h.append(seq(x))
+        h = self.sequential(x)
 
-        h = jnp.concat(h, axis=-1) # which axis?
+        if not self.is_feature_fn:
+            h = jnp.reshape(h, (self.num_fidelities, self.n_shallow_ensemble))
+
+        # h = jnp.concat(h, axis=-1) # which axis?
         # TODO should we move aggregation here?
 
         return h

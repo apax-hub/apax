@@ -87,7 +87,7 @@ class ModelBuilder:
         elif "n_shallow_members" in head_config.keys():
             n_shallow_ensemble = head_config["n_shallow_members"]
         else:
-            n_shallow_ensemble = 0
+            n_shallow_ensemble = 1
 
         if "readout_dtype" in head_config:
             dtype = head_config["readout_dtype"]
@@ -122,6 +122,7 @@ class ModelBuilder:
         return readout
 
     def build_scale_shift(self, scale, shift, num_fidelities=0):
+        num_fidelities = 2
         if num_fidelities == 0 :
             scale_shift = PerElementScaleShift(
                 n_species=self.n_species,
@@ -134,6 +135,7 @@ class ModelBuilder:
                 n_species=self.n_species,
                 scale=scale,
                 shift=shift,
+                num_fidelities=2, # toto make obsolete, detect num fid. from shape
                 dtype=self.config["scale_shift_dtype"],
             )
         return scale_shift
