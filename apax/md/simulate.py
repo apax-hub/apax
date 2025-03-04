@@ -380,7 +380,7 @@ def run_sim(
     traj_handler.close()
     end = time.time()
     elapsed_wall_time = end - start
-    elapsed_sim_time = step * ensemble.dt / 1000
+    elapsed_sim_time = step * n_inner * ensemble.dt / 1000
 
     ps_per_s = elapsed_sim_time / elapsed_wall_time
     nanosec_per_day = ps_per_s / 1e3 * 60 * 60 * 24
