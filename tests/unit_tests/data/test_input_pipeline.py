@@ -93,22 +93,22 @@ from apax.utils.random import seed_py_np_tf
         [10, True, ["energy", "forces"]],
     ),
 )
-def test_split_data(example_atoms):
+def test_split_data(example_atoms_list):
     seed_py_np_tf(1)
-    train_idxs1, val_idxs1 = split_idxs(example_atoms, 4, 2)
-    train_idxs2, val_idxs2 = split_idxs(example_atoms, 4, 2)
+    train_idxs1, val_idxs1 = split_idxs(example_atoms_list, 4, 2)
+    train_idxs2, val_idxs2 = split_idxs(example_atoms_list, 4, 2)
     assert np.all(train_idxs1 != train_idxs2) and np.all(val_idxs1 != val_idxs2)
 
-    train_atoms1, val_atoms1 = split_atoms(example_atoms, train_idxs1, val_idxs1)
-    train_atoms2, val_atoms2 = split_atoms(example_atoms, train_idxs2, val_idxs2)
+    train_atoms1, val_atoms1 = split_atoms(example_atoms_list, train_idxs1, val_idxs1)
+    train_atoms2, val_atoms2 = split_atoms(example_atoms_list, train_idxs2, val_idxs2)
     assert np.all(train_atoms1[0].get_positions() != train_atoms2[0].get_positions())
     assert np.all(val_atoms1[0].get_positions() != val_atoms2[0].get_positions())
 
     seed_py_np_tf(1)
-    train_idxs2, val_idxs2 = split_idxs(example_atoms, 4, 2)
+    train_idxs2, val_idxs2 = split_idxs(example_atoms_list, 4, 2)
     assert np.all(train_idxs1 == train_idxs2) and np.all(val_idxs1 == val_idxs2)
 
-    train_atoms2, val_atoms2 = split_atoms(example_atoms, train_idxs2, val_idxs2)
+    train_atoms2, val_atoms2 = split_atoms(example_atoms_list, train_idxs2, val_idxs2)
     assert np.all(train_atoms1[0].get_positions() == train_atoms2[0].get_positions())
     assert np.all(val_atoms1[0].get_positions() == val_atoms2[0].get_positions())
 
@@ -120,29 +120,29 @@ def test_split_data(example_atoms):
         [5, True, ["energy", "forces"]],
     ),
 )
-def test_convert_atoms_to_arrays(example_atoms, pbc):
-    inputs = atoms_to_inputs(example_atoms)
-    labels = atoms_to_labels(example_atoms)
+def test_convert_atoms_to_arrays(example_atoms_list, pbc):
+    inputs = atoms_to_inputs(example_atoms_list)
+    labels = atoms_to_labels(example_atoms_list)
 
     assert "positions" in inputs
-    assert len(inputs["positions"]) == len(example_atoms)
+    assert len(inputs["positions"]) == len(example_atoms_list)
 
     assert "numbers" in inputs
-    assert len(inputs["numbers"]) == len(example_atoms)
+    assert len(inputs["numbers"]) == len(example_atoms_list)
 
     assert "box" in inputs
-    assert len(inputs["box"]) == len(example_atoms)
+    assert len(inputs["box"]) == len(example_atoms_list)
     if not pbc:
         assert np.all(inputs["box"][0] < 1e-6)
 
     assert "n_atoms" in inputs
-    assert len(inputs["n_atoms"]) == len(example_atoms)
+    assert len(inputs["n_atoms"]) == len(example_atoms_list)
 
     assert "energy" in labels
-    assert len(labels["energy"]) == len(example_atoms)
+    assert len(labels["energy"]) == len(example_atoms_list)
 
     assert "forces" in labels
-    assert len(labels["forces"]) == len(example_atoms)
+    assert len(labels["forces"]) == len(example_atoms_list)
 
 
 @pytest.mark.parametrize(
