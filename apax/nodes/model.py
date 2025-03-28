@@ -115,10 +115,13 @@ class Apax(ApaxBase):
                 positions = atoms.get_positions()
                 cell = atoms.get_cell()
 
+                new_atoms = ase.Atoms(
+                    symbols=symbols, positions=positions, cell=cell, pbc=pbc
+                )
 
-                new_atoms = ase.Atoms(symbols=symbols, positions=positions, cell=cell, pbc=pbc)
-
-                calc = ase.calculators.singlepoint.SinglePointCalculator(new_atoms, **results)
+                calc = ase.calculators.singlepoint.SinglePointCalculator(
+                    new_atoms, **results
+                )
                 new_atoms.calc = calc
                 new_frames.append(new_atoms)
 
@@ -133,9 +136,13 @@ class Apax(ApaxBase):
                 positions = atoms.get_positions()
                 cell = atoms.get_cell()
 
-                new_val_atoms = ase.Atoms(symbols=symbols, positions=positions, cell=cell, pbc=pbc)
+                new_val_atoms = ase.Atoms(
+                    symbols=symbols, positions=positions, cell=cell, pbc=pbc
+                )
 
-                calc = ase.calculators.singlepoint.SinglePointCalculator(new_val_atoms, **results)
+                calc = ase.calculators.singlepoint.SinglePointCalculator(
+                    new_val_atoms, **results
+                )
                 new_val_atoms.calc = calc
                 new_val_frames.append(new_val_atoms)
 
