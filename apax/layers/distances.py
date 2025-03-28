@@ -25,7 +25,7 @@ def disp_fn(ri, rj, perturbation, box):
 def get_disp_fn(displacement):
     def disp_fn(ri, rj, perturbation, box):
         return displacement(ri, rj, perturbation, box=box)
-
+    
     return disp_fn
 
 

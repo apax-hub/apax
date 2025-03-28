@@ -227,9 +227,11 @@ class InMemoryDataset:
 
     def init_input(self) -> Dict[str, np.ndarray]:
         """Returns first batch of inputs and labels to init the model."""
-        positions = self.sample_atoms.positions * unit_dict[self.pos_unit]
-        box = self.sample_atoms.cell.array * unit_dict[self.pos_unit]
-        # For an input sample, it does not matter whether pos is fractional or cartesian
+        inputs = atoms_to_inputs([self.sample_atoms], unit_dict[self.pos_unit])
+        
+        positions = np.array(inputs["positions"][0])
+        box = np.asarray(inputs["box"][0])
+
         idx, offsets = compute_nl(positions, box, self.cutoff)
         inputs = (
             positions,
@@ -448,6 +450,7 @@ class BatchProcessor:
             inputs["box"][i] = inp["box"]
 
             idx, offset = compute_nl(inp["positions"], inp["box"], self.cutoff)
+
             idxs.append(idx)
             offsets.append(offset)
 
