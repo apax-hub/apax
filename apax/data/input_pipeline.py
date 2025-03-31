@@ -227,7 +227,7 @@ class InMemoryDataset:
 
     def init_input(self) -> Dict[str, np.ndarray]:
         """Returns first batch of inputs and labels to init the model."""
-        inputs = atoms_to_inputs([self.sample_atoms], unit_dict[self.pos_unit])
+        inputs = atoms_to_inputs([self.sample_atoms], self.pos_unit)
         
         positions = np.array(inputs["positions"][0])
         box = np.asarray(inputs["box"][0])
