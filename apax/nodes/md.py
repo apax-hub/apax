@@ -63,6 +63,10 @@ class ApaxJaxMD(zntrack.Node):
         atoms = self.data[self.data_id]
         if self.repeat is not None:
             atoms = atoms.repeat(self.repeat)
+        del atoms.arrays["bfactor"]
+        del atoms.arrays["occupancy"]
+        del atoms.arrays["residuenames"]
+        del atoms.arrays["residuenumbers"]
         ase.io.write(self.init_struc_dir.as_posix(), atoms)
 
     def run(self):
