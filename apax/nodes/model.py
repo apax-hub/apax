@@ -244,6 +244,9 @@ class ApaxImport(zntrack.Node):
     def parameter(self) -> dict:
         return yaml.safe_load(self.state.fs.read_text(self.config))
 
+    def run(self) -> None:
+        pass
+    
     def get_calculator(self, **kwargs) -> ase.calculators.calculator.Calculator:
         """Property to return a model specific ase calculator object.
 
