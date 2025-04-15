@@ -6,6 +6,6 @@ ensemble:
     T0: 1 # K
 
 duration: 1 # fs
-n_inner: 5 # compiled innner steps
+n_inner: 5 # compiled inner steps
 sampling_rate: 1  # dump interval
 dr_threshold: 0.5 # Neighborlist skin
