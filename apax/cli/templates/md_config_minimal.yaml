@@ -11,7 +11,7 @@ ensemble:
     tau: 100
 
 duration: <DURATION> # fs
-n_inner: 500 # compiled innner steps
+n_inner: 500 # compiled inner steps
 sampling_rate: 10  # dump interval
 buffer_size: 2500
 dr_threshold: 0.5 # Neighborlist skin
