@@ -6,7 +6,7 @@ import ase.io
 import h5py
 import yaml
 import znh5md
-import zntrack.utils
+import zntrack
 
 from apax.md.simulate import run_md
 from apax.nodes.model import ApaxBase
@@ -63,10 +63,16 @@ class ApaxJaxMD(zntrack.Node):
         atoms = self.data[self.data_id]
         if self.repeat is not None:
             atoms = atoms.repeat(self.repeat)
-        del atoms.arrays["bfactor"]
-        del atoms.arrays["occupancy"]
-        del atoms.arrays["residuenames"]
-        del atoms.arrays["residuenumbers"]
+
+        key_list = [
+            "bfactor",
+            "occupancy",
+            "residuenames",
+            "residuenumbers",
+        ]
+        for key in key_list:
+            if key in atoms.arrays.keys():
+                del atoms.arrays[key]
         ase.io.write(self.init_struc_dir.as_posix(), atoms)
 
     def run(self):
