@@ -5,8 +5,6 @@ import numpy as np
 from ase import Atoms
 from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
 
-from apax.utils.jax_md_reduced import space
-
 log = logging.getLogger(__name__)
 
 DTYPE = np.float64

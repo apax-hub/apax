@@ -20,7 +20,6 @@ from apax.utils.convert import (
     atoms_to_inputs,
     atoms_to_labels,
     transpose_dict_of_lists,
-    unit_dict,
 )
 
 log = logging.getLogger(__name__)
