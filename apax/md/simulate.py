@@ -143,7 +143,7 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_ch
         all_checks_passed = True
 
         for check in dynamics_checks:
-            check_passed = check.check(predictions)
+            check_passed = check.check(predictions, positions, box)
             all_checks_passed = all_checks_passed & check_passed
         return predictions, all_checks_passed
 
@@ -441,15 +441,13 @@ def md_setup(model_config: Config, md_config: MDConfig):
 
         if np.any(atoms.cell.lengths() / 2 < r_max):
             log.error(
-                "cutoff is larger than box/2 in at least",
-                f"one cell vector direction {atoms.cell.lengths() / 2} < {r_max}",
-                "can not calculate the correct neighbors",
+                f"Cutoff radius is larger than half the box in at least one cell vector direction: "
+                f"{r_max} > {np.min(atoms.cell.lengths()) / 2}. Cannot calculate correct neighbors."
             )
         if np.any(heights / 2 < r_max):
             log.error(
-                "cutoff is larger than box/2 in at least",
-                f"one cell vector direction {heights / 2} < {r_max}",
-                "can not calculate the correct neighbors",
+                f"Cutoff radius is larger than half the box in at least one cell vector direction: "
+                f"{r_max} > {np.min(heights) / 2}. Cannot calculate correct neighbors."
             )
         displacement_fn, shift_fn = space.periodic_general(
             system.box, fractional_coordinates=frac_coords
@@ -567,4 +565,5 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
         checkpoint_interval=md_config.checkpoint_interval,
         sim_dir=sim_dir,
         dynamics_checks=dynamics_checks,
+        constraints=constraints,
     )
