@@ -46,7 +46,7 @@ def compute_nl(positions, box, r_max):
     else:
         positions = positions @ box.T
         calculator = NeighborList(cutoff=r_max, full_list=True)
-        idxs_i, idxs_j, offsets= calculator.compute(
+        idxs_i, idxs_j, offsets = calculator.compute(
             points=positions, box=box.T, periodic=True, quantities="ijS"
         )
         neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
@@ -54,6 +54,7 @@ def compute_nl(positions, box, r_max):
         offsets = np.matmul(offsets, box.T)
 
     return neighbor_idxs, offsets
+
 
 def get_shrink_wrapped_cell(positions):
     """
