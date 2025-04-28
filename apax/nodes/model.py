@@ -2,11 +2,12 @@ import logging
 import pathlib
 import typing as t
 
-import ase.io
+import ase
 import numpy as np
 import pandas as pd
 import yaml
-import zntrack.utils
+import znh5md
+import zntrack
 from ase import Atoms
 
 from apax.calibration import compute_calibration_factors
@@ -51,10 +52,8 @@ class Apax(ApaxBase):
 
     model_directory: pathlib.Path = zntrack.outs_path(zntrack.nwd / "apax_model")
 
-    train_data_file: pathlib.Path = zntrack.outs_path(zntrack.nwd / "train_atoms.extxyz")
-    validation_data_file: pathlib.Path = zntrack.outs_path(
-        zntrack.nwd / "val_atoms.extxyz"
-    )
+    train_data_file: pathlib.Path = zntrack.outs_path(zntrack.nwd / "train_atoms.h5")
+    validation_data_file: pathlib.Path = zntrack.outs_path(zntrack.nwd / "val_atoms.h5")
 
     metrics: dict = zntrack.metrics()
 
@@ -95,8 +94,11 @@ class Apax(ApaxBase):
         """Primary method to run which executes all steps of the model training"""
 
         if not self.state.restarted:
-            ase.io.write(self.train_data_file.as_posix(), self.data)
-            ase.io.write(self.validation_data_file.as_posix(), self.validation_data)
+            train_db = znh5md.IO(self.train_data_file.as_posix())
+            train_db.extend(self.data)
+
+            val_db = znh5md.IO(self.validation_data_file.as_posix())
+            val_db.extend(self.validation_data)
 
         csv_path = self.model_directory / "log.csv"
         if self.state.restarted and csv_path.is_file():
