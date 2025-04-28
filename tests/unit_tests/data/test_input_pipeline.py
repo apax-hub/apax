@@ -213,3 +213,4 @@ def test_neighbors_and_displacements(pbc, calc_results, cell):
     assert Counter(vesin_dists) == Counter(apax_dist)  # == Counter(m_dist)
     assert np.all(vesin_dists < r_max)
     assert np.all(apax_dist < r_max)
+
