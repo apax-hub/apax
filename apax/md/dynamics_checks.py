@@ -1,5 +1,4 @@
 import logging
-
 from typing import Literal, Union
 
 import jax.numpy as jnp
@@ -58,7 +57,7 @@ class ReflectionCheck(DynamicsCheckBase, extra="forbid"):
         check_passed = jnp.all(z_pos < self.cutoff_plane_height)
 
         return check_passed
-    
+
 
 DynamicsChecks = TypeAdapter(
     Union[EnergyUncertaintyCheck, ForceUncertaintyCheck, ReflectionCheck]
