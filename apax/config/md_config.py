@@ -200,9 +200,13 @@ class ForcesUncertaintyCheck(BaseModel, extra="forbid"):
     name: Literal["forces_uncertainty"] = "forces_uncertainty"
     threshold: PositiveFloat
 
-
+class ReflectionCheck(BaseModel, extra="forbid"):
+    name: Literal["reflection"] = "reflection"
+    cutoff_plane_height: float
+    
 DynamicsCheck = Annotated[
-    Union[EnergyUncertaintyCheck, ForcesUncertaintyCheck], Field(discriminator="name")
+    Union[EnergyUncertaintyCheck, ForcesUncertaintyCheck, ReflectionCheck],
+    Field(discriminator="name"),
 ]
 
 
