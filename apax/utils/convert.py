@@ -110,9 +110,8 @@ def atoms_to_inputs(
             )
 
         if is_pbc:
-            inv_box = np.linalg.inv(box)
-            pos = (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
-            frac_pos = space.transform(inv_box, pos)
+            atoms.positions = (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+            frac_pos = atoms.get_scaled_positions()
             inputs["positions"].append(np.array(frac_pos))
         else:
             inputs["positions"].append(
