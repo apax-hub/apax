@@ -1,3 +1,4 @@
+import matscipy.neighbours
 import numpy as np
 import pytest
 from ase import Atoms
@@ -9,6 +10,7 @@ from apax.layers.distances import disp_fn
 from apax.utils.convert import atoms_to_inputs, atoms_to_labels
 from apax.utils.data import split_atoms, split_idxs
 from apax.utils.random import seed_py_np_tf
+from collections import Counter
 
 # TODO RE-ENABLE LATER
 # @pytest.mark.parametrize(
@@ -188,23 +190,20 @@ def test_neighbors_and_displacements(pbc, calc_results, cell):
 
     inputs = atoms_to_inputs([atoms])
     box = np.asarray(inputs["box"][0])
-    idx, offsets = compute_nl(inputs["positions"][0], box, r_max)
-
-    Ri = positions[idx[0]]
-    Rj = positions[idx[1]] + offsets
-    matscipy_dr_vec = Rj - Ri
-    matscipy_dr_vec = np.asarray(matscipy_dr_vec)
-
     positions = np.asarray(inputs["positions"][0])
+
+    idx, offsets = compute_nl(positions, box, r_max)
+
     Ri = positions[idx[0]]
     Rj = positions[idx[1]]
     displacement = vmap(disp_fn, (0, 0, None, None), 0)
     apax_dr_vec = displacement(Rj, Ri, None, box)
     apax_dr_vec += offsets
     apax_dr_vec = np.asarray(apax_dr_vec)
-
-    matscipy_dist = np.linalg.norm(matscipy_dr_vec, axis=1)
     apax_dist = np.linalg.norm(apax_dr_vec, axis=1)
 
-    assert np.all(matscipy_dr_vec - apax_dr_vec < 10e-7)
-    assert np.all(matscipy_dist - apax_dist < 10e-7)
+    m_dist = matscipy.neighbours.neighbour_list("d", atoms, r_max)
+    
+    assert Counter(m_dist) == Counter(apax_dist)
+    assert np.all(m_dist < r_max)
+    assert np.all(apax_dist < r_max)
