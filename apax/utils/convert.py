@@ -3,8 +3,6 @@ import numpy as np
 from ase import Atoms
 from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
 
-from apax.utils.jax_md_reduced import space
-
 DTYPE = np.float64
 unit_dict = {
     "Ang": Ang,
