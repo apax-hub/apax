@@ -2,11 +2,11 @@ import logging
 import pathlib
 import typing
 
-import ase.io
+import ase
 import h5py
 import yaml
 import znh5md
-import zntrack.utils
+import zntrack
 
 from apax.md.simulate import run_md
 from apax.nodes.model import ApaxBase
@@ -41,9 +41,7 @@ class ApaxJaxMD(zntrack.Node):
     config: str = zntrack.params_path(None)
 
     sim_dir: pathlib.Path = zntrack.outs_path(zntrack.nwd / "md")
-    init_struc_dir: pathlib.Path = zntrack.outs_path(
-        zntrack.nwd / "initial_structure.extxyz"
-    )
+    init_struc_dir: pathlib.Path = zntrack.outs_path(zntrack.nwd / "initial_structure.h5")
 
     @property
     def parameter(self) -> dict:
@@ -63,7 +61,8 @@ class ApaxJaxMD(zntrack.Node):
         atoms = self.data[self.data_id]
         if self.repeat is not None:
             atoms = atoms.repeat(self.repeat)
-        ase.io.write(self.init_struc_dir.as_posix(), atoms)
+        db = znh5md.IO(self.init_struc_dir.as_posix())
+        db.extend(atoms)
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
