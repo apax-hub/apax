@@ -62,7 +62,7 @@ class ApaxJaxMD(zntrack.Node):
         if self.repeat is not None:
             atoms = atoms.repeat(self.repeat)
         db = znh5md.IO(self.init_struc_dir.as_posix())
-        db.extend(atoms)
+        db.extend([atoms])
 
     def run(self):
         """Primary method to run which executes all steps of the model training"""
