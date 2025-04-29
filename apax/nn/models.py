@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 
 
 class FeatureModel(nn.Module):
-    """Model wrapps some submodel (e.g. a descriptor) to supply distance computation."""
+    """Model wraps some submodel (e.g. a descriptor) to supply distance computation."""
 
     representation: nn.Module = GaussianMomentDescriptor()
     readout: nn.Module = AtomisticReadout()
@@ -237,7 +237,7 @@ class ShallowEnsembleModel(nn.Module):
             else:
                 with jax.ensure_compile_time_eval():
                     if not n_ens % self.chunk_size == 0:
-                        m = "the chunksize needs to be a factor of the number of ensemble memebrs"
+                        m = "the chunksize needs to be a factor of the number of ensemble members"
                         raise ValueError(m)
 
                 forces_ens = []
