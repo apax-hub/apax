@@ -5,8 +5,6 @@ import numpy as np
 from ase import Atoms
 from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
 
-from apax.utils.jax_md_reduced import space
-
 log = logging.getLogger(__name__)
 
 DTYPE = np.float64
@@ -114,9 +112,8 @@ def atoms_to_inputs(
             )
 
         if is_pbc:
-            inv_box = np.linalg.inv(box)
-            pos = (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
-            frac_pos = space.transform(inv_box, pos)
+            atoms.positions = (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+            frac_pos = atoms.get_scaled_positions()
             inputs["positions"].append(np.array(frac_pos))
         else:
             inputs["positions"].append(
