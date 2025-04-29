@@ -223,7 +223,7 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     zbl_lr : NonNegativeFloat, default = 0.0001
         Learning rate of the ZBL correction parameters.
     rep_scale_lr : NonNegativeFloat, default = 0.001
-        LR for the length scale of thes exponential repulsion potential.
+        LR for the length scale of these exponential repulsion potential.
     rep_prefactor_lr : NonNegativeFloat, default = 0.0001
         LR for the strength of the exponential repulsion potential.
     gradient_clipping: NonNegativeFloat, default = 1000.0

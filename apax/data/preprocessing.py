@@ -44,13 +44,13 @@ def compute_nl(positions, box, r_max):
         offsets = np.full([n_neighbors, 3], 0)
 
     else:
-        positions = positions @ box
+        positions = positions @ box.T
         calculator = NeighborList(cutoff=r_max, full_list=True)
         idxs_i, idxs_j, offsets = calculator.compute(
-            points=positions, box=box, periodic=True, quantities="ijS"
+            points=positions, box=box.T, periodic=True, quantities="ijS"
         )
         neighbor_idxs = np.array([idxs_i, idxs_j], dtype=np.int32)
-        offsets = np.matmul(offsets, box)
+        offsets = np.matmul(offsets, box.T)
     return neighbor_idxs, offsets
 
 
