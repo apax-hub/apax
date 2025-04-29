@@ -219,6 +219,9 @@ class ApaxImport(zntrack.Node):
             )
             return calc
 
+    def run(self) -> None:
+        pass
+
 
 class ApaxCalibrate(ApaxBase):
     """Globally calibrate the energy and force uncertainties of an Apax model.
