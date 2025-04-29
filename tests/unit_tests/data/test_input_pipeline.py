@@ -1,6 +1,5 @@
 from collections import Counter
 
-# import matscipy.neighbours
 import numpy as np
 import pytest
 from ase import Atoms
@@ -203,13 +202,11 @@ def test_neighbors_and_displacements(pbc, calc_results, cell):
     apax_dr_vec = np.asarray(apax_dr_vec)
     apax_dist = np.linalg.norm(apax_dr_vec, axis=1)
 
-    # m_dist = matscipy.neighbours.neighbour_list("d", atoms, r_max)
-
     calculator = NeighborList(cutoff=r_max, full_list=True)
     vesin_dists = calculator.compute(
         points=atoms.positions, box=box.T, periodic=True, quantities="d"
     )[0]
 
-    assert Counter(vesin_dists) == Counter(apax_dist)  # == Counter(m_dist)
+    assert Counter(vesin_dists) == Counter(apax_dist)
     assert np.all(vesin_dists < r_max)
     assert np.all(apax_dist < r_max)
