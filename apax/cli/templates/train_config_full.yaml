@@ -49,7 +49,7 @@ model:
 
   # if you would like to train model ensembles, this can be
   # achieved with the following example.
-  # Hint: loss type hase to be changed to a probabalistic loss like nll or crps
+  # Hint: loss type hase to be changed to a probabilistic loss like nll or crps
   # ensemble:
   #  kind: shallow
   #  n_members: N

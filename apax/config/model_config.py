@@ -87,7 +87,7 @@ class ShallowEnsembleConfig(BaseModel, extra="forbid"):
 
     Hint
     ----------
-    Loss type hase to be changed to a probabalistic loss like 'nll' or 'crps'
+    Loss type hase to be changed to a probabilistic loss like 'nll' or 'crps'
 
     """
 
@@ -145,7 +145,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     Parameters
     ----------
     basis : BasisConfig, default = GaussianBasisConfig()
-        Configuration for primitive basis funtions.
+        Configuration for primitive basis functions.
     nn : List[PositiveInt], default = [256, 256]
         Number of hidden layers and units in those layers.
     w_init : Literal["normal", "lecun"], default = "lecun"
