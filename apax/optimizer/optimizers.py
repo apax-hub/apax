@@ -3,7 +3,7 @@ from typing import NamedTuple
 import jax
 import jax.numpy as jnp
 import optax
-from jax import tree_util as jtu
+from jax import tree_util
 from optax import bias_correction, contrib, update_moment, update_moment_per_elem_norm
 from optax._src import base, combine, numerics, transform
 from optax.tree_utils import tree_zeros_like
@@ -64,7 +64,7 @@ def scale_by_ademamix(b1, b2, b3, alpha, b3_scheduler, alpha_scheduler, eps):
         count_m2_inc = numerics.safe_int32_increment(state.count_m2)
         m1_hat = bias_correction(m1, b1, count_inc)
         nu_hat = bias_correction(nu, b2, count_inc)
-        updates = jtu.tree_map(
+        updates = tree_util.tree_map(
             lambda m1_, m2_, v_: (m1_ + c_alpha * m2_) / (jnp.sqrt(v_) + eps),
             m1_hat,
             m2,

@@ -1,7 +1,7 @@
-import jax
 import jax.numpy as jnp
 import optax
 from flax.core.frozen_dict import freeze
+from jax import tree_util
 
 from apax.optimizer import get_opt
 
@@ -19,7 +19,7 @@ def test_get_opt():
     }
     params = freeze(params)
 
-    grads = jax.tree_util.tree_map(lambda x: x * 0.01, tree=params)
+    grads = tree_util.tree_map(lambda x: x * 0.01, tree=params)
 
     opt = get_opt(
         params,
@@ -36,10 +36,10 @@ def test_get_opt():
     updates, new_opt_state = opt.update(grads, opt_state, params)
     new_params = optax.apply_updates(params, updates)
 
-    filtered_params = jax.tree_util.tree_map(
+    filtered_params = tree_util.tree_map(
         lambda v: v[0] if len(v.shape) == 1 else v[0, 0], new_params
     )
-    flat_params, treedef = jax.tree_util.tree_flatten(filtered_params)
+    flat_params, treedef = tree_util.tree_flatten(filtered_params)
 
     assert jnp.allclose(flat_params[1], flat_params[2])
     assert flat_params[-2] > flat_params[1]

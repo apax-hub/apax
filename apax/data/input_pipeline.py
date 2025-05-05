@@ -14,6 +14,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
+from jax import tree_util
 
 from apax.data.preprocessing import compute_nl, prefetch_to_single_device
 from apax.utils.convert import (
@@ -239,7 +240,7 @@ class InMemoryDataset:
             offsets,
         )
 
-        inputs = jax.tree_map(lambda x: jnp.array(x), inputs)
+        inputs = tree_util.tree_map(lambda x: jnp.array(x), inputs)
         return inputs, np.array(box)
 
     def __iter__(self):
