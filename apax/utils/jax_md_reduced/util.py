@@ -19,9 +19,8 @@ from typing import Any, Iterable, Optional, Union
 
 import jax.numpy as jnp
 import numpy as onp
-from jax import jit
+from jax import jit, tree_util
 from jax.lib import xla_bridge
-from jax.tree_util import register_pytree_node
 
 Array = jnp.ndarray
 PyTree = Any
@@ -57,7 +56,9 @@ def static_cast(*xs):
 
 
 def register_pytree_namedtuple(cls):
-    register_pytree_node(cls, lambda xs: (tuple(xs), None), lambda _, xs: cls(*xs))
+    tree_util.register_pytree_node(
+        cls, lambda xs: (tuple(xs), None), lambda _, xs: cls(*xs)
+    )
 
 
 def merge_dicts(a, b, ignore_unused_parameters=False):

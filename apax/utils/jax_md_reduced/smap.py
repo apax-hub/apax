@@ -20,7 +20,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import jax.numpy as jnp
 import numpy as onp
-from jax import ops, tree_map, vmap
+from jax import ops, tree_util, vmap
 
 from apax.utils.jax_md_reduced import dataclasses, partition, space, util
 
@@ -106,7 +106,7 @@ def _get_bond_type_parameters(params: Array, bond_type: Array) -> Array:
         if params.mapping is ParameterTreeMapping.Global:
             return params.tree
         elif params.mapping is ParameterTreeMapping.PerBond:
-            return tree_map(lambda p: p[bond_type], params.tree)
+            return tree_util.tree_map(lambda p: p[bond_type], params.tree)
         else:
             raise ValueError(
                 "ParameterTreeMapping must be either Global or PerBond"
@@ -248,7 +248,7 @@ def _get_species_parameters(params: Parameter, species: Array) -> Parameter:
         if params.mapping is ParameterTreeMapping.Global:
             return p
         elif params.mapping is ParameterTreeMapping.PerSpecies:
-            return tree_map(lambda x: x[species], p)
+            return tree_util.tree_map(lambda x: x[species], p)
         else:
             raise ValueError(
                 "When species are present, ParameterTreeMapping must "
@@ -277,7 +277,7 @@ def _get_matrix_parameters(
         if params.mapping in (M.Global, M.PerBond):
             return params.tree
         elif params.mapping is M.PerParticle:
-            return tree_map(
+            return tree_util.tree_map(
                 lambda p: combinator(p[:, None, ...], p[None, :, ...]), params.tree
             )
         else:
@@ -552,10 +552,12 @@ def _get_neighborhood_matrix_params(
         elif params.mapping is ParameterTreeMapping.PerParticle:
             if partition.is_sparse(format):
                 c_fn = space.map_bond(combinator)
-                return tree_map(lambda p: c_fn(p[idx[0]], p[idx[1]]), params.tree)
+                return tree_util.tree_map(
+                    lambda p: c_fn(p[idx[0]], p[idx[1]]), params.tree
+                )
             else:
                 c_fn = space.map_neighbor(combinator)
-                return tree_map(lambda p: c_fn(p, p[idx]), params.tree)
+                return tree_util.tree_map(lambda p: c_fn(p, p[idx]), params.tree)
         elif params.mapping is ParameterTreeMapping.PerBond:
 
             def query(p, id_a, id_b):
@@ -563,11 +565,11 @@ def _get_neighborhood_matrix_params(
 
             if partition.is_sparse(format):
                 c_fn = lambda p: space.map_bond(partial(query, p))(idx[0], idx[1])
-                return tree_map(c_fn, params.tree)
+                return tree_util.tree_map(c_fn, params.tree)
             else:
                 r = jnp.arange(idx.shape[0], dtype=jnp.int32)
                 c_fn = lambda p: vmap(vmap(partial(query, p), (None, 0)))(r, idx)
-                return tree_map(c_fn, params.tree)
+                return tree_util.tree_map(c_fn, params.tree)
         else:
             raise ValueError(
                 "Without species information ParameterTreeMapping "
@@ -618,12 +620,12 @@ def _get_neighborhood_species_params(
                 l_fn = lambda p: space.map_bond(partial(lookup, p))(
                     species[idx[0]], species[idx[1]]
                 )
-                return tree_map(l_fn, params.tree)
+                return tree_util.tree_map(l_fn, params.tree)
             else:
                 l_fn = lambda p: vmap(vmap(partial(lookup, p), (None, 0)))(
                     species, species[idx]
                 )
-                return tree_map(l_fn, params.tree)
+                return tree_util.tree_map(l_fn, params.tree)
         else:
             raise ValueError(
                 "Parameter tree mapping must be either Global or "

@@ -9,6 +9,7 @@ import numpy as np
 from ase import units
 from ase.io import read
 from flax.training import checkpoints
+from jax import tree_util
 from jax.experimental import io_callback
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
@@ -143,12 +144,12 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_ch
         all_checks_passed = True
 
         for check in dynamics_checks:
-            check_passed = check.check(predictions)
+            check_passed = check.check(predictions, positions, box)
             all_checks_passed = all_checks_passed & check_passed
         return predictions, all_checks_passed
 
     predictions = aux_fn(positions, Z, neighbor, box, offsets)
-    dummpy_preds = jax.tree_map(lambda x: jnp.zeros_like(x), predictions)
+    dummpy_preds = tree_util.tree_map(lambda x: jnp.zeros_like(x), predictions)
 
     def no_eval(positions, neighbor, box):
         predictions = dummpy_preds
@@ -441,15 +442,13 @@ def md_setup(model_config: Config, md_config: MDConfig):
 
         if np.any(atoms.cell.lengths() / 2 < r_max):
             log.error(
-                "cutoff is larger than box/2 in at least",
-                f"one cell vector direction {atoms.cell.lengths() / 2} < {r_max}",
-                "can not calculate the correct neighbors",
+                f"Cutoff radius is larger than half the box in at least one cell vector direction: "
+                f"{r_max} > {np.min(atoms.cell.lengths()) / 2}. Cannot calculate correct neighbors."
             )
         if np.any(heights / 2 < r_max):
             log.error(
-                "cutoff is larger than box/2 in at least",
-                f"one cell vector direction {heights / 2} < {r_max}",
-                "can not calculate the correct neighbors",
+                f"Cutoff radius is larger than half the box in at least one cell vector direction: "
+                f"{r_max} > {np.min(heights) / 2}. Cannot calculate correct neighbors."
             )
         displacement_fn, shift_fn = space.periodic_general(
             system.box, fractional_coordinates=frac_coords
@@ -567,4 +566,5 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
         checkpoint_interval=md_config.checkpoint_interval,
         sim_dir=sim_dir,
         dynamics_checks=dynamics_checks,
+        constraints=constraints,
     )

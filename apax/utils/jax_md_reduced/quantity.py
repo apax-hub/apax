@@ -19,9 +19,8 @@ import operator
 from typing import Callable, Optional, Tuple, TypeVar, Union
 
 import jax.numpy as jnp
-from jax import ShapeDtypeStruct, eval_shape, grad, ops, vmap
+from jax import ShapeDtypeStruct, eval_shape, grad, ops, tree_util, vmap
 from jax.scipy.special import gammaln
-from jax.tree_util import tree_map, tree_reduce
 
 from apax.utils.jax_md_reduced import dataclasses, partition, space, util
 
@@ -77,9 +76,9 @@ def canonicalize_force(energy_or_force_fn: Union[EnergyFn, ForceFn]) -> ForceFn:
                 _force_fn = force(energy_or_force_fn)
             else:
                 # Check that the output has the right shape to be a force.
-                is_valid_force = tree_reduce(
+                is_valid_force = tree_util.tree_reduce(
                     lambda x, y: x and y,
-                    tree_map(lambda x, y: x.shape == y.shape, out_shaped, R),
+                    tree_util.tree_map(lambda x, y: x.shape == y.shape, out_shaped, R),
                     True,
                 )
                 if not is_valid_force:
@@ -98,7 +97,7 @@ def canonicalize_force(energy_or_force_fn: Union[EnergyFn, ForceFn]) -> ForceFn:
 @functools.singledispatch
 def count_dof(position: Array) -> int:
     util.check_custom_simulation_type(position)
-    return tree_reduce(lambda accum, x: accum + x.size, position, 0)
+    return tree_util.tree_reduce(lambda accum, x: accum + x.size, position, 0)
 
 
 def volume(dimension: int, box: Box) -> float:
@@ -145,8 +144,8 @@ def kinetic_energy(
     q = velocity if momentum is None else momentum
     util.check_custom_simulation_type(q)
 
-    ke = tree_map(lambda m, q: 0.5 * util.high_precision_sum(k(q, m)), mass, q)
-    return tree_reduce(operator.add, ke, 0.0)
+    ke = tree_util.tree_map(lambda m, q: 0.5 * util.high_precision_sum(k(q, m)), mass, q)
+    return tree_util.tree_reduce(operator.add, ke, 0.0)
 
 
 def temperature(
@@ -185,8 +184,8 @@ def temperature(
 
     dof = count_dof(q)
 
-    kT = tree_map(lambda m, q: util.high_precision_sum(t(q, m)) / dof, mass, q)
-    return tree_reduce(operator.add, kT, 0.0)
+    kT = tree_util.tree_map(lambda m, q: util.high_precision_sum(t(q, m)) / dof, mass, q)
+    return tree_util.tree_reduce(operator.add, kT, 0.0)
 
 
 def pressure(

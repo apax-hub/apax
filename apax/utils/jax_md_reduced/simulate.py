@@ -36,8 +36,7 @@ can be used for testing purposes, but is not often used otherwise.
 from typing import Callable, Dict, Optional, Tuple, TypeVar
 
 import jax.numpy as jnp
-from jax import grad, jit, lax, random
-from jax.tree_util import tree_flatten, tree_map, tree_unflatten
+from jax import grad, jit, lax, random, tree_util
 
 from apax.utils.jax_md_reduced import (
     dataclasses,
@@ -129,7 +128,7 @@ def canonicalize_mass(state: T) -> T:
         )
         raise ValueError(msg)
 
-    return state.set(mass=tree_map(canonicalize_fn, state.mass))
+    return state.set(mass=tree_util.tree_map(canonicalize_fn, state.mass))
 
 
 @dispatch_by_state
@@ -137,8 +136,8 @@ def initialize_momenta(state: T, key: Array, kT: float) -> T:
     """Initialize momenta with the Maxwell-Boltzmann distribution."""
     R, mass = state.position, state.mass
 
-    R, treedef = tree_flatten(R)
-    mass, _ = tree_flatten(mass)
+    R, treedef = tree_util.tree_flatten(R)
+    mass, _ = tree_util.tree_flatten(mass)
     keys = random.split(key, len(R))
 
     def initialize_fn(k, r, m):
@@ -150,14 +149,16 @@ def initialize_momenta(state: T, key: Array, kT: float) -> T:
 
     P = [initialize_fn(k, r, m) for k, r, m in zip(keys, R, mass)]
 
-    return state.set(momentum=tree_unflatten(treedef, P))
+    return state.set(momentum=tree_util.tree_unflatten(treedef, P))
 
 
 @dispatch_by_state
 def momentum_step(state: T, dt: float) -> T:
     """Apply a single step of the time evolution operator for momenta."""
     assert hasattr(state, "momentum")
-    new_momentum = tree_map(lambda p, f: p + dt * f, state.momentum, state.force)
+    new_momentum = tree_util.tree_map(
+        lambda p, f: p + dt * f, state.momentum, state.force
+    )
     return state.set(momentum=new_momentum)
 
 
@@ -165,8 +166,8 @@ def momentum_step(state: T, dt: float) -> T:
 def position_step(state: T, shift_fn: Callable, dt: float, **kwargs) -> T:
     """Apply a single step of the time evolution operator for positions."""
     if isinstance(shift_fn, Callable):
-        shift_fn = tree_map(lambda r: shift_fn, state.position)
-    new_position = tree_map(
+        shift_fn = tree_util.tree_map(lambda r: shift_fn, state.position)
+    new_position = tree_util.tree_map(
         lambda s_fn, r, p, m: s_fn(r, dt * p / m, **kwargs),
         shift_fn,
         state.position,
@@ -449,7 +450,7 @@ def nose_hoover_chain(
 
         scale = jnp.exp(-delta_2 * p_xi[0] / Q[0])
         KE = KE * scale ** f32(2)
-        P = tree_map(lambda p: p * scale, P)
+        P = tree_util.tree_map(lambda p: p * scale, P)
 
         xi = xi + delta_2 * p_xi / Q
 
@@ -1399,7 +1400,7 @@ def temp_rescale(
         cond = jnp.abs(kT_current - kT) > window
         kT_target = kT_current - fraction * (kT_current - kT)
         lam = jnp.where(cond, jnp.sqrt(kT_target / kT_current), 1)
-        new_momentum = tree_map(lambda p: p * lam, state.momentum)
+        new_momentum = tree_util.tree_map(lambda p: p * lam, state.momentum)
         return state.set(momentum=new_momentum)
 
     def init_fn(key, R, mass=f32(1.0), **kwargs):
@@ -1459,7 +1460,7 @@ def temp_berendsen(
         """Rescaling the momentum of the particle by the factor lam."""
         _kT = temperature(state)
         lam = jnp.sqrt(1 + ((dt / tau) * ((kT / _kT) - 1)))
-        new_momentum = tree_map(lambda p: p * lam, state.momentum)
+        new_momentum = tree_util.tree_map(lambda p: p * lam, state.momentum)
         return state.set(momentum=new_momentum)
 
     def init_fn(key, R, mass=f32(1.0), **kwargs):
@@ -1541,7 +1542,7 @@ def nvk(
         s_dot_t = (b_sqrt * (a / b) * jnp.sinh(dt_2 * b_sqrt)) + jnp.cosh(dt_2 * b_sqrt)
 
         # Get the new momentum using Equation 4.15
-        new_momentum = tree_map(
+        new_momentum = tree_util.tree_map(
             lambda p, f, s, sdot: (p + f * s) / sdot,
             state.momentum,
             state.force,
@@ -1552,9 +1553,9 @@ def nvk(
 
     def position_update(state, shift_fn, **kwargs):
         if isinstance(shift_fn, Callable):
-            shift_fn = tree_map(lambda r: shift_fn, state.position)
+            shift_fn = tree_util.tree_map(lambda r: shift_fn, state.position)
         # Get the new positions using Equation 4.16 (Should read r = r + dt * p / m)
-        new_position = tree_map(
+        new_position = tree_util.tree_map(
             lambda s_fn, r, v: s_fn(r, dt * v, **kwargs),
             shift_fn,
             state.position,
@@ -1676,7 +1677,7 @@ def temp_csvr(
         scale = c1 + (c2 * ((r1 * r1) + r2)) + (2 * r1 * jnp.sqrt(c1 * c2))
         lam = jnp.sqrt(scale)
 
-        new_momentum = tree_map(lambda p: p * lam, state.momentum)
+        new_momentum = tree_util.tree_map(lambda p: p * lam, state.momentum)
         return state.set(momentum=new_momentum, rng=key)
 
     def init_fn(key, R, mass=f32(1.0), **kwargs):

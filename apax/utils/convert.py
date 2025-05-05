@@ -1,9 +1,11 @@
+import logging
+
 import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
 from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
 
-from apax.utils.jax_md_reduced import space
+log = logging.getLogger(__name__)
 
 DTYPE = np.float64
 unit_dict = {
@@ -110,9 +112,8 @@ def atoms_to_inputs(
             )
 
         if is_pbc:
-            inv_box = np.linalg.inv(box)
-            pos = (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
-            frac_pos = space.transform(inv_box, pos)
+            atoms.positions = (atoms.positions * unit_dict[pos_unit]).astype(DTYPE)
+            frac_pos = atoms.get_scaled_positions()
             inputs["positions"].append(np.array(frac_pos))
         else:
             inputs["positions"].append(
@@ -146,19 +147,31 @@ def atoms_to_labels(
         Labels are trainable system properties.
     """
 
-    labels = {
-        "forces": [],
-        "energy": [],
-        "stress": [],
-    }
+    labels = {}
+
     property_names = [p[0] for p in additional_properties]
     for key in property_names:
         if key not in labels.keys():
             placeholder = {key: []}
             labels.update(placeholder)
 
+    common_keys = set(atoms_list[0].calc.results.keys())
+    for atoms in atoms_list[1:]:
+        common_keys &= set(atoms.calc.results.keys())
+    log.info(f"Labels found in the dataset: {common_keys}")
+
+    for key in labels.keys():
+        if key not in common_keys:
+            log.error(f"Label {key} missing at least in one structure")
+
+    for key in common_keys:
+        if key not in labels.keys():
+            placeholder = {key: []}
+            labels.update(placeholder)
+
     for atoms in atoms_list:
-        for key, val in atoms.calc.results.items():
+        for key in common_keys:
+            val = atoms.calc.results[key]
             if key == "forces":
                 labels[key].append(val * unit_dict[energy_unit] / unit_dict[pos_unit])
             elif key == "energy":
@@ -168,7 +181,7 @@ def atoms_to_labels(
                 stress = atoms.get_stress(voigt=False) * factor
                 labels[key].append(stress * atoms.cell.volume)
             elif key in property_names:
-                labels[key].append(atoms.calc.results[key])
+                labels[key].append(val)
 
     labels = prune_dict(labels)
     return labels
