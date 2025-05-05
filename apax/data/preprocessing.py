@@ -5,7 +5,7 @@ import logging
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax.tree_util import tree_map
+from jax import tree_util
 from vesin import NeighborList
 
 log = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ def prefetch_to_single_device(iterator, size: int, sharding=None, n_step_jit=Fal
 
     def enqueue(n):
         for data in itertools.islice(iterator, n):
-            queue.append(tree_map(_prefetch, data))
+            queue.append(tree_util.tree_map(_prefetch, data))
 
     enqueue(size)
     while queue:

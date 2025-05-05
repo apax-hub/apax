@@ -1,11 +1,11 @@
 import jax
-from jax.tree_util import tree_map
+from jax import tree_util
 
 
 @jax.jit
 def tree_ema(tree1, tree2, alpha):
     """Exponential moving average of two pytrees."""
-    ema = tree_map(lambda a, b: alpha * a + (1 - alpha) * b, tree1, tree2)
+    ema = tree_util.tree_map(lambda a, b: alpha * a + (1 - alpha) * b, tree1, tree2)
     return ema
 
 
