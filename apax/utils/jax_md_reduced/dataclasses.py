@@ -21,7 +21,7 @@ Accessed on 04/29/2020.
 
 import dataclasses
 
-import jax
+from jax import tree_util
 
 
 def dataclass(clz):
@@ -60,7 +60,7 @@ def dataclass(clz):
         kwargs = dict(meta_args + data_args)
         return data_clz(**kwargs)
 
-    jax.tree_util.register_pytree_node(data_clz, iterate_clz, clz_from_iterable)
+    tree_util.register_pytree_node(data_clz, iterate_clz, clz_from_iterable)
 
     return data_clz
 
