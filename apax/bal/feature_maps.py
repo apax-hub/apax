@@ -1,11 +1,11 @@
 from typing import Callable, Literal, Tuple, Union
 
 import jax
-import jax.ad_checkpoint
 import jax.numpy as jnp
 import numpy as np
 from flax.core.frozen_dict import FrozenDict
 from flax.traverse_util import flatten_dict, unflatten_dict
+from jax.tree_util import tree_flatten, tree_map
 from pydantic import BaseModel, TypeAdapter
 
 from apax.nn.models import EnergyModel
@@ -73,9 +73,9 @@ class LastLayerGradientFeatures(FeatureTransformation, extra="forbid"):
 
             g_ll = jax.grad(inner)(ll_params)
             g_ll = unflatten_dict(g_ll)
-            g_ll = jax.tree_map(lambda arr: jnp.mean(arr, axis=-1, keepdims=True), g_ll)
-            g_flat = jax.tree_map(lambda arr: jnp.reshape(arr, (-1,)), g_ll)
-            (gb, gw), _ = jax.tree_util.tree_flatten(g_flat)
+            g_ll = tree_map(lambda arr: jnp.mean(arr, axis=-1, keepdims=True), g_ll)
+            g_flat = tree_map(lambda arr: jnp.reshape(arr, (-1,)), g_ll)
+            (gb, gw), _ = tree_flatten(g_flat)
 
             g = [gw, gb]
             g = jnp.concatenate(g)
@@ -133,21 +133,21 @@ class LastLayerForceFeatures(FeatureTransformation, extra="forbid"):
             # w: n_atoms, 3, n_features, 1
 
             if self.strategy == "raw":
-                (gb, gw), _ = jax.tree_util.tree_flatten(g_ll)
+                (gb, gw), _ = tree_flatten(g_ll)
 
                 # g: n_atoms, 3, n_features
                 g = gw[:, :, :, 0]
             elif self.strategy == "sum":
-                g_summed = jax.tree_map(
+                g_summed = tree_map(
                     lambda arr: jnp.reshape(jnp.sum(jnp.sum(arr, 0), 0), (-1,)), g_ll
                 )
-                (gb, gw), _ = jax.tree_util.tree_flatten(g_summed)
+                (gb, gw), _ = tree_flatten(g_summed)
                 g = [gw, gb]
                 g = jnp.concatenate(g)
 
             elif self.strategy == "flatten":
-                g_flat = jax.tree_map(lambda arr: jnp.reshape(arr, (-1,)), g_ll)
-                (gb, gw), _ = jax.tree_util.tree_flatten(g_flat)
+                g_flat = tree_map(lambda arr: jnp.reshape(arr, (-1,)), g_ll)
+                (gb, gw), _ = tree_flatten(g_flat)
                 g = gw
             else:
                 raise ValueError(f"unknown strategy: {self.strategy}")
@@ -191,9 +191,9 @@ class FullGradientRPFeatures(FeatureTransformation, extra="forbid"):
                 return out
 
             grads = jax.grad(inner)(params)
-            grads = jax.tree_map(lambda arr: jnp.mean(arr, axis=-1, keepdims=True), grads)
-            g_flat = jax.tree_map(lambda arr: jnp.reshape(arr, (-1,)), grads)
-            gs, _ = jax.tree_util.tree_flatten(g_flat)
+            grads = tree_map(lambda arr: jnp.mean(arr, axis=-1, keepdims=True), grads)
+            g_flat = tree_map(lambda arr: jnp.reshape(arr, (-1,)), grads)
+            gs, _ = tree_flatten(g_flat)
             g = jnp.concatenate(gs)
 
             with jax.ensure_compile_time_eval():

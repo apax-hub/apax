@@ -20,7 +20,8 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import jax.numpy as jnp
 import numpy as onp
-from jax import ops, tree_map, vmap
+from jax import ops, vmap
+from jax.tree_util import tree_map
 
 from apax.utils.jax_md_reduced import dataclasses, partition, space, util
 

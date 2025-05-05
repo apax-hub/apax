@@ -9,6 +9,7 @@ import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
 from flax.core.frozen_dict import freeze, unfreeze
+from jax.tree_util import tree_map
 from tqdm import trange
 from vesin import NeighborList
 
@@ -104,7 +105,7 @@ def unpack_results(results, inputs):
     n_structures = len(results["energy"])
     unpacked_results = []
     for i in range(n_structures):
-        single_results = jax.tree_map(lambda x: x[i], results)
+        single_results = tree_map(lambda x: x[i], results)
         single_results["energy"] = single_results["energy"].item()
         for k, v in single_results.items():
             if "forces" in k:

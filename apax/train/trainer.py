@@ -11,6 +11,7 @@ from clu import metrics
 from flax.training.train_state import TrainState
 from jax.experimental import mesh_utils
 from jax.sharding import PositionalSharding
+from jax.tree_util import tree_map
 from tqdm import trange
 
 from apax.data.input_pipeline import InMemoryDataset
@@ -248,7 +249,7 @@ def make_ensemble_update(update_fn: Callable) -> Callable:
     def ensemble_update_fn(state, inputs, labels):
         loss, predictions, state = v_update_fn(state, inputs, labels)
 
-        mean_predictions = jax.tree_map(lambda x: jnp.mean(x, axis=0), predictions)
+        mean_predictions = tree_map(lambda x: jnp.mean(x, axis=0), predictions)
         mean_loss = jnp.mean(loss)
         # Should we add std to predictions?
         return mean_loss, mean_predictions, state
@@ -263,7 +264,7 @@ def make_ensemble_eval(update_fn: Callable) -> Callable:
     def ensemble_eval_fn(state, inputs, labels):
         loss, predictions = v_update_fn(state, inputs, labels)
 
-        mean_predictions = jax.tree_map(lambda x: jnp.mean(x, axis=0), predictions)
+        mean_predictions = tree_map(lambda x: jnp.mean(x, axis=0), predictions)
         mean_loss = jnp.mean(loss)
         return mean_loss, mean_predictions
 

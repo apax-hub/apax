@@ -10,6 +10,7 @@ from ase import units
 from ase.io import read
 from flax.training import checkpoints
 from jax.experimental import io_callback
+from jax.tree_util import tree_map
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -148,7 +149,7 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_ch
         return predictions, all_checks_passed
 
     predictions = aux_fn(positions, Z, neighbor, box, offsets)
-    dummpy_preds = jax.tree_map(lambda x: jnp.zeros_like(x), predictions)
+    dummpy_preds = tree_map(lambda x: jnp.zeros_like(x), predictions)
 
     def no_eval(positions, neighbor, box):
         predictions = dummpy_preds
