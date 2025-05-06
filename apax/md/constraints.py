@@ -49,7 +49,7 @@ class FixLayer(ConstraintBase, extra="forbid"):
     def create(self, ref_state, system) -> Callable:
         pos = ref_state.position @ system.box
         z_coordinates = pos[:, 2]
-        
+
         indices = jnp.where(
             (self.lower_limit <= z_coordinates) & (z_coordinates <= self.upper_limit)
         )
@@ -66,6 +66,6 @@ class FixLayer(ConstraintBase, extra="forbid"):
             return state
 
         return fn
-    
+
 
 Constraint = TypeAdapter(Union[FixAtoms, FixLayer]).validate_python
