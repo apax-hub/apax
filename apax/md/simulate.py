@@ -450,8 +450,11 @@ def md_setup(model_config: Config, md_config: MDConfig):
                 f"Cutoff radius is larger than half the box in at least one cell vector direction: "
                 f"{r_max} > {np.min(heights) / 2}. Cannot calculate correct neighbors."
             )
+
         displacement_fn, shift_fn = space.periodic_general(
-            system.box, fractional_coordinates=frac_coords
+            system.box,
+            fractional_coordinates=frac_coords,
+            wrapped=md_config.wrapped,
         )
 
     Builder = model_config.model.get_builder()
