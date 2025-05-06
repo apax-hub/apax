@@ -222,7 +222,10 @@ class FixLayerConstraint(BaseModel, extra="forbid"):
     upper_limit: float
     lower_limit: float
 
-Constraint = Annotated[Union[FixAtomsConstraint, FixLayerConstraint], Field(discriminator="name")]
+
+Constraint = Annotated[
+    Union[FixAtomsConstraint, FixLayerConstraint], Field(discriminator="name")
+]
 
 
 class MDConfig(BaseModel, frozen=True, extra="forbid"):
