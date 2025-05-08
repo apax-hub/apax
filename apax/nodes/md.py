@@ -71,6 +71,15 @@ class ApaxJaxMD(zntrack.Node):
 
         run_md(self.model.parameter, self.parameter, log_level="info")
 
+    def map(self):
+        """Primary method to run which executes all steps of the model training"""
+        for id in range(len(self.data)):
+            self.data_id = id
+            if not self.state.restarted:
+                self._write_initial_structure()
+
+            run_md(self.model.parameter, self.parameter, log_level="info")
+        
     @property
     def frames(self) -> typing.List[ase.Atoms]:
         with self.state.fs.open(self.sim_dir / "md.h5", "rb") as f:
