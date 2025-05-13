@@ -272,6 +272,8 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     restart : bool, default = True
         | Whether the simulation should restart from the latest configuration in
         | `traj_name`.
+    wrapped : bool, default = True
+        | Whether the atoms in the simulation should wrapped back into the box.
     checkpoint_interval : int, default = 50_000
         | Number of time steps between saving full simulation state checkpoints.
         | These will be loaded with the `restart` option.
@@ -303,6 +305,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     sim_dir: str = "."
     traj_name: str = "md.h5"
     restart: bool = True
+    wrapped: bool = True
     checkpoint_interval: int = 50_000
     disable_pbar: bool = False
 
