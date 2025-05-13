@@ -159,8 +159,8 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_ch
     return on_eval, no_eval
 
 
-def create_constraint_function(constraints: list[ConstraintBase], state):
-    all_constraints = [c.create(state) for c in constraints]
+def create_constraint_function(constraints: list[ConstraintBase], state, system):
+    all_constraints = [c.create(state, system) for c in constraints]
 
     def apply_constraints(state):
         for constraint in all_constraints:
@@ -259,6 +259,7 @@ def run_sim(
     apply_constraints = create_constraint_function(
         constraints,
         state,
+        system,
     )
 
     @jax.jit
