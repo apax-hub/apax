@@ -1,10 +1,7 @@
-import logging
 from typing import Literal, Union
 
 import jax.numpy as jnp
 from pydantic import BaseModel, TypeAdapter
-
-log = logging.getLogger(__name__)
 
 
 class DynamicsCheckBase(BaseModel):
@@ -49,7 +46,7 @@ class ForceUncertaintyCheck(DynamicsCheckBase, extra="forbid"):
 class ReflectionCheck(DynamicsCheckBase, extra="forbid"):
     name: Literal["reflection"] = "reflection"
     cutoff_plane_height: float
-
+    
     def check(self, predictions, positions, box):
         cartesian = positions @ box
         z_pos = cartesian[:, 2]
