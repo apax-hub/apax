@@ -1,4 +1,5 @@
 import os
+import random
 from typing import List
 
 import jax
@@ -44,9 +45,7 @@ def create_example_atoms(num_atoms: int, pbc: bool = False, calc_results=[]):
 
     additional_data = {}
     additional_data["pbc"] = pbc
-    # lattice = random.choice(["free", "sc", "fcc", "bcc"])
-    # at the moment we can only work with cubic cells
-    lattice = "sc"
+    lattice = random.choice(["sc", "fcc", "bcc"])
     if pbc:
         additional_data["cell"] = create_cell(cell_const, lattice)
     else:
@@ -72,7 +71,7 @@ def create_example_atoms(num_atoms: int, pbc: bool = False, calc_results=[]):
 
 
 @pytest.fixture()
-def example_atoms_list(num_data: int, pbc: bool, calc_results: List[str]) -> Atoms:
+def example_atoms_list(num_data: int, pbc: bool, calc_results: List[str]) -> List[Atoms]:
     atoms_list = []
 
     for _ in range(num_data):
