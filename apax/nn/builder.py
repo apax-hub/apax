@@ -80,7 +80,9 @@ class ModelBuilder:
     ):
         raise NotImplementedError("use a subclass to facilitate this")
 
-    def build_readout(self, head_config, is_feature_fn=False):
+    def build_readout(
+        self, head_config, is_feature_fn=False, only_use_n_layers: None | int = None
+    ):
         has_ensemble = "ensemble" in head_config.keys() and head_config["ensemble"]
         if has_ensemble and head_config["ensemble"]["kind"] == "shallow":
             n_shallow_ensemble = head_config["ensemble"]["n_members"]
@@ -96,8 +98,14 @@ class ModelBuilder:
         else:
             raise KeyError("No dtype specified in config")
 
+        nn_layers = head_config["nn"]
+        if only_use_n_layers is not None:
+            nn_layers = nn_layers[:only_use_n_layers]
+            if len(nn_layers) == 0:
+                return None
+
         readout = AtomisticReadout(
-            units=head_config["nn"],
+            units=nn_layers,
             b_init=head_config["b_init"],
             w_init=head_config["w_init"],
             use_ntk=head_config["use_ntk"],
@@ -207,15 +215,18 @@ class ModelBuilder:
             )
         return model
 
-    def build_ll_feature_model(
+    def build_feature_model(
         self,
+        only_use_n_layers=None,
         apply_mask=True,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn=None,
     ):
         log.info("Building feature model")
         descriptor = self.build_descriptor(apply_mask)
-        readout = self.build_readout(is_feature_fn=True)
+        readout = self.build_readout(
+            self.config, is_feature_fn=True, only_use_n_layers=only_use_n_layers
+        )
 
         model = FeatureModel(
             descriptor,
