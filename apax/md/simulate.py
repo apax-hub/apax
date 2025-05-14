@@ -159,8 +159,8 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_ch
     return on_eval, no_eval
 
 
-def create_constraint_function(constraints: list[ConstraintBase], state):
-    all_constraints = [c.create(state) for c in constraints]
+def create_constraint_function(constraints: list[ConstraintBase], state, system):
+    all_constraints = [c.create(state, system) for c in constraints]
 
     def apply_constraints(state):
         for constraint in all_constraints:
@@ -259,6 +259,7 @@ def run_sim(
     apply_constraints = create_constraint_function(
         constraints,
         state,
+        system,
     )
 
     @jax.jit
@@ -450,8 +451,11 @@ def md_setup(model_config: Config, md_config: MDConfig):
                 f"Cutoff radius is larger than half the box in at least one cell vector direction: "
                 f"{r_max} > {np.min(heights) / 2}. Cannot calculate correct neighbors."
             )
+
         displacement_fn, shift_fn = space.periodic_general(
-            system.box, fractional_coordinates=frac_coords
+            system.box,
+            fractional_coordinates=frac_coords,
+            wrapped=md_config.wrapped,
         )
 
     Builder = model_config.model.get_builder()
