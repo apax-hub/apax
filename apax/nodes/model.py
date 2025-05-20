@@ -12,9 +12,12 @@ from ase import Atoms
 
 from apax.calibration import compute_calibration_factors
 from apax.md import ASECalculator
-from apax.md.function_transformations import GlobalCalibration, available_transformations
+from apax.md.function_transformations import (
+    GlobalCalibration,
+    UncertaintyDrivenDynamics,
+    available_transformations,
+)
 from apax.train.run import run as apax_run
-from apax.md.function_transformations import UncertaintyDrivenDynamics
 
 from .utils import check_duplicate_keys
 
