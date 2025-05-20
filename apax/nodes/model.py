@@ -14,6 +14,7 @@ from apax.calibration import compute_calibration_factors
 from apax.md import ASECalculator
 from apax.md.function_transformations import GlobalCalibration, available_transformations
 from apax.train.run import run as apax_run
+from apax.md.function_transformations import UncertaintyDrivenDynamics
 
 from .utils import check_duplicate_keys
 
@@ -122,6 +123,25 @@ class Apax(ApaxBase):
                 model_dir=self.model_directory,
                 dr_threshold=self.nl_skin,
                 transformations=transformations,
+            )
+            return calc
+
+
+class ApaxApplyTransformation(ApaxBase):
+    """Apply transformation to an Apax model.
+    """
+    model : ApaxBase = zntrack.deps()
+    transformations: list[UncertaintyDrivenDynamics] = zntrack.deps(default_factory=list)
+
+    def run(self):
+        pass
+
+    def get_calculator(self, **kwargs):
+        with self.model.state.use_tmp_path():
+            calc = ASECalculator(
+                model_dir=self.model.model_directory,
+                dr_threshold=self.model.nl_skin,
+                transformations=self.transformations,
             )
             return calc
 
