@@ -227,6 +227,7 @@ Constraint = Annotated[
     Union[FixAtomsConstraint, FixLayerConstraint], Field(discriminator="name")
 ]
 
+
 class H5MDOptions(BaseModel, extra="forbid"):
     """
     Options for configuring H5MD (Hierarchical Data Format for Molecular Data) file output.
@@ -244,6 +245,7 @@ class H5MDOptions(BaseModel, extra="forbid"):
     author_email: str
         | Email address of the author. Defaults to "N/A".
     """
+
     compression: str | None = "gzip"
     compression_opts: int = 4
     store: Literal["time", "linear"] = "time"
