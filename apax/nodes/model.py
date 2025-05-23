@@ -131,9 +131,9 @@ class Apax(ApaxBase):
 
 
 class ApaxApplyTransformation(ApaxBase):
-    """Apply transformation to an Apax model.
-    """
-    model : ApaxBase = zntrack.deps()
+    """Apply transformation to an Apax model."""
+
+    model: ApaxBase = zntrack.deps()
     transformations: list[UncertaintyDrivenDynamics] = zntrack.deps(default_factory=list)
 
     def run(self):
