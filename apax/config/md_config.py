@@ -228,6 +228,31 @@ Constraint = Annotated[
 ]
 
 
+class H5MDOptions(BaseModel, extra="forbid"):
+    """
+    Options for configuring H5MD (Hierarchical Data Format for Molecular Data) file output.
+
+    Attributes
+    ----------
+    compression: str | None
+        | Compression algorithm to use for the HDF5 file (e.g., "gzip"). Defaults to "gzip".
+    compression_opts: int
+        | Compression level or options for the chosen algorithm. Defaults to 4.
+    store: Literal["time", "linear"]
+        | Storage mode for the data. Can be "time" or "linear". Defaults to "time".
+    author: str
+        | Name of the author of the file. Defaults to "N/A".
+    author_email: str
+        | Email address of the author. Defaults to "N/A".
+    """
+
+    compression: str | None = "gzip"
+    compression_opts: int = 4
+    store: Literal["time", "linear"] = "time"
+    author: str = "N/A"
+    author_email: str = "N/A"
+
+
 class MDConfig(BaseModel, frozen=True, extra="forbid"):
     """
     Configuration for a NHC molecular dynamics simulation.
@@ -299,6 +324,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     constraints: list[Constraint] = []
 
     properties: list[str] = APAX_PROPERTIES
+    h5md_options: H5MDOptions = H5MDOptions()
 
     initial_structure: str
     load_momenta: bool = False
