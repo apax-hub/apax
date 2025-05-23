@@ -553,7 +553,7 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
         traj_path,
         md_config.ensemble.dt,
         properties=md_config.properties,
-        h5md_options=md_config.h5md_options,
+        h5md_options=md_config.h5md_options.model_dump(),
     )
     # TODO implement correct chunking
 
