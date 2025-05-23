@@ -1,8 +1,16 @@
 from .md import ApaxJaxMD
-from .model import Apax, ApaxCalibrate, ApaxEnsemble, ApaxImport
+from .model import Apax, ApaxApplyTransformation, ApaxCalibrate, ApaxEnsemble, ApaxImport
 from .utils import AddData
 
-__all__ = ["Apax", "ApaxEnsemble", "ApaxJaxMD", "ApaxImport", "ApaxCalibrate", "AddData"]
+__all__ = [
+    "Apax",
+    "ApaxEnsemble",
+    "ApaxJaxMD",
+    "ApaxImport",
+    "ApaxCalibrate",
+    "AddData",
+    "ApaxApplyTransformation",
+]
 
 try:
     from .analysis import ApaxBatchPrediction  # noqa: F401
