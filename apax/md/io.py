@@ -90,7 +90,11 @@ class H5TrajHandler(TrajHandler):
         if h5md_options is None:
             h5md_options = {}
         self.db = znh5md.IO(
-            self.traj_path, timestep=self.time_step, save_units=False, variable_shape=False, **h5md_options
+            self.traj_path,
+            timestep=self.time_step,
+            save_units=False,
+            variable_shape=False,
+            **h5md_options,
         )
 
         self.step_counter = 0
