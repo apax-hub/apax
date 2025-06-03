@@ -3,7 +3,6 @@ from typing import Any
 
 import e3x
 import flax.linen as nn
-import jax
 import jax.numpy as jnp
 
 from apax.layers.descriptor.basis_functions import BesselBasis
