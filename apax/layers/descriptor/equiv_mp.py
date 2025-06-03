@@ -75,7 +75,7 @@ class EquivMPRepresentation(nn.Module):
             # Atom-wise refinement MLP.
             y = e3x.nn.Dense(self.features)(y)
             y = e3x.nn.silu(y)
-            y = e3x.nn.Dense(self.features, kernel_init=jax.nn.initializers.zeros)(y)
+            y = e3x.nn.Dense(self.features)(y)
 
             # Residual connection.
             x = e3x.nn.add(x, y)
