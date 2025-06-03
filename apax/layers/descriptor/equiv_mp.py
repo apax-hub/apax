@@ -3,7 +3,6 @@ from typing import Any
 
 import e3x
 import flax.linen as nn
-import jax
 import jax.numpy as jnp
 
 from apax.layers.descriptor.basis_functions import BesselBasis
@@ -75,7 +74,7 @@ class EquivMPRepresentation(nn.Module):
             # Atom-wise refinement MLP.
             y = e3x.nn.Dense(self.features)(y)
             y = e3x.nn.silu(y)
-            y = e3x.nn.Dense(self.features, kernel_init=jax.nn.initializers.zeros)(y)
+            y = e3x.nn.Dense(self.features)(y)
 
             # Residual connection.
             x = e3x.nn.add(x, y)
