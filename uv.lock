@@ -270,7 +270,7 @@ requires-dist = [
     { name = "clu", specifier = ">=0.0.12" },
     { name = "e3x", specifier = ">=1.0.2" },
     { name = "einops", specifier = ">=0.8.0" },
-    { name = "flax", specifier = ">=0.10.2" },
+    { name = "flax", specifier = ">=0.10.6" },
     { name = "furo", marker = "extra == 'docs'", specifier = ">=2023.9.10" },
     { name = "ipsuite", marker = "extra == 'ipsuite'", specifier = ">=0.2.3" },
     { name = "ipykernel", marker = "extra == 'docs'", specifier = ">=6.29.3" },
