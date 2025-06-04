@@ -357,20 +357,20 @@ class TrainProgressbarConfig(BaseModel, extra="forbid"):
     disable_batch_pbar: bool = True
 
 
-class CheckpointConfig(BaseModel, extra="forbid"):
+class TransferLearningConfig(BaseModel, extra="forbid"):
     """
     Checkpoint configuration.
 
     Parameters
     ----------
-    ckpt_interval: Number of epochs between checkpoints.
     base_model_checkpoint: Path to the folder containing a pre-trained model ckpt.
     reset_layers: List of layer names for which the parameters will be reinitialized.
+    freeze_layers: List of layer names for which the parameters will be frozen during training.
     """
 
-    ckpt_interval: PositiveInt = 500
     base_model_checkpoint: Optional[str] = None
     reset_layers: List[str] = []
+    freeze_layers: List[str] = []
 
 
 class WeightAverage(BaseModel, extra="forbid"):
@@ -412,9 +412,6 @@ class Config(BaseModel, frozen=True, extra="forbid"):
         | Number of epochs without improvement before trainings gets terminated.
     seed : int, default = 1
         | Random seed.
-    n_jitted_steps : int, default = 1
-        | Number of train batches to be processed in a compiled loop.
-        | Can yield significant speedups for small structures or small batch sizes.
     data : :class:`.DataConfig`
         | Data configuration.
     model : :class:`.ModelConfig`
@@ -437,13 +434,15 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     data_parallel : bool, default = True
         | Automatically uses all available GPUs for data parallel training.
         | Set to false to force single device training.
+    ckpt_interval: int
+        | Number of epochs between checkpoints.
     """
 
     n_epochs: PositiveInt
     patience: Optional[PositiveInt] = None
     seed: int = 1
-    n_jitted_steps: int = 1
     data_parallel: bool = True
+    ckpt_interval: PositiveInt = 500
 
     data: DataConfig
     model: ModelConfig = Field(GMNNConfig(name="gmnn"), discriminator="name")
@@ -453,7 +452,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     weight_average: Optional[WeightAverage] = None
     callbacks: List[CallBack] = [CSVCallback(name="csv")]
     progress_bar: TrainProgressbarConfig = TrainProgressbarConfig()
-    checkpoints: CheckpointConfig = CheckpointConfig()
+    transfer_learning: Optional[TransferLearningConfig] = None
 
     def dump_config(self, save_path):
         """
