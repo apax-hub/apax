@@ -412,9 +412,6 @@ class Config(BaseModel, frozen=True, extra="forbid"):
         | Number of epochs without improvement before trainings gets terminated.
     seed : int, default = 1
         | Random seed.
-    n_jitted_steps : int, default = 1
-        | Number of train batches to be processed in a compiled loop.
-        | Can yield significant speedups for small structures or small batch sizes.
     data : :class:`.DataConfig`
         | Data configuration.
     model : :class:`.ModelConfig`
@@ -444,7 +441,6 @@ class Config(BaseModel, frozen=True, extra="forbid"):
     n_epochs: PositiveInt
     patience: Optional[PositiveInt] = None
     seed: int = 1
-    n_jitted_steps: int = 1
     data_parallel: bool = True
     ckpt_interval: PositiveInt = 500
 
