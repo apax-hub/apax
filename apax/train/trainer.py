@@ -79,7 +79,7 @@ def fit(
     latest_dir = ckpt_dir / "latest"
     best_dir = ckpt_dir / "best"
 
-    options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
+    options = ocp.CheckpointManagerOptions(max_to_keep=2, save_interval_steps=1)
 
     train_step, val_step = make_step_fns(
         loss_fn, Metrics, model=state.apply_fn, is_ensemble=is_ensemble
@@ -118,7 +118,6 @@ def fit(
         ) as latest_ckpt_manager,
         ocp.CheckpointManager(best_dir.resolve(), options=options) as best_ckpt_manager,
     ):
-        # Use latest_ckpt_manager and best_ckpt_manager here
         for epoch in range(start_epoch, n_epochs):
             epoch_start_time = time.time()
             callbacks.on_epoch_begin(epoch=epoch + 1)
