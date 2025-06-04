@@ -5,10 +5,10 @@ import jax
 import numpy as np
 import pytest
 from ase.io import write
+from flax.traverse_util import flatten_dict
 
 from apax.train.checkpoints import restore_parameters
 from tests.conftest import load_config_and_run_training
-from flax.traverse_util import flatten_dict
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
