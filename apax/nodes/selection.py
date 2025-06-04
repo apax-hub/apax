@@ -62,6 +62,9 @@ class BatchKernelSelection(zntrack.Node):
     """Interface to the batch active learning methods implemented in apax.
     Check the apax documentation for a list and explanation of implemented properties.
 
+    The time series selection plot uses the mean energy (or zero) for configurations without energy label.
+    Selected configurations without energy label are marked with a blue cross.
+
     Attributes
     ----------
     models: Union[Apax, List[Apax]]
@@ -179,6 +182,8 @@ class BatchKernelSelection(zntrack.Node):
     def _get_selection_plot(
         self, atoms_lst: typing.List[ase.Atoms], indices: typing.List[int]
     ):
+        
+
         has_calc = any(atoms.calc is not None for atoms in atoms_lst)
         if not has_calc:
             energies = np.zeros(len(atoms_lst))
@@ -215,7 +220,21 @@ class BatchKernelSelection(zntrack.Node):
             ax.set_ylabel("energy")
             ax.set_xlabel("configuration")
 
-        ax.plot(indices, energies[indices], "x", color="red")
+        selected_energies = energies[indices]
+        mask_w_energy = np.abs(selected_energies - Emean) > 1e-6
+        mask_wo_energy = ~mask_w_energy
+
+        idxs_w_energy = np.where(mask_w_energy)[0]
+        idxs_wo_energy = np.where(mask_wo_energy)[0]
+
+        dummy_indices = np.arange(len(selected_energies), dtype=int)
+
+        real_indices  = dummy_indices[idxs_w_energy]
+        fake_indices = dummy_indices[idxs_wo_energy]
+
+        ax.plot(indices[real_indices], selected_energies[real_indices], "x", color="red", label="real energy")
+        ax.plot(indices[fake_indices], selected_energies[fake_indices], "x", color="blue", label="artificial energy")
+        ax.legend()
 
         fig.savefig(self.img_selection, bbox_inches="tight", dpi=240)
 
