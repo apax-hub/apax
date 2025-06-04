@@ -1,4 +1,3 @@
-import functools
 import logging
 import time
 from functools import partial
