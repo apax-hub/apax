@@ -1,4 +1,3 @@
-import functools
 import logging
 import time
 from functools import partial
@@ -85,8 +84,6 @@ def fit(
     train_step, val_step = make_step_fns(
         loss_fn, Metrics, model=state.apply_fn, is_ensemble=is_ensemble
     )
-    if train_ds.n_jit_steps > 1:
-        train_step = jax.jit(functools.partial(jax.lax.scan, train_step))
 
     state, start_epoch = load_state(state, latest_dir)
     if start_epoch >= n_epochs:
