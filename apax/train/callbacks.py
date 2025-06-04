@@ -4,7 +4,6 @@ import logging
 from pathlib import Path
 
 import numpy as np
-import tensorflow as tf
 from keras.callbacks import CSVLogger
 
 from apax.config.train_config import Config
