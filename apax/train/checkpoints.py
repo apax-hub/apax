@@ -4,12 +4,10 @@ from typing import List, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import orbax.checkpoint as ocp
 from flax.core.frozen_dict import FrozenDict, freeze, unfreeze
 from flax.training import train_state
 from flax.traverse_util import flatten_dict, unflatten_dict
-
-import orbax.checkpoint as ocp
-
 
 from apax.config.common import parse_config
 from apax.config.train_config import Config
