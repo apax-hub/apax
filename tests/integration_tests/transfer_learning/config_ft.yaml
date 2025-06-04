@@ -31,5 +31,6 @@ optimizer:
   scale_lr: 0.00001
   shift_lr: 0.001
 
-checkpoints:
+transfer_learning:
   base_model_checkpoint: null
+  freeze_layers: [dense_0]

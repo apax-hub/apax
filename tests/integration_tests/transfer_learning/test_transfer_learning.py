@@ -8,6 +8,7 @@ from ase.io import write
 
 from apax.train.checkpoints import restore_parameters
 from tests.conftest import load_config_and_run_training
+from flax.traverse_util import flatten_dict
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
@@ -45,25 +46,25 @@ def test_transfer_learning(get_tmp_path, example_dataset):
             "experiment": "fine_tune",
             "data_path": data_path.as_posix(),
         },
-        "checkpoints": {"base_model_checkpoint": (working_dir / "base").as_posix()},
-    }
-    load_config_and_run_training(config_ft_path, data_config_mods)
-
-    data_config_mods = {
-        "data": {
-            "directory": working_dir.as_posix(),
-            "experiment": "fine_tune_no_pre_training",
-            "data_path": data_path.as_posix(),
-        },
+        "transfer_learning": {"base_model_checkpoint": (working_dir / "base").as_posix()},
     }
     load_config_and_run_training(config_ft_path, data_config_mods)
 
     # Compare parameters
     _, base_params = restore_parameters(working_dir / "base")
     _, ft_params = restore_parameters(working_dir / "fine_tune")
-    _, ft_no_pre_params = restore_parameters(working_dir / "fine_tune_no_pre_training")
 
-    diff_base_ft = l2_param_diff(base_params, ft_params)
-    diff_base_no_pre = l2_param_diff(base_params, ft_no_pre_params)
+    flat_before = flatten_dict(base_params, sep="/")
+    flat_after = flatten_dict(ft_params, sep="/")
 
-    assert diff_base_ft < diff_base_no_pre
+    layer = "dense_0"
+
+    for path, p_before in flat_before.items():
+        p_after = flat_after[path]
+        same = np.allclose(p_before, p_after)
+        should_be_same = layer in path
+
+        if should_be_same:
+            assert same
+        elif not should_be_same:
+            assert not same
