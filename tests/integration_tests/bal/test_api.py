@@ -1,7 +1,7 @@
 import pathlib
 
-import pytest
 import orbax.checkpoint as ocp
+import pytest
 
 from apax.bal.api import kernel_selection
 from tests.conftest import initialize_model, load_and_dump_config

@@ -4,12 +4,11 @@ from functools import partial
 from pathlib import Path
 
 import jax
-import orbax.checkpoint as ocp
 import jax.numpy as jnp
 import numpy as np
+import orbax.checkpoint as ocp
 from ase import units
 from ase.io import read
-from flax.training import checkpoints
 from jax import tree_util
 from jax.experimental import io_callback
 from tqdm import trange

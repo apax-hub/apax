@@ -5,12 +5,12 @@ import uuid
 import jax
 import jax.numpy as jnp
 import numpy as np
+import orbax.checkpoint as ocp
 import pytest
 import yaml
 import znh5md
 from ase import Atoms
 from ase.io import read, write
-import orbax.checkpoint as ocp
 
 from apax.config import Config, MDConfig
 from apax.md import run_md

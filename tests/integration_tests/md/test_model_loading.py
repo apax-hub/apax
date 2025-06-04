@@ -1,7 +1,7 @@
 import pathlib
 
-import pytest
 import orbax.checkpoint as ocp
+import pytest
 
 from apax.md import ASECalculator
 from tests.conftest import initialize_model, load_and_dump_config
