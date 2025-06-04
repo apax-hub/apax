@@ -179,17 +179,31 @@ class BatchKernelSelection(zntrack.Node):
     def _get_selection_plot(
         self, atoms_lst: typing.List[ase.Atoms], indices: typing.List[int]
     ):
-        has_calc = atoms_lst[0].calc is not None
-        
-        if has_calc and "energy" in atoms_lst[0].calc.results.keys():
-            energies = np.array([atoms.calc.results["energy"] for atoms in atoms_lst])
-        else:
+        has_calc = any(atoms.calc is not None for atoms in atoms_lst)
+        if not has_calc:
             energies = np.zeros(len(atoms_lst))
-
-        if has_calc and "energy_uncertainty" in atoms_lst[0].calc.results.keys():
-            uncertainty = np.array(
-                [atoms.calc.results["energy_uncertainty"] for atoms in atoms_lst]
+            Emean = 0.0
+        else:
+            raw_energies = np.array(
+                [atoms.calc.results["energy"] for atoms in atoms_lst if atoms.calc]
             )
+            Emean = np.mean(raw_energies)
+            energies = np.full(len(atoms_lst), Emean)
+            for i in range(len(atoms_lst)):
+                if atoms_lst[i].calc:
+                    energies[i] = atoms_lst[i].calc.results["energy"]
+
+
+        has_unc = False
+        if has_calc:
+            has_unc = any("energy_uncertainty" in atoms.calc.results.keys() for atoms in atoms_lst)
+            uncertainty = np.zeros(len(atoms_lst))
+            if has_unc:
+                for i in range(len(atoms_lst)):
+                    if atoms_lst[i].calc and "energy_uncertainty" in atoms_lst[i].calc.results.keys():
+                        uncertainty[i] = atoms_lst[i].calc.results["energy_uncertainty"]
+
+        if has_unc:
             fig, ax, _ = plot_with_uncertainty(
                 {"mean": energies, "std": uncertainty},
                 ylabel="energy",

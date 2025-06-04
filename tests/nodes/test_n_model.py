@@ -110,6 +110,14 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
             processing_batch_size=4,
         )
 
+        selection_mix = apax.nodes.BatchKernelSelection(
+            data=md.frames + rattle.frames,
+            train_data=data.frames,
+            models=[model1, model2],
+            n_configurations=selection_batch_size,
+            processing_batch_size=4,
+        )
+
         prediction = ips.ApplyCalculator(data=kernel_selection.frames, model=ensemble)
         analysis = ips.PredictionMetrics(x=kernel_selection.frames, y=prediction.frames)
 
