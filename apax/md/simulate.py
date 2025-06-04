@@ -6,9 +6,9 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 import numpy as np
+import orbax.checkpoint as ocp
 from ase import units
 from ase.io import read
-from flax.training import checkpoints
 from jax import tree_util
 from jax.experimental import io_callback
 from tqdm import trange
@@ -231,7 +231,12 @@ def run_sim(
     )
 
     step = 0
-    ckpts_exist = any(True for p in ckpt_dir.rglob("*") if "checkpoint" in p.stem)
+
+    options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
+    mngr = ocp.CheckpointManager(ckpt_dir.resolve(), options=options)
+
+    ckpts_exist = mngr.latest_step() is not None
+
     should_load_ckpt = restart and ckpts_exist
     state, step = handle_checkpoints(
         state, step, system, load_momenta, ckpt_dir, should_load_ckpt
@@ -239,8 +244,6 @@ def run_sim(
     if should_load_ckpt:
         length = step * n_inner
         truncate_trajectory_to_checkpoint(traj_handler.traj_path, length)
-
-    async_manager = checkpoints.AsyncManager()
 
     n_outer = int(np.ceil(n_steps / n_inner))
     pbar_update_freq = int(np.ceil(500 / n_inner))
@@ -319,65 +322,55 @@ def run_sim(
         disable=disable_pbar,
         leave=True,
     )
-    while step < n_outer:
-        new_state, neighbor, current_temperature, all_checks_passed = sim(
-            state, step, neighbor
-        )
-
-        if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
-            raise ValueError(
-                f"NaN encountered, simulation aborted after {step + 1} steps."
+    with mngr:
+        while step < n_outer:
+            new_state, neighbor, current_temperature, all_checks_passed = sim(
+                state, step, neighbor
             )
 
-        if not all_checks_passed:
-            with logging_redirect_tqdm():
-                log.critical(f"One or more dynamics checks failed at step: {step + 1}")
-            break
-
-        if neighbor.did_buffer_overflow:
-            with logging_redirect_tqdm():
-                log.warn("step %d: neighbor list overflowed, reallocating.", step)
-            traj_handler.reset_buffer()
-            neighbor = neighbor_fn.allocate(
-                state.position
-            )  # TODO check that this actually works
-        else:
-            state = new_state
-            step += 1
-
-            if step % checkpoint_interval == 0:
-                with logging_redirect_tqdm():
-                    current_sim_time = step * n_inner * ensemble.dt / 1000
-                    log.info(
-                        f"saving checkpoint at {current_sim_time:.1f} ps - step: {step}"
-                    )
-                ckpt = {"state": state, "step": step}
-                checkpoints.save_checkpoint(
-                    ckpt_dir=ckpt_dir.resolve(),
-                    target=ckpt,
-                    step=step,
-                    overwrite=True,
-                    keep=2,
-                    async_manager=async_manager,
+            if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
+                raise ValueError(
+                    f"NaN encountered, simulation aborted after {step + 1} steps."
                 )
 
-            if step % pbar_update_freq == 0:
-                sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
-                sim_pbar.update(pbar_increment)
+            if not all_checks_passed:
+                with logging_redirect_tqdm():
+                    log.critical(
+                        f"One or more dynamics checks failed at step: {step + 1}"
+                    )
+                break
 
-    # In case of mismatch update freq and n_steps, we can set it to 100% manually
-    sim_pbar.update(n_steps - sim_pbar.n)
-    sim_pbar.close()
+            if neighbor.did_buffer_overflow:
+                with logging_redirect_tqdm():
+                    log.warn("step %d: neighbor list overflowed, reallocating.", step)
+                traj_handler.reset_buffer()
+                neighbor = neighbor_fn.allocate(
+                    state.position
+                )  # TODO check that this actually works
+            else:
+                state = new_state
+                step += 1
 
-    ckpt = {"state": state, "step": step}
-    checkpoints.save_checkpoint(
-        ckpt_dir=ckpt_dir.resolve(),
-        target=ckpt,
-        step=step,
-        overwrite=True,
-        keep=2,
-        async_manager=async_manager,
-    )
+                if step % checkpoint_interval == 0:
+                    with logging_redirect_tqdm():
+                        current_sim_time = step * n_inner * ensemble.dt / 1000
+                        log.info(
+                            f"saving checkpoint at {current_sim_time:.1f} ps - step: {step}"
+                        )
+                    ckpt = {"state": state, "step": step}
+                    mngr.save(step, args=ocp.args.StandardSave(ckpt))
+
+                if step % pbar_update_freq == 0:
+                    sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
+                    sim_pbar.update(pbar_increment)
+
+        # In case of mismatch update freq and n_steps, we can set it to 100% manually
+        sim_pbar.update(n_steps - sim_pbar.n)
+        sim_pbar.close()
+
+        ckpt = {"state": state, "step": step}
+        mngr.save(step, args=ocp.args.StandardSave(ckpt))
+
     traj_handler.write()
     traj_handler.close()
     end = time.time()
