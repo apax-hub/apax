@@ -180,7 +180,7 @@ class BatchKernelSelection(zntrack.Node):
         self, atoms_lst: typing.List[ase.Atoms], indices: typing.List[int]
     ):
         has_calc = atoms_lst[0].calc is not None
-        
+
         if has_calc and "energy" in atoms_lst[0].calc.results.keys():
             energies = np.array([atoms.calc.results["energy"] for atoms in atoms_lst])
         else:
