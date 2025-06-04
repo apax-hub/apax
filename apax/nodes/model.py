@@ -15,6 +15,7 @@ from apax.md import ASECalculator
 from apax.md.function_transformations import (
     GlobalCalibration,
     UncertaintyDrivenDynamics,
+    GaussianAcceleratedMolecularDynamics,
     available_transformations,
 )
 from apax.train.run import run as apax_run
@@ -127,7 +128,7 @@ class ApaxApplyTransformation(ApaxBase):
     """Apply transformation to an Apax model."""
 
     model: ApaxBase = zntrack.deps()
-    transformations: list[UncertaintyDrivenDynamics] = zntrack.deps(default_factory=list)
+    transformations: list[UncertaintyDrivenDynamics|GaussianAcceleratedMolecularDynamics] = zntrack.deps(default_factory=list)
 
     def run(self):
         pass
