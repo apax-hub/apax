@@ -182,8 +182,6 @@ class BatchKernelSelection(zntrack.Node):
     def _get_selection_plot(
         self, atoms_lst: typing.List[ase.Atoms], indices: typing.List[int]
     ):
-
-
         has_calc = any(atoms.calc is not None for atoms in atoms_lst)
         if not has_calc:
             energies = np.zeros(len(atoms_lst))
@@ -198,14 +196,18 @@ class BatchKernelSelection(zntrack.Node):
                 if atoms_lst[i].calc:
                     energies[i] = atoms_lst[i].calc.results["energy"]
 
-
         has_unc = False
         if has_calc:
-            has_unc = any("energy_uncertainty" in atoms.calc.results.keys() for atoms in atoms_lst)
+            has_unc = any(
+                "energy_uncertainty" in atoms.calc.results.keys() for atoms in atoms_lst
+            )
             uncertainty = np.zeros(len(atoms_lst))
             if has_unc:
                 for i in range(len(atoms_lst)):
-                    if atoms_lst[i].calc and "energy_uncertainty" in atoms_lst[i].calc.results.keys():
+                    if (
+                        atoms_lst[i].calc
+                        and "energy_uncertainty" in atoms_lst[i].calc.results.keys()
+                    ):
                         uncertainty[i] = atoms_lst[i].calc.results["energy_uncertainty"]
 
         if has_unc:
@@ -229,11 +231,23 @@ class BatchKernelSelection(zntrack.Node):
 
         dummy_indices = np.arange(len(selected_energies), dtype=int)
 
-        real_indices  = dummy_indices[idxs_w_energy]
+        real_indices = dummy_indices[idxs_w_energy]
         fake_indices = dummy_indices[idxs_wo_energy]
 
-        ax.plot(indices[real_indices], selected_energies[real_indices], "x", color="red", label="real energy")
-        ax.plot(indices[fake_indices], selected_energies[fake_indices], "x", color="blue", label="artificial energy")
+        ax.plot(
+            indices[real_indices],
+            selected_energies[real_indices],
+            "x",
+            color="red",
+            label="real energy",
+        )
+        ax.plot(
+            indices[fake_indices],
+            selected_energies[fake_indices],
+            "x",
+            color="blue",
+            label="artificial energy",
+        )
         ax.legend()
 
         fig.savefig(self.img_selection, bbox_inches="tight", dpi=240)
