@@ -1,5 +1,6 @@
 n_epochs: <NUMBER OF EPOCHS>
 seed: 1
+ckpt_interval: 500
 patience: null
 data_parallel: True
 weight_average: null
@@ -103,11 +104,11 @@ optimizer:
 callbacks:
 - name: csv
 
-checkpoints:
-  ckpt_interval: 500
+transfer_learning:
   # The options below are used for transfer learning
   base_model_checkpoint: null
   reset_layers: []
+  freeze_layers: []
 
 progress_bar:
   disable_epoch_pbar: false
