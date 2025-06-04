@@ -96,10 +96,10 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
         rattle = ips.RattleAtoms(
             data=data.frames,
             data_id=0,
-            n_configurations= 100,
-            maximum = 0.1,
-            include_original = False,
-            seed = 0
+            n_configurations=100,
+            maximum=0.1,
+            include_original=False,
+            seed=0,
         )
 
         selection_no_calc = apax.nodes.BatchKernelSelection(
