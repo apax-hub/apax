@@ -139,7 +139,6 @@ def initialize_datasets(config: Config):
         config.model.basis.r_max,
         config.data.batch_size,
         config.n_epochs,
-        config.n_jitted_steps,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
         pre_shuffle=True,

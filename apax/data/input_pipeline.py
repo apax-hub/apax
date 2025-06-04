@@ -88,7 +88,6 @@ class InMemoryDataset:
         cutoff,
         bs,
         n_epochs,
-        n_jit_steps=1,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
         additional_properties: list[tuple] = [],
@@ -99,7 +98,6 @@ class InMemoryDataset:
     ) -> None:
         self.n_epochs = n_epochs
         self.cutoff = cutoff
-        self.n_jit_steps = n_jit_steps
         self.buffer_size = shuffle_buffer_size
         self.n_data = len(atoms_list)
         self.batch_size = self.validate_batch_size(bs)
@@ -133,7 +131,7 @@ class InMemoryDataset:
         number of steps, and all batches have the same length. To do so, some training
         data are dropped in each epoch.
         """
-        return self.n_data // self.batch_size // self.n_jit_steps
+        return self.n_data // self.batch_size
 
     def validate_batch_size(self, batch_size: int) -> int:
         if batch_size > self.n_data:
@@ -293,10 +291,8 @@ class CachedInMemoryDataset(InMemoryDataset):
         ds = ds.shuffle(
             buffer_size=self.buffer_size, reshuffle_each_iteration=True
         ).batch(batch_size=self.batch_size)
-        if self.n_jit_steps > 1:
-            ds = ds.batch(batch_size=self.n_jit_steps)
         ds = prefetch_to_single_device(
-            ds.as_numpy_iterator(), 2, sharding, n_step_jit=self.n_jit_steps > 1
+            ds.as_numpy_iterator(), 2, sharding
         )
         return ds
 
@@ -310,7 +306,7 @@ class CachedInMemoryDataset(InMemoryDataset):
         )
         ds = ds.batch(batch_size=self.batch_size)
         ds = prefetch_to_single_device(
-            ds.as_numpy_iterator(), 2, sharding, n_step_jit=self.n_jit_steps > 1
+            ds.as_numpy_iterator(), 2, sharding
         )
         return ds
 
@@ -360,10 +356,8 @@ class OTFInMemoryDataset(InMemoryDataset):
         ds = ds.shuffle(
             buffer_size=self.buffer_size, reshuffle_each_iteration=True
         ).batch(batch_size=self.batch_size)
-        if self.n_jit_steps > 1:
-            ds = ds.batch(batch_size=self.n_jit_steps)
         ds = prefetch_to_single_device(
-            ds.as_numpy_iterator(), 2, sharding, n_step_jit=self.n_jit_steps > 1
+            ds.as_numpy_iterator(), 2, sharding
         )
         return ds
 
@@ -373,7 +367,7 @@ class OTFInMemoryDataset(InMemoryDataset):
         )
         ds = ds.batch(batch_size=self.batch_size)
         ds = prefetch_to_single_device(
-            ds.as_numpy_iterator(), 2, sharding, n_step_jit=self.n_jit_steps > 1
+            ds.as_numpy_iterator(), 2, sharding
         )
         return ds
 
@@ -504,7 +498,6 @@ class PerBatchPaddedDataset(InMemoryDataset):
         cutoff,
         bs,
         n_epochs,
-        n_jit_steps=1,
         num_workers: Optional[int] = None,
         atom_padding: int = 10,
         nl_padding: int = 2000,
@@ -514,7 +507,6 @@ class PerBatchPaddedDataset(InMemoryDataset):
         pre_shuffle=False,
     ) -> None:
         self.cutoff = cutoff
-        self.n_jit_steps = n_jit_steps
         self.n_epochs = n_epochs
         self.n_data = len(atoms_list)
         self.batch_size = self.validate_batch_size(bs)
@@ -620,14 +612,14 @@ class PerBatchPaddedDataset(InMemoryDataset):
     def shuffle_and_batch(self, sharding):
         self.should_shuffle = True
         ds = prefetch_to_single_device(
-            iter(self), 2, sharding, n_step_jit=self.n_jit_steps > 1
+            iter(self), 2, sharding
         )
         return ds
 
     def batch(self, sharding) -> Iterator[jax.Array]:
         self.should_shuffle = False
         ds = prefetch_to_single_device(
-            iter(self), 2, sharding, n_step_jit=self.n_jit_steps > 1
+            iter(self), 2, sharding
         )
         return ds
 
