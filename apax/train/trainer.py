@@ -201,6 +201,7 @@ def fit(
 
         ckpt = {"model": state, "epoch": epoch}
         if epoch % ckpt_interval == 0:
+            # TOO: latest_dir and best_dir use orbax
             ckpt_manager.save_checkpoint(ckpt, epoch, latest_dir)
 
         if epoch_metrics["val_loss"] < best_loss:

@@ -93,10 +93,11 @@ class CheckpointManager:
 
     def save_checkpoint(self, ckpt, epoch: int, path: Path) -> None:
         path = path.resolve()
-
+        
 
         options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
         mngr = ocp.CheckpointManager(path, options=options)
+        mngr.wait_until_finished()
         mngr.save(epoch, args=ocp.args.StandardSave(ckpt))
         mngr.wait_until_finished()
 

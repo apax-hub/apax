@@ -231,7 +231,12 @@ def run_sim(
     )
 
     step = 0
-    ckpts_exist = any(True for p in ckpt_dir.rglob("*") if "checkpoint" in p.stem)
+
+    options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
+    mngr = ocp.CheckpointManager(ckpt_dir.resolve(), options=options)
+
+    ckpts_exist = mngr.latest_step() is not None
+
     should_load_ckpt = restart and ckpts_exist
     state, step = handle_checkpoints(
         state, step, system, load_momenta, ckpt_dir, should_load_ckpt
@@ -239,11 +244,6 @@ def run_sim(
     if should_load_ckpt:
         length = step * n_inner
         truncate_trajectory_to_checkpoint(traj_handler.traj_path, length)
-
-    # TODO: replace with orbax
-    options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
-    mngr = ocp.CheckpointManager(ckpt_dir.resolve(), options=options)
-
 
     n_outer = int(np.ceil(n_steps / n_inner))
     pbar_update_freq = int(np.ceil(500 / n_inner))
@@ -355,8 +355,8 @@ def run_sim(
                         f"saving checkpoint at {current_sim_time:.1f} ps - step: {step}"
                     )
                 ckpt = {"state": state, "step": step}
-                mngr.save(step, args=ocp.args.StandardSave(ckpt))
                 mngr.wait_until_finished()
+                mngr.save(step, args=ocp.args.StandardSave(ckpt))
 
             if step % pbar_update_freq == 0:
                 sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
