@@ -128,7 +128,9 @@ class ApaxApplyTransformation(ApaxBase):
     """Apply transformation to an Apax model."""
 
     model: ApaxBase = zntrack.deps()
-    transformations: list[UncertaintyDrivenDynamics|GaussianAcceleratedMolecularDynamics] = zntrack.deps(default_factory=list)
+    transformations: list[
+        UncertaintyDrivenDynamics | GaussianAcceleratedMolecularDynamics
+    ] = zntrack.deps(default_factory=list)
 
     def run(self):
         pass
