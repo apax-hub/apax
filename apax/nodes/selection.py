@@ -179,9 +179,14 @@ class BatchKernelSelection(zntrack.Node):
     def _get_selection_plot(
         self, atoms_lst: typing.List[ase.Atoms], indices: typing.List[int]
     ):
-        energies = np.array([atoms.calc.results["energy"] for atoms in atoms_lst])
+        has_calc = atoms_lst[0].calc is not None
+        
+        if has_calc and "energy" in atoms_lst[0].calc.results.keys():
+            energies = np.array([atoms.calc.results["energy"] for atoms in atoms_lst])
+        else:
+            energies = np.zeros(len(atoms_lst))
 
-        if "energy_uncertainty" in atoms_lst[0].calc.results.keys():
+        if has_calc and "energy_uncertainty" in atoms_lst[0].calc.results.keys():
             uncertainty = np.array(
                 [atoms.calc.results["energy_uncertainty"] for atoms in atoms_lst]
             )
