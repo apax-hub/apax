@@ -93,7 +93,7 @@ def test_run_md(get_tmp_path):
     mngr = ocp.CheckpointManager(model_config.data.best_model_path, options=options)
     mngr.save(0, args=ocp.args.StandardSave(ckpt))
     mngr.wait_until_finished()
-    
+
 
     run_md(model_config_dict, md_config_dict)
 

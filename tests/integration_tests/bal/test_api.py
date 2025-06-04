@@ -51,7 +51,7 @@ def test_kernel_selection(
     mngr = ocp.CheckpointManager(best_dir, options=options)
     mngr.save(0, args=ocp.args.StandardSave(ckpt))
     mngr.wait_until_finished()
-    
+
 
     num_data = len(example_atoms_list)
     n_train = num_data // 2

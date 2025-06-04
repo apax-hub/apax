@@ -239,7 +239,7 @@ def run_sim(
     if should_load_ckpt:
         length = step * n_inner
         truncate_trajectory_to_checkpoint(traj_handler.traj_path, length)
-    
+
     # TODO: replace with orbax
     async_manager = checkpoints.AsyncManager()
 
