@@ -30,7 +30,7 @@ def test_model_loading(get_tmp_path, get_sample_input):
         ckpt_dir.mkdir(exist_ok=True, parents=True)
         model_config.data.experiment = exp
         model_config.dump_config(ckpt_dir.parent)
-        
+
         options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
         with ocp.CheckpointManager(ckpt_dir.resolve(), options=options) as mngr:
             mngr.save(0, args=ocp.args.StandardSave(ckpt))

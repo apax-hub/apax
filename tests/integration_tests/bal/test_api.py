@@ -47,7 +47,7 @@ def test_kernel_selection(
 
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = model_config.data.best_model_path
-    
+
     options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
     with ocp.CheckpointManager(best_dir, options=options) as mngr:
         mngr.save(0, args=ocp.args.StandardSave(ckpt))
