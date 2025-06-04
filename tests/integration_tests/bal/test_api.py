@@ -52,7 +52,6 @@ def test_kernel_selection(
     with ocp.CheckpointManager(best_dir, options=options) as mngr:
         mngr.save(0, args=ocp.args.StandardSave(ckpt))
 
-
     num_data = len(example_atoms_list)
     n_train = num_data // 2
     train_atoms = example_atoms_list[:n_train]
