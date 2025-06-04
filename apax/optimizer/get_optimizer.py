@@ -99,6 +99,7 @@ def get_opt(
     rep_scale_lr: float = 0.001,
     rep_prefactor_lr: float = 0.0001,
     gradient_clipping=1000.0,
+    freeze_layers: list[str] = [],
     name: str = "adam",
     kwargs: dict = {},
     schedule: dict = {},
@@ -119,6 +120,8 @@ def get_opt(
     opt_fac = OptimizerFactory(
         opt, n_epochs, steps_per_epoch, gradient_clipping, kwargs, schedule
     )
+
+    frozen_opt = opt_fac.create(0.0)
 
     nn_opt = opt_fac.create(nn_lr)
     emb_opt = opt_fac.create(emb_lr)
@@ -147,11 +150,27 @@ def get_opt(
         "weights_Q": nn_opt,
         "weights_V": nn_opt,
         "scale": scale_opt,
+        "frozen": frozen_opt,
     }
 
-    param_partitions = freeze(
-        traverse_util.path_aware_map(lambda path, v: path[-1], params)
-    )
+    param_groups = list(partition_optimizers.keys())
+
+    def get_param_group(path, x):
+        """
+        Assigns each parameter to a group based on its path.
+        - Freezes layers with matching name
+        - Uses last element of path (e.g., 'w') to match group
+        """
+        path_str = "/".join(path)
+        for frozen in freeze_layers:
+            if frozen in path_str:
+                return "frozen"
+
+        p_name = path[-1]
+        p_name = p_name if p_name in param_groups else "default"
+        return p_name
+
+    param_partitions = freeze(traverse_util.path_aware_map(get_param_group, params))
     tx = optax.multi_transform(partition_optimizers, param_partitions)
 
     return tx

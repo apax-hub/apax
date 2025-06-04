@@ -129,7 +129,7 @@ def load_params(model_version_path: Path, best=True) -> FrozenDict:
     try:
         # keep try except block for zntrack load from rev
         raw_restored = checkpoints.restore_checkpoint(
-            model_version_path, target=None, step=None
+            model_version_path.resolve(), target=None, step=None
         )
     except FileNotFoundError:
         print(f"No checkpoint found at {model_version_path}")
