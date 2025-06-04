@@ -155,7 +155,6 @@ def get_opt(
 
     param_groups = list(partition_optimizers.keys())
 
-
     def get_param_group(path, x):
         """
         Assigns each parameter to a group based on its path.
@@ -170,9 +169,8 @@ def get_opt(
         p_name = path[-1]
         p_name = p_name if p_name in param_groups else "default"
         return p_name
-    param_partitions = freeze(
-        traverse_util.path_aware_map(get_param_group, params)
-    )
+
+    param_partitions = freeze(traverse_util.path_aware_map(get_param_group, params))
     tx = optax.multi_transform(partition_optimizers, param_partitions)
 
     return tx

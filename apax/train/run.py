@@ -210,7 +210,6 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
         n_full_models = 1
     params, rng_key = create_params(model, rng_key, sample_input, n_full_models)
 
-
     freeze_layers = []
     do_transfer_learning = config.transfer_learning is not None
     if do_transfer_learning:
@@ -227,7 +226,6 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
     )
 
     state = create_train_state(batched_model, params, tx)
-
 
     if do_transfer_learning:
         state = transfer_parameters(state, config.transfer_learning)

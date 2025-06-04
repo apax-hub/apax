@@ -368,7 +368,6 @@ class TransferLearningConfig(BaseModel, extra="forbid"):
     freeze_layers: List of layer names for which the parameters will be frozen during training.
     """
 
-
     base_model_checkpoint: Optional[str] = None
     reset_layers: List[str] = []
     freeze_layers: List[str] = []
