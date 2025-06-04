@@ -13,9 +13,9 @@ from ase import Atoms
 from apax.calibration import compute_calibration_factors
 from apax.md import ASECalculator
 from apax.md.function_transformations import (
+    GaussianAcceleratedMolecularDynamics,
     GlobalCalibration,
     UncertaintyDrivenDynamics,
-    GaussianAcceleratedMolecularDynamics,
     available_transformations,
 )
 from apax.train.run import run as apax_run
