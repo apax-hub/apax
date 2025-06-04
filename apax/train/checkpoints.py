@@ -76,31 +76,14 @@ def load_state(state, ckpt_dir):
     checkpoints_exist = ckpt_dir.is_dir()
     if checkpoints_exist:
         log.info("Loading checkpoint")
-        restored = ocp.CheckpointManager(ckpt_dir.resolve()).restore(
-            step=None, args=ocp.args.StandardRestore(target)
-        )
+        with ocp.CheckpointManager(ckpt_dir.resolve()) as mngr:
+            restored = mngr.restore(step=None, args=ocp.args.StandardRestore(target))
 
         state = restored["model"]
         start_epoch = restored["epoch"] + 1
         log.info("Successfully restored checkpoint from epoch %d", restored["epoch"])
 
     return state, start_epoch
-
-
-class CheckpointManager:
-    def __init__(self) -> None:
-        pass
-
-    def save_checkpoint(self, ckpt, epoch: int, path: Path) -> None:
-        path = path.resolve()
-        
-
-        options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
-        mngr = ocp.CheckpointManager(path, options=options)
-        mngr.wait_until_finished()
-        mngr.save(epoch, args=ocp.args.StandardSave(ckpt))
-        mngr.wait_until_finished()
-
 
 
 def stack_parameters(param_list: List[FrozenDict]) -> FrozenDict:

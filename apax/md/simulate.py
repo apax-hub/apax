@@ -322,54 +322,55 @@ def run_sim(
         disable=disable_pbar,
         leave=True,
     )
-    while step < n_outer:
-        new_state, neighbor, current_temperature, all_checks_passed = sim(
-            state, step, neighbor
-        )
-
-        if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
-            raise ValueError(
-                f"NaN encountered, simulation aborted after {step + 1} steps."
+    with mngr:
+        while step < n_outer:
+            new_state, neighbor, current_temperature, all_checks_passed = sim(
+                state, step, neighbor
             )
 
-        if not all_checks_passed:
-            with logging_redirect_tqdm():
-                log.critical(f"One or more dynamics checks failed at step: {step + 1}")
-            break
+            if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
+                raise ValueError(
+                    f"NaN encountered, simulation aborted after {step + 1} steps."
+                )
 
-        if neighbor.did_buffer_overflow:
-            with logging_redirect_tqdm():
-                log.warn("step %d: neighbor list overflowed, reallocating.", step)
-            traj_handler.reset_buffer()
-            neighbor = neighbor_fn.allocate(
-                state.position
-            )  # TODO check that this actually works
-        else:
-            state = new_state
-            step += 1
-
-            if step % checkpoint_interval == 0:
+            if not all_checks_passed:
                 with logging_redirect_tqdm():
-                    current_sim_time = step * n_inner * ensemble.dt / 1000
-                    log.info(
-                        f"saving checkpoint at {current_sim_time:.1f} ps - step: {step}"
+                    log.critical(
+                        f"One or more dynamics checks failed at step: {step + 1}"
                     )
-                ckpt = {"state": state, "step": step}
-                mngr.wait_until_finished()
-                mngr.save(step, args=ocp.args.StandardSave(ckpt))
+                break
 
-            if step % pbar_update_freq == 0:
-                sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
-                sim_pbar.update(pbar_increment)
+            if neighbor.did_buffer_overflow:
+                with logging_redirect_tqdm():
+                    log.warn("step %d: neighbor list overflowed, reallocating.", step)
+                traj_handler.reset_buffer()
+                neighbor = neighbor_fn.allocate(
+                    state.position
+                )  # TODO check that this actually works
+            else:
+                state = new_state
+                step += 1
 
-    # In case of mismatch update freq and n_steps, we can set it to 100% manually
-    sim_pbar.update(n_steps - sim_pbar.n)
-    sim_pbar.close()
+                if step % checkpoint_interval == 0:
+                    with logging_redirect_tqdm():
+                        current_sim_time = step * n_inner * ensemble.dt / 1000
+                        log.info(
+                            f"saving checkpoint at {current_sim_time:.1f} ps - step: {step}"
+                        )
+                    ckpt = {"state": state, "step": step}
+                    mngr.save(step, args=ocp.args.StandardSave(ckpt))
 
-    ckpt = {"state": state, "step": step}
-    mngr.wait_until_finished()
-    mngr.save(step, args=ocp.args.StandardSave(ckpt))
-    mngr.wait_until_finished()
+                if step % pbar_update_freq == 0:
+                    sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
+                    sim_pbar.update(pbar_increment)
+
+        # In case of mismatch update freq and n_steps, we can set it to 100% manually
+        sim_pbar.update(n_steps - sim_pbar.n)
+        sim_pbar.close()
+
+        ckpt = {"state": state, "step": step}
+        mngr.save(step, args=ocp.args.StandardSave(ckpt))
+
     traj_handler.write()
     traj_handler.close()
     end = time.time()
