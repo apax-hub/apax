@@ -1,7 +1,7 @@
 import pathlib
 
 import pytest
-from flax.training import checkpoints
+import orbax.checkpoint as ocp
 
 from apax.bal.api import kernel_selection
 from tests.conftest import initialize_model, load_and_dump_config
@@ -47,12 +47,11 @@ def test_kernel_selection(
 
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = model_config.data.best_model_path
-    checkpoints.save_checkpoint(
-        ckpt_dir=best_dir,
-        target=ckpt,
-        step=0,
-        overwrite=True,
-    )
+    options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
+    mngr = ocp.CheckpointManager(best_dir, options=options)
+    mngr.save(0, args=ocp.args.StandardSave(ckpt))
+    mngr.wait_until_finished()
+    
 
     num_data = len(example_atoms_list)
     n_train = num_data // 2
