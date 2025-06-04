@@ -58,6 +58,7 @@ dev = [
     "pre-commit>=4.0.1",
     "pytest>=8.3.4",
     "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.7.0",
 ]
 lint = [
     "ruff>=0.9.1",
