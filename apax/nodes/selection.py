@@ -182,7 +182,7 @@ class BatchKernelSelection(zntrack.Node):
     def _get_selection_plot(
         self, atoms_lst: typing.List[ase.Atoms], indices: typing.List[int]
     ):
-        
+
 
         has_calc = any(atoms.calc is not None for atoms in atoms_lst)
         if not has_calc:
