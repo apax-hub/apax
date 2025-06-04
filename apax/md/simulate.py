@@ -367,6 +367,7 @@ def run_sim(
     sim_pbar.close()
 
     ckpt = {"state": state, "step": step}
+    mngr.wait_until_finished()
     mngr.save(step, args=ocp.args.StandardSave(ckpt))
     mngr.wait_until_finished()
     traj_handler.write()
