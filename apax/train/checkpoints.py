@@ -76,13 +76,13 @@ def load_state(state, ckpt_dir):
     checkpoints_exist = ckpt_dir.is_dir()
     if checkpoints_exist:
         log.info("Loading checkpoint")
-        raw_restored = ocp.CheckpointManager(ckpt_dir.resolve()).restore(
-            step=None, args=ocp.args.StandardRestore()
+        restored = ocp.CheckpointManager(ckpt_dir.resolve()).restore(
+            step=None, args=ocp.args.StandardRestore(target)
         )
 
-        state = raw_restored["model"]
-        start_epoch = raw_restored["epoch"] + 1
-        log.info("Successfully restored checkpoint from epoch %d", raw_restored["epoch"])
+        state = restored["model"]
+        start_epoch = restored["epoch"] + 1
+        log.info("Successfully restored checkpoint from epoch %d", restored["epoch"])
 
     return state, start_epoch
 
