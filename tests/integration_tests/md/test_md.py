@@ -5,12 +5,12 @@ import uuid
 import jax
 import jax.numpy as jnp
 import numpy as np
+import orbax.checkpoint as ocp
 import pytest
 import yaml
 import znh5md
 from ase import Atoms
 from ase.io import read, write
-from flax.training import checkpoints
 
 from apax.config import Config, MDConfig
 from apax.md import run_md
@@ -82,12 +82,11 @@ def test_run_md(get_tmp_path):
     )
 
     ckpt = {"model": {"params": params}, "epoch": 0}
-    checkpoints.save_checkpoint(
-        ckpt_dir=model_config.data.best_model_path,
-        target=ckpt,
-        step=0,
-        overwrite=True,
-    )
+    options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
+    with ocp.CheckpointManager(
+        model_config.data.best_model_path, options=options
+    ) as mngr:
+        mngr.save(0, args=ocp.args.StandardSave(ckpt))
 
     run_md(model_config_dict, md_config_dict)
 
@@ -157,12 +156,10 @@ def test_ase_calc(get_tmp_path):
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
 
-    checkpoints.save_checkpoint(
-        ckpt_dir=model_config.data.best_model_path,
-        target=ckpt,
-        step=0,
-        overwrite=True,
-    )
+    options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
+    mngr = ocp.CheckpointManager(model_config.data.best_model_path, options=options)
+    mngr.save(0, args=ocp.args.StandardSave(ckpt))
+    mngr.wait_until_finished()
 
     atoms = read(initial_structure_path.as_posix())
     calc = ASECalculator(
