@@ -166,7 +166,7 @@ def get_opt(
         for frozen in freeze_layers:
             if frozen in path_str:
                 return "frozen"
-        
+
         p_name = path[-1]
         p_name = p_name if p_name in param_groups else "default"
         return p_name
