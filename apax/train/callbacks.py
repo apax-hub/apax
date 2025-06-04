@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
-from keras.callbacks import CSVLogger, TensorBoard
+from keras.callbacks import CSVLogger
 
 from apax.config.train_config import Config
 
@@ -138,23 +138,12 @@ def initialize_callbacks(config: Config, model_version_path: Path):
     callback_configs = config.callbacks
     log.info("Initializing Callbacks")
 
-    dummy_model = tf.keras.Model()
-    dummy_model.compile(loss="mse", optimizer="adam")
     callback_dict = {
         "csv": {
             "class": CSVLoggerApax,
             "log_path": model_version_path / "log.csv",
             "path_arg_name": "filename",
             "kwargs": {"append": True},
-            "model": dummy_model,
-        },
-        "tensorboard": {
-            "class": TensorBoard,
-            "log_path": model_version_path,
-            "path_arg_name": "log_dir",
-            "kwargs": {},
-            "model": dummy_model,
-            "write_graph": False,
         },
         "mlflow": {
             "class": MLFlowLogger,
