@@ -4,6 +4,7 @@ from functools import partial
 from pathlib import Path
 
 import jax
+import orbax.checkpoint as ocp
 import jax.numpy as jnp
 import numpy as np
 from ase import units
@@ -241,7 +242,9 @@ def run_sim(
         truncate_trajectory_to_checkpoint(traj_handler.traj_path, length)
 
     # TODO: replace with orbax
-    async_manager = checkpoints.AsyncManager()
+    options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
+    mngr = ocp.CheckpointManager(ckpt_dir.resolve(), options=options)
+
 
     n_outer = int(np.ceil(n_steps / n_inner))
     pbar_update_freq = int(np.ceil(500 / n_inner))
@@ -353,14 +356,8 @@ def run_sim(
                         f"saving checkpoint at {current_sim_time:.1f} ps - step: {step}"
                     )
                 ckpt = {"state": state, "step": step}
-                checkpoints.save_checkpoint(
-                    ckpt_dir=ckpt_dir.resolve(),
-                    target=ckpt,
-                    step=step,
-                    overwrite=True,
-                    keep=2,
-                    async_manager=async_manager,
-                )
+                mngr.save(step, args=ocp.args.StandardSave(ckpt))
+                mngr.wait_until_finished()
 
             if step % pbar_update_freq == 0:
                 sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
@@ -371,14 +368,8 @@ def run_sim(
     sim_pbar.close()
 
     ckpt = {"state": state, "step": step}
-    checkpoints.save_checkpoint(
-        ckpt_dir=ckpt_dir.resolve(),
-        target=ckpt,
-        step=step,
-        overwrite=True,
-        keep=2,
-        async_manager=async_manager,
-    )
+    mngr.save(step, args=ocp.args.StandardSave(ckpt))
+    mngr.wait_until_finished()
     traj_handler.write()
     traj_handler.close()
     end = time.time()

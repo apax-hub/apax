@@ -82,12 +82,6 @@ def test_run_md(get_tmp_path):
     )
 
     ckpt = {"model": {"params": params}, "epoch": 0}
-    # checkpoints.save_checkpoint(
-    #     ckpt_dir=model_config.data.best_model_path,
-    #     target=ckpt,
-    #     step=0,
-    #     overwrite=True,
-    # )
 
     options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
     mngr = ocp.CheckpointManager(model_config.data.best_model_path, options=options)
@@ -162,13 +156,6 @@ def test_ase_calc(get_tmp_path):
         offsets=offsets,
     )
     ckpt = {"model": {"params": params}, "epoch": 0}
-
-    # checkpoints.save_checkpoint(
-    #     ckpt_dir=model_config.data.best_model_path,
-    #     target=ckpt,
-    #     step=0,
-    #     overwrite=True,
-    # )
 
     options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
     mngr = ocp.CheckpointManager(model_config.data.best_model_path, options=options)
