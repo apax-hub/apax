@@ -51,7 +51,6 @@ class Apax(ApaxBase):
     validation_data: list[ase.Atoms] = zntrack.deps()
     model: t.Optional[ApaxBase] = zntrack.deps(None)
     nl_skin: float = zntrack.params(0.5)
-    transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
     log_level: str = zntrack.params("info")
 
     model_directory: pathlib.Path = zntrack.outs_path(zntrack.nwd / "apax_model")
@@ -116,16 +115,10 @@ class Apax(ApaxBase):
 
     def get_calculator(self, **kwargs):
         """Get an apax ase calculator"""
-        transformations = []
-        if self.transformations:
-            for transform, params in self.transformations.items():
-                transformations.append(available_transformations[transform](**params))
-
         with self.state.use_tmp_path():
             calc = ASECalculator(
                 model_dir=self.model_directory,
                 dr_threshold=self.nl_skin,
-                transformations=transformations,
             )
             return calc
 
@@ -158,15 +151,10 @@ class ApaxEnsemble(ApaxBase):
         List of `ApaxModel` nodes to ensemble.
     nl_skin: float
         Neighborlist skin.
-    transformations: dict
-        Key-parameter dict with function transformations applied
-        to the model function within the ASE calculator.
-        See the apax documentation for available methods.
     """
 
     models: list[Apax] = zntrack.deps()
     nl_skin: float = zntrack.params(0.5)
-    transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
 
     def run(self) -> None:
         pass
@@ -181,16 +169,10 @@ class ApaxEnsemble(ApaxBase):
         """
         param_files = [m.parameter["data"]["directory"] for m in self.models]
 
-        transformations = []
-        if self.transformations:
-            for transform, params in self.transformations.items():
-                transformations.append(available_transformations[transform](**params))
-
         with self.state.use_tmp_path():
             calc = ASECalculator(
                 param_files,
                 dr_threshold=self.nl_skin,
-                transformations=transformations,
             )
             return calc
 
@@ -204,15 +186,10 @@ class ApaxImport(zntrack.Node):
         List of `ApaxModel` nodes to ensemble.
     nl_skin: float
         Neighborlist skin.
-    transformations: dict
-        Key-parameter dict with function transformations applied
-        to the model function within the ASE calculator.
-        See the apax documentation for available methods.
     """
 
     config: str = zntrack.params_path()
     nl_skin: float = zntrack.params(0.5)
-    transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
 
     @property
     def parameter(self) -> dict:
@@ -231,16 +208,10 @@ class ApaxImport(zntrack.Node):
         exp = self.parameter["data"]["experiment"]
         model_dir = directory + "/" + exp
 
-        transformations = []
-        if self.transformations:
-            for transform, params in self.transformations.items():
-                transformations.append(available_transformations[transform](**params))
-
         with self.state.use_tmp_path():
             calc = ASECalculator(
                 model_dir,
                 dr=self.nl_skin,
-                transformations=transformations,
             )
             return calc
 
