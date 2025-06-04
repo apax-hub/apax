@@ -93,7 +93,24 @@ def test_n_train_2_model(tmp_path, get_md22_stachyose):
             processing_batch_size=4,
         )
 
-        prediction = ips.Prediction(data=kernel_selection.frames, model=ensemble)
+        rattle = ips.RattleAtoms(
+            data=data.frames,
+            data_id=0,
+            n_configurations= 100,
+            maximum = 0.1,
+            include_original = False,
+            seed = 0
+        )
+
+        selection_no_calc = apax.nodes.BatchKernelSelection(
+            data=rattle.frames,
+            train_data=data.frames,
+            models=[model1, model2],
+            n_configurations=selection_batch_size,
+            processing_batch_size=4,
+        )
+
+        prediction = ips.ApplyCalculator(data=kernel_selection.frames, model=ensemble)
         analysis = ips.PredictionMetrics(x=kernel_selection.frames, y=prediction.frames)
 
     proj.repro()
