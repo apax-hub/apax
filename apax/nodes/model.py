@@ -47,12 +47,12 @@ class Apax(ApaxBase):
         verbosity of logging during training
     """
 
-    data: list[ase.Atoms]|None = zntrack.deps()
-    data_path: str|pathlib.Path|None = zntrack.deps_path(None)
+    data: list[ase.Atoms] | None = zntrack.deps()
+    data_path: str | pathlib.Path | None = zntrack.deps_path(None)
 
     config: str = zntrack.params_path()
-    validation_data: list[ase.Atoms]|None = zntrack.deps()
-    validation_data_path: str|pathlib.Path|None = zntrack.deps_path(None)
+    validation_data: list[ase.Atoms] | None = zntrack.deps()
+    validation_data_path: str | pathlib.Path | None = zntrack.deps_path(None)
     model: t.Optional[ApaxBase] = zntrack.deps(None)
     nl_skin: float = zntrack.params(0.5)
     log_level: str = zntrack.params("info")
@@ -68,9 +68,7 @@ class Apax(ApaxBase):
         super().__post_init__()
 
         if self.data is not None and self.data_path is not None:
-            raise ValueError(
-                "You can either provide `data` or `data_path`, not both."
-            )
+            raise ValueError("You can either provide `data` or `data_path`, not both.")
         if self.validation_data is not None and self.validation_data_path is not None:
             raise ValueError(
                 "You can either provide `validation_data` or `validation_data_path`, not both."
@@ -83,8 +81,12 @@ class Apax(ApaxBase):
         custom_parameters = {
             "directory": self.model_directory.as_posix(),
             "experiment": "",
-            "train_data_path": self.train_data_file.as_posix() if self.data is None else self.data_path,
-            "val_data_path": self.validation_data_file.as_posix() if self.validation_data is None else self.validation_data_path,
+            "train_data_path": self.train_data_file.as_posix()
+            if self.data is None
+            else self.data_path,
+            "val_data_path": self.validation_data_file.as_posix()
+            if self.validation_data is None
+            else self.validation_data_path,
         }
 
         if self.model is not None:
@@ -112,7 +114,6 @@ class Apax(ApaxBase):
     def run(self):
         """Primary method to run which executes all steps of the model training"""
 
-
         if not self.state.restarted:
             if self.data is not None:
                 train_db = znh5md.IO(self.train_data_file.as_posix())
@@ -123,7 +124,9 @@ class Apax(ApaxBase):
                 val_db = znh5md.IO(self.validation_data_file.as_posix())
                 val_db.extend(self.validation_data)
             else:
-                self.validation_data_file.write_text(f"Using {self.validation_data_path} instead")
+                self.validation_data_file.write_text(
+                    f"Using {self.validation_data_path} instead"
+                )
 
         csv_path = self.model_directory / "log.csv"
         if self.state.restarted and csv_path.is_file():
