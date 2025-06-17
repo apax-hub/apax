@@ -72,9 +72,9 @@ class Apax(ApaxBase):
             param_files = self.model.parameter["data"]["directory"]
             base_path = {"base_model_checkpoint": param_files}
             try:
-                parameter["checkpoints"].update(base_path)
+                parameter["transfer_learning"].update(base_path)
             except KeyError:
-                parameter["checkpoints"] = base_path
+                parameter["transfer_learning"] = base_path
 
         check_duplicate_keys(custom_parameters, parameter["data"], log)
         parameter["data"].update(custom_parameters)
