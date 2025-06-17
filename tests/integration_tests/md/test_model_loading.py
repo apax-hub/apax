@@ -1,7 +1,7 @@
 import pathlib
 
+import orbax.checkpoint as ocp
 import pytest
-from flax.training import checkpoints
 
 from apax.md import ASECalculator
 from tests.conftest import initialize_model, load_and_dump_config
@@ -31,11 +31,8 @@ def test_model_loading(get_tmp_path, get_sample_input):
         model_config.data.experiment = exp
         model_config.dump_config(ckpt_dir.parent)
 
-        checkpoints.save_checkpoint(
-            ckpt_dir=ckpt_dir.resolve(),
-            target=ckpt,
-            step=0,
-            overwrite=True,
-        )
+        options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
+        with ocp.CheckpointManager(ckpt_dir.resolve(), options=options) as mngr:
+            mngr.save(0, args=ocp.args.StandardSave(ckpt))
         # attempt to load models
         _ = ASECalculator(ckpt_dir.parent)
