@@ -364,22 +364,18 @@ class ASECalculator(Calculator):
 
     @property
     def ll_weights(self):
-        dense_layers = list(
-            self.params["params"]["energy_model"]["atomistic_model"]["readout"].keys()
-        )
-        llweights = self.params["params"]["energy_model"]["atomistic_model"]["readout"][
-            dense_layers[-1]
-        ]["w"]
+        dense_layers = list(self.params["params"]["energy_model"]["readout"].keys())
+        llweights = self.params["params"]["energy_model"]["readout"][dense_layers[-1]][
+            "w"
+        ]
         return np.asarray(llweights)
 
     def set_ll_weights(self, new_weights):
         params = unfreeze(self.params)
-        dense_layers = list(
-            params["params"]["energy_model"]["atomistic_model"]["readout"].keys()
+        dense_layers = list(params["params"]["energy_model"]["readout"].keys())
+        params["params"]["energy_model"]["readout"][dense_layers[-1]]["w"] = jnp.asarray(
+            new_weights, dtype=jnp.float32
         )
-        params["params"]["energy_model"]["atomistic_model"]["readout"][dense_layers[-1]][
-            "w"
-        ] = jnp.asarray(new_weights, dtype=jnp.float32)
         self.params = freeze(params)
         self.step = None
 

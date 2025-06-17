@@ -247,6 +247,7 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
         ckpt_interval=config.ckpt_interval,
         val_ds=val_ds,
         patience=config.patience,
+        patience_min_delta=config.patience_min_delta,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
         disable_batch_pbar=config.progress_bar.disable_batch_pbar,
         is_ensemble=n_full_models > 1,

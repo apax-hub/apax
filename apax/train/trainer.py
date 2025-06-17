@@ -32,6 +32,7 @@ def fit(
     ckpt_interval: int = 1,
     val_ds: Optional[InMemoryDataset] = None,
     patience: Optional[int] = None,
+    patience_min_delta: float = 0.0,
     disable_pbar: bool = False,
     disable_batch_pbar: bool = True,
     is_ensemble=False,
@@ -209,9 +210,13 @@ def fit(
                 latest_ckpt_manager.save(epoch, args=ocp.args.StandardSave(ckpt))
 
             if epoch_metrics["val_loss"] < best_loss:
-                best_loss = epoch_metrics["val_loss"]
                 best_ckpt_manager.save(epoch, args=ocp.args.StandardSave(ckpt))
-                early_stopping_counter = 0
+                if abs(epoch_metrics["val_loss"] - best_loss) < patience_min_delta:
+                    early_stopping_counter += 1
+                else:
+                    early_stopping_counter = 0
+
+                best_loss = epoch_metrics["val_loss"]
             else:
                 early_stopping_counter += 1
 
