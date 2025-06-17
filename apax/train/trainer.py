@@ -215,7 +215,7 @@ def fit(
                     early_stopping_counter += 1
                 else:
                     early_stopping_counter = 0
-    
+
                 best_loss = epoch_metrics["val_loss"]
             else:
                 early_stopping_counter += 1
