@@ -272,8 +272,8 @@ class ApaxCalibrate(ApaxBase):
         )
 
         self.metrics = {
-            "e_factor": self.e_factor,
-            "f_factor": self.f_factor,
+            "e_factor": 1 / self.e_factor,
+            "f_factor": 1 / self.f_factor,
         }
 
     def get_calculator(self, **kwargs) -> ase.calculators.calculator.Calculator:
