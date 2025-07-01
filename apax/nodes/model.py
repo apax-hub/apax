@@ -283,7 +283,7 @@ class ApaxCalibrate(ApaxBase):
     @property
     def model_directory(self):
         return self.model.model_directory
-    
+
     def get_calculator(self, **kwargs):
         """Property to return a model specific ase calculator object.
 
