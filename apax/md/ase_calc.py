@@ -225,10 +225,14 @@ class ASECalculator(Calculator):
             self.padded_length = int(len(idxs_i) * self.padding_factor)
 
     def get_descriptors(
-        self, frames: list[ase.Atoms], processing_batch_size: int = 1
+        self,
+        frames: list[ase.Atoms],
+        processing_batch_size: int = 1,
+        only_use_n_layers: int | None = None,
+        should_average: bool = True,
     ) -> np.ndarray:
         """Compute the descriptors for a list of Atoms.
-        
+
         Parameters
         ----------
         frames : list[ase.Atoms]
@@ -236,11 +240,17 @@ class ASECalculator(Calculator):
         processing_batch_size : int, default = 1
             Batch size for processing the frames. This does not affect the results,
             only the speed and memory requirements.
-        
+        only_use_n_layers: int | None, default = None
+            If specified, only the first `only_use_n_layers` layers of the feature model will
+            be used to compute the descriptors. If None, all layers will be used.
+        should_average: bool, default = True
+            Whether to average the descriptors over the atomic species.
+
         Returns
         -------
         np.ndarray
             Array of computed descriptors for each frame with shape (n_frames, n_descriptors)
+            or (n_frames, n_atoms, n_descriptors) if ``should_average=False``.
         """
         params = canonicalize_energy_model_parameters(self.params)
 
@@ -259,7 +269,12 @@ class ASECalculator(Calculator):
         Builder = self.model_config.model.get_builder()
         builder = Builder(self.model_config.model.model_dump(), n_species=119)
 
-        feature_model = builder.build_feature_model(apply_mask=True, init_box=init_box)
+        feature_model = builder.build_feature_model(
+            apply_mask=True,
+            init_box=init_box,
+            only_use_n_layers=only_use_n_layers,
+            should_average=should_average,
+        )
 
         feature_fn = feature_model.apply
 
