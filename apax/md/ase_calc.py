@@ -10,7 +10,7 @@ from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
 from flax.core.frozen_dict import freeze, unfreeze
 from jax import tree_util
-from tqdm import trange
+from tqdm import tqdm, trange
 from vesin import NeighborList
 
 from apax.data.input_pipeline import (
@@ -283,7 +283,7 @@ class ASECalculator(Calculator):
         jitted_fn = jax.jit(batched_feature_fn)
 
         results = []
-        for batch in dataset.batch():
+        for batch in tqdm(dataset.batch(), ncols=100, total=len(frames)):
             data = jitted_fn(
                 params,
                 batch["positions"],
