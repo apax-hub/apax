@@ -149,6 +149,10 @@ class ASECalculator(Calculator):
         self.transformations = transformations
 
         self.model_config, self.params = restore_parameters(model_dir)
+
+        for head in self.model_config.model.property_heads:
+            self.implemented_properties.append(head.name)
+
         self.n_models = check_for_ensemble(self.params)
         self.padding_factor = padding_factor
         self.padded_length = 0
