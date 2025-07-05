@@ -2,6 +2,7 @@ from functools import partial
 from pathlib import Path
 from typing import Callable, Union
 
+from apax.md.function_transformations import ProcessStress
 import ase
 import jax
 import jax.numpy as jnp
@@ -68,17 +69,6 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
     return energy_fn, neighbor_fn
 
 
-def process_stress(results, box):
-    V = quantity.volume(3, box)
-    results = {
-        # We should properly check whether CP2K uses the ASE cell convention
-        # for tetragonal strain, it doesn't matter whether we transpose or not
-        k: val.T / V if k.startswith("stress") else val
-        for k, val in results.items()
-    }
-    return results
-
-
 def make_ensemble(model):
     def ensemble(positions, Z, idx, box, offsets):
         results = model(positions, Z, idx, box, offsets)
@@ -133,7 +123,7 @@ class ASECalculator(Calculator):
         self,
         model_dir: Union[Path, list[Path]],
         dr_threshold: float = 0.5,
-        transformations: Callable = [],
+        transformations: list[Callable] = [],
         padding_factor: float = 1.5,
         **kwargs,
     ):
@@ -192,6 +182,9 @@ class ASECalculator(Calculator):
 
         if self.n_models > 1:
             model = make_ensemble(model)
+
+        if "stress" in self.implemented_properties:
+            model = ProcessStress().apply(model)
 
         for transformation in self.transformations:
             model = transformation.apply(model)
@@ -331,6 +324,9 @@ class ASECalculator(Calculator):
         if self.n_models > 1:
             model = make_ensemble(model)
 
+        if "stress" in self.implemented_properties:
+            model = ProcessStress().apply(model)
+
         for transformation in self.transformations:
             model = transformation.apply(model)
 
@@ -424,10 +420,6 @@ def get_step_fn(model, atoms, neigbor_from_jax):
 
             offsets = jnp.full([neighbor.idx.shape[1], 3], 0)
             results = model(positions, Z, neighbor.idx, box, offsets)
-
-            if "stress" in results.keys():
-                results = process_stress(results, box)
-
             return results, neighbor
 
     else:
@@ -435,8 +427,6 @@ def get_step_fn(model, atoms, neigbor_from_jax):
         @jax.jit
         def step_fn(positions, neighbor, box, offsets):
             results = model(positions, Z, neighbor, box, offsets)
-            if "stress" in results.keys():
-                results = process_stress(results, box)
             return results
 
     return step_fn

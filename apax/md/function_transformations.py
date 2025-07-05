@@ -1,5 +1,6 @@
 import dataclasses
 
+from apax.utils.jax_md_reduced import quantity
 import jax
 import jax.numpy as jnp
 
@@ -134,8 +135,37 @@ class GlobalCalibration:
         return calibrated_model
 
 
+@dataclasses.dataclass
+class ProcessStress:
+    """
+    Remove Volume factor from stress predictions.
+    """
+
+    energy_target: float
+    spring_constant: float
+
+    def apply(self, model):
+        def corrected_model(positions, Z, idx, box, offsets):
+            results = model(positions, Z, idx, box, offsets)
+
+            V = quantity.volume(3, box)
+            results = {
+                # We should properly check whether CP2K uses the ASE cell convention
+                # for tetragonal strain, it doesn't matter whether we transpose or not
+                k: val.T / V if k.startswith("stress") else val
+                for k, val in results.items()
+            }
+
+            return results
+
+
+        return corrected_model
+
+
+
 available_transformations = {
     "udd": UncertaintyDrivenDynamics,
     "gamd": GaussianAcceleratedMolecularDynamics,
     "global_cal": GlobalCalibration,
+    "process_stress": ProcessStress,
 }
