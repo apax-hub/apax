@@ -1,8 +1,9 @@
 import dataclasses
 
-from apax.utils.jax_md_reduced import quantity
 import jax
 import jax.numpy as jnp
+
+from apax.utils.jax_md_reduced import quantity
 
 
 def make_biased_energy_force_fn(bias_fn):

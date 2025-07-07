@@ -2,7 +2,6 @@ from functools import partial
 from pathlib import Path
 from typing import Callable, Union
 
-from apax.md.function_transformations import ProcessStress
 import ase
 import jax
 import jax.numpy as jnp
@@ -18,12 +17,13 @@ from apax.data.input_pipeline import (
     CachedInMemoryDataset,
     OTFInMemoryDataset,
 )
+from apax.md.function_transformations import ProcessStress
 from apax.train.checkpoints import (
     canonicalize_energy_model_parameters,
     check_for_ensemble,
     restore_parameters,
 )
-from apax.utils.jax_md_reduced import partition, quantity, space
+from apax.utils.jax_md_reduced import partition, space
 
 
 def maybe_vmap(apply, params):
