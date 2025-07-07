@@ -10,13 +10,18 @@ from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
 from flax.core.frozen_dict import freeze, unfreeze
 from jax import tree_util
-from tqdm import trange
+from tqdm import tqdm, trange
 from vesin import NeighborList
 
 from apax.data.input_pipeline import (
     CachedInMemoryDataset,
+    OTFInMemoryDataset,
 )
-from apax.train.checkpoints import check_for_ensemble, restore_parameters
+from apax.train.checkpoints import (
+    canonicalize_energy_model_parameters,
+    check_for_ensemble,
+    restore_parameters,
+)
 from apax.utils.jax_md_reduced import partition, quantity, space
 
 
@@ -218,6 +223,77 @@ class ASECalculator(Calculator):
                 quantities="ijS",
             )
             self.padded_length = int(len(idxs_i) * self.padding_factor)
+
+    def get_descriptors(
+        self,
+        frames: list[ase.Atoms],
+        processing_batch_size: int = 1,
+        only_use_n_layers: int | None = None,
+        should_average: bool = True,
+    ) -> np.ndarray:
+        """Compute the descriptors for a list of Atoms.
+
+        Parameters
+        ----------
+        frames : list[ase.Atoms]
+            List of Atoms to compute descriptors for.
+        processing_batch_size : int, default = 1
+            Batch size for processing the frames. This does not affect the results,
+            only the speed and memory requirements.
+        only_use_n_layers: int | None, default = None
+            If specified, only the first `only_use_n_layers` layers of the feature model will
+            be used to compute the descriptors. If None, all layers will be used.
+        should_average: bool, default = True
+            Whether to average the descriptors over the atomic species.
+
+        Returns
+        -------
+        np.ndarray
+            Array of computed descriptors for each frame with shape (n_frames, n_descriptors)
+            or (n_frames, n_atoms, n_descriptors) if ``should_average=False``.
+        """
+        params = canonicalize_energy_model_parameters(self.params)
+
+        dataset = OTFInMemoryDataset(
+            frames,
+            cutoff=self.model_config.model.basis.r_max,
+            bs=processing_batch_size,
+            n_epochs=1,
+            ignore_labels=True,
+            pos_unit=self.model_config.data.pos_unit,
+            energy_unit=self.model_config.data.energy_unit,
+        )
+
+        _, init_box = dataset.init_input()
+
+        Builder = self.model_config.model.get_builder()
+        builder = Builder(self.model_config.model.model_dump(), n_species=119)
+
+        feature_model = builder.build_feature_model(
+            apply_mask=True,
+            init_box=init_box,
+            only_use_n_layers=only_use_n_layers,
+            should_average=should_average,
+        )
+
+        feature_fn = feature_model.apply
+
+        batched_feature_fn = jax.vmap(feature_fn, in_axes=(None, 0, 0, 0, 0, 0))
+
+        jitted_fn = jax.jit(batched_feature_fn)
+
+        results = []
+        for batch in tqdm(dataset.batch(), ncols=100, total=len(frames)):
+            data = jitted_fn(
+                params,
+                batch["positions"],
+                batch["numbers"],
+                batch["idx"],
+                batch["box"],
+                batch["offsets"],
+            )
+            results.append(data)
+        return np.concatenate(results, axis=0)
 
     def set_neighbours_and_offsets(self, atoms, box):
         calculator = NeighborList(cutoff=self.r_max, full_list=True)
