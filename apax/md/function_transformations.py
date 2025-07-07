@@ -156,9 +156,7 @@ class ProcessStress:
 
             return results
 
-
         return corrected_model
-
 
 
 available_transformations = {
