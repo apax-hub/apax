@@ -283,7 +283,7 @@ class ApaxCalibrate(ApaxBase):
     @property
     def model_directory(self):
         return self.model.model_directory
-        
+
     @property
     def parameter(self) -> dict:
         return self.model.parameter
