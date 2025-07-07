@@ -410,6 +410,8 @@ class Config(BaseModel, frozen=True, extra="forbid"):
         | Number of training epochs.
     patience : int, optional
         | Number of epochs without improvement before trainings gets terminated.
+    patience_min_delta : float, default = 0.0
+        | Minimum change in the monitored quantity to qualify as an improvement.
     seed : int, default = 1
         | Random seed.
     data : :class:`.DataConfig`
@@ -440,6 +442,7 @@ class Config(BaseModel, frozen=True, extra="forbid"):
 
     n_epochs: PositiveInt
     patience: Optional[PositiveInt] = None
+    patience_min_delta: NonNegativeFloat = 0.0
     seed: int = 1
     data_parallel: bool = True
     ckpt_interval: PositiveInt = 500
