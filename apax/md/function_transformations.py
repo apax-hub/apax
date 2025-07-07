@@ -140,7 +140,7 @@ class ProcessStress:
     """
     Remove Volume factor from stress predictions.
     """
-    
+
     def apply(self, model):
         def corrected_model(positions, Z, idx, box, offsets):
             results = model(positions, Z, idx, box, offsets)
