@@ -17,12 +17,13 @@ from apax.data.input_pipeline import (
     CachedInMemoryDataset,
     OTFInMemoryDataset,
 )
+from apax.md.function_transformations import ProcessStress
 from apax.train.checkpoints import (
     canonicalize_energy_model_parameters,
     check_for_ensemble,
     restore_parameters,
 )
-from apax.utils.jax_md_reduced import partition, quantity, space
+from apax.utils.jax_md_reduced import partition, space
 
 
 def maybe_vmap(apply, params):
@@ -71,17 +72,6 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
 
     energy_fn = maybe_vmap(model.apply, params)
     return energy_fn, neighbor_fn
-
-
-def process_stress(results, box):
-    V = quantity.volume(3, box)
-    results = {
-        # We should properly check whether CP2K uses the ASE cell convention
-        # for tetragonal strain, it doesn't matter whether we transpose or not
-        k: val.T / V if k.startswith("stress") else val
-        for k, val in results.items()
-    }
-    return results
 
 
 def make_ensemble(model):
@@ -138,7 +128,7 @@ class ASECalculator(Calculator):
         self,
         model_dir: Union[Path, list[Path]],
         dr_threshold: float = 0.5,
-        transformations: Callable = [],
+        transformations: list[Callable] = [],
         padding_factor: float = 1.5,
         **kwargs,
     ):
@@ -164,6 +154,10 @@ class ASECalculator(Calculator):
         self.transformations = transformations
 
         self.model_config, self.params = restore_parameters(model_dir)
+
+        for head in self.model_config.model.property_heads:
+            self.implemented_properties.append(head.name)
+
         self.n_models = check_for_ensemble(self.params)
         self.padding_factor = padding_factor
         self.padded_length = 0
@@ -197,6 +191,9 @@ class ASECalculator(Calculator):
 
         if self.n_models > 1:
             model = make_ensemble(model)
+
+        if "stress" in self.implemented_properties:
+            model = ProcessStress().apply(model)
 
         for transformation in self.transformations:
             model = transformation.apply(model)
@@ -407,6 +404,9 @@ class ASECalculator(Calculator):
         if self.n_models > 1:
             model = make_ensemble(model)
 
+        if "stress" in self.implemented_properties:
+            model = ProcessStress().apply(model)
+
         for transformation in self.transformations:
             model = transformation.apply(model)
 
@@ -496,10 +496,6 @@ def get_step_fn(model, atoms, neigbor_from_jax):
 
             offsets = jnp.full([neighbor.idx.shape[1], 3], 0)
             results = model(positions, Z, neighbor.idx, box, offsets)
-
-            if "stress" in results.keys():
-                results = process_stress(results, box)
-
             return results, neighbor
 
     else:
@@ -507,8 +503,6 @@ def get_step_fn(model, atoms, neigbor_from_jax):
         @jax.jit
         def step_fn(positions, neighbor, box, offsets):
             results = model(positions, Z, neighbor, box, offsets)
-            if "stress" in results.keys():
-                results = process_stress(results, box)
             return results
 
     return step_fn
