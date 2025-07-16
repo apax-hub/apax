@@ -100,7 +100,11 @@ def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
         thermostat_chain["tau"] *= dt
 
         init_fn, apply_fn = simulate.nvt_nose_hoover(
-            energy, shift, dt, kT(0), constrainet_idxs=constaint_idxs,
+            energy,
+            shift,
+            dt,
+            kT(0),
+            constrainet_idxs=constaint_idxs,
         )
 
     elif ensemble.name == "npt":

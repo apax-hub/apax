@@ -599,13 +599,14 @@ def nvt_nose_hoover(
 
     thermostat = nose_hoover_chain(dt, chain_length, chain_steps, sy_steps, tau)
     print(constrainet_idxs, "fuck")
+
     @jit
     def init_fn(key, R, mass=f32(1.0), **kwargs):
         _kT = kT if "kT" not in kwargs else kwargs["kT"]
 
         dof = quantity.count_dof(R)
         if constrainet_idxs:
-          dof -= len(constrainet_idxs) * 3
+            dof -= len(constrainet_idxs) * 3
 
         state = NVTNoseHooverState(R, None, force_fn(R, **kwargs), mass, None)
         state = canonicalize_mass(state)
