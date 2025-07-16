@@ -194,7 +194,8 @@ def create_constraint_function(constraints: list[ConstraintBase], system):
         constrain_fns.append(constrain_fn)
         constraind_idxs.append(idx)
 
-    constraind_idxs = check_unique_idxs(constraind_idxs)
+    if constraind_idxs:
+        constraind_idxs = check_unique_idxs(constraind_idxs)
 
     def apply_constraints(state):
         for fn in constrain_fns:
