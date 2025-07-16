@@ -135,10 +135,14 @@ class ApaxApplyTransformation(ApaxBase):
     def run(self):
         pass
 
+    @property
+    def model_directory(self):
+        return self.model.model_directory
+
     def get_calculator(self, **kwargs):
         with self.model.state.use_tmp_path():
             calc = ASECalculator(
-                model_dir=self.model.model_directory,
+                model_dir=self.model_directory,
                 dr_threshold=self.model.nl_skin,
                 transformations=self.transformations,
             )
@@ -276,7 +280,15 @@ class ApaxCalibrate(ApaxBase):
             "f_factor": self.f_factor,
         }
 
-    def get_calculator(self, **kwargs) -> ase.calculators.calculator.Calculator:
+    @property
+    def model_directory(self):
+        return self.model.model_directory
+
+    @property
+    def parameter(self) -> dict:
+        return self.model.parameter
+
+    def get_calculator(self, **kwargs):
         """Property to return a model specific ase calculator object.
 
         Returns
@@ -298,11 +310,10 @@ class ApaxCalibrate(ApaxBase):
         if self.transformations:
             for transform, params in self.transformations.items():
                 transformations.append(available_transformations[transform](**params))
-
-        with self.state.use_tmp_path():
+        with self.model.state.use_tmp_path():
             calc = ASECalculator(
-                config_file,
-                dr=self.nl_skin,
+                model_dir=self.model_directory,
+                dr_threshold=self.model.nl_skin,
                 transformations=transformations,
             )
             return calc

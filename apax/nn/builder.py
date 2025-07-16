@@ -225,6 +225,7 @@ class ModelBuilder:
         apply_mask=True,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn=None,
+        should_average: bool = True,
     ):
         log.info("Building feature model")
         descriptor = self.build_descriptor(apply_mask)
@@ -235,7 +236,7 @@ class ModelBuilder:
         model = FeatureModel(
             descriptor,
             readout,
-            should_average=True,
+            should_average=should_average,
             init_box=init_box,
             inference_disp_fn=inference_disp_fn,
             mask_atoms=True,

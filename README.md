@@ -1,11 +1,12 @@
 # `apax`: Atomistic learned Potentials in JAX!
 [![Read the Docs](https://readthedocs.org/projects/apax/badge/)](https://apax.readthedocs.io/en/latest/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10040710.svg)](https://doi.org/10.5281/zenodo.10040710)
+[![DOI](https://img.shields.io/badge/arXiv-2505.22168-red)](https://doi.org/10.48550/arXiv.2505.22168)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Discord](https://img.shields.io/discord/1034511611802689557)](https://discord.gg/7ncfwhsnm4)
 
-`apax`[1] is a high-performance, extendable package for training of and inference with atomistic neural networks.
-It implements the Gaussian Moment Neural Network model [2, 3].
+`apax`[^1][^2] is a high-performance, extendable package for training of and inference with atomistic neural networks.
+It implements the Gaussian Moment Neural Network model [^3][^4].
 It is based on [JAX](https://jax.readthedocs.io/en/latest/) and uses [JaxMD](https://github.com/jax-md/jax-md) as a molecular dynamics engine.
 
 
@@ -91,6 +92,7 @@ Further funding though the DFG under Germany's Excellence Strategy - EXC 2075 - 
 
 
 ## References
-* [1] 10.5281/zenodo.10040711
-* [2] V. Zaverkin and J. Kästner, [“Gaussian Moments as Physically Inspired Molecular Descriptors for Accurate and Scalable Machine Learning Potentials,”](https://doi.org/10.1021/acs.jctc.0c00347) J. Chem. Theory Comput. **16**, 5410–5421 (2020).
-* [3] V. Zaverkin, D. Holzmüller, I. Steinwart,  and J. Kästner, [“Fast and Sample-Efficient Interatomic Neural Network Potentials for Molecules and Materials Based on Gaussian Moments,”](https://pubs.acs.org/doi/10.1021/acs.jctc.1c00527) J. Chem. Theory Comput. **17**, 6658–6670 (2021).
+[^1]: Moritz René Schäfer, Nico Segreto, Fabian Zills, Christian Holm, Johannes Kästner, [Apax: A Flexible and Performant Framework For The Development of Machine-Learned Interatomic Potentials](https://arxiv.org/abs/2505.22168), arXiv preprint, 2025
+[^2]: 10.5281/zenodo.10040711
+[^3]: V. Zaverkin and J. Kästner, [“Gaussian Moments as Physically Inspired Molecular Descriptors for Accurate and Scalable Machine Learning Potentials,”](https://doi.org/10.1021/acs.jctc.0c00347) J. Chem. Theory Comput. **16**, 5410–5421 (2020).
+[^4]: V. Zaverkin, D. Holzmüller, I. Steinwart,  and J. Kästner, [“Fast and Sample-Efficient Interatomic Neural Network Potentials for Molecules and Materials Based on Gaussian Moments,”](https://pubs.acs.org/doi/10.1021/acs.jctc.1c00527) J. Chem. Theory Comput. **17**, 6658–6670 (2021).
