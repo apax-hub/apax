@@ -55,7 +55,7 @@ class FixLayer(ConstraintBase, extra="forbid"):
     def create(self, system) -> Callable:
         if jnp.any(system.box != 0)
             cart_pos = system.positions @ system.box
-        
+
         z_coordinates = cart_pos[:, 2]
 
         indices = jnp.where(
