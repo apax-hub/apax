@@ -247,7 +247,7 @@ def run_sim(
         constraints,
         system,
     )
-    
+
     log.info("initializing simulation")
     init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns, constraint_idxs)
 
