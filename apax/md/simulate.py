@@ -98,9 +98,10 @@ def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
     elif ensemble.name == "nvt":
         thermostat_chain = dict(ensemble.thermostat_chain)
         thermostat_chain["tau"] *= dt
-        if constaint_idxs:
-            init_fn, apply_fn = simulate.nvt_nose_hoover(energy, shift, dt, kT(0), constaint_idxs)
-        init_fn, apply_fn = simulate.nvt_nose_hoover(energy, shift, dt, kT(0))
+
+        init_fn, apply_fn = simulate.nvt_nose_hoover(
+            energy, shift, dt, kT(0), constaint_idxs
+        )
 
     elif ensemble.name == "npt":
         if constaint_idxs:
@@ -164,10 +165,24 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_ch
     return on_eval, no_eval
 
 
+def check_unique_idxs(constraind_idxs):
+    unique_idxs = []
+    seen_idxs = set()
+
+    for idxs in constraind_idxs:
+        for val in idxs:
+            val = int(val)
+            if val not in seen_idxs:
+                seen_idxs.add(val)
+                unique_idxs.append(val)
+
+    return unique_idxs
+
+
 def create_constraint_function(constraints: list[ConstraintBase], system):
     constrain_fns = []
     constraind_idxs = []
-        
+
     for constraint in constraints:
         constrain_fn, idx = constraint.create(system)
         constrain_fns.append(constrain_fn)
@@ -183,18 +198,6 @@ def create_constraint_function(constraints: list[ConstraintBase], system):
 
     return apply_constraints, constraind_idxs
 
-def check_unique_idxs(constraind_idxs):
-    unique_idxs = []
-    seen_idxs = set()
-    
-    for idxs in constraind_idxs:
-        for val in idxs:
-            val = int(val)
-            if val not in seen_idxs:
-                seen_idxs.add(val)
-                unique_idxs.append(val)
-                
-    return unique_idxs
 
 def run_sim(
     system: System,
@@ -244,10 +247,10 @@ def run_sim(
         constraints,
         system,
     )
-    
+
     log.info("initializing simulation")
     init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns, constraind_idxs)
-    
+
     neighbor = sim_fns.neighbor_fn.allocate(
         system.positions, extra_capacity=extra_capacity
     )
@@ -288,7 +291,7 @@ def run_sim(
         system.box,
         dynamics_checks,
     )
-    
+
     @jax.jit
     def sim(state, outer_step, neighbor):  # TODO make more modular
         def body_fn(i, state):
