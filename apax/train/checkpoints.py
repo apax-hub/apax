@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-import os
 from typing import List, Tuple, Union
 
 import jax

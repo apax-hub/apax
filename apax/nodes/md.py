@@ -1,14 +1,14 @@
 import logging
+import os
 import pathlib
 import typing
 
 import ase
 import h5py
+import jax
 import yaml
 import znh5md
 import zntrack
-import jax
-import os
 
 from apax.md.simulate import run_md
 from apax.nodes.model import ApaxBase
