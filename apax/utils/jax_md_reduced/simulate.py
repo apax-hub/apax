@@ -542,6 +542,7 @@ def nvt_nose_hoover(
     chain_steps: int = 2,
     sy_steps: int = 3,
     tau: Optional[float] = None,
+    constrained_idxs: Optional[list[int] | None] = None,
     **sim_kwargs,
 ) -> Simulator:
     """Simulation in the NVT ensemble using a Nose Hoover Chain thermostat.
@@ -603,7 +604,10 @@ def nvt_nose_hoover(
         _kT = kT if "kT" not in kwargs else kwargs["kT"]
 
         dof = quantity.count_dof(R)
-
+        
+        if constrained_idxs:
+          dof -= constrained_idxs.shape[0] * 3
+          
         state = NVTNoseHooverState(R, None, force_fn(R, **kwargs), mass, None)
         state = canonicalize_mass(state)
         state = initialize_momenta(state, key, _kT)
