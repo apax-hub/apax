@@ -16,6 +16,7 @@ class AtomisticReadout(nn.Module):
     b_init: str = "zeros"
     use_ntk: bool = True
     n_shallow_ensemble: int = 0
+    fix_ll_mean: bool = False
     is_feature_fn: bool = False
     dtype: Any = jnp.float32
 
@@ -31,11 +32,17 @@ class AtomisticReadout(nn.Module):
 
         dense = []
         for ii, n_hidden in enumerate(units):
+            if self.fix_ll_mean and ii == len(units) - 1:
+                # Last layer, fix mean
+                fix_mean = True
+            else:
+                fix_mean = False
             layer = NTKLinear(
                 n_hidden,
                 w_init=self.w_init,
                 b_init=self.b_init,
                 use_ntk=self.use_ntk,
+                fix_mean=fix_mean,
                 dtype=dtype,
                 name=f"dense_{ii}",
             )

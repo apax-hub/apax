@@ -174,6 +174,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     w_init: Literal["normal", "lecun"] = "lecun"
     b_init: Literal["normal", "zeros"] = "zeros"
     use_ntk: bool = False
+    fix_ll_mean: bool = False
 
     ensemble: Optional[EnsembleConfig] = None
 

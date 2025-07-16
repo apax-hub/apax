@@ -1,6 +1,6 @@
 import flax.linen as nn
 import jax.numpy as jnp
-
+import jax
 from apax.utils.convert import str_to_dtype
 
 
@@ -14,6 +14,7 @@ class NTKLinear(nn.Module):
     w_init: str = "normal"
     b_init: str = "zeros"
     use_ntk: bool = True
+    fix_mean: bool = False
     dtype: str = "fp32"
 
     @nn.compact
@@ -37,7 +38,15 @@ class NTKLinear(nn.Module):
         w = self.param("w", w_initializer, (inputs.shape[0], self.units), dtype)
         b = self.param("b", b_initializer, [self.units], dtype)
 
-        wx = jnp.dot(inputs, w)
+        if self.fix_mean:
+            w_mean = jnp.mean(w, axis=1, keepdims=True)
+            w_mean_fixed = jax.lax.stop_gradient(jnp.mean(w, axis=1, keepdims=True))
+            jax.debug.print("w_mean: {x}", x=w_mean_fixed)
+
+            w_modified = w - w_mean + w_mean_fixed
+            wx = jnp.dot(inputs, w_modified)
+        else:
+            wx = jnp.dot(inputs, w)
 
         if self.use_ntk:
             bias_factor = 0.1

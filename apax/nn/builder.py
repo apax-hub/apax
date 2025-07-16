@@ -90,6 +90,9 @@ class ModelBuilder:
             n_shallow_ensemble = head_config["n_shallow_members"]
         else:
             n_shallow_ensemble = 0
+        fix_ll_mean = False
+        if "fix_ll_mean" in head_config.keys():
+            fix_ll_mean = head_config["fix_ll_mean"]
 
         if "readout_dtype" in head_config:
             dtype = head_config["readout_dtype"]
@@ -111,6 +114,7 @@ class ModelBuilder:
             use_ntk=head_config["use_ntk"],
             is_feature_fn=is_feature_fn,
             n_shallow_ensemble=n_shallow_ensemble,
+            fix_ll_mean=fix_ll_mean,
             dtype=dtype,
         )
         return readout
