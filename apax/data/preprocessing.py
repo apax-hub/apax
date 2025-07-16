@@ -82,7 +82,7 @@ def get_shrink_wrapped_cell(positions):
     return cell, cell_origin
 
 
-def prefetch_to_single_device(iterator, size: int, sharding=None, n_step_jit=False):
+def prefetch_to_single_device(iterator, size: int, sharding=None):
     """
     inspired by
     https://flax.readthedocs.io/en/latest/_modules/flax/jax_utils.html#prefetch_to_device
@@ -94,11 +94,6 @@ def prefetch_to_single_device(iterator, size: int, sharding=None, n_step_jit=Fal
         n_devices = len(sharding._devices)
         slice_start = 1
         shape = [n_devices]
-        if n_step_jit:
-            # replicate over multi-batch axis
-            # data shape: njit x bs x ...
-            slice_start = 2
-            shape.insert(0, 1)
 
     def _prefetch(x: jax.Array):
         if sharding:

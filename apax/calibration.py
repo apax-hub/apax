@@ -62,4 +62,4 @@ def compute_calibration_factors(
             Fpred, Fstd, Ftrue, criterion, optimizer_bounds=optimizer_bounds
         )
 
-    return e_factor, f_factor
+    return 1 / e_factor, 1 / f_factor

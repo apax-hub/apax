@@ -1,6 +1,6 @@
 [project]
 name = "apax"
-version = "0.10.2"
+version = "0.12.3"
 description = "Atomistic Learned Potential Package in JAX"
 keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
 readme = "README.md"
@@ -16,7 +16,7 @@ dependencies = [
     "clu>=0.0.12",
     "e3x>=1.0.2",
     "einops>=0.8.0",
-    "flax>=0.10.2",
+    "flax>=0.10.6",
     "jax>=0.4.38",
     "lazy-loader>=0.4",
     "numpy>=1.23",
@@ -27,7 +27,7 @@ dependencies = [
     "typer>=0.13.0",
     "uncertainty-toolbox>=0.1.1",
     "vesin>=0.3.0",
-    "znh5md>=0.4.2",
+    "znh5md>=0.4.5",
 ]
 
 [project.optional-dependencies]
@@ -58,6 +58,7 @@ dev = [
     "pre-commit>=4.0.1",
     "pytest>=8.3.4",
     "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.7.0",
 ]
 lint = [
     "ruff>=0.9.1",

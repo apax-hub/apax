@@ -139,7 +139,6 @@ def initialize_datasets(config: Config):
         config.model.basis.r_max,
         config.data.batch_size,
         config.n_epochs,
-        config.n_jitted_steps,
         pos_unit=config.data.pos_unit,
         energy_unit=config.data.energy_unit,
         pre_shuffle=True,
@@ -210,21 +209,25 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
         n_full_models = 1
     params, rng_key = create_params(model, rng_key, sample_input, n_full_models)
 
+    freeze_layers = []
+    do_transfer_learning = config.transfer_learning is not None
+    if do_transfer_learning:
+        freeze_layers = config.transfer_learning.freeze_layers
+
     # TODO rework optimizer initialization and lr keywords
     steps_per_epoch = train_ds.steps_per_epoch()
     tx = get_opt(
         params,
         config.n_epochs,
         steps_per_epoch,
+        freeze_layers=freeze_layers,
         **config.optimizer.model_dump(),
     )
 
     state = create_train_state(batched_model, params, tx)
 
-    base_checkpoint = config.checkpoints.base_model_checkpoint
-    do_transfer_learning = base_checkpoint is not None
     if do_transfer_learning:
-        state = transfer_parameters(state, config.checkpoints)
+        state = transfer_parameters(state, config.transfer_learning)
 
     if config.weight_average:
         ema_handler = EMAParameters(
@@ -241,9 +244,10 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
         callbacks,
         config.n_epochs,
         ckpt_dir=config.data.model_version_path,
-        ckpt_interval=config.checkpoints.ckpt_interval,
+        ckpt_interval=config.ckpt_interval,
         val_ds=val_ds,
         patience=config.patience,
+        patience_min_delta=config.patience_min_delta,
         disable_pbar=config.progress_bar.disable_epoch_pbar,
         disable_batch_pbar=config.progress_bar.disable_batch_pbar,
         is_ensemble=n_full_models > 1,

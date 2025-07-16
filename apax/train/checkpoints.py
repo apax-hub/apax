@@ -5,8 +5,9 @@ from typing import List, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import orbax.checkpoint as ocp
 from flax.core.frozen_dict import FrozenDict, freeze, unfreeze
-from flax.training import checkpoints, train_state
+from flax.training import train_state
 from flax.traverse_util import flatten_dict, unflatten_dict
 
 from apax.config.common import parse_config
@@ -78,29 +79,14 @@ def load_state(state, ckpt_dir):
     checkpoints_exist = ckpt_dir.is_dir()
     if checkpoints_exist:
         log.info("Loading checkpoint")
-        raw_restored = checkpoints.restore_checkpoint(
-            ckpt_dir.resolve(), target=target, step=None
-        )
-        state = raw_restored["model"]
-        start_epoch = raw_restored["epoch"] + 1
-        log.info("Successfully restored checkpoint from epoch %d", raw_restored["epoch"])
+        with ocp.CheckpointManager(ckpt_dir.resolve()) as mngr:
+            restored = mngr.restore(step=None, args=ocp.args.StandardRestore(target))
+
+        state = restored["model"]
+        start_epoch = restored["epoch"] + 1
+        log.info("Successfully restored checkpoint from epoch %d", restored["epoch"])
 
     return state, start_epoch
-
-
-class CheckpointManager:
-    def __init__(self) -> None:
-        self.async_manager = checkpoints.AsyncManager()
-
-    def save_checkpoint(self, ckpt, epoch: int, path: Path) -> None:
-        checkpoints.save_checkpoint(
-            ckpt_dir=path.resolve(),
-            target=ckpt,
-            step=epoch,
-            overwrite=True,
-            keep=2,
-            async_manager=self.async_manager,
-        )
 
 
 def stack_parameters(param_list: List[FrozenDict]) -> FrozenDict:
@@ -132,12 +118,12 @@ def load_params(model_version_path: Path, best=True) -> FrozenDict:
         model_version_path = model_version_path / "best"
     log.info(f"loading checkpoint from {model_version_path}")
     try:
-        # keep try except block for zntrack load from rev
-        raw_restored = checkpoints.restore_checkpoint(
-            model_version_path, target=None, step=None
+        raw_restored = ocp.CheckpointManager(model_version_path.resolve()).restore(
+            step=None, args=ocp.args.StandardRestore()
         )
+
     except FileNotFoundError:
-        print(f"No checkpoint found at {model_version_path}")
+        raise FileNotFoundError(f"No checkpoint found at {model_version_path}")
     if raw_restored is None:
         raise FileNotFoundError(f"No checkpoint found at {model_version_path}")
     params = jax.tree.map(jnp.asarray, raw_restored["model"]["params"])

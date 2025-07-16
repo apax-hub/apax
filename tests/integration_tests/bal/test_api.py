@@ -1,7 +1,7 @@
 import pathlib
 
+import orbax.checkpoint as ocp
 import pytest
-from flax.training import checkpoints
 
 from apax.bal.api import kernel_selection
 from tests.conftest import initialize_model, load_and_dump_config
@@ -35,7 +35,7 @@ TEST_PATH = pathlib.Path(__file__).parent.resolve()
     ([20, False, ["energy", "forces"]],),
 )
 def test_kernel_selection(
-    config, features, example_atoms, get_tmp_path, get_sample_input
+    config, features, example_atoms_list, get_tmp_path, get_sample_input
 ):
     model_config_path = TEST_PATH / config  # "config.yaml"
 
@@ -47,17 +47,15 @@ def test_kernel_selection(
 
     ckpt = {"model": {"params": params}, "epoch": 0}
     best_dir = model_config.data.best_model_path
-    checkpoints.save_checkpoint(
-        ckpt_dir=best_dir,
-        target=ckpt,
-        step=0,
-        overwrite=True,
-    )
 
-    num_data = len(example_atoms)
+    options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
+    with ocp.CheckpointManager(best_dir, options=options) as mngr:
+        mngr.save(0, args=ocp.args.StandardSave(ckpt))
+
+    num_data = len(example_atoms_list)
     n_train = num_data // 2
-    train_atoms = example_atoms[:n_train]
-    pool_atoms = example_atoms[n_train:]
+    train_atoms = example_atoms_list[:n_train]
+    pool_atoms = example_atoms_list[n_train:]
 
     base_fm_options = features
     selection_method = "max_dist"

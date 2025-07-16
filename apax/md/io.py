@@ -76,8 +76,9 @@ class H5TrajHandler(TrajHandler):
         sampling_rate: int,
         buffer_size: int,
         traj_path: Path,
-        time_step: float = 0.5,
-        properties: list[str] = [],
+        time_step: float,
+        properties: list[str],
+        h5md_options: dict,
     ) -> None:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
@@ -86,8 +87,14 @@ class H5TrajHandler(TrajHandler):
         self.traj_path = traj_path
         self.time_step = time_step
         self.properties = properties
+        if h5md_options is None:
+            h5md_options = {}
         self.db = znh5md.IO(
-            self.traj_path, timestep=self.time_step, store="time", save_units=False
+            self.traj_path,
+            timestep=self.time_step,
+            save_units=False,
+            variable_shape=False,
+            **h5md_options,
         )
 
         self.step_counter = 0
