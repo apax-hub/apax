@@ -53,7 +53,7 @@ class FixLayer(ConstraintBase, extra="forbid"):
     lower_limit: float
 
     def create(self, system) -> Callable:
-        if jnp.any(system.box != 0)
+        if jnp.any(system.box != 0):
             cart_pos = system.positions @ system.box
 
         z_coordinates = cart_pos[:, 2]
