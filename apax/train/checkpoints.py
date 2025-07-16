@@ -71,8 +71,6 @@ def create_params(model, rng_key, sample_input: tuple, n_models: int):
 
 
 def load_state(state, ckpt_dir):
-    # ckpt_dir = Path(ckpt_dir)
-    ckpt_dir = os.path.abspath(ckpt_dir)
     ckpt_dir = Path(ckpt_dir)
     start_epoch = 0
     target = {"model": state, "epoch": 0}
@@ -111,7 +109,6 @@ def stack_parameters(param_list: List[FrozenDict]) -> FrozenDict:
 
 
 def load_params(model_version_path: Path, best=True) -> FrozenDict:
-    model_version_path = os.path.abspath(model_version_path)
     model_version_path = Path(model_version_path)
 
     if best:

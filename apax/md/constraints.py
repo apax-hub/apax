@@ -53,7 +53,7 @@ class FixLayer(ConstraintBase, extra="forbid"):
     lower_limit: float
 
     def create(self, system) -> Callable:
-        if jnp.any(system.box != 0):
+        if jnp.any(system.box > 10e-4):
             cart_pos = system.positions @ system.box
 
         z_coordinates = cart_pos[:, 2]
@@ -61,8 +61,6 @@ class FixLayer(ConstraintBase, extra="forbid"):
         indices = jnp.where(
             (self.lower_limit <= z_coordinates) & (z_coordinates <= self.upper_limit)
         )
-        indices = indices[0]
-
         ref_position = system.positions[indices]
 
         def fn(state):

@@ -100,7 +100,7 @@ def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
         thermostat_chain["tau"] *= dt
 
         init_fn, apply_fn = simulate.nvt_nose_hoover(
-            energy, shift, dt, kT(0), constaint_idxs
+            energy, shift, dt, kT(0), constrainet_idxs=constaint_idxs,
         )
 
     elif ensemble.name == "npt":
@@ -243,13 +243,13 @@ def run_sim(
     ckpt_dir = sim_dir / "ckpts"
     ckpt_dir.mkdir(exist_ok=True)
 
-    apply_constraints, constraind_idxs = create_constraint_function(
+    apply_constraints, constraint_idxs = create_constraint_function(
         constraints,
         system,
     )
-
+    
     log.info("initializing simulation")
-    init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns, constraind_idxs)
+    init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns, constraint_idxs)
 
     neighbor = sim_fns.neighbor_fn.allocate(
         system.positions, extra_capacity=extra_capacity
