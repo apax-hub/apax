@@ -75,15 +75,15 @@ class ApaxJaxMD(zntrack.Node):
 
     def map(self):
         os.environ["JAX_COMPILATION_CACHE_DIR"] = '"/tmp/jax_cache"'
-        
+
         jax.config.update("jax_compilation_cache_dir", "/tmp/jax_cache")
         jax.config.update("jax_persistent_cache_min_entry_size_bytes", -1)
         jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)
         jax.config.update("jax_persistent_cache_enable_xla_caches", "xla_gpu_per_fusion_autotune_cache_dir")
-        
+
         from jax.experimental.compilation_cache import compilation_cache as cc
         cc.set_cache_dir("/tmp/jax_cache")
-        
+
         """Primary method to run which executes all steps of the model training"""
         for id in range(len(self.data)):
             self.data_id = id
@@ -91,7 +91,7 @@ class ApaxJaxMD(zntrack.Node):
                 self._write_initial_structure()
 
             run_md(self.model.parameter, self.parameter, log_level="info")
-        
+
     @property
     def frames(self) -> typing.List[ase.Atoms]:
         with self.state.fs.open(self.sim_dir / "md.h5", "rb") as f:
