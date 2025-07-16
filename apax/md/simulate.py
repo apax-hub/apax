@@ -173,6 +173,8 @@ def check_unique_idxs(constraind_idxs):
     unique_idxs = []
     seen_idxs = set()
 
+    constraind_idxs = constraind_idxs[0]
+
     for idxs in constraind_idxs:
         for val in idxs:
             val = int(val)

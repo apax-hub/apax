@@ -598,7 +598,6 @@ def nvt_nose_hoover(
     tau = f32(tau)
 
     thermostat = nose_hoover_chain(dt, chain_length, chain_steps, sy_steps, tau)
-    print(constrainet_idxs, "fuck")
 
     @jit
     def init_fn(key, R, mass=f32(1.0), **kwargs):
