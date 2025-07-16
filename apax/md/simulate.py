@@ -98,9 +98,10 @@ def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
     elif ensemble.name == "nvt":
         thermostat_chain = dict(ensemble.thermostat_chain)
         thermostat_chain["tau"] *= dt
-        
-        init_fn, apply_fn = simulate.nvt_nose_hoover(energy, shift, dt, kT(0), constaint_idxs)
 
+        init_fn, apply_fn = simulate.nvt_nose_hoover(
+            energy, shift, dt, kT(0), constaint_idxs
+        )
 
     elif ensemble.name == "npt":
         if constaint_idxs:
@@ -188,7 +189,7 @@ def create_constraint_function(constraints: list[ConstraintBase], system):
         constraind_idxs.append(idx)
 
     constraind_idxs = check_unique_idxs(constraind_idxs)
-    
+
     def apply_constraints(state):
         for fn in constrain_fns:
             state = fn(state)
@@ -246,7 +247,7 @@ def run_sim(
         constraints,
         system,
     )
-    
+
     log.info("initializing simulation")
     init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns, constraind_idxs)
 

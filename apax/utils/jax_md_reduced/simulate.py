@@ -605,8 +605,8 @@ def nvt_nose_hoover(
 
         dof = quantity.count_dof(R)
         if constrained_idxs:
-          dof -= constrained_idxs.shape[0] * 3
-          
+            dof -= constrained_idxs.shape[0] * 3
+
         state = NVTNoseHooverState(R, None, force_fn(R, **kwargs), mass, None)
         state = canonicalize_mass(state)
         state = initialize_momenta(state, key, _kT)
