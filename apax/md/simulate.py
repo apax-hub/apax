@@ -86,7 +86,7 @@ def nbr_update_options_npt(state):
     return {"box": box}
 
 
-def get_ensemble(ensemble: Integrator, sim_fns):
+def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
     energy, shift = sim_fns.energy_fn, sim_fns.shift_fn
 
     dt = ensemble.dt * units.fs
@@ -99,9 +99,19 @@ def get_ensemble(ensemble: Integrator, sim_fns):
         thermostat_chain = dict(ensemble.thermostat_chain)
         thermostat_chain["tau"] *= dt
 
-        init_fn, apply_fn = simulate.nvt_nose_hoover(energy, shift, dt, kT(0))
+        init_fn, apply_fn = simulate.nvt_nose_hoover(
+            energy,
+            shift,
+            dt,
+            kT(0),
+            constrainet_idxs=constaint_idxs,
+        )
 
     elif ensemble.name == "npt":
+        if constaint_idxs:
+            raise NotImplementedError(
+                "Constraining atoms in NPT simulations is not implemented."
+            )
         pressure = ensemble.pressure * units.bar
         thermostat_chain = dict(ensemble.thermostat_chain)
         barostat_chain = dict(ensemble.barostat_chain)
@@ -159,16 +169,39 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_ch
     return on_eval, no_eval
 
 
-def create_constraint_function(constraints: list[ConstraintBase], state, system):
-    all_constraints = [c.create(state, system) for c in constraints]
+def check_unique_idxs(constraind_idxs):
+    unique_idxs = []
+    seen_idxs = set()
+
+    for idxs in constraind_idxs:
+        for val in idxs:
+            val = int(val)
+            if val not in seen_idxs:
+                seen_idxs.add(val)
+                unique_idxs.append(val)
+
+    return unique_idxs
+
+
+def create_constraint_function(constraints: list[ConstraintBase], system):
+    constrain_fns = []
+    constraind_idxs = []
+
+    for constraint in constraints:
+        constrain_fn, idx = constraint.create(system)
+        constrain_fns.append(constrain_fn)
+        constraind_idxs.append(idx)
+
+    if constraind_idxs:
+        constraind_idxs = check_unique_idxs(constraind_idxs)
 
     def apply_constraints(state):
-        for constraint in all_constraints:
-            state = constraint(state)
+        for fn in constrain_fns:
+            state = fn(state)
 
         return state
 
-    return apply_constraints
+    return apply_constraints, constraind_idxs
 
 
 def run_sim(
@@ -215,8 +248,13 @@ def run_sim(
     ckpt_dir = sim_dir / "ckpts"
     ckpt_dir.mkdir(exist_ok=True)
 
+    apply_constraints, constraint_idxs = create_constraint_function(
+        constraints,
+        system,
+    )
+
     log.info("initializing simulation")
-    init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns)
+    init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns, constraint_idxs)
 
     neighbor = sim_fns.neighbor_fn.allocate(
         system.positions, extra_capacity=extra_capacity
@@ -257,12 +295,6 @@ def run_sim(
         neighbor,
         system.box,
         dynamics_checks,
-    )
-
-    apply_constraints = create_constraint_function(
-        constraints,
-        state,
-        system,
     )
 
     @jax.jit

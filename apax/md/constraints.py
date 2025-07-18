@@ -12,7 +12,7 @@ class ConstraintBase(BaseModel):
     the constraint during simulations.
     """
 
-    def create(self, ref_stat, system) -> Callable:
+    def create(self, system) -> Callable:
         pass
 
 
@@ -22,21 +22,27 @@ class FixAtoms(ConstraintBase, extra="forbid"):
     name: Literal["fixatoms"] = "fixatoms"
     indices: list[int]
 
-    def create(self, ref_state, system) -> Callable:
+    def create(self, system) -> Callable:
         indices = jnp.array(self.indices, dtype=jnp.int64)
 
-        ref_position = ref_state.position[indices]
+        ref_position = system.positions[indices]
 
         def fn(state):
             position = state.position
+            position = position.at[indices].set(ref_position)
+
             force = state.force
             zero_force = jnp.zeros_like(ref_position)
-            position = position.at[indices].set(ref_position)
             force = force.at[indices].set(zero_force)
-            state = state.set(position=position, force=force)
+
+            momenta = state.momentum
+            zero_momenta = jnp.zeros_like(ref_position)
+            momenta = momenta.at[indices].set(zero_momenta)
+
+            state = state.set(position=position, force=force, momentum=momenta)
             return state
 
-        return fn
+        return fn, indices
 
 
 class FixLayer(ConstraintBase, extra="forbid"):
@@ -46,26 +52,35 @@ class FixLayer(ConstraintBase, extra="forbid"):
     upper_limit: float
     lower_limit: float
 
-    def create(self, ref_state, system) -> Callable:
-        pos = ref_state.position @ system.box
-        z_coordinates = pos[:, 2]
+    def create(self, system) -> Callable:
+        if jnp.any(system.box > 10e-4):
+            cart_pos = system.positions @ system.box
+
+        z_coordinates = cart_pos[:, 2]
 
         indices = jnp.where(
             (self.lower_limit <= z_coordinates) & (z_coordinates <= self.upper_limit)
         )
+        indices = indices[0]
 
-        ref_position = ref_state.position[indices]
+        ref_position = system.positions[indices]
 
         def fn(state):
             position = state.position
+            position = position.at[indices].set(ref_position)
+
             force = state.force
             zero_force = jnp.zeros_like(ref_position)
-            position = position.at[indices].set(ref_position)
             force = force.at[indices].set(zero_force)
-            state = state.set(position=position, force=force)
+
+            momenta = state.momentum
+            zero_momenta = jnp.zeros_like(ref_position)
+            momenta = momenta.at[indices].set(zero_momenta)
+
+            state = state.set(position=position, force=force, momentum=momenta)
             return state
 
-        return fn
+        return fn, indices
 
 
 Constraint = TypeAdapter(Union[FixAtoms, FixLayer]).validate_python
