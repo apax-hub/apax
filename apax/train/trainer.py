@@ -9,6 +9,7 @@ import numpy as np
 import orbax.checkpoint as ocp
 from clu import metrics
 from flax.training.train_state import TrainState
+from flax.core.frozen_dict import unfreeze, freeze
 from jax import tree_util
 from jax.experimental import mesh_utils
 from jax.sharding import PositionalSharding
@@ -36,6 +37,7 @@ def fit(
     disable_pbar: bool = False,
     disable_batch_pbar: bool = True,
     is_ensemble=False,
+    calc_ll_mean: bool = False,
     data_parallel=True,
     ema_handler: Optional[EMAParameters] = None,
 ):
@@ -87,6 +89,16 @@ def fit(
     )
 
     state, start_epoch = load_state(state, latest_dir)
+    if calc_ll_mean:
+        params = state.params
+        params = unfreeze(params)
+        dense_layers = list(params["params"]["energy_model"]["readout"].keys())
+        w = params["params"]["energy_model"]["readout"][dense_layers[-1]]["w"]
+
+        params["params"]["energy_model"]["readout"][dense_layers[-1]]["w_mean"] = jnp.mean(w, axis=1, keepdims=True)
+        params = freeze(params)
+        state = state.replace(params=params)
+
     if start_epoch >= n_epochs:
         print(
             f"Training has already completed ({start_epoch} >= {n_epochs}). Nothing to be done"

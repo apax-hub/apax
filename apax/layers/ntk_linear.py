@@ -39,9 +39,8 @@ class NTKLinear(nn.Module):
         b = self.param("b", b_initializer, [self.units], dtype)
 
         if self.fix_mean:
+            w_mean_fixed = self.param("w_mean", w_initializer, (inputs.shape[0], 1), dtype)
             w_mean = jnp.mean(w, axis=1, keepdims=True)
-            w_mean_fixed = jax.lax.stop_gradient(jnp.mean(w, axis=1, keepdims=True))
-            jax.debug.print("w_mean: {x}", x=w_mean_fixed)
 
             w_modified = w - w_mean + w_mean_fixed
             wx = jnp.dot(inputs, w_modified)

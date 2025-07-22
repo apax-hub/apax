@@ -251,6 +251,7 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
         disable_pbar=config.progress_bar.disable_epoch_pbar,
         disable_batch_pbar=config.progress_bar.disable_batch_pbar,
         is_ensemble=n_full_models > 1,
+        calc_ll_mean=config.model.fix_ll_mean,
         data_parallel=config.data_parallel,
         ema_handler=ema_handler,
     )

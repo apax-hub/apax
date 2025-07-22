@@ -53,5 +53,4 @@ class AtomisticReadout(nn.Module):
 
     def __call__(self, x):
         h = self.sequential(x)
-        # TODO should we move aggregation here?
         return h

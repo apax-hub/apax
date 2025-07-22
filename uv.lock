@@ -208,7 +208,7 @@ wheels = [
 
 [[package]]
 name = "apax"
-version = "0.11.0"
+version = "0.12.3"
 source = { editable = "." }
 dependencies = [
     { name = "ase" },

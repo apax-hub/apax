@@ -133,6 +133,7 @@ def get_opt(
 
     partition_optimizers = {
         "w": nn_opt,
+        "w_mean": frozen_opt,
         "b": nn_opt,
         "atomic_type_embedding": emb_opt,
         "scale_per_element": scale_opt,
