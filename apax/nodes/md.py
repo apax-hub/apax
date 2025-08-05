@@ -37,7 +37,7 @@ class ApaxJaxMD(zntrack.Node):
     data: list[ase.Atoms] = zntrack.deps()
     data_id: int = zntrack.params(-1)
 
-    models: list[ApaxBase] = zntrack.deps()
+    model: list[ApaxBase] = zntrack.deps()
     repeat: None | int | tuple[int, int, int] = zntrack.params(None)
 
     config: str = zntrack.params_path(None)

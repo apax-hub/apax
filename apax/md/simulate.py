@@ -2,6 +2,7 @@ import logging
 import time
 from functools import partial
 from pathlib import Path
+from typing import Union
 
 import jax
 import jax.numpy as jnp
@@ -79,7 +80,7 @@ def create_energy_fn(model, params, numbers, n_models, shallow=False):
 
     energy_fn = partial(
         energy_fn,
-        params=params,
+        params,
         Z=numbers,
         offsets=jnp.array([0.0, 0.0, 0.0]),
     )
@@ -283,15 +284,25 @@ def run_sim(
     neighbor = sim_fns.neighbor_fn.allocate(
         system.positions, extra_capacity=extra_capacity
     )
-
-    state = init_fn(
-        rng_key,
-        system.positions,
-        box=system.box,
-        mass=system.masses,
-        neighbor=neighbor,
-        switch_factor=0,
-    )
+    
+    
+    if isinstance(switching_schedule, SwitchSchedule):
+        state = init_fn(
+            rng_key,
+            system.positions,
+            box=system.box,
+            mass=system.masses,
+            neighbor=neighbor,
+            switch_factor=0,
+        )
+    else:
+        state = init_fn(
+            rng_key,
+            system.positions,
+            box=system.box,
+            mass=system.masses,
+            neighbor=neighbor,
+        )
 
     step = 0
 
@@ -596,8 +607,12 @@ def md_setup(model_configs: list[Config], md_config: MDConfig):
             )
         )
 
-    if md_config.switching:
-        energy_fn = create_energy_switch_fn(energy_fns[0], energy_fns[1])
+    if isinstance(md_config.switching, SwitchingSchedule):
+        try:
+            log.info("Creating switch model")
+            energy_fn = create_energy_switch_fn(energy_fns[0], energy_fns[1])
+        except:
+            raise ValueError('2 model have to be specified for a simulation with a SwitchingSchedule.')
     else:
         energy_fn = energy_fns[0]
 
@@ -620,7 +635,7 @@ def md_setup(model_configs: list[Config], md_config: MDConfig):
     return system, sim_fn
 
 
-def run_md(model_configs: list[Config], md_config: MDConfig, log_level="error"):
+def run_md(model_configs: Union[Config, list[Config]], md_config: MDConfig, log_level="error"):
     """
     Utiliy function to start NVT molecualr dynamics simulations from
     a previously trained model.
@@ -632,6 +647,9 @@ def run_md(model_configs: list[Config], md_config: MDConfig, log_level="error"):
     md_config : MDConfig
         configuration of the MD simulation.
     """
+    if isinstance(model_configs, Config):
+        model_configs = [model_configs]
+ 
     model_configs = [parse_config(model_config) for model_config in model_configs]
 
     md_config = parse_config(md_config, mode="md")

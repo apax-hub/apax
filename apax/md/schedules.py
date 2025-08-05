@@ -68,7 +68,7 @@ def additive_impacted(state, box, switched, **switch_kwargs):
     return switched
 
 
-def instant_switching(state, switched, **switch_kwargs):
+def instant_switching(state, box, switched, **switch_kwargs):
     return True
 
 
