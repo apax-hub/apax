@@ -36,7 +36,7 @@ class ApaxJaxMD(zntrack.Node):
 
     data: list[ase.Atoms] = zntrack.deps()
     data_id: int = zntrack.params(-1)
-    
+
     model: typing.Union[ApaxBase, list[ApaxBase]] = zntrack.deps()
     repeat: None | int | tuple[int, int, int] = zntrack.params(None)
 
@@ -70,10 +70,10 @@ class ApaxJaxMD(zntrack.Node):
         """Primary method to run which executes all steps of the model training"""
         if not self.state.restarted:
             self._write_initial_structure()
-            
+
         if isinstance(self.model, ApaxBase):
             self.model = [self.model]
-            
+
         run_md([model.parameter for model in self.model], self.parameter, log_level="info")
 
     def map(self):
