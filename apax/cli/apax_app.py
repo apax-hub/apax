@@ -3,6 +3,7 @@ import importlib.resources as pkg_resources
 import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 import typer
 import yaml
@@ -48,8 +49,8 @@ def train(
 
 @app.command()
 def md(
-    train_config_path: Path = typer.Argument(
-        ..., help="Configuration YAML file that was used to train a model."
+    train_config_paths: list[Path] = typer.Argument(
+        ..., help="One or more training config YAML files."
     ),
     md_config_path: Path = typer.Argument(..., help="MD configuration YAML file."),
     log_level: str = typer.Option("info", help="Sets the training logging level."),
@@ -59,8 +60,8 @@ def md(
     with parameters provided by a configuration file.
     """
     from apax.md import run_md
+    run_md(train_config_paths, md_config_path, log_level)
 
-    run_md(train_config_path, md_config_path, log_level)
 
 
 @app.command()
