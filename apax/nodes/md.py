@@ -36,8 +36,8 @@ class ApaxJaxMD(zntrack.Node):
 
     data: list[ase.Atoms] = zntrack.deps()
     data_id: int = zntrack.params(-1)
-
-    model: list[ApaxBase] = zntrack.deps()
+    
+    model: typing.Union[ApaxBase, list[ApaxBase]] = zntrack.deps()
     repeat: None | int | tuple[int, int, int] = zntrack.params(None)
 
     config: str = zntrack.params_path(None)
@@ -70,8 +70,11 @@ class ApaxJaxMD(zntrack.Node):
         """Primary method to run which executes all steps of the model training"""
         if not self.state.restarted:
             self._write_initial_structure()
-
-        run_md([model.parameter for model in self.models], self.parameter, log_level="info")
+            
+        if isinstance(self.model, ApaxBase):
+            self.model = [self.model]
+            
+        run_md([model.parameter for model in self.model], self.parameter, log_level="info")
 
     def map(self):
         os.environ["JAX_COMPILATION_CACHE_DIR"] = '"/tmp/jax_cache"'
