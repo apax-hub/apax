@@ -340,7 +340,7 @@ def run_sim(
                 apply_fn_kwargs = {"box": box}
 
             apply_fn_kwargs["kT"] = kT(step)  # Get current Temperature
-            
+
             if isinstance(switching_schedule, SwitchSchedule):
                 apply_fn_kwargs["switch_factor"], switched, switching_step = (
                     switching_schedule(state, box, step, switched, switching_step)
@@ -659,7 +659,7 @@ def run_md(model_configs: list[Config], md_config: MDConfig, log_level="error"):
     switching_schedule = None
     if isinstance(md_config.switching, SwitchingSchedule):
         switching_schedule = md_config.switching.get_schedule()
-    
+
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
 
     traj_handler = H5TrajHandler(
