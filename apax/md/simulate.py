@@ -647,7 +647,7 @@ def run_md(model_configs: Union[Config, list[Config]], md_config: MDConfig, log_
     md_config : MDConfig
         configuration of the MD simulation.
     """
-    if isinstance(model_configs, Config):
+    if isinstance(model_configs, (Config, dict)):
         model_configs = [model_configs]
  
     model_configs = [parse_config(model_config) for model_config in model_configs]
