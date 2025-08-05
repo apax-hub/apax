@@ -285,7 +285,6 @@ def run_sim(
         system.positions, extra_capacity=extra_capacity
     )
 
-
     if isinstance(switching_schedule, SwitchSchedule):
         state = init_fn(
             rng_key,
@@ -611,8 +610,10 @@ def md_setup(model_configs: list[Config], md_config: MDConfig):
         try:
             log.info("Creating switch model")
             energy_fn = create_energy_switch_fn(energy_fns[0], energy_fns[1])
-        except:
-            raise ValueError('2 model have to be specified for a simulation with a SwitchingSchedule.')
+        except IndexError:
+            raise ValueError(
+                "2 model have to be specified for a simulation with a SwitchingSchedule."
+            )
     else:
         energy_fn = energy_fns[0]
 
@@ -635,7 +636,9 @@ def md_setup(model_configs: list[Config], md_config: MDConfig):
     return system, sim_fn
 
 
-def run_md(model_configs: Union[Config, list[Config]], md_config: MDConfig, log_level="error"):
+def run_md(
+    model_configs: Union[Config, list[Config]], md_config: MDConfig, log_level="error"
+):
     """
     Utiliy function to start NVT molecualr dynamics simulations from
     a previously trained model.

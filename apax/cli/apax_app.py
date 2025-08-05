@@ -3,7 +3,6 @@ import importlib.resources as pkg_resources
 import json
 import sys
 from pathlib import Path
-from typing import Optional
 
 import typer
 import yaml
@@ -60,8 +59,8 @@ def md(
     with parameters provided by a configuration file.
     """
     from apax.md import run_md
-    run_md(train_config_paths, md_config_path, log_level)
 
+    run_md(train_config_paths, md_config_path, log_level)
 
 
 @app.command()
