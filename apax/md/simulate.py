@@ -110,7 +110,7 @@ def nbr_update_options_npt(state):
     return {"box": box}
 
 
-def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
+def get_ensemble(ensemble: Integrator, sim_fns, constrained_idxs=None):
     energy, shift = sim_fns.energy_fn, sim_fns.shift_fn
 
     dt = ensemble.dt * units.fs
@@ -128,11 +128,11 @@ def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
             shift,
             dt,
             kT(0),
-            constrainet_idxs=constaint_idxs,
+            constrainet_idxs=constrained_idxs,
         )
 
     elif ensemble.name == "npt":
-        if constaint_idxs:
+        if constrained_idxs:
             raise NotImplementedError(
                 "Constraining atoms in NPT simulations is not implemented."
             )
@@ -273,13 +273,13 @@ def run_sim(
     ckpt_dir = sim_dir / "ckpts"
     ckpt_dir.mkdir(exist_ok=True)
 
-    apply_constraints, constraint_idxs = create_constraint_function(
+    apply_constraints, constrained_idxs = create_constraint_function(
         constraints,
         system,
     )
 
     log.info("initializing simulation")
-    init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns, constraint_idxs)
+    init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns, constrained_idxs)
     neighbor = sim_fns.neighbor_fn.allocate(
         system.positions, extra_capacity=extra_capacity
     )
