@@ -311,7 +311,9 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     extra_capacity : int, default = 0
         | JaxMD allocates a maximal number of neighbors. This argument lets you add
         | additional capacity to avoid recompilation. The default is usually fine.
-
+    switching : SwitchingSchedule, default = None
+        | Defines the schedule for switching between two models.
+        | If None, no switching will be applied.
     dynamics_checks: list[DynamicsCheck]
         | List of termination criteria. Currently energy and force uncertainty
         | are available
