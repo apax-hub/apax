@@ -284,8 +284,8 @@ def run_sim(
     neighbor = sim_fns.neighbor_fn.allocate(
         system.positions, extra_capacity=extra_capacity
     )
-    
-    
+
+
     if isinstance(switching_schedule, SwitchSchedule):
         state = init_fn(
             rng_key,
@@ -649,7 +649,7 @@ def run_md(model_configs: Union[Config, list[Config]], md_config: MDConfig, log_
     """
     if isinstance(model_configs, (Config, dict)):
         model_configs = [model_configs]
- 
+
     model_configs = [parse_config(model_config) for model_config in model_configs]
 
     md_config = parse_config(md_config, mode="md")
