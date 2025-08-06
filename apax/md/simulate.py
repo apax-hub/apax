@@ -663,7 +663,7 @@ def md_setup(model_configs: list[Config], md_config: MDConfig):
         try:
             log.info("Creating switch model")
             energy_fn = create_energy_switch_fn(energy_fns[0], energy_fns[1])
-            auxiliary_fn = make_switch_fn(auxiliary_fns) #TODO extend with switching factor
+            auxiliary_fn = make_switch_fn(auxiliary_fns)
         except IndexError:
             raise ValueError(
                 "2 model have to be specified for a simulation with a SwitchingSchedule."
