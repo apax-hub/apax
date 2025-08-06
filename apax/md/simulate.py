@@ -47,14 +47,14 @@ def make_switch_fn(aux_fns):
 
         results['energy'] = interpolate(results['energy'], results_2['energy'], switch_factor)
         results['forces'] = interpolate(results['forces'], results_2['forces'], switch_factor)
-        
+
         if any("uncertainty" in item for item in results.keys()):
             results['energy_uncertainty'] = interpolate(results['energy_uncertainty'], results_2['energy_uncertainty'], switch_factor)
             results['forces_uncertainty'] = interpolate_uncertainty(results['forces_uncertainty'], results_2['forces_uncertainty'], switch_factor)
-            
+
         factor = {"switch_factor": switch_factor}
         results.update(factor)
-        
+
         return results
 
     return switch_fn
@@ -396,7 +396,7 @@ def run_sim(
     ):  # TODO make more modular
         def body_fn(i, state):
             state, outer_step, neighbor, all_checks_passed, switched, switching_step = state
-            
+
             step = i + outer_step * n_inner
 
             apply_fn_kwargs = {}
@@ -421,7 +421,7 @@ def run_sim(
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
             condition = step % sampling_rate == 0
-            
+
             if isinstance(switching_schedule, SwitchSchedule):
                 predictions, check_passed = jax.lax.cond(
                     condition, on_eval, no_eval, state.position, neighbor, box, apply_fn_kwargs["switch_factor"],
@@ -430,7 +430,7 @@ def run_sim(
                 predictions, check_passed = jax.lax.cond(
                     condition, on_eval, no_eval, state.position, neighbor, box,
                 )
-                
+
             all_checks_passed = all_checks_passed & check_passed
 
             # maybe move this to on_eval
@@ -658,7 +658,7 @@ def md_setup(model_configs: list[Config], md_config: MDConfig):
                 gradient_model_params,
             )
         auxiliary_fns.append(auxiliary_fn)
-            
+
     if isinstance(md_config.switching, SwitchingSchedule):
         try:
             log.info("Creating switch model")
