@@ -615,7 +615,7 @@ def md_setup(model_configs: list[Config], md_config: MDConfig):
         Builder = model_config.model.get_builder()
         builder = Builder(model_config.model.model_dump())
 
-        # make energy funktion
+        # make energy function
         energy_model = builder.build_energy_model(
             apply_mask=True,
             init_box=np.array(system.box),
@@ -644,7 +644,7 @@ def md_setup(model_configs: list[Config], md_config: MDConfig):
             )
         )
 
-        # make energy derivative auxilary functions
+        # make energy derivative auxiliary functions
         auxiliary_fn = builder.build_energy_derivative_model(
             apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
         ).apply
