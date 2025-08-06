@@ -34,6 +34,31 @@ from apax.utils.transform import make_energy_only_model
 
 log = logging.getLogger(__name__)
 
+def interpolate(val1, val2, factor):
+    return val1 * (1 - factor) + val2 * factor
+
+def interpolate_uncertainty(sigma1, sigma2, factor):
+    return jnp.sqrt((1 - factor)**2 * sigma1**2 + factor**2 * sigma2**2)
+
+def make_switch_fn(aux_fns):
+    def switch_fn(positions, Z, idx, box, offsets, switch_factor):
+        results = aux_fns[0](positions, Z, idx, box, offsets)
+        results_2 = aux_fns[1](positions, Z, idx, box, offsets)
+
+        results['energy'] = interpolate(results['energy'], results_2['energy'], switch_factor)
+        results['forces'] = interpolate(results['forces'], results_2['forces'], switch_factor)
+        
+        if any("uncertainty" in item for item in results.keys()):
+            results['energy_uncertainty'] = interpolate(results['energy_uncertainty'], results_2['energy_uncertainty'], switch_factor)
+            results['forces_uncertainty'] = interpolate_uncertainty(results['forces_uncertainty'], results_2['forces_uncertainty'], switch_factor)
+            
+        factor = {"switch_factor": switch_factor}
+        results.update(factor)
+        
+        return results
+
+    return switch_fn
+
 
 def create_energy_switch_fn(energy_fn_1, energy_fn_2):
     def switch_energy_fn(R, neighbor, box, switch_factor, perturbation=None):
@@ -194,6 +219,29 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_ch
     return on_eval, no_eval
 
 
+def create_switch_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_checks):
+    offsets = jnp.zeros((neighbor.idx.shape[1], 3))
+
+    def on_eval(positions, neighbor, box, switch_factor):
+        predictions = aux_fn(positions, Z, neighbor, box, offsets, switch_factor)
+        all_checks_passed = True
+
+        for check in dynamics_checks:
+            check_passed = check.check(predictions, positions, box)
+            all_checks_passed = all_checks_passed & check_passed
+        return predictions, all_checks_passed
+
+    predictions = aux_fn(positions, Z, neighbor, box, offsets, switch_factor=0.0)
+    dummpy_preds = tree_util.tree_map(lambda x: jnp.zeros_like(x), predictions)
+
+    def no_eval(positions, neighbor, box, switch_factor):
+        predictions = dummpy_preds
+        all_checks_passed = True
+        return predictions, all_checks_passed
+
+    return on_eval, no_eval
+
+
 def check_unique_idxs(constraind_idxs):
     unique_idxs = []
     seen_idxs = set()
@@ -323,23 +371,32 @@ def run_sim(
     pbar_increment = n_inner * pbar_update_freq
 
     sampling_rate = traj_handler.sampling_rate
-    on_eval, no_eval = create_evaluation_functions(
-        sim_fns.auxiliary_fn,
-        state.position,
-        system.atomic_numbers,
-        neighbor,
-        system.box,
-        dynamics_checks,
-    )
+    if isinstance(switching_schedule, SwitchSchedule):
+        on_eval, no_eval = create_switch_evaluation_functions(
+            sim_fns.auxiliary_fn,
+            state.position,
+            system.atomic_numbers,
+            neighbor,
+            system.box,
+            dynamics_checks,
+        )
+    else:
+        on_eval, no_eval = create_evaluation_functions(
+            sim_fns.auxiliary_fn,
+            state.position,
+            system.atomic_numbers,
+            neighbor,
+            system.box,
+            dynamics_checks,
+        )
 
     @jax.jit
     def sim(
         state, outer_step, neighbor, switched: bool, switching_step
     ):  # TODO make more modular
         def body_fn(i, state):
-            state, outer_step, neighbor, all_checks_passed, switched, switching_step = (
-                state
-            )
+            state, outer_step, neighbor, all_checks_passed, switched, switching_step = state
+            
             step = i + outer_step * n_inner
 
             apply_fn_kwargs = {}
@@ -364,22 +421,21 @@ def run_sim(
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
             condition = step % sampling_rate == 0
-            predictions, check_passed = jax.lax.cond(
-                condition, on_eval, no_eval, state.position, neighbor, box
-            )
-
+            
+            if isinstance(switching_schedule, SwitchSchedule):
+                predictions, check_passed = jax.lax.cond(
+                    condition, on_eval, no_eval, state.position, neighbor, box, apply_fn_kwargs["switch_factor"],
+                )
+            else:
+                predictions, check_passed = jax.lax.cond(
+                    condition, on_eval, no_eval, state.position, neighbor, box,
+                )
+                
             all_checks_passed = all_checks_passed & check_passed
 
             # maybe move this to on_eval
             io_callback(traj_handler.step, None, (state, predictions, nbr_kwargs))
-            return (
-                state,
-                outer_step,
-                neighbor,
-                all_checks_passed,
-                switched,
-                switching_step,
-            )
+            return  state, outer_step, neighbor, all_checks_passed, switched, switching_step,
 
         all_checks_passed = True
         state, outer_step, neighbor, all_checks_passed, switched, switching_step = (
@@ -387,28 +443,14 @@ def run_sim(
                 0,
                 n_inner,
                 body_fn,
-                (
-                    state,
-                    outer_step,
-                    neighbor,
-                    all_checks_passed,
-                    switched,
-                    switching_step,
-                ),
+                (state, outer_step, neighbor, all_checks_passed, switched, switching_step,),
             )
         )
         current_temperature = (
             quantity.temperature(velocity=state.velocity, mass=state.mass) / units.kB
         )
 
-        return (
-            state,
-            neighbor,
-            current_temperature,
-            all_checks_passed,
-            switched,
-            switching_step,
-        )
+        return state, neighbor, current_temperature, all_checks_passed, switched, switching_step
 
     switched = False
     switching_step = 0
@@ -428,14 +470,7 @@ def run_sim(
     )
     with mngr:
         while step < n_outer:
-            (
-                new_state,
-                neighbor,
-                current_temperature,
-                all_checks_passed,
-                switched,
-                switching_step,
-            ) = sim(state, step, neighbor, switched, switching_step)
+            new_state, neighbor, current_temperature, all_checks_passed, switched, switching_step = sim(state, step, neighbor, switched, switching_step)
 
             if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
                 raise ValueError(
@@ -575,9 +610,12 @@ def md_setup(model_configs: list[Config], md_config: MDConfig):
     )
 
     energy_fns = []
+    auxiliary_fns = []
     for model_config in model_configs:
         Builder = model_config.model.get_builder()
         builder = Builder(model_config.model.model_dump())
+
+        # make energy funktion
         energy_model = builder.build_energy_model(
             apply_mask=True,
             init_box=np.array(system.box),
@@ -606,31 +644,32 @@ def md_setup(model_configs: list[Config], md_config: MDConfig):
             )
         )
 
+        # make energy derivative auxilary functions
+        auxiliary_fn = builder.build_energy_derivative_model(
+            apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
+        ).apply
+
+        if n_models > 1 and not shallow:
+            auxiliary_fn = maybe_vmap(auxiliary_fn, gradient_model_params)
+            auxiliary_fn = make_ensemble(auxiliary_fn)
+        else:
+            auxiliary_fn = partial(
+                auxiliary_fn,
+                gradient_model_params,
+            )
+        auxiliary_fns.append(auxiliary_fn)
+            
     if isinstance(md_config.switching, SwitchingSchedule):
         try:
             log.info("Creating switch model")
             energy_fn = create_energy_switch_fn(energy_fns[0], energy_fns[1])
+            auxiliary_fn = make_switch_fn(auxiliary_fns) #TODO extend with switching factor
         except IndexError:
             raise ValueError(
                 "2 model have to be specified for a simulation with a SwitchingSchedule."
             )
     else:
         energy_fn = energy_fns[0]
-
-    # TODO be careful within a switch model auxiliary_fn is just defined
-    #       for the second model. Implement switching also for auxiliary_fn
-    auxiliary_fn = builder.build_energy_derivative_model(
-        apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
-    ).apply
-
-    if n_models > 1 and not shallow:
-        auxiliary_fn = maybe_vmap(auxiliary_fn, gradient_model_params)
-        auxiliary_fn = make_ensemble(auxiliary_fn)
-    else:
-        auxiliary_fn = partial(
-            auxiliary_fn,
-            gradient_model_params,
-        )
 
     sim_fn = SimulationFunctions(energy_fn, auxiliary_fn, shift_fn, neighbor_fn)
     return system, sim_fn

@@ -12,6 +12,7 @@ APAX_PROPERTIES = [
     "energy_ensemble",
     "forces_ensemble",
     "stress_ensemble",
+    "switch_factor",
 ]
 
 
