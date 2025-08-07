@@ -71,11 +71,13 @@ class ApaxJaxMD(zntrack.Node):
         if not self.state.restarted:
             self._write_initial_structure()
 
-        if isinstance(self.model, ApaxBase):
+        if not isinstance(self.model, list):
             self.model = [self.model]
 
         run_md(
-            [model.parameter for model in self.model], self.parameter, log_level="info"
+            [model.parameter for model in self.model],
+            self.parameter,
+            log_level="info",
         )
 
     def map(self):
@@ -98,6 +100,9 @@ class ApaxJaxMD(zntrack.Node):
             self.data_id = id
             if not self.state.restarted:
                 self._write_initial_structure()
+                
+            if not isinstance(self.model, list):
+                self.model = [self.model]
 
             run_md(
                 [model.parameter for model in self.models],
