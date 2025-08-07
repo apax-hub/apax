@@ -34,23 +34,38 @@ from apax.utils.transform import make_energy_only_model
 
 log = logging.getLogger(__name__)
 
+
 def interpolate(val1, val2, factor):
     return val1 * (1 - factor) + val2 * factor
 
+
 def interpolate_uncertainty(sigma1, sigma2, factor):
-    return jnp.sqrt((1 - factor)**2 * sigma1**2 + factor**2 * sigma2**2)
+    return jnp.sqrt((1 - factor) ** 2 * sigma1**2 + factor**2 * sigma2**2)
+
 
 def make_switch_fn(aux_fns):
     def switch_fn(positions, Z, idx, box, offsets, switch_factor):
         results = aux_fns[0](positions, Z, idx, box, offsets)
         results_2 = aux_fns[1](positions, Z, idx, box, offsets)
 
-        results['energy'] = interpolate(results['energy'], results_2['energy'], switch_factor)
-        results['forces'] = interpolate(results['forces'], results_2['forces'], switch_factor)
+        results["energy"] = interpolate(
+            results["energy"], results_2["energy"], switch_factor
+        )
+        results["forces"] = interpolate(
+            results["forces"], results_2["forces"], switch_factor
+        )
 
         if any("uncertainty" in item for item in results.keys()):
-            results['energy_uncertainty'] = interpolate(results['energy_uncertainty'], results_2['energy_uncertainty'], switch_factor)
-            results['forces_uncertainty'] = interpolate_uncertainty(results['forces_uncertainty'], results_2['forces_uncertainty'], switch_factor)
+            results["energy_uncertainty"] = interpolate(
+                results["energy_uncertainty"],
+                results_2["energy_uncertainty"],
+                switch_factor,
+            )
+            results["forces_uncertainty"] = interpolate_uncertainty(
+                results["forces_uncertainty"],
+                results_2["forces_uncertainty"],
+                switch_factor,
+            )
 
         factor = {"switch_factor": switch_factor}
         results.update(factor)
@@ -219,7 +234,9 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_ch
     return on_eval, no_eval
 
 
-def create_switch_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_checks):
+def create_switch_evaluation_functions(
+    aux_fn, positions, Z, neighbor, box, dynamics_checks
+):
     offsets = jnp.zeros((neighbor.idx.shape[1], 3))
 
     def on_eval(positions, neighbor, box, switch_factor):
@@ -395,7 +412,9 @@ def run_sim(
         state, outer_step, neighbor, switched: bool, switching_step
     ):  # TODO make more modular
         def body_fn(i, state):
-            state, outer_step, neighbor, all_checks_passed, switched, switching_step = state
+            state, outer_step, neighbor, all_checks_passed, switched, switching_step = (
+                state
+            )
 
             step = i + outer_step * n_inner
 
@@ -424,18 +443,36 @@ def run_sim(
 
             if isinstance(switching_schedule, SwitchSchedule):
                 predictions, check_passed = jax.lax.cond(
-                    condition, on_eval, no_eval, state.position, neighbor, box, apply_fn_kwargs["switch_factor"],
+                    condition,
+                    on_eval,
+                    no_eval,
+                    state.position,
+                    neighbor,
+                    box,
+                    apply_fn_kwargs["switch_factor"],
                 )
             else:
                 predictions, check_passed = jax.lax.cond(
-                    condition, on_eval, no_eval, state.position, neighbor, box,
+                    condition,
+                    on_eval,
+                    no_eval,
+                    state.position,
+                    neighbor,
+                    box,
                 )
 
             all_checks_passed = all_checks_passed & check_passed
 
             # maybe move this to on_eval
             io_callback(traj_handler.step, None, (state, predictions, nbr_kwargs))
-            return  state, outer_step, neighbor, all_checks_passed, switched, switching_step,
+            return (
+                state,
+                outer_step,
+                neighbor,
+                all_checks_passed,
+                switched,
+                switching_step,
+            )
 
         all_checks_passed = True
         state, outer_step, neighbor, all_checks_passed, switched, switching_step = (
@@ -443,14 +480,28 @@ def run_sim(
                 0,
                 n_inner,
                 body_fn,
-                (state, outer_step, neighbor, all_checks_passed, switched, switching_step,),
+                (
+                    state,
+                    outer_step,
+                    neighbor,
+                    all_checks_passed,
+                    switched,
+                    switching_step,
+                ),
             )
         )
         current_temperature = (
             quantity.temperature(velocity=state.velocity, mass=state.mass) / units.kB
         )
 
-        return state, neighbor, current_temperature, all_checks_passed, switched, switching_step
+        return (
+            state,
+            neighbor,
+            current_temperature,
+            all_checks_passed,
+            switched,
+            switching_step,
+        )
 
     switched = False
     switching_step = 0
@@ -470,7 +521,14 @@ def run_sim(
     )
     with mngr:
         while step < n_outer:
-            new_state, neighbor, current_temperature, all_checks_passed, switched, switching_step = sim(state, step, neighbor, switched, switching_step)
+            (
+                new_state,
+                neighbor,
+                current_temperature,
+                all_checks_passed,
+                switched,
+                switching_step,
+            ) = sim(state, step, neighbor, switched, switching_step)
 
             if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
                 raise ValueError(
@@ -646,7 +704,9 @@ def md_setup(model_configs: list[Config], md_config: MDConfig):
 
         # make energy derivative auxiliary functions
         auxiliary_fn = builder.build_energy_derivative_model(
-            apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
+            apply_mask=True,
+            init_box=np.array(system.box),
+            inference_disp_fn=displacement_fn,
         ).apply
 
         if n_models > 1 and not shallow:
