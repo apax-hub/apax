@@ -100,7 +100,7 @@ class ApaxJaxMD(zntrack.Node):
             self.data_id = id
             if not self.state.restarted:
                 self._write_initial_structure()
-                
+
             if not isinstance(self.model, list):
                 self.model = [self.model]
 
