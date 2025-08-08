@@ -37,7 +37,7 @@ class ApaxJaxMD(zntrack.Node):
     data: list[ase.Atoms] = zntrack.deps()
     data_id: int = zntrack.params(-1)
 
-    model: ApaxBase = zntrack.deps()
+    model: typing.Union[ApaxBase, list[ApaxBase]] = zntrack.deps()
     repeat: None | int | tuple[int, int, int] = zntrack.params(None)
 
     config: str = zntrack.params_path(None)
@@ -71,7 +71,14 @@ class ApaxJaxMD(zntrack.Node):
         if not self.state.restarted:
             self._write_initial_structure()
 
-        run_md(self.model.parameter, self.parameter, log_level="info")
+        if not isinstance(self.model, list):
+            self.model = [self.model]
+
+        run_md(
+            [model.parameter for model in self.model],
+            self.parameter,
+            log_level="info",
+        )
 
     def map(self):
         os.environ["JAX_COMPILATION_CACHE_DIR"] = '"/tmp/jax_cache"'
@@ -94,7 +101,14 @@ class ApaxJaxMD(zntrack.Node):
             if not self.state.restarted:
                 self._write_initial_structure()
 
-            run_md(self.model.parameter, self.parameter, log_level="info")
+            if not isinstance(self.model, list):
+                self.model = [self.model]
+
+            run_md(
+                [model.parameter for model in self.model],
+                self.parameter,
+                log_level="info",
+            )
 
     @property
     def frames(self) -> typing.List[ase.Atoms]:
