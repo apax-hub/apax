@@ -105,7 +105,7 @@ class ApaxJaxMD(zntrack.Node):
                 self.model = [self.model]
 
             run_md(
-                [model.parameter for model in self.models],
+                [model.parameter for model in self.model],
                 self.parameter,
                 log_level="info",
             )
