@@ -22,6 +22,15 @@ wheels = [
 ]
 
 [[package]]
+name = "aiofiles"
+version = "24.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0b/03/a88171e277e8caa88a4c77808c20ebb04ba74cc4681bf1e9416c862de237/aiofiles-24.1.0.tar.gz", hash = "sha256:22a075c9e5a3810f0c2e48f3008c94d68c65d763b9b03857924c99e57355166c", size = 30247, upload-time = "2024-06-24T11:02:03.584Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/45/30bb92d442636f570cb5651bc661f52b610e2eec3f891a5dc3a4c3667db0/aiofiles-24.1.0-py3-none-any.whl", hash = "sha256:b4ec55f4195e3eb5d7abd1bf7e061763e864dd4954231fb8539a0ef8bb8260e5", size = 15896, upload-time = "2024-06-24T11:02:01.529Z" },
+]
+
+[[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -285,7 +294,7 @@ requires-dist = [
     { name = "nbsphinx-link", marker = "extra == 'docs'", specifier = ">=1.3.0" },
     { name = "numpy", specifier = ">=1.23" },
     { name = "optax", specifier = ">=0.2.4" },
-    { name = "orbax-checkpoint", specifier = ">=0.11.0" },
+    { name = "orbax-checkpoint", specifier = ">=0.11.24" },
     { name = "pandoc", marker = "extra == 'docs'", specifier = ">=2.3" },
     { name = "pydantic", specifier = ">=2.10.5" },
     { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7.2.6" },
@@ -3631,10 +3640,11 @@ wheels = [
 
 [[package]]
 name = "orbax-checkpoint"
-version = "0.11.13"
+version = "0.11.24"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "absl-py" },
+    { name = "aiofiles" },
     { name = "etils", extra = ["epath", "epy"] },
     { name = "humanize" },
     { name = "jax", version = "0.6.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -3648,9 +3658,9 @@ dependencies = [
     { name = "tensorstore" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c3/cb/e122160888cb922caabfd67582d402e6202fc7383c64f2e05a81727cef6a/orbax_checkpoint-0.11.13.tar.gz", hash = "sha256:6ce6f4458d0755a7ae556d4da3b2e3a943d4a830aeec2f98881643f1997e11bc", size = 316151, upload-time = "2025-05-01T15:51:22.016Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/24/44915f33cbea4cfd35f654a5ba01d248447bc007f1d049dd20bf58592820/orbax_checkpoint-0.11.24.tar.gz", hash = "sha256:4e7afe927d1ed6d8160bacf5ed4fef56c1370320e0ebdfda213c6351a2e3c0d0", size = 372123, upload-time = "2025-08-28T20:51:49.089Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/27/57/700709ca012b8595230dd2a004fbe284a57e6838f966d58c956d4529a2db/orbax_checkpoint-0.11.13-py3-none-any.whl", hash = "sha256:096eb6f475857d7aa73235989cdfe5d34c425628d24be881686dfbc3b566f495", size = 442700, upload-time = "2025-05-01T15:51:20.662Z" },
+    { url = "https://files.pythonhosted.org/packages/99/e8/acef62ec5c4b8658eacfce23d3f4e866d3cf5d07c509ca03eebb0c420a6c/orbax_checkpoint-0.11.24-py3-none-any.whl", hash = "sha256:a94178c9ba9fd3d6fd8fc511b6a0f34f7d89798bfdb79661e258cd32ada7650b", size = 529268, upload-time = "2025-08-28T20:51:47.917Z" },
 ]
 
 [[package]]
