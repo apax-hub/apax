@@ -20,8 +20,10 @@ from apax.train.parameters import EMAParameters
 
 log = logging.getLogger(__name__)
 
+
 class EarlyStop(Exception):
     pass
+
 
 def fit(
     state: TrainState,
@@ -120,7 +122,9 @@ def fit(
             ocp.CheckpointManager(
                 latest_dir.resolve(), options=options
             ) as latest_ckpt_manager,
-            ocp.CheckpointManager(best_dir.resolve(), options=options) as best_ckpt_manager,
+            ocp.CheckpointManager(
+                best_dir.resolve(), options=options
+            ) as best_ckpt_manager,
         ):
             for epoch in range(start_epoch, n_epochs):
                 epoch_start_time = time.time()
@@ -232,8 +236,7 @@ def fit(
                     raise EarlyStop()
     except EarlyStop:
         log.info(
-            "Early stopping patience exceeded. Stopping training after"
-            f" {epoch} epochs."
+            f"Early stopping patience exceeded. Stopping training after {epoch} epochs."
         )
 
     epoch_pbar.close()
