@@ -235,7 +235,7 @@ def fit(
             "Early stopping patience exceeded. Stopping training after"
             f" {epoch} epochs."
         )
-        
+
     epoch_pbar.close()
     callbacks.on_train_end()
 
