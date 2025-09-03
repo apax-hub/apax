@@ -142,7 +142,7 @@ def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_
         state = state.set(momentum=system.momenta)
 
     elif should_load_ckpt:
-        state, step = load_md_state(state, ckpt_dir)
+        state, step = load_md_state(state, ckpt_dir.resolve())
     return state, step
 
 
