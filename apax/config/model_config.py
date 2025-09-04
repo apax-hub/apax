@@ -138,6 +138,22 @@ class PropertyHead(BaseModel, extra="forbid"):
     dtype: Literal["fp32", "fp64"] = "fp32"
 
 
+class SimpleReadout(BaseModel, extra="forbid"):
+    name: Literal["simple"] = "simple"
+
+    nn: List[PositiveInt] = [256, 256]
+    w_init: Literal["normal", "lecun"] = "lecun"
+    b_init: Literal["normal", "zeros"] = "zeros"
+    use_ntk: bool = False
+
+class MixtureOFExperts(SimpleReadout, extra="forbid"):
+    name: Literal["moe"] = "moe"
+    num_experts: PositiveInt = 4
+    gating_nn: List[PositiveInt] = [32, 32]
+
+
+ReadoutConfig = Union[SimpleReadout, MixtureOFExperts]
+
 class BaseModelConfig(BaseModel, extra="forbid"):
     """
     Configuration for the model.
@@ -170,10 +186,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
 
     basis: BasisConfig = Field(BesselBasisConfig(name="bessel"), discriminator="name")
 
-    nn: List[PositiveInt] = [256, 256]
-    w_init: Literal["normal", "lecun"] = "lecun"
-    b_init: Literal["normal", "zeros"] = "zeros"
-    use_ntk: bool = False
+    readout: ReadoutConfig = Field(SimpleReadout(name="simple"), discriminator="name")
 
     ensemble: Optional[EnsembleConfig] = None
 
@@ -213,6 +226,32 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
         from apax.nn.builder import GMNNBuilder
 
         return GMNNBuilder
+
+class GGMNNConfig(BaseModelConfig, extra="forbid"):
+    """
+    Configuration for the model.
+
+    Parameters
+    ----------
+    n_radial : PositiveInt, default = 5
+        Number of contracted basis functions.
+    n_contr : int, default = 8
+        How many gaussian moment contractions to use.
+    emb_init : Optional[str], default = "uniform"
+        Initialization scheme for embedding layer weights.
+    """
+
+    name: Literal["ggmnn"] = "ggmnn"
+
+    n_radial: PositiveInt = 5
+    Lmax: PositiveInt = 3
+    Kmax: PositiveInt = 3
+    emb_init: Optional[str] = "uniform"
+
+    def get_builder(self):
+        from apax.nn.builder import GGMNNBuilder
+
+        return GGMNNBuilder
 
 
 class EquivMPConfig(BaseModelConfig, extra="forbid"):
@@ -289,4 +328,4 @@ class So3kratesConfig(BaseModelConfig, extra="forbid"):
         return So3kratesBuilder
 
 
-ModelConfig = Union[GMNNConfig, EquivMPConfig, So3kratesConfig]
+ModelConfig = Union[GMNNConfig, EquivMPConfig, So3kratesConfig, GGMNNConfig]

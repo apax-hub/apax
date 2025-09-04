@@ -7,6 +7,7 @@ from apax.layers.descriptor import (
     EquivMPRepresentation,
     GaussianMomentDescriptor,
     So3kratesRepresentation,
+    GeneralizedGaussianMomentDescriptor,
 )
 from apax.layers.descriptor.basis_functions import (
     BesselBasis,
@@ -15,7 +16,7 @@ from apax.layers.descriptor.basis_functions import (
 )
 from apax.layers.empirical import all_corrections
 from apax.layers.properties import PropertyHead
-from apax.layers.readout import AtomisticReadout
+from apax.layers.readout import AtomisticReadout, MoEReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.nn.models import (
     EnergyDerivativeModel,
@@ -83,6 +84,7 @@ class ModelBuilder:
     def build_readout(
         self, head_config, is_feature_fn=False, only_use_n_layers: None | int = None
     ):
+        
         has_ensemble = "ensemble" in head_config.keys() and head_config["ensemble"]
         if has_ensemble and head_config["ensemble"]["kind"] == "shallow":
             n_shallow_ensemble = head_config["ensemble"]["n_members"]
@@ -97,6 +99,12 @@ class ModelBuilder:
             dtype = head_config["dtype"]
         else:
             raise KeyError("No dtype specified in config")
+        
+        if "readout" in head_config.keys():
+            head_config = head_config["readout"]
+        
+        # print(head_config)
+        # quit()
 
         nn_layers = head_config["nn"]
         if only_use_n_layers is not None:
@@ -104,15 +112,29 @@ class ModelBuilder:
             if len(nn_layers) == 0:
                 return None
 
-        readout = AtomisticReadout(
-            units=nn_layers,
-            b_init=head_config["b_init"],
-            w_init=head_config["w_init"],
-            use_ntk=head_config["use_ntk"],
-            is_feature_fn=is_feature_fn,
-            n_shallow_ensemble=n_shallow_ensemble,
-            dtype=dtype,
-        )
+        if head_config["name"] == "simple":
+            readout = AtomisticReadout(
+                units=nn_layers,
+                b_init=head_config["b_init"],
+                w_init=head_config["w_init"],
+                use_ntk=head_config["use_ntk"],
+                is_feature_fn=is_feature_fn,
+                n_shallow_ensemble=n_shallow_ensemble,
+                dtype=dtype,
+            )
+        else:
+            readout = MoEReadout(
+                units=nn_layers,
+                gating_units=head_config["gating_nn"],
+                num_experts=head_config["num_experts"],
+                b_init=head_config["b_init"],
+                w_init=head_config["w_init"],
+                use_ntk=head_config["use_ntk"],
+                is_feature_fn=is_feature_fn,
+                n_shallow_ensemble=n_shallow_ensemble,
+                dtype=dtype,
+            )
+        # TODO: Check if property heads still work
         return readout
 
     def build_scale_shift(self, scale, shift):
@@ -221,7 +243,6 @@ class ModelBuilder:
         apply_mask=True,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn=None,
-        should_average: bool = True,
     ):
         log.info("Building feature model")
         descriptor = self.build_descriptor(apply_mask)
@@ -232,7 +253,7 @@ class ModelBuilder:
         model = FeatureModel(
             descriptor,
             readout,
-            should_average=should_average,
+            should_average=True,
             init_box=init_box,
             inference_disp_fn=inference_disp_fn,
             mask_atoms=True,
@@ -249,6 +270,21 @@ class GMNNBuilder(ModelBuilder):
         descriptor = GaussianMomentDescriptor(
             radial_fn=radial_fn,
             n_contr=self.config["n_contr"],
+            dtype=self.config["descriptor_dtype"],
+            apply_mask=apply_mask,
+        )
+        return descriptor
+    
+class GGMNNBuilder(ModelBuilder):
+    def build_descriptor(
+        self,
+        apply_mask,
+    ):
+        radial_fn = self.build_radial_function()
+        descriptor = GeneralizedGaussianMomentDescriptor(
+            radial_fn=radial_fn,
+            Lmax=self.config["Lmax"],
+            Kmax=self.config["Kmax"],
             dtype=self.config["descriptor_dtype"],
             apply_mask=apply_mask,
         )
