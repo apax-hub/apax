@@ -1,6 +1,6 @@
 [project]
 name = "apax"
-version = "0.12.3"
+version = "0.12.4"
 description = "Atomistic Learned Potential Package in JAX"
 keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
 readme = "README.md"
