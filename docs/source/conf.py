@@ -15,8 +15,8 @@ sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../../"))
 
 project = "Apax"
-copyright = "2023, Moritz Schäfer, Nico Segreto, Johannes Kästner"
-author = "Moritz Schäfer, Nico Segreto, Johannes Kästner"
+copyright = "2025, Moritz Schäfer, Nico Segreto, Fabian Zills, Johannes Kästner"
+author = "Moritz Schäfer, Nico Segreto, Fabian Zills, Johannes Kästner"
 release = apax.__version__
 
 # -- General configuration ---------------------------------------------------
