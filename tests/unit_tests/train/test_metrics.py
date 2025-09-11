@@ -27,7 +27,7 @@ def test_cosine_sim():
         )
     }
 
-    angle_error = cosine_sim(inputs= {}, label=label, prediction=prediction, key="forces")
+    angle_error = cosine_sim(inputs={}, label=label, prediction=prediction, key="forces")
     assert angle_error.shape == ()
     ref = 0.5
     assert abs(angle_error - ref) < 1e-6
