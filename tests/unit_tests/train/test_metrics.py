@@ -53,16 +53,21 @@ def test_initialize_metrics_collection():
             ]
         ),
     }
+    input = {
+        "n_atoms": jnp.array([2, 2]),
+    }
     metrics_list = [
-        MetricsConfig(name="energy", reductions=["mae", "rmse"]),
+        MetricsConfig(name="energy", reductions=["mae", "rmse", "per_atom_mae", "per_atoms_mse"]),
         MetricsConfig(name="forces", reductions=["mae", "mse"]),
     ]
     Metrics = initialize_metrics(metrics_list)
-    batch_metrics = Metrics.single_from_model_output(label=label, prediction=prediction)
+    batch_metrics = Metrics.single_from_model_output(input=input, label=label, prediction=prediction)
 
     epoch_metrics = batch_metrics.compute()
 
     assert abs(epoch_metrics["energy_mae"] - 0.5) < 1e-6
+    assert abs(epoch_metrics["energy_per_atom_mae"] - 0.25) < 1e-6
+    assert abs(epoch_metrics["energy_per_atom_mse"] - 0.125) < 1e-6
     assert abs(epoch_metrics["energy_rmse"] - jnp.sqrt(0.5)) < 1e-6
     assert abs(epoch_metrics["forces_mae"] - 1 / 3) < 1e-6
     assert abs(epoch_metrics["forces_mse"] - 1 / 3) < 1e-6
