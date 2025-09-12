@@ -240,7 +240,7 @@ def fit(
         callbacks.on_train_end()
         if 'batch_pbar' in locals():
             batch_pbar.close()
-        
+
         train_ds.cleanup()
         if val_ds:
             val_ds.cleanup()

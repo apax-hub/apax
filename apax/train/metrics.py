@@ -70,7 +70,7 @@ def per_atom_mse_fn(inputs: dict, label: dict[jnp.array], prediction: dict[jnp.a
     properties like 'energy'.
     """
     err_sq = (label[key] - prediction[key]) ** 2
-    weighted_errors = err_sq                      
+    weighted_errors = err_sq
     return jnp.sum(weighted_errors) / jnp.sum(inputs["n_atoms"])
 
 
