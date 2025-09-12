@@ -14,11 +14,11 @@ class SwitchingSchedule(BaseModel, extra="forbid"):
     Attributes
     ----------
     switching_fn : str
-        Defines switching function. "linear", "sigmoid" implemented
+        Defines switching function. "linear", "sigmoid", and "power_sigmoid" implemented
     n_steps : PositiveInt, default = 100
         number of MD steps to switch from model 1 to model 2
     switching_condition : str
-        Defines the condition when switching should happen. "additive_impacted", "instant_switching" implemented
+        Defines the condition when switching should happen. "additive_impacted", "instant_switching", and "delayed_switching" implemented
     switch_kwargs: dict
         Additional vars for the switching_fn or condition.
 
@@ -236,9 +236,12 @@ class ReflectionCheck(BaseModel, extra="forbid"):
     name: Literal["reflection"] = "reflection"
     cutoff_plane_height: float
 
+class PenetrationCheck(BaseModel, extra="forbid"):
+    name: Literal["penetration"] = "penetration"
+    cutoff_plane_height: float
 
 DynamicsCheck = Annotated[
-    Union[EnergyUncertaintyCheck, ForcesUncertaintyCheck, ReflectionCheck],
+    Union[EnergyUncertaintyCheck, ForcesUncertaintyCheck, ReflectionCheck, PenetrationCheck],
     Field(discriminator="name"),
 ]
 

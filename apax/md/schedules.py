@@ -59,7 +59,7 @@ class OscillatingRampTSchedule(TSchedule):
         return T * units.kB
 
 
-def additive_impacted(state, box, switched, **switch_kwargs):
+def additive_impacted(state, box, sim_step, switched, **switch_kwargs):
     pos = state.position @ box
     pos = pos[-1, -1]
 
@@ -68,13 +68,20 @@ def additive_impacted(state, box, switched, **switch_kwargs):
     return switched
 
 
-def instant_switching(state, box, switched, **switch_kwargs):
+def instant_switching(state, box, sim_step, switched, **switch_kwargs):
     return True
+
+
+def delayed_switching(state, box, sim_step, switched, **switch_kwargs):
+    condition = sim_step == switch_kwargs["switch_step"]
+    switched = jnp.logical_or(condition, switched)
+    return switched
 
 
 CONDITION_FN = {
     "additive_impacted": additive_impacted,
-    "instant_switching": instant_switching,
+    "instant": instant_switching,
+    "delayed": delayed_switching,
 }
 
 
@@ -92,7 +99,25 @@ def sigmoid_switching(
     return switching_factor
 
 
-SWITCHING_FN = {"linear": linear_switching, "sigmoid": sigmoid_switching}
+# def clamp01(x):
+#     return jnp.clip(x, 0.0, 1.0)
+
+# def smootherstep(t):
+#     t = clamp01(t)
+#     return t**3 * (t * (t * 6.0 - 15.0) + 10.0)
+
+# def smootherstep_steep(n_steps, steps_after_switching, **switch_kwargs):
+#     k = switch_kwargs["k"]
+#     t = steps_after_switching / n_steps
+#     return smootherstep(clamp01(t)**k)
+
+def power_sigmoid(n_steps, steps_after_switching, **switch_kwargs):
+    k = switch_kwargs["k"] #should around be 2
+    t = steps_after_switching / n_steps
+    t = jnp.clip(t, 0.0, 1.0)
+    return t**k / (t**k + (1 - t)**k)
+
+SWITCHING_FN = {"linear": linear_switching, "sigmoid": sigmoid_switching, "power_sigmoid": power_sigmoid}
 
 
 class SwitchSchedule:
@@ -122,7 +147,7 @@ class SwitchSchedule:
             return switching_factor, switching_step
 
         switched = CONDITION_FN[self.condition](
-            state, box, switched, **self.switch_kwargs
+            state, box, sim_step, switched, **self.switch_kwargs
         )
         switch_factor, switching_step = jax.lax.cond(
             switched, do_switch, no_switch, sim_step, switching_step
