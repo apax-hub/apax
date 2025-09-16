@@ -25,14 +25,14 @@ class RootAverage(Averagefp64):
         return jnp.sqrt(self.total / self.count)
 
 
-def mae_fn(label: dict[jnp.array], prediction: dict[jnp.array], key: str) -> jnp.array:
+def mae_fn(inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str) -> jnp.array:
     """
     Computes the Mean Absolute Error of two arrays.
     """
     return jnp.mean(jnp.abs(label[key] - prediction[key]))
 
 
-def mse_fn(label: dict[jnp.array], prediction: dict[jnp.array], key: str) -> jnp.array:
+def mse_fn(inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str) -> jnp.array:
     """
     Computes the Mean Squared Error of two arrays.
     """
@@ -40,7 +40,7 @@ def mse_fn(label: dict[jnp.array], prediction: dict[jnp.array], key: str) -> jnp
 
 
 def cosine_sim(
-    label: dict[jnp.array], prediction: dict[jnp.array], key: str
+    inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str
 ) -> jnp.array:
     """
     Computes the cosine similarity of two arrays.
@@ -48,6 +48,30 @@ def cosine_sim(
     dotp = normed_dotp(label[key], prediction[key])
     F_angle_loss = jnp.mean(1.0 - dotp)
     return F_angle_loss
+
+
+def per_atom_mae_fn(inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str
+) -> jnp.array:
+    """
+    Computes the per atom Mean Absolute Error of two arrays.
+    Only reasanable when using with structural
+    properties like 'energy'.
+    """
+    err_abs = jnp.abs(label[key] - prediction[key])
+    weighted_errors = err_abs
+    return jnp.sum(weighted_errors) / jnp.sum(inputs["n_atoms"])
+
+
+def per_atom_mse_fn(inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str
+) -> jnp.array:
+    """
+    Computes the per atom Mean Squared Error of two arrays.
+    Only reasanable when using with structural
+    properties like 'energy'.
+    """
+    err_sq = (label[key] - prediction[key]) ** 2
+    weighted_errors = err_sq
+    return jnp.sum(weighted_errors) / jnp.sum(inputs["n_atoms"])
 
 
 def make_single_metric(key: str, reduction: str) -> metrics.Average:
@@ -61,8 +85,11 @@ def make_single_metric(key: str, reduction: str) -> metrics.Average:
         "mse": mse_fn,
         "rmse": mse_fn,
         "cosine_sim": cosine_sim,
+        "per_atom_mae": per_atom_mae_fn,
+        "per_atom_mse": per_atom_mse_fn,
+        "per_atom_rmse": per_atom_mse_fn,
     }
-    if reduction == "rmse":
+    if reduction in ["rmse", "per_atom_rmse"]:
         metric = RootAverage
     else:
         metric = Averagefp64

@@ -55,7 +55,18 @@ class ReflectionCheck(DynamicsCheckBase, extra="forbid"):
 
         return check_passed
 
+class PenetrationCheck(DynamicsCheckBase, extra="forbid"):
+    name: Literal["penetration"] = "penetration"
+    cutoff_plane_height: float
+
+    def check(self, predictions, positions, box):
+        cartesian = positions @ box
+        z_pos = cartesian[:, 2]
+
+        check_passed = jnp.all(z_pos[-1] > self.cutoff_plane_height)
+
+        return check_passed
 
 DynamicsChecks = TypeAdapter(
-    Union[EnergyUncertaintyCheck, ForceUncertaintyCheck, ReflectionCheck]
+    Union[EnergyUncertaintyCheck, ForceUncertaintyCheck, ReflectionCheck, PenetrationCheck]
 ).validate_python

@@ -2,6 +2,7 @@ import logging
 import time
 from functools import partial
 from pathlib import Path
+from typing import Union
 
 import jax
 import jax.numpy as jnp
@@ -15,12 +16,13 @@ from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from apax.config import Config, MDConfig, parse_config
-from apax.config.md_config import Integrator
+from apax.config.md_config import Integrator, SwitchingSchedule
 from apax.md.ase_calc import make_ensemble, maybe_vmap
 from apax.md.constraints import Constraint, ConstraintBase
 from apax.md.dynamics_checks import DynamicsCheckBase, DynamicsChecks
 from apax.md.io import H5TrajHandler, TrajHandler, truncate_trajectory_to_checkpoint
 from apax.md.md_checkpoint import load_md_state
+from apax.md.schedules import SwitchSchedule
 from apax.md.sim_utils import SimulationFunctions, System
 from apax.train.checkpoints import (
     canonicalize_energy_model_parameters,
@@ -31,6 +33,69 @@ from apax.utils.jax_md_reduced import partition, quantity, simulate, space
 from apax.utils.transform import make_energy_only_model
 
 log = logging.getLogger(__name__)
+
+
+def interpolate(val1, val2, factor):
+    return val1 * (1 - factor) + val2 * factor
+
+
+def interpolate_uncertainty(sigma1, sigma2, factor):
+    return jnp.sqrt((1 - factor) ** 2 * sigma1**2 + factor**2 * sigma2**2)
+
+
+def make_switch_fn(aux_fns):
+    def switch_fn(positions, Z, idx, box, offsets, switch_factor):
+        results = aux_fns[0](positions, Z, idx, box, offsets)
+        results_2 = aux_fns[1](positions, Z, idx, box, offsets)
+
+        results["energy"] = interpolate(
+            results["energy"], results_2["energy"], switch_factor
+        )
+        results["forces"] = interpolate(
+            results["forces"], results_2["forces"], switch_factor
+        )
+
+        if any("uncertainty" in item for item in results.keys()):
+            results["energy_uncertainty"] = interpolate(
+                results["energy_uncertainty"],
+                results_2["energy_uncertainty"],
+                switch_factor,
+            )
+            results["forces_uncertainty"] = interpolate_uncertainty(
+                results["forces_uncertainty"],
+                results_2["forces_uncertainty"],
+                switch_factor,
+            )
+
+        factor = {"switch_factor": switch_factor}
+        results.update(factor)
+
+        return results
+
+    return switch_fn
+
+
+def create_energy_switch_fn(energy_fn_1, energy_fn_2):
+    def switch_energy_fn(R, neighbor, box, switch_factor, perturbation=None):
+        def switch_e(R, neighbor, box, switch_factor, perturbation):
+            e1 = energy_fn_1(R=R, neighbor=neighbor, box=box, perturbation=perturbation)
+            e2 = energy_fn_2(R=R, neighbor=neighbor, box=box, perturbation=perturbation)
+            energy = e1 * (1 - switch_factor) + e2 * switch_factor
+            return energy
+
+        def e2_fn(R, neighbor, box, switch_factor, perturbation):
+            energy = energy_fn_2(
+                R=R, neighbor=neighbor, box=box, perturbation=perturbation
+            )
+            return energy
+
+        condition = switch_factor < 1
+        energy = jax.lax.cond(
+            condition, switch_e, e2_fn, R, neighbor, box, switch_factor, perturbation
+        )
+        return energy
+
+    return switch_energy_fn
 
 
 def create_energy_fn(model, params, numbers, n_models, shallow=False):
@@ -86,7 +151,7 @@ def nbr_update_options_npt(state):
     return {"box": box}
 
 
-def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
+def get_ensemble(ensemble: Integrator, sim_fns, constrained_idxs=None):
     energy, shift = sim_fns.energy_fn, sim_fns.shift_fn
 
     dt = ensemble.dt * units.fs
@@ -104,11 +169,11 @@ def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
             shift,
             dt,
             kT(0),
-            constrainet_idxs=constaint_idxs,
+            constrainet_idxs=constrained_idxs,
         )
 
     elif ensemble.name == "npt":
-        if constaint_idxs:
+        if constrained_idxs:
             raise NotImplementedError(
                 "Constraining atoms in NPT simulations is not implemented."
             )
@@ -169,6 +234,31 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_ch
     return on_eval, no_eval
 
 
+def create_switch_evaluation_functions(
+    aux_fn, positions, Z, neighbor, box, dynamics_checks
+):
+    offsets = jnp.zeros((neighbor.idx.shape[1], 3))
+
+    def on_eval(positions, neighbor, box, switch_factor):
+        predictions = aux_fn(positions, Z, neighbor, box, offsets, switch_factor)
+        all_checks_passed = True
+
+        for check in dynamics_checks:
+            check_passed = check.check(predictions, positions, box)
+            all_checks_passed = all_checks_passed & check_passed
+        return predictions, all_checks_passed
+
+    predictions = aux_fn(positions, Z, neighbor, box, offsets, switch_factor=0.0)
+    dummpy_preds = tree_util.tree_map(lambda x: jnp.zeros_like(x), predictions)
+
+    def no_eval(positions, neighbor, box, switch_factor):
+        predictions = dummpy_preds
+        all_checks_passed = True
+        return predictions, all_checks_passed
+
+    return on_eval, no_eval
+
+
 def check_unique_idxs(constraind_idxs):
     unique_idxs = []
     seen_idxs = set()
@@ -208,6 +298,7 @@ def run_sim(
     system: System,
     sim_fns: SimulationFunctions,
     ensemble,
+    switching_schedule: SwitchSchedule,
     sim_dir: Path,
     n_steps: int,
     n_inner: int,
@@ -248,25 +339,34 @@ def run_sim(
     ckpt_dir = sim_dir / "ckpts"
     ckpt_dir.mkdir(exist_ok=True)
 
-    apply_constraints, constraint_idxs = create_constraint_function(
+    apply_constraints, constrained_idxs = create_constraint_function(
         constraints,
         system,
     )
 
     log.info("initializing simulation")
-    init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns, constraint_idxs)
-
+    init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns, constrained_idxs)
     neighbor = sim_fns.neighbor_fn.allocate(
         system.positions, extra_capacity=extra_capacity
     )
 
-    state = init_fn(
-        rng_key,
-        system.positions,
-        box=system.box,
-        mass=system.masses,
-        neighbor=neighbor,
-    )
+    if isinstance(switching_schedule, SwitchSchedule):
+        state = init_fn(
+            rng_key,
+            system.positions,
+            box=system.box,
+            mass=system.masses,
+            neighbor=neighbor,
+            switch_factor=0,
+        )
+    else:
+        state = init_fn(
+            rng_key,
+            system.positions,
+            box=system.box,
+            mass=system.masses,
+            neighbor=neighbor,
+        )
 
     step = 0
 
@@ -288,19 +388,34 @@ def run_sim(
     pbar_increment = n_inner * pbar_update_freq
 
     sampling_rate = traj_handler.sampling_rate
-    on_eval, no_eval = create_evaluation_functions(
-        sim_fns.auxiliary_fn,
-        state.position,
-        system.atomic_numbers,
-        neighbor,
-        system.box,
-        dynamics_checks,
-    )
+    if isinstance(switching_schedule, SwitchSchedule):
+        on_eval, no_eval = create_switch_evaluation_functions(
+            sim_fns.auxiliary_fn,
+            state.position,
+            system.atomic_numbers,
+            neighbor,
+            system.box,
+            dynamics_checks,
+        )
+    else:
+        on_eval, no_eval = create_evaluation_functions(
+            sim_fns.auxiliary_fn,
+            state.position,
+            system.atomic_numbers,
+            neighbor,
+            system.box,
+            dynamics_checks,
+        )
 
     @jax.jit
-    def sim(state, outer_step, neighbor):  # TODO make more modular
+    def sim(
+        state, outer_step, neighbor, switched: bool, switching_step
+    ):  # TODO make more modular
         def body_fn(i, state):
-            state, outer_step, neighbor, all_checks_passed = state
+            state, outer_step, neighbor, all_checks_passed, switched, switching_step = (
+                state
+            )
+
             step = i + outer_step * n_inner
 
             apply_fn_kwargs = {}
@@ -312,6 +427,11 @@ def run_sim(
 
             apply_fn_kwargs["kT"] = kT(step)  # Get current Temperature
 
+            if isinstance(switching_schedule, SwitchSchedule):
+                apply_fn_kwargs["switch_factor"], switched, switching_step = (
+                    switching_schedule(state, box, step, switched, switching_step)
+                )  # Get current switching factor
+
             state = apply_fn(state, neighbor=neighbor, **apply_fn_kwargs)
 
             state = apply_constraints(state)
@@ -320,26 +440,71 @@ def run_sim(
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
             condition = step % sampling_rate == 0
-            predictions, check_passed = jax.lax.cond(
-                condition, on_eval, no_eval, state.position, neighbor, box
-            )
+
+            if isinstance(switching_schedule, SwitchSchedule):
+                predictions, check_passed = jax.lax.cond(
+                    condition,
+                    on_eval,
+                    no_eval,
+                    state.position,
+                    neighbor,
+                    box,
+                    apply_fn_kwargs["switch_factor"],
+                )
+            else:
+                predictions, check_passed = jax.lax.cond(
+                    condition,
+                    on_eval,
+                    no_eval,
+                    state.position,
+                    neighbor,
+                    box,
+                )
 
             all_checks_passed = all_checks_passed & check_passed
 
             # maybe move this to on_eval
             io_callback(traj_handler.step, None, (state, predictions, nbr_kwargs))
-            return state, outer_step, neighbor, all_checks_passed
+            return (
+                state,
+                outer_step,
+                neighbor,
+                all_checks_passed,
+                switched,
+                switching_step,
+            )
 
         all_checks_passed = True
-        state, outer_step, neighbor, all_checks_passed = jax.lax.fori_loop(
-            0, n_inner, body_fn, (state, outer_step, neighbor, all_checks_passed)
+        state, outer_step, neighbor, all_checks_passed, switched, switching_step = (
+            jax.lax.fori_loop(
+                0,
+                n_inner,
+                body_fn,
+                (
+                    state,
+                    outer_step,
+                    neighbor,
+                    all_checks_passed,
+                    switched,
+                    switching_step,
+                ),
+            )
         )
         current_temperature = (
             quantity.temperature(velocity=state.velocity, mass=state.mass) / units.kB
         )
 
-        return state, neighbor, current_temperature, all_checks_passed
+        return (
+            state,
+            neighbor,
+            current_temperature,
+            all_checks_passed,
+            switched,
+            switching_step,
+        )
 
+    switched = False
+    switching_step = 0
     start = time.time()
     total_sim_time = n_steps * ensemble.dt / 1000
     log.info("running simulation for %.1f ps", total_sim_time)
@@ -356,9 +521,14 @@ def run_sim(
     )
     with mngr:
         while step < n_outer:
-            new_state, neighbor, current_temperature, all_checks_passed = sim(
-                state, step, neighbor
-            )
+            (
+                new_state,
+                neighbor,
+                current_temperature,
+                all_checks_passed,
+                switched,
+                switching_step,
+            ) = sim(state, step, neighbor, switched, switching_step)
 
             if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
                 raise ValueError(
@@ -424,7 +594,7 @@ def run_sim(
     )
 
 
-def md_setup(model_config: Config, md_config: MDConfig):
+def md_setup(model_configs: list[Config], md_config: MDConfig):
     """
     Sets up the energy and neighborlist functions for an MD simulation,
     loads the initial structure.
@@ -457,7 +627,11 @@ def md_setup(model_config: Config, md_config: MDConfig):
     atoms = read(md_config.initial_structure)
     system = System.from_atoms(atoms)
 
-    r_max = model_config.model.basis.r_max
+    r_max = model_configs[0].model.basis.r_max
+    for model_config in model_configs:
+        if r_max != model_config.model.basis.r_max:
+            raise ValueError("Max cutoffs of all models must be the same.")
+
     log.info("initializing model")
     if np.all(system.box < 1e-6):
         frac_coords = False
@@ -483,11 +657,6 @@ def md_setup(model_config: Config, md_config: MDConfig):
             wrapped=md_config.wrapped,
         )
 
-    Builder = model_config.model.get_builder()
-    builder = Builder(model_config.model.model_dump())
-    energy_model = builder.build_energy_model(
-        apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
-    )
     neighbor_fn = partition.neighbor_list(
         displacement_fn,
         system.box,
@@ -498,42 +667,77 @@ def md_setup(model_config: Config, md_config: MDConfig):
         disable_cell_list=True,
     )
 
-    _, gradient_model_params = restore_parameters(model_config.data.model_version_path)
-    params = canonicalize_energy_model_parameters(gradient_model_params)
+    energy_fns = []
+    auxiliary_fns = []
+    for model_config in model_configs:
+        Builder = model_config.model.get_builder()
+        builder = Builder(model_config.model.model_dump())
 
-    n_models = 1
-    shallow = False
-    if (
-        "ensemble" in model_config.model.model_dump().keys()
-        and model_config.model.ensemble is not None
-        and model_config.model.ensemble.n_members > 1
-    ):
-        n_models = model_config.model.ensemble.n_members
-        if model_config.model.ensemble.kind == "shallow":
-            shallow = True
-
-    energy_fn = create_energy_fn(
-        energy_model.apply, params, system.atomic_numbers, n_models, shallow
-    )
-
-    auxiliary_fn = builder.build_energy_derivative_model(
-        apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
-    ).apply
-
-    if n_models > 1 and not shallow:
-        auxiliary_fn = maybe_vmap(auxiliary_fn, gradient_model_params)
-        auxiliary_fn = make_ensemble(auxiliary_fn)
-    else:
-        auxiliary_fn = partial(
-            auxiliary_fn,
-            gradient_model_params,
+        # make energy function
+        energy_model = builder.build_energy_model(
+            apply_mask=True,
+            init_box=np.array(system.box),
+            inference_disp_fn=displacement_fn,
         )
 
-    sim_fns = SimulationFunctions(energy_fn, auxiliary_fn, shift_fn, neighbor_fn)
-    return system, sim_fns
+        _, gradient_model_params = restore_parameters(
+            model_config.data.model_version_path
+        )
+        params = canonicalize_energy_model_parameters(gradient_model_params)
+
+        n_models = 1
+        shallow = False
+        if (
+            "ensemble" in model_config.model.model_dump().keys()
+            and model_config.model.ensemble is not None
+            and model_config.model.ensemble.n_members > 1
+        ):
+            n_models = model_config.model.ensemble.n_members
+            if model_config.model.ensemble.kind == "shallow":
+                shallow = True
+
+        energy_fns.append(
+            create_energy_fn(
+                energy_model.apply, params, system.atomic_numbers, n_models, shallow
+            )
+        )
+
+        # make energy derivative auxiliary functions
+        auxiliary_fn = builder.build_energy_derivative_model(
+            apply_mask=True,
+            init_box=np.array(system.box),
+            inference_disp_fn=displacement_fn,
+        ).apply
+
+        if n_models > 1 and not shallow:
+            auxiliary_fn = maybe_vmap(auxiliary_fn, gradient_model_params)
+            auxiliary_fn = make_ensemble(auxiliary_fn)
+        else:
+            auxiliary_fn = partial(
+                auxiliary_fn,
+                gradient_model_params,
+            )
+        auxiliary_fns.append(auxiliary_fn)
+
+    if isinstance(md_config.switching, SwitchingSchedule):
+        try:
+            log.info("Creating switch model")
+            energy_fn = create_energy_switch_fn(energy_fns[0], energy_fns[1])
+            auxiliary_fn = make_switch_fn(auxiliary_fns)
+        except IndexError:
+            raise ValueError(
+                "2 model have to be specified for a simulation with a SwitchingSchedule."
+            )
+    else:
+        energy_fn = energy_fns[0]
+
+    sim_fn = SimulationFunctions(energy_fn, auxiliary_fn, shift_fn, neighbor_fn)
+    return system, sim_fn
 
 
-def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
+def run_md(
+    model_configs: Union[Config, list[Config]], md_config: MDConfig, log_level="error"
+):
     """
     Utiliy function to start NVT molecualr dynamics simulations from
     a previously trained model.
@@ -545,8 +749,11 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
     md_config : MDConfig
         configuration of the MD simulation.
     """
+    if isinstance(model_configs, (Config, dict)):
+        model_configs = [model_configs]
 
-    model_config = parse_config(model_config)
+    model_configs = [parse_config(model_config) for model_config in model_configs]
+
     md_config = parse_config(md_config, mode="md")
 
     sim_dir = Path(md_config.sim_dir)
@@ -555,7 +762,7 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
     setup_logging(log_file, log_level)
     traj_path = sim_dir / md_config.traj_name
 
-    system, sim_fns = md_setup(model_config, md_config)
+    system, sim_fn = md_setup(model_configs, md_config)
 
     dynamics_checks = []
     if md_config.dynamics_checks:
@@ -568,6 +775,10 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
     if md_config.constraints:
         constraint_list = [Constraint(c.model_dump()) for c in md_config.constraints]
         constraints.extend(constraint_list)
+
+    switching_schedule = None
+    if isinstance(md_config.switching, SwitchingSchedule):
+        switching_schedule = md_config.switching.get_schedule()
 
     n_steps = int(np.ceil(md_config.duration / md_config.ensemble.dt))
 
@@ -584,8 +795,9 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
 
     run_sim(
         system,
-        sim_fns,
+        sim_fn,
         md_config.ensemble,
+        switching_schedule,
         n_steps=n_steps,
         n_inner=md_config.n_inner,
         extra_capacity=md_config.extra_capacity,

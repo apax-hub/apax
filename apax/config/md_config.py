@@ -8,6 +8,37 @@ from typing_extensions import Annotated
 from apax.utils.helpers import APAX_PROPERTIES
 
 
+class SwitchingSchedule(BaseModel, extra="forbid"):
+    """Switching schedule.
+
+    Attributes
+    ----------
+    switching_fn : str
+        Defines switching function. "linear", "sigmoid", and "power_sigmoid" implemented
+    n_steps : PositiveInt, default = 100
+        number of MD steps to switch from model 1 to model 2
+    switching_condition : str
+        Defines the condition when switching should happen. "additive_impacted", "instant_switching", and "delayed_switching" implemented
+    switch_kwargs: dict
+        Additional vars for the switching_fn or condition.
+
+        sigmoid: {"k": float}
+        additive_impacted: {"impact_hight": float}
+    """
+
+    switching_fn: str = "linear"
+    n_steps: PositiveInt = 100
+    switching_condition: str = "instant_switching"
+    switch_kwargs: dict = {}
+
+    def get_schedule(self):
+        from apax.md.schedules import SwitchSchedule
+
+        return SwitchSchedule(
+            self.switching_fn, self.n_steps, self.switching_condition, self.switch_kwargs
+        )
+
+
 class ConstantTempSchedule(BaseModel, extra="forbid"):
     """Constant temperature schedule.
 
@@ -205,9 +236,12 @@ class ReflectionCheck(BaseModel, extra="forbid"):
     name: Literal["reflection"] = "reflection"
     cutoff_plane_height: float
 
+class PenetrationCheck(BaseModel, extra="forbid"):
+    name: Literal["penetration"] = "penetration"
+    cutoff_plane_height: float
 
 DynamicsCheck = Annotated[
-    Union[EnergyUncertaintyCheck, ForcesUncertaintyCheck, ReflectionCheck],
+    Union[EnergyUncertaintyCheck, ForcesUncertaintyCheck, ReflectionCheck, PenetrationCheck],
     Field(discriminator="name"),
 ]
 
@@ -280,7 +314,9 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     extra_capacity : int, default = 0
         | JaxMD allocates a maximal number of neighbors. This argument lets you add
         | additional capacity to avoid recompilation. The default is usually fine.
-
+    switching : SwitchingSchedule, default = None
+        | Defines the schedule for switching between two models.
+        | If None, no switching will be applied.
     dynamics_checks: list[DynamicsCheck]
         | List of termination criteria. Currently energy and force uncertainty
         | are available
@@ -322,6 +358,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
 
     dynamics_checks: list[DynamicsCheck] = []
     constraints: list[Constraint] = []
+    switching: Union[SwitchingSchedule] = None
 
     properties: list[str] = APAX_PROPERTIES
     h5md_options: H5MDOptions = H5MDOptions()
