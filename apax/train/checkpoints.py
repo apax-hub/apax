@@ -109,11 +109,12 @@ def stack_parameters(param_list: List[FrozenDict]) -> FrozenDict:
 
 def load_params(model_version_path: Path, best=True) -> FrozenDict:
     model_version_path = Path(model_version_path)
+
     if best:
         model_version_path = model_version_path / "best"
     log.info(f"loading checkpoint from {model_version_path}")
     try:
-        raw_restored = ocp.CheckpointManager(model_version_path).restore(
+        raw_restored = ocp.CheckpointManager(model_version_path.resolve()).restore(
             step=None, args=ocp.args.StandardRestore()
         )
 

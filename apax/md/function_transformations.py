@@ -3,6 +3,8 @@ import dataclasses
 import jax
 import jax.numpy as jnp
 
+from apax.utils.jax_md_reduced import quantity
+
 
 def make_biased_energy_force_fn(bias_fn):
     def biased_energy_force_fn(positions, Z, idx, box, offsets):
@@ -134,8 +136,32 @@ class GlobalCalibration:
         return calibrated_model
 
 
+@dataclasses.dataclass
+class ProcessStress:
+    """
+    Remove Volume factor from stress predictions.
+    """
+
+    def apply(self, model):
+        def corrected_model(positions, Z, idx, box, offsets):
+            results = model(positions, Z, idx, box, offsets)
+
+            V = quantity.volume(3, box)
+            results = {
+                # We should properly check whether CP2K uses the ASE cell convention
+                # for tetragonal strain, it doesn't matter whether we transpose or not
+                k: val.T / V if k.startswith("stress") else val
+                for k, val in results.items()
+            }
+
+            return results
+
+        return corrected_model
+
+
 available_transformations = {
     "udd": UncertaintyDrivenDynamics,
     "gamd": GaussianAcceleratedMolecularDynamics,
     "global_cal": GlobalCalibration,
+    "process_stress": ProcessStress,
 }

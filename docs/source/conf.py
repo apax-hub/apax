@@ -9,13 +9,15 @@
 import os
 import sys
 
+import apax
+
 sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../../"))
 
 project = "Apax"
-copyright = "2023, Moritz Schäfer, Nico Segreto, Johannes Kästner"
-author = "Moritz Schäfer, Nico Segreto, Johannes Kästner"
-release = "0.11.0"
+copyright = "2025, Moritz Schäfer, Nico Segreto, Fabian Zills, Johannes Kästner"
+author = "Moritz Schäfer, Nico Segreto, Fabian Zills, Johannes Kästner"
+release = apax.__version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

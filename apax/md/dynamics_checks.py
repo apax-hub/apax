@@ -1,10 +1,7 @@
-import logging
 from typing import Literal, Union
 
 import jax.numpy as jnp
 from pydantic import BaseModel, TypeAdapter
-
-log = logging.getLogger(__name__)
 
 
 class DynamicsCheckBase(BaseModel):
