@@ -9,7 +9,7 @@ from myrto.so3krates.embedding import (
     ChemicalEmbedding,
     SphericalHarmonics,
 )
-from myrto.so3krates.so3krates import TransformerBlock
+from myrto.so3krates.transformer import TransformerBlock
 from myrto.utils.safe import masked
 
 from apax.layers.descriptor.basis_functions import BesselBasis
