@@ -27,7 +27,7 @@ dependencies = [
     "typer>=0.13.0",
     "uncertainty-toolbox>=0.1.1",
     "vesin>=0.3.0",
-    "znh5md>=0.4.5",
+    "znh5md>=0.4.8",
 ]
 
 [project.optional-dependencies]
