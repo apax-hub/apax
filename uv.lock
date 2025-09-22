@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.13' and sys_platform != 'win32'",
@@ -217,7 +217,7 @@ wheels = [
 
 [[package]]
 name = "apax"
-version = "0.12.3"
+version = "0.12.4"
 source = { editable = "." }
 dependencies = [
     { name = "ase" },
@@ -302,7 +302,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.13.0" },
     { name = "uncertainty-toolbox", specifier = ">=0.1.1" },
     { name = "vesin", specifier = ">=0.3.0" },
-    { name = "znh5md", specifier = ">=0.4.5" },
+    { name = "znh5md", specifier = ">=0.4.8" },
 ]
 provides-extras = ["cuda", "mlflow", "ipsuite", "docs"]
 
@@ -5899,7 +5899,7 @@ wheels = [
 
 [[package]]
 name = "znh5md"
-version = "0.4.6"
+version = "0.4.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ase" },
@@ -5907,9 +5907,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c8/0b/d57f54d7abb94002f29e636578890dd02793a3ec4a56b369c9551d1d9a66/znh5md-0.4.6.tar.gz", hash = "sha256:40d6908ee5c8fe0177e86ddc15eda5daa0795576042c96e5cff193bd4a0cdf24", size = 172235, upload-time = "2025-05-28T05:55:09.53Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/93/d4/50b9ad618d799983823ef4087033dcb7e90ffe95cb02fbdda01cd7fa0d66/znh5md-0.4.8.tar.gz", hash = "sha256:9dd02d45b5ed766e2f6a0c5b8c926cd15e5a8b9c3a80cab0303f518b129f16ac", size = 203729, upload-time = "2025-07-09T10:09:33.353Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f0/50/134ab1e3b71ac78e40b94fe4b969ca75991f2c3e04dbe9e53e621794d049/znh5md-0.4.6-py3-none-any.whl", hash = "sha256:6107925aad479ffa8d6da4f769f7a0b07d21a60d0c3784f64a63a8d3eb322dad", size = 22984, upload-time = "2025-05-28T05:55:08.178Z" },
+    { url = "https://files.pythonhosted.org/packages/81/03/4ceb3cec2f1b466c2c4dc609fd236dc064a1da1c612c89c12d2afeeaf0a0/znh5md-0.4.8-py3-none-any.whl", hash = "sha256:83e7c82424ae94e6b4d8a1704447c32eb7303e0c11c4d73605482fe0911ce267", size = 24424, upload-time = "2025-07-09T10:09:32.385Z" },
 ]
 
 [[package]]
