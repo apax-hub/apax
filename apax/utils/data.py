@@ -42,7 +42,7 @@ def load_data(data_path):
         raise FileNotFoundError(msg)
 
     if data_path.suffix in [".h5", ".h5md", ".hdf5"]:
-        atoms_list = znh5md.IO(data_path)[:]
+        atoms_list = list(znh5md.IO(data_path))
     else:
         atoms_list = read(data_path.as_posix(), index=":")
 
