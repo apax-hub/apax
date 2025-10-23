@@ -99,7 +99,6 @@ class ApaxJaxMD(zntrack.Node):
 
     @property
     def frames(self) -> znh5md.IO:
-
         @contextlib.contextmanager
         def _factory() -> typing.Callable[[], typing.ContextManager[h5py.File]]:
             if self.state.rev is None and self.state.remote is None:
