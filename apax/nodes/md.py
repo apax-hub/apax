@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 import pathlib
@@ -9,7 +10,6 @@ import jax
 import yaml
 import znh5md
 import zntrack
-import contextlib
 
 from apax.md.simulate import run_md
 from apax.nodes.model import ApaxBase
