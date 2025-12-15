@@ -1,10 +1,10 @@
-from typing import Literal, Union, Callable, Any
+from typing import Any, Callable, Union
 
-import jax.numpy as jnp
 import jax
-from apax.utils.jax_md_reduced.space import distance
-from apax.utils.math import fp64_sum
+import jax.numpy as jnp
 from pydantic import BaseModel, TypeAdapter
+
+from apax.utils.jax_md_reduced.space import distance
 
 
 class BiasEnergyBase(BaseModel):

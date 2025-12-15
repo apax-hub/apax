@@ -1,8 +1,9 @@
-from ase import Atoms
 import jax
-from apax.md.bias import SphericalWall, apply_bias_energy
 import numpy as np
 import pytest
+from ase import Atoms
+
+from apax.md.bias import SphericalWall, apply_bias_energy
 
 test_wall_bias_data = [
     (

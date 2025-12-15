@@ -5,8 +5,8 @@ from pathlib import Path
 import ase.io
 import numpy as np
 import zntrack.utils
-from znh5md import IO
 from matplotlib import pyplot as plt
+from znh5md import IO
 
 try:
     from sklearn.decomposition import PCA

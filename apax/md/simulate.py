@@ -17,13 +17,12 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from apax.config import Config, MDConfig, parse_config
 from apax.config.md_config import Integrator
 from apax.md.ase_calc import make_ensemble, maybe_vmap
-from apax.md.constraints import Constraint, ConstraintBase
 from apax.md.bias import (
-    BiasEnergyBase,
     BiasEnergies,
-    apply_bias_energy,
     apply_bias_auxiliary,
+    apply_bias_energy,
 )
+from apax.md.constraints import Constraint, ConstraintBase
 from apax.md.dynamics_checks import DynamicsCheckBase, DynamicsChecks
 from apax.md.io import H5TrajHandler, TrajHandler, truncate_trajectory_to_checkpoint
 from apax.md.md_checkpoint import load_md_state
