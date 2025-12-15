@@ -15,7 +15,7 @@ from ase.io import read, write
 from apax.config import Config, MDConfig
 from apax.md import run_md
 from apax.md.ase_calc import ASECalculator
-from apax.utils import jax_md_reduced
+from apax.utils import jax_md_reduced, math
 from tests.conftest import load_config_and_run_training
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
@@ -221,3 +221,79 @@ def test_jaxmd_schedule_and_thresold(get_tmp_path, example_dataset):
 
     assert "energy_ensemble" not in results_keys
     assert "forces_uncertainty" not in results_keys
+
+
+@pytest.mark.parametrize("num_data", (30,))
+def test_constrained_jaxmd(get_tmp_path, example_dataset):
+    model_confg_path = TEST_PATH / "config.yaml"
+    working_dir = get_tmp_path / str(uuid.uuid4())
+    data_path = get_tmp_path / "ds.extxyz"
+
+    write(data_path, example_dataset)
+
+    data_config_mods = {
+        "data": {
+            "directory": working_dir.as_posix(),
+            "experiment": "model",
+            "data_path": data_path.as_posix(),
+        },
+    }
+    model_config_dict = load_config_and_run_training(model_confg_path, data_config_mods)
+
+    md_confg_path = TEST_PATH / "md_config_constrained.yaml"
+
+    with open(md_confg_path.as_posix(), "r") as stream:
+        md_config_dict = yaml.safe_load(stream)
+    md_config_dict["sim_dir"] = get_tmp_path.as_posix()
+    md_config_dict["initial_structure"] = get_tmp_path.as_posix() + "/ds.extxyz"
+    md_config = MDConfig.model_validate(md_config_dict)
+
+    model_config = Config.model_validate(model_config_dict)
+
+    run_md(model_config, md_config)
+
+    traj = znh5md.IO(md_config.sim_dir + "/" + md_config.traj_name)[:]
+    masses = traj[0].get_masses()
+
+    for i, frame in enumerate(traj):
+        assert np.allclose(math.center_of_mass(frame.positions, masses), 0), i
+
+
+@pytest.mark.parametrize("num_data", (30,))
+def test_biased_jaxmd(get_tmp_path, example_dataset):
+    model_confg_path = TEST_PATH / "config.yaml"
+    working_dir = get_tmp_path / str(uuid.uuid4())
+    data_path = get_tmp_path / "ds.extxyz"
+
+    write(data_path, example_dataset)
+
+    data_config_mods = {
+        "data": {
+            "directory": working_dir.as_posix(),
+            "experiment": "model",
+            "data_path": data_path.as_posix(),
+        },
+    }
+    model_config_dict = load_config_and_run_training(model_confg_path, data_config_mods)
+
+    md_confg_path = TEST_PATH / "md_config_biased.yaml"
+
+    with open(md_confg_path.as_posix(), "r") as stream:
+        md_config_dict = yaml.safe_load(stream)
+    md_config_dict["sim_dir"] = get_tmp_path.as_posix()
+    md_config_dict["initial_structure"] = get_tmp_path.as_posix() + "/ds.extxyz"
+    md_config = MDConfig.model_validate(md_config_dict)
+
+    model_config = Config.model_validate(model_config_dict)
+
+    run_md(model_config, md_config)
+
+    traj = znh5md.IO(md_config.sim_dir + "/" + md_config.traj_name)[:]
+    results = traj[0].calc.results
+    positions = traj[0].get_positions()
+
+    assert "energy_unbiased" in results
+    assert "forces_unbiased" in results
+    assert results["energy"] == results["energy_unbiased"] + 0.5 * 1.0 * np.sum(
+        np.clip(jax_md_reduced.space.distance(positions) - 1.0, a_min=0, a_max=None) ** 2
+    )

@@ -212,9 +212,25 @@ DynamicsCheck = Annotated[
 ]
 
 
+class SphericalWallEnergy(BaseModel, extra="forbid"):
+    name: Literal["spherical_wall"] = "spherical_wall"
+    radius: float
+    spring_constant: float
+
+
+BiasEnergy = Annotated[
+    Union[SphericalWallEnergy],
+    Field(discriminator="name"),
+]
+
+
 class FixAtomsConstraint(BaseModel, extra="forbid"):
     name: Literal["fixatoms"] = "fixatoms"
     indices: list[int]
+
+
+class FixCenterOfMassConstraint(BaseModel, extra="forbid"):
+    name: Literal["fixcenterofmass"] = "fixcenterofmass"
 
 
 class FixLayerConstraint(BaseModel, extra="forbid"):
@@ -224,7 +240,8 @@ class FixLayerConstraint(BaseModel, extra="forbid"):
 
 
 Constraint = Annotated[
-    Union[FixAtomsConstraint, FixLayerConstraint], Field(discriminator="name")
+    Union[FixAtomsConstraint, FixCenterOfMassConstraint, FixLayerConstraint],
+    Field(discriminator="name"),
 ]
 
 
@@ -281,10 +298,14 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
         | JaxMD allocates a maximal number of neighbors. This argument lets you add
         | additional capacity to avoid recompilation. The default is usually fine.
 
-    dynamics_checks: list[DynamicsCheck]
+    biases : list[BiasEnergy]
+        | List of bias energies. Currently a spherical wall potential is available.
+    dynamics_checks : list[DynamicsCheck]
         | List of termination criteria. Currently energy and force uncertainty
         | are available
-    properties: list[str]
+    constraints : list[Constraint]
+        | List of constraints. Currently ...
+    properties : list[str]
         | Whitelist of properties to be saved in the trajectory.
         | This does not effect what the model will calculate, e.g..
         | an ensemble will still calculate uncertainties.
@@ -320,6 +341,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     dr_threshold: PositiveFloat = 0.5
     extra_capacity: NonNegativeInt = 0
 
+    biases: list[BiasEnergy] = []
     dynamics_checks: list[DynamicsCheck] = []
     constraints: list[Constraint] = []
 

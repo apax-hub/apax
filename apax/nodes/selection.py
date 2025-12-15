@@ -5,12 +5,19 @@ from pathlib import Path
 import ase.io
 import numpy as np
 import zntrack.utils
+from znh5md import IO
 from matplotlib import pyplot as plt
 
 try:
     from sklearn.decomposition import PCA
 except ImportError:
     PCA = None
+
+try:
+    import umap
+    from sklearn.preprocessing import StandardScaler
+except ImportError:
+    umap = None
 
 from apax.bal import kernel_selection
 from apax.nodes.model import ApaxBase
@@ -90,7 +97,7 @@ class BatchKernelSelection(zntrack.Node):
         Does not affect the result, just the speed of computing features.
     """
 
-    data: list[ase.Atoms] = zntrack.deps()
+    data: typing.Union[list[ase.Atoms], IO] = zntrack.deps()
     train_data: list[ase.Atoms] = zntrack.deps()
 
     selected_ids: list[int] = zntrack.outs(independent=True)
@@ -107,7 +114,8 @@ class BatchKernelSelection(zntrack.Node):
 
     img_selection: Path = zntrack.outs_path(zntrack.nwd / "selection.png")
     img_distances: Path = zntrack.outs_path(zntrack.nwd / "distances.png")
-    img_features: Path = zntrack.outs_path(zntrack.nwd / "features.png")
+    img_features_pca: Path = zntrack.outs_path(zntrack.nwd / "features_pca.png")
+    img_features_umap: Path = zntrack.outs_path(zntrack.nwd / "features_umap.png")
 
     def get_data(self) -> list[ase.Atoms]:
         """Get the atoms data to process."""
@@ -132,7 +140,7 @@ class BatchKernelSelection(zntrack.Node):
         """Get a list of the atoms objects that were not selected."""
         return [atoms for i, atoms in enumerate(self.data) if i not in self.selected_ids]
 
-    def select_atoms(self, atoms_lst: typing.List[ase.Atoms]) -> typing.List[int]:
+    def select_atoms(self, atoms_lst: typing.List[ase.Atoms] | IO) -> typing.List[int]:
         if isinstance(self.models, list):
             param_files = [m.parameter["data"]["directory"] for m in self.models]
         else:
@@ -142,6 +150,9 @@ class BatchKernelSelection(zntrack.Node):
             selection_batch_size = None
         else:
             selection_batch_size = self.n_configurations
+
+        if isinstance(atoms_lst, IO):
+            atoms_lst = atoms_lst[:]
 
         ranking, distances, features_train, features_pool = kernel_selection(
             param_files,
@@ -176,6 +187,7 @@ class BatchKernelSelection(zntrack.Node):
 
         self._get_distances_plot(distances, last_selected)
         self._get_pca_plot(features_train, features_selection, features_remaining)
+        self._get_umap_plot(features_train, features_selection, features_remaining)
         self._get_selection_plot(atoms_lst, ranking)
         return [int(x) for x in ranking]
 
@@ -314,4 +326,57 @@ class BatchKernelSelection(zntrack.Node):
         ax.set_ylabel("dim 2")
         ax.legend()
 
-        fig.savefig(self.img_features, bbox_inches="tight", dpi=240)
+        fig.savefig(self.img_features_pca, bbox_inches="tight", dpi=240)
+
+    def _get_umap_plot(
+        self, g_train: np.ndarray, g_selection: np.ndarray, g_remaining: np.ndarray
+    ):
+        if umap is None:
+            return
+
+        all_features = [g_train, g_selection]
+        if len(g_remaining) > 0:
+            all_features.append(g_remaining)
+        g_full = np.concatenate(all_features, axis=0)
+
+        reducer = umap.UMAP()
+
+        scaler = StandardScaler().fit(g_full)
+
+        scaled_data = scaler.transform(g_full)
+        reducer = umap.UMAP().fit(scaled_data)
+
+        g_train_2d = reducer.transform(scaler.transform(g_train))
+        g_selection_2d = reducer.transform(scaler.transform(g_selection))
+        if len(g_remaining) > 0:
+            g_pool_2d = reducer.transform(scaler.transform(g_remaining))
+
+        fig, ax = plt.subplots()
+
+        if len(g_remaining) > 0:
+            ax.scatter(
+                *g_pool_2d.T,
+                color="gray",
+                marker="o",
+                s=5,
+                alpha=0.6,
+                label="Remaining data",
+            )
+
+        ax.scatter(
+            *g_train_2d.T, color="C0", marker="^", s=5, alpha=0.6, label="Train data"
+        )
+        ax.scatter(
+            *g_selection_2d.T,
+            color="red",
+            marker="*",
+            s=5,
+            alpha=0.6,
+            label="Selected data",
+        )
+
+        ax.set_xlabel("dim 1")
+        ax.set_ylabel("dim 2")
+        ax.legend()
+
+        fig.savefig(self.img_features_umap, bbox_inches="tight", dpi=240)

@@ -18,6 +18,12 @@ from apax.config import Config, MDConfig, parse_config
 from apax.config.md_config import Integrator
 from apax.md.ase_calc import make_ensemble, maybe_vmap
 from apax.md.constraints import Constraint, ConstraintBase
+from apax.md.bias import (
+    BiasEnergyBase,
+    BiasEnergies,
+    apply_bias_energy,
+    apply_bias_auxiliary,
+)
 from apax.md.dynamics_checks import DynamicsCheckBase, DynamicsChecks
 from apax.md.io import H5TrajHandler, TrajHandler, truncate_trajectory_to_checkpoint
 from apax.md.md_checkpoint import load_md_state
@@ -33,7 +39,13 @@ from apax.utils.transform import make_energy_only_model
 log = logging.getLogger(__name__)
 
 
-def create_energy_fn(model, params, numbers, n_models, shallow=False):
+def create_energy_fn(
+    model,
+    params,
+    numbers,
+    n_models,
+    shallow=False,
+):
     def full_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
         vmodel = jax.vmap(model, (0, None, None, None, None, None, None), 0)
         energies, _ = vmodel(params, R, Z, neighbor, box, offsets, perturbation)
@@ -104,7 +116,7 @@ def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
             shift,
             dt,
             kT(0),
-            constrainet_idxs=constaint_idxs,
+            constrained_idxs=constaint_idxs,
         )
 
     elif ensemble.name == "npt":
@@ -248,13 +260,13 @@ def run_sim(
     ckpt_dir = sim_dir / "ckpts"
     ckpt_dir.mkdir(exist_ok=True)
 
-    apply_constraints, constraint_idxs = create_constraint_function(
+    apply_constraints, constrained_idxs = create_constraint_function(
         constraints,
         system,
     )
 
     log.info("initializing simulation")
-    init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns, constraint_idxs)
+    init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns, constrained_idxs)
 
     neighbor = sim_fns.neighbor_fn.allocate(
         system.positions, extra_capacity=extra_capacity
@@ -486,7 +498,9 @@ def md_setup(model_config: Config, md_config: MDConfig):
     Builder = model_config.model.get_builder()
     builder = Builder(model_config.model.model_dump())
     energy_model = builder.build_energy_model(
-        apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
+        apply_mask=True,
+        init_box=np.array(system.box),
+        inference_disp_fn=displacement_fn,
     )
     neighbor_fn = partition.neighbor_list(
         displacement_fn,
@@ -513,8 +527,17 @@ def md_setup(model_config: Config, md_config: MDConfig):
             shallow = True
 
     energy_fn = create_energy_fn(
-        energy_model.apply, params, system.atomic_numbers, n_models, shallow
+        energy_model.apply,
+        params,
+        system.atomic_numbers,
+        n_models,
+        shallow,
     )
+
+    biases = []
+    if md_config.biases:
+        bias_list = [BiasEnergies(b.model_dump()) for b in md_config.biases]
+        biases.extend(bias_list)
 
     auxiliary_fn = builder.build_energy_derivative_model(
         apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
@@ -528,6 +551,10 @@ def md_setup(model_config: Config, md_config: MDConfig):
             auxiliary_fn,
             gradient_model_params,
         )
+
+    for bias in biases:
+        energy_fn = apply_bias_energy(bias, energy_fn)
+        auxiliary_fn = apply_bias_auxiliary(bias, auxiliary_fn)
 
     sim_fns = SimulationFunctions(energy_fn, auxiliary_fn, shift_fn, neighbor_fn)
     return system, sim_fns
@@ -597,4 +624,5 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
         sim_dir=sim_dir,
         dynamics_checks=dynamics_checks,
         constraints=constraints,
+        disable_pbar=md_config.disable_pbar,
     )

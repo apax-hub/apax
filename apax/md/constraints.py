@@ -1,7 +1,11 @@
 from typing import Callable, Literal, Union
 
 import jax.numpy as jnp
+import jax
 from pydantic import BaseModel, TypeAdapter
+
+from apax.md.sim_utils import System
+from apax.utils.math import center_of_mass
 
 
 class ConstraintBase(BaseModel):
@@ -22,7 +26,7 @@ class FixAtoms(ConstraintBase, extra="forbid"):
     name: Literal["fixatoms"] = "fixatoms"
     indices: list[int]
 
-    def create(self, system) -> Callable:
+    def create(self, system: System) -> Callable:
         indices = jnp.array(self.indices, dtype=jnp.int64)
 
         ref_position = system.positions[indices]
@@ -45,6 +49,44 @@ class FixAtoms(ConstraintBase, extra="forbid"):
         return fn, indices
 
 
+class FixCenterOfMass(ConstraintBase, extra="forbid"):
+    name: Literal["fixcenterofmass"] = "fixcenterofmass"
+
+    def create(self, system: System) -> Callable:
+        ref_com = center_of_mass(system.positions, system.masses)
+
+        def fn(state):
+            masses = state.mass[0, :]
+
+            position = state.position
+            com = center_of_mass(position, masses)
+            position += ref_com - com
+
+            momenta = state.momentum
+            velocity_com = jnp.sum(momenta, axis=0) / jnp.sum(masses)
+            momenta -= masses * velocity_com
+
+            # Eqs. (3) and (7) in https://doi.org/10.1021/jp9722824
+            force = state.force
+            force -= (
+                masses[:, None] / jnp.sum(masses**2) * jnp.sum(masses * force, axis=0)
+            )
+
+            state = state.set(position=position, force=force, momentum=momenta)
+            return state
+
+        # We return 0 as a constrained idx, to make sure that the
+        # integrator knows that we have 3 dof less.
+        return fn, [0]
+
+
+class FixRotation(ConstraintBase, extra="forbid"):
+    name: Literal["fixrotation"] = "fixrotation"
+
+    def create(self, system: System) -> Callable:
+        raise NotImplementedError()
+
+
 class FixLayer(ConstraintBase, extra="forbid"):
     """ """
 
@@ -60,8 +102,7 @@ class FixLayer(ConstraintBase, extra="forbid"):
 
         indices = jnp.where(
             (self.lower_limit <= z_coordinates) & (z_coordinates <= self.upper_limit)
-        )
-        indices = indices[0]
+        )[0]
 
         ref_position = system.positions[indices]
 
@@ -83,4 +124,6 @@ class FixLayer(ConstraintBase, extra="forbid"):
         return fn, indices
 
 
-Constraint = TypeAdapter(Union[FixAtoms, FixLayer]).validate_python
+Constraint = TypeAdapter(
+    Union[FixAtoms, FixCenterOfMass, FixRotation, FixLayer]
+).validate_python

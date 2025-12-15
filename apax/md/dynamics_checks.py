@@ -1,6 +1,7 @@
 from typing import Literal, Union
 
 import jax.numpy as jnp
+from apax.utils.jax_md_reduced.space import distance
 from pydantic import BaseModel, TypeAdapter
 
 
@@ -56,6 +57,19 @@ class ReflectionCheck(DynamicsCheckBase, extra="forbid"):
         return check_passed
 
 
+class RadiusCheck(DynamicsCheckBase, extra="forbid"):
+    name: Literal["radius"] = "radius"
+    cutoff_radius: float
+
+    def check(self, predictions, prositions, box):
+        cartesian = positions @ box
+        radius = distance(cartesian)
+
+        check_passed = jnp.all(radius < self.cutoff_radius)
+
+        return check_passed
+
+
 DynamicsChecks = TypeAdapter(
-    Union[EnergyUncertaintyCheck, ForceUncertaintyCheck, ReflectionCheck]
+    Union[EnergyUncertaintyCheck, ForceUncertaintyCheck, ReflectionCheck, RadiusCheck]
 ).validate_python

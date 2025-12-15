@@ -1,0 +1,20 @@
+ensemble:
+  name: nvt
+  dt: 0.2 # fs time step
+  temperature_schedule:
+    name: constant
+    T0: 50 # K
+
+duration: 100 # fs
+n_inner: 1
+sampling_rate: 1
+checkpoint_interval: 2
+restart: True
+constraints:
+  - name: fixcenterofmass
+
+properties:
+  - energy
+  - forces
+  - energy_uncertainty
+  - forces_ensemble
