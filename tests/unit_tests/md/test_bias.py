@@ -33,7 +33,7 @@ test_wall_bias_data = [
 def test_spherical_wall(
     atoms, radius, spring_constant, energy_and_force
 ) -> tuple[float, np.ndarray]:
-    def null_model(R, Z, neighbor, box, offsets) -> float:
+    def null_model(R, neighbor, box) -> float:
         return 0.0
 
     wall_bias = SphericalWall(radius=radius, spring_constant=spring_constant)
@@ -41,9 +41,7 @@ def test_spherical_wall(
     energy_fn = apply_bias_energy(wall_bias, null_model)
 
     ef_function = jax.value_and_grad(energy_fn)
-    energy, force = ef_function(
-        atoms.positions, atoms.get_atomic_numbers(), None, None, None
-    )
+    energy, force = ef_function(atoms.positions, atoms.get_atomic_numbers(), None)
 
     assert energy == energy_and_force[0]
     assert np.all(force == energy_and_force[1])

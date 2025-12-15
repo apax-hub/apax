@@ -28,7 +28,6 @@ dependencies = [
     "uncertainty-toolbox>=0.1.1",
     "vesin>=0.3.0",
     "znh5md>=0.4.8",
-    "umap-learn",
 ]
 
 [project.optional-dependencies]
@@ -38,6 +37,12 @@ mlflow = [
 ]
 ipsuite = [
     "ipsuite>=0.2.3",
+]
+umap = [
+    "umap-learn"
+]
+scikit = [
+    "scikit-learn"
 ]
 
 docs = [

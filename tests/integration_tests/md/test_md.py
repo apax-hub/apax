@@ -254,9 +254,14 @@ def test_constrained_jaxmd(get_tmp_path, example_dataset):
 
     traj = znh5md.IO(md_config.sim_dir + "/" + md_config.traj_name)[:]
     masses = traj[0].get_masses()
+    starting_position_com = math.center_of_mass(traj[0].positions, masses)
 
     for i, frame in enumerate(traj):
-        assert np.allclose(math.center_of_mass(frame.positions, masses), 0), i
+        assert np.allclose(
+            math.center_of_mass(frame.positions, masses), starting_position_com
+        ), (
+            f"COM not at starting position {starting_position_com} in frame {i}, COM: {math.center_of_mass(frame.positions, masses)}"
+        )
 
 
 @pytest.mark.parametrize("num_data", (30,))
