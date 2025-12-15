@@ -62,7 +62,7 @@ class RadiusCheck(DynamicsCheckBase, extra="forbid"):
     name: Literal["radius"] = "radius"
     cutoff_radius: float
 
-    def check(self, predictions, prositions, box):
+    def check(self, predictions, positions, box):
         cartesian = positions @ box
         radius = distance(cartesian)
 
