@@ -1,6 +1,7 @@
-from apax.utils.math import center_of_mass
-import pytest
 import numpy as np
+import pytest
+
+from apax.utils.math import center_of_mass
 
 test_com_data = [
     (np.array([[0, 0, 0], [0, 0, 1]]), np.array([1, 1]), np.array([0, 0, 0.5])),

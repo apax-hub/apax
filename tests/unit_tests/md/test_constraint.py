@@ -1,9 +1,10 @@
+import numpy as np
 import pytest
 from ase import Atoms
+
 from apax.md.constraints import FixCenterOfMass
 from apax.md.sim_utils import System
 from apax.utils.jax_md_reduced.simulate import NVEState
-import numpy as np
 
 constraint_test_data = [
     (Atoms("H2", [[0, 0, 1], [0, 0, -1]], momenta=[[0, 0, 1], [0, 0, 1]]), None),
