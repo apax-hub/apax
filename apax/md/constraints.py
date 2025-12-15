@@ -6,6 +6,8 @@ from pydantic import BaseModel, TypeAdapter
 from apax.md.sim_utils import System
 from apax.utils.math import center_of_mass
 
+import jax
+
 
 class ConstraintBase(BaseModel):
     """Base class for constraints.
@@ -55,20 +57,25 @@ class FixCenterOfMass(ConstraintBase, extra="forbid"):
         ref_com = center_of_mass(system.positions, system.masses)
 
         def fn(state):
-            masses = state.mass[0, :]
+            masses = state.mass[:, 0]
+            jax.debug.print("masses: {}", masses)
 
             position = state.position
-            com = center_of_mass(position, masses)
-            position += ref_com - com
+            position += ref_com - center_of_mass(position, masses)
 
             momenta = state.momentum
+            jax.debug.print("momenta: {}", momenta)
             velocity_com = jnp.sum(momenta, axis=0) / jnp.sum(masses)
-            momenta -= masses * velocity_com
+            jax.debug.print("com velocity: {}", velocity_com)
+            momenta -= masses[:, None] * velocity_com
+            jax.debug.print("momenta: {}", momenta)
 
             # Eqs. (3) and (7) in https://doi.org/10.1021/jp9722824
             force = state.force
             force -= (
-                masses[:, None] / jnp.sum(masses**2) * jnp.sum(masses * force, axis=0)
+                masses[:, None]
+                / jnp.sum(masses**2)
+                * jnp.sum(masses[:, None] * force, axis=0)
             )
 
             state = state.set(position=position, force=force, momentum=momenta)
