@@ -231,6 +231,7 @@ class FixAtomsConstraint(BaseModel, extra="forbid"):
 
 class FixCenterOfMassConstraint(BaseModel, extra="forbid"):
     name: Literal["fixcenterofmass"] = "fixcenterofmass"
+    position: Union[Literal["initial", "origin"], list[float]] = "initial"
 
 
 class FixLayerConstraint(BaseModel, extra="forbid"):

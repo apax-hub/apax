@@ -12,6 +12,7 @@ checkpoint_interval: 2
 restart: True
 constraints:
   - name: fixcenterofmass
+    position: [0, 1, 0]
 
 properties:
   - energy

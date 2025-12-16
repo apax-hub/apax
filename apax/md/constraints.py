@@ -6,6 +6,8 @@ from pydantic import BaseModel, TypeAdapter
 from apax.md.sim_utils import System
 from apax.utils.math import center_of_mass
 
+import jax
+
 
 class ConstraintBase(BaseModel):
     """Base class for constraints.
@@ -50,9 +52,17 @@ class FixAtoms(ConstraintBase, extra="forbid"):
 
 class FixCenterOfMass(ConstraintBase, extra="forbid"):
     name: Literal["fixcenterofmass"] = "fixcenterofmass"
+    position: Union[Literal["initial", "origin"], list[float]] = "initial"
 
     def create(self, system: System) -> Callable:
-        ref_com = center_of_mass(system.positions, system.masses)
+        if isinstance(self.position, str):
+            if self.position.lower() == "initial":
+                ref_com = center_of_mass(system.positions, system.masses)
+            elif self.position.lower() == "origin":
+                ref_com = jnp.array([0, 0, 0])
+        else:
+            ref_com = jnp.array(self.position)
+        jax.debug.print("reference position: {}", ref_com)
 
         def fn(state):
             masses = state.mass[:, 0]
