@@ -1,12 +1,11 @@
 from typing import Callable, Literal, Union
 
+import jax
 import jax.numpy as jnp
 from pydantic import BaseModel, TypeAdapter
 
 from apax.md.sim_utils import System
 from apax.utils.math import center_of_mass
-
-import jax
 
 
 class ConstraintBase(BaseModel):
