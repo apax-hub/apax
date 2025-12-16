@@ -57,19 +57,16 @@ class FixCenterOfMass(ConstraintBase, extra="forbid"):
 
         def fn(state):
             masses = state.mass[:, 0]
-            jax.debug.print("masses: {}", masses)
 
             position = state.position
             position += ref_com - center_of_mass(position, masses)
 
             momenta = state.momentum
-            jax.debug.print("momenta: {}", momenta)
             velocity_com = jnp.sum(momenta, axis=0) / jnp.sum(masses)
-            jax.debug.print("com velocity: {}", velocity_com)
             momenta -= masses[:, None] * velocity_com
-            jax.debug.print("momenta: {}", momenta)
 
             # Eqs. (3) and (7) in https://doi.org/10.1021/jp9722824
+            # Have not explicitly tested this yet.
             force = state.force
             force -= (
                 masses[:, None]

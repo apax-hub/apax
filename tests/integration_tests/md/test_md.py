@@ -17,6 +17,7 @@ from apax.md import run_md
 from apax.md.ase_calc import ASECalculator
 from apax.utils import jax_md_reduced, math
 from tests.conftest import load_config_and_run_training
+from copy import copy
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
@@ -183,7 +184,7 @@ def test_ase_calc(get_tmp_path):
 @pytest.mark.parametrize("num_data", (30,))
 def test_jaxmd_schedule_and_thresold(get_tmp_path, example_dataset):
     model_confg_path = TEST_PATH / "config.yaml"
-    working_dir = get_tmp_path / str(uuid.uuid4())
+    working_dir = get_tmp_path / str(uuigd.uuid4())
     data_path = get_tmp_path / "ds.extxyz"
 
     write(data_path, example_dataset)
@@ -246,11 +247,11 @@ def test_constrained_jaxmd(get_tmp_path, example_dataset):
         md_config_dict = yaml.safe_load(stream)
     md_config_dict["sim_dir"] = get_tmp_path.as_posix()
     md_config_dict["initial_structure"] = get_tmp_path.as_posix() + "/ds.extxyz"
-    md_config = MDConfig.model_validate(md_config_dict)
 
+    md_config = MDConfig.model_validate(md_config_dict)
     model_config = Config.model_validate(model_config_dict)
 
-    run_md(model_config, md_config)
+    run_md(model_config, config)
 
     traj = znh5md.IO(md_config.sim_dir + "/" + md_config.traj_name)[:]
     masses = traj[0].get_masses()
