@@ -50,6 +50,9 @@ docs = [
     "ipykernel>=6.29.3",
     "pandoc>=2.3",
 ]
+umap = [
+    "umap-learn>=0.5.9.post2",
+]
 
 [dependency-groups]
 dev = [

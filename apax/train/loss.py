@@ -55,7 +55,7 @@ def crps_loss(
     means = prediction[name]
     sigmas = prediction[name + "_uncertainty"]
 
-    sigmas = jnp.clip(sigmas, a_min=1e-6)
+    sigmas = jnp.clip(sigmas, min=1e-6)
 
     norm_x = (label - means) / sigmas
     cdf = 0.5 * (1 + jsc.special.erf(norm_x / jnp.sqrt(2)))
@@ -83,7 +83,7 @@ def nll_loss(
     sigmas = prediction[name + "_uncertainty"]
 
     eps = 1e-6
-    sigmas = jnp.clip(sigmas, a_min=eps)
+    sigmas = jnp.clip(sigmas, min=eps)
     variances = jnp.pow(sigmas, 2)
 
     x1 = jnp.log(variances)
