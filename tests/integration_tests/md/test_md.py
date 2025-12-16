@@ -17,7 +17,6 @@ from apax.md import run_md
 from apax.md.ase_calc import ASECalculator
 from apax.utils import jax_md_reduced, math
 from tests.conftest import load_config_and_run_training
-from copy import copy
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
