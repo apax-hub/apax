@@ -61,7 +61,6 @@ class FixCenterOfMass(ConstraintBase, extra="forbid"):
                 ref_com = jnp.array([0, 0, 0])
         else:
             ref_com = jnp.array(self.position)
-        jax.debug.print("reference position: {}", ref_com)
 
         def fn(state):
             masses = state.mass[:, 0]
