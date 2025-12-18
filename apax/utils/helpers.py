@@ -12,6 +12,8 @@ APAX_PROPERTIES = [
     "energy_ensemble",
     "forces_ensemble",
     "stress_ensemble",
+    "energy_unbiased",
+    "forces_unbiased",
 ]
 
 
