@@ -1,6 +1,6 @@
 [project]
 name = "apax"
-version = "0.12.3"
+version = "0.12.4"
 description = "Atomistic Learned Potential Package in JAX"
 keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
 readme = "README.md"
@@ -27,7 +27,7 @@ dependencies = [
     "typer>=0.13.0",
     "uncertainty-toolbox>=0.1.1",
     "vesin>=0.3.0",
-    "znh5md>=0.4.5",
+    "znh5md>=0.4.8",
 ]
 
 [project.optional-dependencies]
@@ -49,6 +49,9 @@ docs = [
     "nbsphinx-link>=1.3.0",
     "ipykernel>=6.29.3",
     "pandoc>=2.3",
+]
+umap = [
+    "umap-learn>=0.5.9.post2",
 ]
 
 [dependency-groups]

@@ -312,7 +312,7 @@ def make_step_fns(loss_fn, Metrics, model, is_ensemble):
         loss, predictions, state = update_fn(state, inputs, labels)
 
         new_batch_metrics = Metrics.single_from_model_output(
-            label=labels, prediction=predictions
+            inputs=inputs, label=labels, prediction=predictions
         )
         batch_metrics = batch_metrics.merge(new_batch_metrics)
 
@@ -325,7 +325,7 @@ def make_step_fns(loss_fn, Metrics, model, is_ensemble):
         loss, predictions = eval_fn(params, inputs, labels)
 
         new_batch_metrics = Metrics.single_from_model_output(
-            label=labels, prediction=predictions
+            inputs=inputs, label=labels, prediction=predictions
         )
         batch_metrics = batch_metrics.merge(new_batch_metrics)
         return loss, batch_metrics

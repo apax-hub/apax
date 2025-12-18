@@ -1,3 +1,4 @@
+import importlib.metadata
 import os
 import warnings
 
@@ -11,3 +12,5 @@ from apax.utils.helpers import setup_ase
 setup_ase()
 
 warnings.filterwarnings("ignore", message=".*os.fork()*")
+
+__version__ = importlib.metadata.version("apax")

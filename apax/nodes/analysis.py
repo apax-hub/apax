@@ -18,7 +18,7 @@ class ApaxBatchPrediction(zntrack.Node):
     ----------
     model: Apax
         The Apax model node that implements the 'predict' method
-    data: list[Atoms
+    data: list[Atoms]
         Atoms to predict properties for
     batch_size: int
         Number of structures to process at once.
