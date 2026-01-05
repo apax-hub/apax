@@ -338,8 +338,25 @@ class MLFlowCallback(BaseModel, frozen=True, extra="forbid"):
     experiment: str
 
 
+class KerasPruningCallback(BaseModel, frozen=True, extra="forbid"):
+    """Configuration for the pruning callback for use in Optuna
+    hyperparameter optimization
+
+    Parameters:
+    name: Keyword of the callback used.
+    """
+
+    name: Literal["pruning"]
+    trial_id: int
+    study_id: int
+    study_log_file: str | Path
+    interval: int = 1
+    monitor: str = "val_loss"
+
+
 CallBack = Annotated[
-    Union[CSVCallback, TBCallback, MLFlowCallback], Field(discriminator="name")
+    Union[CSVCallback, TBCallback, MLFlowCallback, KerasPruningCallback],
+    Field(discriminator="name"),
 ]
 
 

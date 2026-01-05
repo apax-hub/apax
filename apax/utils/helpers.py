@@ -1,3 +1,4 @@
+import collections
 import csv
 
 import yaml
@@ -63,3 +64,13 @@ def load_csv_metrics(path):
                 data_dict[key].append(float(value))
 
     return data_dict
+
+
+def update_nested_dictionary(dct: dict, other: dict) -> dict:
+    # https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
+    for k, v in other.items():
+        if isinstance(v, collections.abc.Mapping):
+            dct[k] = update_nested_dictionary(dct.get(k, {}), v)
+        else:
+            dct[k] = v
+    return dct

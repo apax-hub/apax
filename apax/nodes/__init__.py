@@ -1,5 +1,12 @@
 from .md import ApaxJaxMD
-from .model import Apax, ApaxApplyTransformation, ApaxCalibrate, ApaxEnsemble, ApaxImport
+from .model import (
+    Apax,
+    ApaxApplyTransformation,
+    ApaxCalibrate,
+    ApaxEnsemble,
+    ApaxImport,
+    ApaxOptimizeHyperparameters,
+)
 from .utils import AddData
 
 __all__ = [
@@ -10,6 +17,7 @@ __all__ = [
     "ApaxCalibrate",
     "AddData",
     "ApaxApplyTransformation",
+    "ApaxOptimizeHyperparameters",
 ]
 
 try:

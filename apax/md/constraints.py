@@ -1,6 +1,5 @@
 from typing import Callable, Literal, Union
 
-import jax
 import jax.numpy as jnp
 from pydantic import BaseModel, TypeAdapter
 
