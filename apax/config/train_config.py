@@ -348,7 +348,7 @@ class KerasPruningCallback(BaseModel, frozen=True, extra="forbid"):
 
     name: Literal["pruning"]
     trial_id: int
-    study_id: int
+    study_name: str
     study_log_file: str | Path
     interval: int = 1
     monitor: str = "val_loss"

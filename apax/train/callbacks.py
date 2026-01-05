@@ -8,7 +8,8 @@ import numpy as np
 import tensorflow as tf
 from keras.callbacks import Callback, CSVLogger, TensorBoard
 
-from apax.config.train_config import Config  # , OptunaTrialConfig
+from apax.config.train_config import Config
+from apax.config.optuna_config import get_pruner
 
 try:
     from apax.train.mlflow import MLFlowLogger
@@ -170,7 +171,7 @@ class KerasPruningCallback(Callback):
 
     def __init__(
         self,
-        study_id: int,
+        study_name: str,
         trial_id: int,
         study_log_file: str | Path,
         monitor: str = "val_loss",
@@ -181,15 +182,19 @@ class KerasPruningCallback(Callback):
         if optuna is None:
             raise ImportError(f"{self.__name__} requires optuna, but could not import it")
 
-        # Kind of hacky, and makes a new log entry in the study_log_file, but necessary
-        # to get an instance of the Trial, and not just a FrozenTrial instance.
         storage = optuna.storages.JournalStorage(
             optuna.storages.journal.JournalFileBackend(study_log_file)
         )
-        study_name = storage.get_study_name_from_id(study_id)
-        study = optuna.study.create_study(
-            storage=storage, study_name=study_name, load_if_exists=True
+        study = optuna.load_study(
+            study_name=study_name, storage=storage, sampler=None, pruner=None
         )
+
+        if "pruner" in study.user_attrs:
+            # Related to above TODO. Does this work?
+            pruner_class = get_pruner(study.user_attrs["pruner"]["name"])
+            study.pruner = pruner_class(**study.user_attrs["pruner"]["kwargs"])
+        else:
+            study.pruner = None
 
         self._monitor = monitor
         self._interval = interval
@@ -254,7 +259,7 @@ def initialize_callbacks(config: Config, model_version_path: Path):
             )
         elif callback_config.name == "pruning":
             callback = KerasPruningCallback(
-                study_id=callback_config.study_id,
+                study_name=callback_config.study_name,
                 trial_id=callback_config.trial_id,
                 study_log_file=callback_config.study_log_file,
                 monitor=callback_config.monitor,

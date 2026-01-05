@@ -435,7 +435,7 @@ class ApaxOptimizeHyperparameters(ApaxBase):
 
         pruning_config = {
             "name": "pruning",
-            "study_id": self.study_id,
+            "study_name": self.optuna_config.study_name,
             "trial_id": trial._trial_id,
             "study_log_file": (self.nwd / self.optuna_config.study_log_file).as_posix(),
             "interval": self.optuna_config.pruner_config.interval,
@@ -475,14 +475,12 @@ class ApaxOptimizeHyperparameters(ApaxBase):
         ):
             return 0
 
-        self.study_id = self.storage.get_study_id_from_name(self.optuna_config.study_name)
+        study_id = self.storage.get_study_id_from_name(self.optuna_config.study_name)
         log.debug(
-            f"Found study with name {self.optuna_config.study_name} and id {self.study_id} in storage"
+            f"Found study with name {self.optuna_config.study_name} and id {study_id} in storage"
         )
 
-        first_trial_distributions = self.storage.get_all_trials(self.study_id)[
-            0
-        ].distributions
+        first_trial_distributions = self.storage.get_all_trials(study_id)[0].distributions
         for param, distribution in self.distributions.items():
             if (
                 param not in first_trial_distributions
@@ -491,11 +489,11 @@ class ApaxOptimizeHyperparameters(ApaxBase):
                 log.warning(
                     f"Found distribution {param} with old distribution that is incompatible with new distribution. Deleting study"
                 )
-                self.storage.delete_study(self.study_id)
+                self.storage.delete_study(study_id)
                 return 0
 
         ntrials_done = self.storage.get_n_trials(
-            self.study_id,
+            study_id,
             state=(optuna.trial.TrialState.COMPLETE, optuna.trial.TrialState.PRUNED),
         )
         log.debug(f"{ntrials_done} done in previous study")
@@ -546,7 +544,8 @@ class ApaxOptimizeHyperparameters(ApaxBase):
             sampler=get_sampler_from_config(self.optuna_config),
             pruner=get_pruner_from_config(self.optuna_config),
         )
-        self.study_id = study._study_id
+        # Write pruner configuration so it is visible to the trial.
+        study.set_user_attr("pruner", self.optuna_config.pruner_config.dict())
 
         log.info("Starting hyperparameter optimization")
         for _ in range(ntrials_done, self.optuna_config.n_trials):
@@ -602,13 +601,13 @@ class ApaxOptimizeHyperparameters(ApaxBase):
 
     def get_metrics(self):
         """In addition to the plots write a model metric"""
-        best_trial_number = self.storage.get_best_trial(self.study_id).number
+        best_trial_number = self.get_best_trial_number()
         metrics_df = pd.read_csv(self.get_trial_directory(best_trial_number) / "log.csv")
         best_epoch = np.argmin(metrics_df["val_loss"])
         self.metrics = metrics_df.iloc[best_epoch].to_dict()
 
     def get_calculator(self, **kwargs) -> ASECalculator:
-        best_trial_number = self.storage.get_best_trial(self.study_id).number
+        best_trial_number = self.get_best_trial_number()
         log.debug(f"Loading best trial with trial number {best_trial_number}")
         with self.state.use_tmp_path():
             calc = ASECalculator(
@@ -616,6 +615,11 @@ class ApaxOptimizeHyperparameters(ApaxBase):
                 dr_threshold=self.nl_skin,
             )
             return calc
+
+    def get_best_trial_number(self) -> int:
+        study_id = self.storage.get_study_id_from_name(self.optuna_config.study_name)
+        best_trial_number = self.storage.get_best_trial(study_id).number
+        return best_trial_number
 
     def get_trial_directory(self, trial_number: int) -> pathlib.Path:
         return self.nwd / f"trial_{trial_number}"
