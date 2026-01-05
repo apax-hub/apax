@@ -5,13 +5,13 @@ import optuna
 from pydantic import BaseModel
 
 
-def get_pruner(name: str, **kwargs) -> Type[optuna.pruners.BasePruner]:
+def get_pruner(name: str) -> Type[optuna.pruners.BasePruner]:
     if name not in optuna.pruners.__all__:
         raise ValueError(f"pruner with name {name} not in optuna.pruners")
     return getattr(optuna.pruners, name)
 
 
-def get_sampler(name: str, **kwargs) -> Type[optuna.samplers.BaseSampler]:
+def get_sampler(name: str) -> Type[optuna.samplers.BaseSampler]:
     if name == "AutoSampler":
         try:
             import optunahub
@@ -60,7 +60,6 @@ def get_pruner_from_config(
         return None
 
     pruner_kwargs = optuna_config.pruner_config.kwargs.copy()
-    # pruner_kwargs["seed"] = optuna_config.seed
 
     pruner_class = get_pruner(optuna_config.pruner_config.name)
     return pruner_class(**pruner_kwargs)
