@@ -20,8 +20,6 @@ class ConstraintBase(BaseModel):
 
 
 class FixAtoms(ConstraintBase, extra="forbid"):
-    """ """
-
     name: Literal["fixatoms"] = "fixatoms"
     indices: list[int]
 
