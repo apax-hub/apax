@@ -190,7 +190,6 @@ class KerasPruningCallback(Callback):
         )
 
         if "pruner" in study.user_attrs:
-            # Related to above TODO. Does this work?
             pruner_class = get_pruner(study.user_attrs["pruner"]["name"])
             study.pruner = pruner_class(**study.user_attrs["pruner"]["kwargs"])
         else:
