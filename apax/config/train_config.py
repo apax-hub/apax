@@ -339,11 +339,23 @@ class MLFlowCallback(BaseModel, frozen=True, extra="forbid"):
 
 
 class KerasPruningCallback(BaseModel, frozen=True, extra="forbid"):
-    """Configuration for the pruning callback for use in Optuna
+    """Configuration for the pruning callback for use during a trial in Optuna
     hyperparameter optimization
 
-    Parameters:
-    name: Keyword of the callback used.
+    Parameters
+    ----------
+    name : Literal['pruning']
+        Keyword of the callback used.
+    trial_id: int
+        id of the trial in the study
+    study_name : str
+        name of the study
+    study_log_file : str | Path
+        path to the study log file
+    interval : int, default = 1
+        interval to check whether the trial should be pruned
+    monitor : str, default = "val_loss"
+        metric key to monitor to determine pruning
     """
 
     name: Literal["pruning"]
