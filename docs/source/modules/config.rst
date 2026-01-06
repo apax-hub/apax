@@ -64,3 +64,18 @@ Molecular Dynamics Configuration
 .. autoclass:: apax.config.md_config.NPTOptions
     :members:
     :exclude-members: model_config, model_computed_fields, model_fields
+
+Hyperparameter Optimization Configuration
+-----------------------------------------
+
+.. autoclass:: apax.config.optuna_config.OptunaPrunerConfig
+    :members:
+    :exclude-members: model_config, model_computed_fields, model_fields
+
+.. autoclass:: apax.config.optuna_config.OptunaSamplerConfig
+    :members:
+    :exclude-members: model_config, model_computed_fields, model_fields
+
+.. autoclass:: apax.config.optuna_config.OptunaConfig
+    :members:
+    :exclude-members: model_config, model_computed_fields, model_fields
