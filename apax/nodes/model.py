@@ -448,7 +448,7 @@ class ApaxOptimizeHyperparameters(ApaxBase):
             parameters["callback"] = [pruning_config]
         return parameters
 
-    def _objective(
+    def run_trial(
         self, trial: optuna.trial.Trial
     ) -> tuple[float, optuna.trial.TrialState]:
         config = self._update_configuration(trial)
@@ -462,13 +462,6 @@ class ApaxOptimizeHyperparameters(ApaxBase):
         # Get the metrics
         metrics = load_csv_metrics(self.get_trial_directory(trial.number) / "log.csv")
         return np.min(metrics[self.optuna_config.monitor]), state
-
-    def _objective_test(self, trial: optuna.trial.Trial) -> float:
-        params = self._update_configuration(trial)
-        return (
-            -len(params["model"]["nn"]) * params["model"]["nn"][0]
-            - params["model"]["n_contr"]
-        )
 
     def _get_n_trials_run_previous_study(self) -> int:
         if not any(
@@ -553,7 +546,7 @@ class ApaxOptimizeHyperparameters(ApaxBase):
         for _ in range(ntrials_done, self.optuna_config.n_trials):
             trial = study.ask(fixed_distributions=self.distributions)
             # Somehow add pruning into this.
-            value, trial_state = self._objective(trial)
+            value, trial_state = self.run_trial(trial)
             if trial_state == optuna.trial.TrialState.COMPLETE:
                 study.tell(trial, values=value, state=trial_state)
             elif trial_state == optuna.trial.TrialState.PRUNED:
@@ -561,6 +554,9 @@ class ApaxOptimizeHyperparameters(ApaxBase):
             else:
                 raise NotImplementedError()
             tf.keras.backend.clear_session()
+            log.info(
+                f"Trial {trial.number} finished with value {value} and state {trial_state}"
+            )
 
             log.debug(
                 f"Trial {trial.number} finished with value {value}. Best trial: {study.best_trial.number} with value {study.best_value}"
