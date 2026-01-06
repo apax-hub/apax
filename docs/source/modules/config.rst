@@ -40,7 +40,7 @@ Training Configuration
 
 .. autoclass:: apax.config.train_config.CSVCallback
     :members:
-    :exclude-members: model_config  , model_computed_fields, model_fields
+    :exclude-members: model_config, model_computed_fields, model_fields
 
 .. autoclass:: apax.config.train_config.TBCallback
     :members:
@@ -50,7 +50,9 @@ Training Configuration
     :members:
     :exclude-members: model_config, model_computed_fields, model_fields
 
-
+.. autoclass:: apax.config.train_config.KerasPruningCallback
+    :members:
+    :exclude-members: model_config, model_computed_fields, model_fields
 
 Molecular Dynamics Configuration
 --------------------------------

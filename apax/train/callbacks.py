@@ -8,8 +8,8 @@ import numpy as np
 import tensorflow as tf
 from keras.callbacks import Callback, CSVLogger, TensorBoard
 
-from apax.config.train_config import Config
 from apax.config.optuna_config import get_pruner
+from apax.config.train_config import Config
 
 try:
     from apax.train.mlflow import MLFlowLogger
