@@ -98,3 +98,11 @@ Additionally, you have the option to install the extra dependencies for MLFlow:
     pip install "apax[mlflow]"
 
 .. _uv: https://astral.sh/blog/uv
+
+For hyperparameter optimization, optuna is required, which can be installed as 
+
+.. highlist:: bash
+.. code-block:: bash
+
+   pip install "apax[optuna]"
+
