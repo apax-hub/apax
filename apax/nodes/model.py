@@ -392,6 +392,8 @@ class ApaxOptimizeHyperparameters(ApaxBase):
             if key not in flat_full_config:
                 raise ValueError(f"key {key} in search config was not in full config")
 
+        # TODO: Make number of nodes possible vary per layer.
+
     def _get_trial_configuration(self, trial: optuna.trial.Trial) -> dict[str, t.Any]:
         params = trial.params.copy()
 
