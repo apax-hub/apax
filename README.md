@@ -90,11 +90,6 @@ Do not hesitate to contact any of the authors above if you have any further ques
 The creation of Apax was supported by the Deutsche Forschungsgemeinschaft (DFG, German Research Foundation) in the framework of the priority program SPP 2363, “Utilization and Development of Machine Learning for Molecular Applications - Molecular Machine Learning” Project No. 497249646 and the Ministry of Science, Research and the Arts Baden-Württemberg in the Artificial Intelligence Software Academy (AISA).
 Further funding though the DFG under Germany's Excellence Strategy - EXC 2075 - 390740016 and the Stuttgart Center for Simulation Science (SimTech) was provided.
 
-
-Moritz R. Schäfer, Nico Segreto, Fabian Zills, Christian Holm, and Johannes Kästner
-Journal of Chemical Information and Modeling 2025 65 (15), 8066-8078
-DOI: 10.1021/acs.jcim.5c01221
-
 ## References
 [^1]: Moritz René Schäfer, Nico Segreto, Fabian Zills, Christian Holm, Johannes Kästner, [Apax: A Flexible and Performant Framework For The Development of Machine-Learned Interatomic Potentials](https://doi.org/10.1021/acs.jcim.5c01221), J. Chem. Inf. Model. **65**, 8066-8078 (2025)
 [^2]: 10.5281/zenodo.10040711
