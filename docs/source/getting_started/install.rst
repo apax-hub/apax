@@ -105,4 +105,3 @@ For hyperparameter optimization, optuna is required, which can be installed as
 .. code-block:: bash
 
    pip install "apax[optuna]"
-
