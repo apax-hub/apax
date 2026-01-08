@@ -5,7 +5,6 @@ from .model import (
     ApaxCalibrate,
     ApaxEnsemble,
     ApaxImport,
-    ApaxOptimizeHyperparameters,
 )
 from .utils import AddData
 
@@ -17,7 +16,6 @@ __all__ = [
     "ApaxCalibrate",
     "AddData",
     "ApaxApplyTransformation",
-    "ApaxOptimizeHyperparameters",
 ]
 
 try:
@@ -27,4 +25,12 @@ try:
     __all__.append("ApaxBatchPrediction")
     __all__.append("BatchKernelSelection")
 except ImportError:
+    pass
+
+try:
+    from .hyper_optimize import ApaxOptimizeHyperparameters  # noqa: F401
+
+    __all__.append("ApaxOptimizeHyperparameters")
+except ImportError:
+    print("Could not import hyper_optimize")
     pass
