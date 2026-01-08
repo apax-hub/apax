@@ -200,7 +200,7 @@ class KerasPruningCallback(Callback):
         self._trial = optuna.trial.Trial(study, trial_id)
 
     def on_epoch_end(self, epoch: int, logs: dict[str, float] | None = None) -> None:
-        if (epoch + 1) % self._interval != 0:
+        if epoch % self._interval != 0:
             return
 
         logs = logs or {}
