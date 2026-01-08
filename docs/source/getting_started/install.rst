@@ -99,7 +99,7 @@ Additionally, you have the option to install the extra dependencies for MLFlow:
 
 .. _uv: https://astral.sh/blog/uv
 
-For hyperparameter optimization, optuna is required, which can be installed as 
+For hyperparameter optimization, optuna is required, which can be installed as
 
 .. highlist:: bash
 .. code-block:: bash
