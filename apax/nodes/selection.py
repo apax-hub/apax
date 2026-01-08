@@ -263,6 +263,7 @@ class BatchKernelSelection(zntrack.Node):
         ax.legend()
 
         fig.savefig(self.img_selection, bbox_inches="tight", dpi=240)
+        plt.close()
 
     def _get_distances_plot(self, distances: np.ndarray, last_selected: int):
         fig, ax = plt.subplots()
@@ -274,6 +275,7 @@ class BatchKernelSelection(zntrack.Node):
         ax.set_xlabel("Configuration")
         ax.legend()
         fig.savefig(self.img_distances, bbox_inches="tight", dpi=240)
+        plt.close()
 
     def _get_pca_plot(
         self, g_train: np.ndarray, g_selection: np.ndarray, g_remaining: np.ndarray
@@ -327,6 +329,7 @@ class BatchKernelSelection(zntrack.Node):
         ax.legend()
 
         fig.savefig(self.img_features_pca, bbox_inches="tight", dpi=240)
+        plt.close()
 
     def _get_umap_plot(
         self, g_train: np.ndarray, g_selection: np.ndarray, g_remaining: np.ndarray
@@ -380,3 +383,4 @@ class BatchKernelSelection(zntrack.Node):
         ax.legend()
 
         fig.savefig(self.img_features_umap, bbox_inches="tight", dpi=240)
+        plt.close()

@@ -23,5 +23,14 @@ def normed_dotp(F_0, F_pred):
     return dotp
 
 
-def center_of_mass(positions: Array, masses: Array):
+def center_of_mass(positions: Array, masses: Array) -> Array:
+    """Calculate the center of mass from arrays of positions and masses.
+
+    Args:
+        positions (Array): array of coordinates with shape N*3
+        masses (Array): array of point masses with shape N
+
+    Returns:
+        Array: center of mass coordinates with shape 3
+    """
     return jnp.sum(masses[:, None] * positions, axis=0) / jnp.sum(masses)

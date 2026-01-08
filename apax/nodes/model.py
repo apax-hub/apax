@@ -18,9 +18,16 @@ from apax.md.function_transformations import (
     UncertaintyDrivenDynamics,
     available_transformations,
 )
+from apax.nodes.utils import check_duplicate_keys
 from apax.train.run import run as apax_run
 
-from .utils import check_duplicate_keys
+if t.TYPE_CHECKING:
+    import optuna
+
+try:
+    import optuna
+except ImportError:
+    optuna = None
 
 log = logging.getLogger(__name__)
 

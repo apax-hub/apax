@@ -1,18 +1,28 @@
 import collections
 import csv
 import logging
+import typing as t
 from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
-from keras.callbacks import CSVLogger, TensorBoard
+from keras.callbacks import Callback, CSVLogger, TensorBoard
 
+from apax.config.optuna_config import get_pruner
 from apax.config.train_config import Config
 
 try:
     from apax.train.mlflow import MLFlowLogger
 except ImportError:
     MLFlowLogger = None
+
+try:
+    import optuna
+except ImportError:
+    optuna = None
+
+if t.TYPE_CHECKING:
+    import optuna
 
 log = logging.getLogger(__name__)
 
@@ -134,6 +144,82 @@ class CSVLoggerApax(CSVLogger):
         self.csv_file.flush()
 
 
+class KerasPruningCallback(Callback):
+    """Adapted from https://optuna-integration.readthedocs.io/en/latest/_modules/optuna_integration/keras/keras.html#KerasPruningCallback
+    Keras callback to prune unpromising trials.
+
+    See `the example <https://github.com/optuna/optuna-examples/blob/main/
+    keras/keras_integration.py>`__
+    if you want to add a pruning callback which observes validation accuracy.
+
+    Args:
+        study_id:
+            id number of study
+        trial_id:
+            id of current trial
+        study_log_file:
+            path to log file
+        monitor:
+            An evaluation metric for pruning, e.g., ``val_loss`` and
+            ``val_accuracy``. Please refer to `keras.Callback reference
+            <https://keras.io/callbacks/#callback>`_ for further details.
+        interval:
+            Check if trial should be pruned every n-th epoch. By default ``interval=1`` and
+            pruning is performed after every epoch. Increase ``interval`` to run several
+            epochs faster before applying pruning.
+    """  # noqa: E501
+
+    def __init__(
+        self,
+        study_name: str,
+        trial_id: int,
+        study_log_file: str | Path,
+        monitor: str = "val_loss",
+        interval: int = 1,
+    ) -> None:
+        super().__init__()
+
+        if optuna is None:
+            raise ImportError(f"{self.__name__} requires optuna, but could not import it")
+
+        storage = optuna.storages.JournalStorage(
+            optuna.storages.journal.JournalFileBackend(study_log_file)
+        )
+        study = optuna.load_study(
+            study_name=study_name, storage=storage, sampler=None, pruner=None
+        )
+
+        if "pruner" in study.user_attrs:
+            pruner_class = get_pruner(study.user_attrs["pruner"]["name"])
+            study.pruner = pruner_class(**study.user_attrs["pruner"]["kwargs"])
+        else:
+            study.pruner = None
+
+        self._monitor = monitor
+        self._interval = interval
+        self._trial = optuna.trial.Trial(study, trial_id)
+
+    def on_epoch_end(self, epoch: int, logs: dict[str, float] | None = None) -> None:
+        if epoch % self._interval != 0:
+            return
+
+        logs = logs or {}
+        current_score = logs.get(self._monitor)
+        if current_score is None:
+            message = (
+                "The metric '{}' is not in the evaluation logs for pruning. "
+                "Please make sure you set the correct metric name.".format(self._monitor)
+            )
+            log.warning(message)
+            return
+
+        self._trial.report(float(current_score), step=epoch)
+        if self._trial.should_prune():
+            message = "Trial was pruned at epoch {}.".format(epoch)
+            log.info(message)
+            raise optuna.TrialPruned(message)
+
+
 def initialize_callbacks(config: Config, model_version_path: Path):
     callback_configs = config.callbacks
     log.info("Initializing Callbacks")
@@ -169,6 +255,14 @@ def initialize_callbacks(config: Config, model_version_path: Path):
         if callback_config.name == "mlflow":
             callback = MLFlowLogger(
                 experiment=callback_config.experiment, run_name=config.data.experiment
+            )
+        elif callback_config.name == "pruning":
+            callback = KerasPruningCallback(
+                study_name=callback_config.study_name,
+                trial_id=callback_config.trial_id,
+                study_log_file=callback_config.study_log_file,
+                monitor=callback_config.monitor,
+                interval=callback_config.interval,
             )
         else:
             callback_info = callback_dict[callback_config.name]

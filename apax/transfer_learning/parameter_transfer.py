@@ -1,14 +1,33 @@
 import logging
+from typing import Union
 
-from flax.core.frozen_dict import freeze, unfreeze
+from flax.core.frozen_dict import FrozenDict, freeze, unfreeze
+from flax.training.train_state import TrainState
 from flax.traverse_util import flatten_dict, unflatten_dict
 
+from apax.config.train_config import TransferLearningConfig
 from apax.train.checkpoints import load_params
 
 log = logging.getLogger(__name__)
 
 
-def black_list_param_transfer(source_params, target_params, param_black_list):
+def black_list_param_transfer(
+    source_params: Union[FrozenDict, dict],
+    target_params: Union[FrozenDict, dict],
+    param_black_list: list[str],
+) -> FrozenDict:
+    """Transfer parameters from one dictionary to another, while keeping
+        some key-value pairs unchanged.
+
+    Args:
+        source_params (Union[FrozenDict, dict]): source parameters
+        target_params (Union[FrozenDict, dict]): target parameters
+        param_black_list (list[str]): list of keys to keep unchanged.
+
+    Returns:
+        transfered_target (dict): target_params with key-value pairs updated.
+
+    """
     source_params = unfreeze(source_params)
     target_params = unfreeze(target_params)
 
@@ -24,7 +43,19 @@ def black_list_param_transfer(source_params, target_params, param_black_list):
     return transfered_target
 
 
-def transfer_parameters(state, ckpt_config):
+def transfer_parameters(
+    state: TrainState, ckpt_config: TransferLearningConfig
+) -> TrainState:
+    """Transfer the parameters from the checkpoint to the train state.
+
+    Args:
+        state (TrainState): train state
+        ckpt_config (TransferLearningConfig): transfer learning configuration
+
+    Returns:
+        state (TrainState): TrainState with the `params` attribute updated
+            according to the transfer learning configuration.
+    """
     source_params = load_params(ckpt_config.base_model_checkpoint)
     log.info("Transferring parameters from %s", ckpt_config.base_model_checkpoint)
     params = black_list_param_transfer(
