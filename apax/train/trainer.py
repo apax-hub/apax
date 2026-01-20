@@ -281,7 +281,7 @@ def make_ensemble_eval(update_fn: Callable) -> Callable:
     return ensemble_eval_fn
 
 
-def make_step_fns(loss_fn, Metrics, model, is_ensemble):
+def make_step_fns(loss_fn, Metrics, model, is_ensemble, return_predictions=False):
     loss_calculator = partial(calc_loss, loss_fn=loss_fn, model=model)
     grad_fn = jax.value_and_grad(loss_calculator, 0, has_aux=True)
 
@@ -320,6 +320,9 @@ def make_step_fns(loss_fn, Metrics, model, is_ensemble):
             inputs=inputs, label=labels, prediction=predictions
         )
         batch_metrics = batch_metrics.merge(new_batch_metrics)
-        return loss, batch_metrics
+        if return_predictions:
+            return loss, batch_metrics, predictions
+        else:
+            return loss, batch_metrics
 
     return train_step, val_step
