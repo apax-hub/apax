@@ -59,7 +59,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(dtype)
 
-        dr = jnp.clip(dr, a_min=0.02, a_max=self.r_max)
+        dr = jnp.clip(dr, min=0.02, max=self.r_max)
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
 
         # Ensure positive parameters
@@ -107,7 +107,7 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(dtype)
 
-        dr = jnp.clip(dr, a_min=0.02, a_max=self.r_max)
+        dr = jnp.clip(dr, min=0.02, max=self.r_max)
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
 
         # Ensure positive parameters

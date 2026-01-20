@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 import pathlib
@@ -97,7 +98,15 @@ class ApaxJaxMD(zntrack.Node):
             run_md(self.model.parameter, self.parameter, log_level="info")
 
     @property
-    def frames(self) -> typing.List[ase.Atoms]:
-        with self.state.fs.open(self.sim_dir / "md.h5", "rb") as f:
-            with h5py.File(f) as file:
-                return znh5md.IO(file_handle=file)[:]
+    def frames(self) -> znh5md.IO:
+        @contextlib.contextmanager
+        def _factory() -> typing.Callable[[], typing.ContextManager[h5py.File]]:
+            if self.state.rev is None and self.state.remote is None:
+                with h5py.File(self.sim_dir / "md.h5", "r") as file:
+                    yield file
+            else:
+                with self.state.fs.open(self.sim_dir / "md.h5", "rb") as f:
+                    with h5py.File(f) as file:
+                        yield file
+
+        return znh5md.IO(file_factory=_factory)

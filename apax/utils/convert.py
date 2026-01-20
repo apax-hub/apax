@@ -182,7 +182,7 @@ def atoms_to_labels(
                 labels[key].append(stress * atoms.cell.volume)
             elif key in property_names:
                 if len(val.shape) == 1 and val.shape[0] != 1:
-                    val = val[:,None]
+                    val = val[:, None]
                 labels[key].append(val)
 
     labels = prune_dict(labels)

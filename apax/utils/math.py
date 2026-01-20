@@ -21,3 +21,7 @@ def normed_dotp(F_0, F_pred):
 
     dotp = jnp.einsum("bai, bai -> ba", F_0_n, F_p_n)
     return dotp
+
+
+def center_of_mass(positions: Array, masses: Array):
+    return jnp.sum(masses[:, None] * positions, axis=0) / jnp.sum(masses)
