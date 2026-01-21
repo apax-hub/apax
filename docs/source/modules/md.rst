@@ -30,5 +30,3 @@ Molecular Dynamics
 
 .. automodule:: apax.md.sim_utils
     :members:
-
-
