@@ -6,7 +6,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import tree_util
-from jax.sharding import NamedSharding, PartitionSpec as P
+from jax.sharding import NamedSharding
+from jax.sharding import PartitionSpec as P
 from vesin import NeighborList
 
 log = logging.getLogger(__name__)

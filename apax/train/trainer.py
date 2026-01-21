@@ -11,7 +11,8 @@ from clu import metrics
 from flax.training.train_state import TrainState
 from jax import tree_util
 from jax.experimental import mesh_utils
-from jax.sharding import Mesh, NamedSharding, PartitionSpec as P
+from jax.sharding import Mesh, NamedSharding
+from jax.sharding import PartitionSpec as P
 from tqdm import trange
 
 from apax.data.input_pipeline import InMemoryDataset
