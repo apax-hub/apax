@@ -294,7 +294,7 @@ def run_sim(
         length = step * n_inner
         truncate_trajectory_to_checkpoint(traj_handler.traj_path, length)
 
-    initial_step = step # used for measuring time correctly
+    initial_step = step  # used for measuring time correctly
 
     n_outer = int(np.ceil(n_steps / n_inner))
     pbar_update_freq = int(np.ceil(500 / n_inner))
