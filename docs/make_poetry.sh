@@ -1,1 +1,1 @@
-poetry run sphinx-build -b html source build
+uv run sphinx-build -b html source build
