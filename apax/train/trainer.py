@@ -11,7 +11,8 @@ from clu import metrics
 from flax.training.train_state import TrainState
 from jax import tree_util
 from jax.experimental import mesh_utils
-from jax.sharding import PositionalSharding
+from jax.sharding import Mesh, NamedSharding
+from jax.sharding import PartitionSpec as P
 from tqdm import trange
 
 from apax.data.input_pipeline import InMemoryDataset
@@ -99,17 +100,19 @@ def fit(
 
     devices = len(jax.devices())
     if devices > 1 and data_parallel:
-        sharding = PositionalSharding(mesh_utils.create_device_mesh((devices,)))
-        state = jax.device_put(state, sharding.replicate())
+        devices = mesh_utils.create_device_mesh((jax.device_count(),))
+        mesh = Mesh(devices, axis_names=("data",))
+        replicated_sharding = NamedSharding(mesh, P())
+        state = jax.device_put(state, replicated_sharding)
     else:
-        sharding = None
+        mesh = None
 
     train_steps_per_epoch = train_ds.steps_per_epoch()
-    batch_train_ds = train_ds.shuffle_and_batch(sharding)
+    batch_train_ds = train_ds.shuffle_and_batch(mesh)
 
     if val_ds is not None:
         val_steps_per_epoch = val_ds.steps_per_epoch()
-        batch_val_ds = val_ds.batch(sharding)
+        batch_val_ds = val_ds.batch(mesh)
 
     best_loss = np.inf
     early_stopping_counter = 0

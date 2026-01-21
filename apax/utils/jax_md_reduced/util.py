@@ -20,7 +20,6 @@ from typing import Any, Iterable, Optional, Union
 import jax.numpy as jnp
 import numpy as onp
 from jax import jit, tree_util
-from jax.lib import xla_bridge
 
 Array = jnp.ndarray
 PyTree = Any
@@ -49,10 +48,7 @@ def check_custom_simulation_type(x: Any) -> bool:
 def static_cast(*xs):
     """Function to cast a value to the lowest dtype that can express it."""
     # NOTE(schsam): static_cast is so named because it cannot be jit.
-    if xla_bridge.get_backend().platform == "tpu":
-        return (jnp.array(x, jnp.float32) for x in xs)
-    else:
-        return (jnp.array(x, dtype=onp.min_scalar_type(x)) for x in xs)
+    return (jnp.array(x, dtype=onp.min_scalar_type(x)) for x in xs)
 
 
 def register_pytree_namedtuple(cls):

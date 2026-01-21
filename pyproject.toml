@@ -10,16 +10,16 @@ authors = [
 ]
 license = "MIT"
 
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "ase>=3.24.0",
     "clu>=0.0.12",
     "e3x>=1.0.2",
     "einops>=0.8.0",
     "flax>=0.10.6",
-    "jax==0.6.2",  # pinned until https://github.com/apax-hub/apax/issues/475
+    "jax>=0.7.0",  # pinned until https://github.com/apax-hub/apax/issues/475
     "lazy-loader>=0.4",
-    "numpy>=1.23",
+    "numpy>=2.0.0",
     "optax>=0.2.4",
     "orbax-checkpoint>=0.11.0",
     "pydantic>=2.10.5",
