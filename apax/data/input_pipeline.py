@@ -224,7 +224,7 @@ class InMemoryDataset:
         signature = (input_signature, label_signature)
         return signature
 
-    def init_input(self) -> Dict[str, np.ndarray]:
+    def init_input(self) -> tuple[Dict[str, np.ndarray], np.ndarray]:
         """Returns first batch of inputs and labels to init the model."""
         positions = self.sample_atoms.positions * unit_dict[self.pos_unit]
         box = self.sample_atoms.cell.array * unit_dict[self.pos_unit]
@@ -244,10 +244,10 @@ class InMemoryDataset:
     def __iter__(self):
         raise NotImplementedError
 
-    def shuffle_and_batch(self):
+    def shuffle_and_batch(self, mesh=None):
         raise NotImplementedError
 
-    def batch(self) -> Iterator[jax.Array]:
+    def batch(self, mesh=None) -> Iterator[jax.Array]:
         raise NotImplementedError
 
     def cleanup(self):
@@ -271,7 +271,7 @@ class CachedInMemoryDataset(InMemoryDataset):
                 space = self.n_data - self.count
             self.enqueue(space)
 
-    def shuffle_and_batch(self, sharding=None):
+    def shuffle_and_batch(self, mesh=None):
         """Shuffles and batches the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
 
@@ -291,10 +291,10 @@ class CachedInMemoryDataset(InMemoryDataset):
         ds = ds.shuffle(
             buffer_size=self.buffer_size, reshuffle_each_iteration=True
         ).batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, sharding)
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, mesh)
         return ds
 
-    def batch(self, sharding=None) -> Iterator[jax.Array]:
+    def batch(self, mesh=None) -> Iterator[jax.Array]:
         ds = (
             tf.data.Dataset.from_generator(
                 lambda: self, output_signature=self.make_signature()
@@ -303,7 +303,7 @@ class CachedInMemoryDataset(InMemoryDataset):
             .repeat(self.n_epochs)
         )
         ds = ds.batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, sharding)
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, mesh)
         return ds
 
     def cleanup(self):
