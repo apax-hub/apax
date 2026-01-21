@@ -11,7 +11,7 @@ def compute_calibration_factors(
     calc: ASECalculator,
     atoms_list: list[Atoms],
     batch_size: int = 32,
-    criterion: str = "ma_cal",
+    criterion: str = "nll",
     shared_factor=False,
     optimizer_bounds: Tuple[float, float] = (1e-2, 1e2),
 ) -> Tuple[float, float]:
@@ -26,7 +26,8 @@ def compute_calibration_factors(
     batch_size: int, default = 32
         Processing batch size. Choose the largest allowed by your VRAM.
     criterion: str, default = "ma_cal
-        Calibration criterion. See uncertainty_toolbox for more details.
+        Calibration criterion. Currently available: "nll", "ma_cal", "rms_cal", "miscal".
+        We generally recommend "nll".
     shared_factor: bool, default = False
         Whether or not to calibrate energies and forces separately.
     optimizer_bounds: Tuple[float, float], default = (1e-2, 1e2)
@@ -51,6 +52,18 @@ def compute_calibration_factors(
     Estd = np.array([a.calc.results["energy_uncertainty"] for a in new_atoms]) / num_atoms
     Fstd = np.reshape([a.calc.results["forces_uncertainty"] for a in new_atoms], (-1,))
 
+
+    if criterion == "nll":
+        Eerr = Etrue - Epred
+        e_factor = np.sqrt( np.mean( (Eerr**2) / (Estd**2) ) )
+        if shared_factor:
+            f_factor = e_factor
+        else:
+            Ferr = Ftrue - Fpred
+            f_factor = np.sqrt( np.mean( (Ferr**2) / (Fstd**2) ) )
+
+        return e_factor, f_factor
+
     e_factor = uct.optimize_recalibration_ratio(
         Epred, Estd, Etrue, criterion, optimizer_bounds=optimizer_bounds
     )
@@ -62,4 +75,4 @@ def compute_calibration_factors(
             Fpred, Fstd, Ftrue, criterion, optimizer_bounds=optimizer_bounds
         )
 
-    return 1 / e_factor, 1 / f_factor
+    return e_factor, f_factor
