@@ -52,15 +52,14 @@ def compute_calibration_factors(
     Estd = np.array([a.calc.results["energy_uncertainty"] for a in new_atoms]) / num_atoms
     Fstd = np.reshape([a.calc.results["forces_uncertainty"] for a in new_atoms], (-1,))
 
-
     if criterion == "nll":
         Eerr = Etrue - Epred
-        e_factor = np.sqrt( np.mean( (Eerr**2) / (Estd**2) ) )
+        e_factor = np.sqrt(np.mean((Eerr**2) / (Estd**2)))
         if shared_factor:
             f_factor = e_factor
         else:
             Ferr = Ftrue - Fpred
-            f_factor = np.sqrt( np.mean( (Ferr**2) / (Fstd**2) ) )
+            f_factor = np.sqrt(np.mean((Ferr**2) / (Fstd**2)))
 
         return e_factor, f_factor
 
