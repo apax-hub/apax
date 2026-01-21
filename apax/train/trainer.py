@@ -101,7 +101,7 @@ def fit(
     devices = len(jax.devices())
     if devices > 1 and data_parallel:
         devices = mesh_utils.create_device_mesh((jax.device_count(),))
-        mesh = Mesh(devices, axis_names=('data',))
+        mesh = Mesh(devices, axis_names=("data",))
         replicated_sharding = NamedSharding(mesh, P())
         state = jax.device_put(state, replicated_sharding)
     else:

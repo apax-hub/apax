@@ -93,7 +93,7 @@ def prefetch_to_single_device(iterator, size: int, mesh=None):
 
     def _prefetch(x: jax.Array):
         if mesh:
-            data_sharding = NamedSharding(mesh, P('data'))
+            data_sharding = NamedSharding(mesh, P("data"))
             x = jax.device_put(x, data_sharding)
         else:
             x = jnp.asarray(x)
