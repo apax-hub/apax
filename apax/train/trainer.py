@@ -105,7 +105,7 @@ def fit(
         state = jax.device_put(state, replicated_sharding)
     else:
         mesh = None
-    
+
     train_steps_per_epoch = train_ds.steps_per_epoch()
     batch_train_ds = train_ds.shuffle_and_batch(mesh)
 
