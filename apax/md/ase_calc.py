@@ -6,7 +6,7 @@ import ase
 import jax
 import jax.numpy as jnp
 import numpy as np
-from ase.calculators.calculator import Calculator, all_changes
+from ase.calculators.calculator import Calculator, all_changes, all_properties
 from ase.calculators.singlepoint import SinglePointCalculator
 from flax.core.frozen_dict import freeze, unfreeze
 from jax import tree_util
@@ -162,20 +162,46 @@ class ASECalculator(Calculator):
         self.padding_factor = padding_factor
         self.padded_length = 0
 
-        if self.model_config.model.calc_stress:
-            self.implemented_properties.append("stress")
-
-        if self.n_models > 1:
-            uncertainty_kws = [
-                prop + "_uncertainty" for prop in self.implemented_properties
-            ]
-            self.implemented_properties += uncertainty_kws
+        self._update_implemented_properties()
 
         self.step = None
         self.neighbor_fn = None
         self.neighbors = None
         self.offsets = None
         self.model = None
+
+    def _update_implemented_properties(self):
+        """
+        Dynamically determines the properties this model produces based on its config,
+        including custom heads, stress, and ensemble uncertainties.
+        Updates ASE's global all_properties to ensure compatibility.
+        """
+        props = ["energy", "forces"]
+        
+        self.n_models = check_for_ensemble(self.params)
+        
+        if self.n_models > 1:
+            suffixes = ["_uncertainty", "_ensemble"]
+
+            base_props = list(props)
+            for p in base_props:
+                for suff in suffixes:
+                    props.append(f"{p}{suff}")
+
+        if self.model_config.model.model_dump().get("calc_stress", False):
+            if "stress" not in props:
+                props.append("stress")
+
+        if hasattr(self.model_config.model, "property_heads"):
+            for head in self.model_config.model.property_heads:
+                if head.name not in props:
+                    props.append(head.name)
+
+        for p in props:
+            if p not in all_properties:
+                all_properties.append(p)
+
+        self.implemented_properties = props
 
     def initialize(self, atoms):
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)

@@ -6,6 +6,7 @@ import numpy as np
 import znh5md
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
+from ase.calculators.calculator import all_properties
 
 from apax.md.sim_utils import System
 from apax.utils.helpers import APAX_PROPERTIES
@@ -31,6 +32,7 @@ class TrajHandler:
         self.traj_path = traj_path
         self.time_step = time_step
         self.properties = properties
+        self.has_registered_properties = False
 
     def step(self, state_and_energy, transform=None):
         pass
@@ -43,6 +45,11 @@ class TrajHandler:
 
     def reset_buffer(self):
         pass
+
+    def register_properties(self, new_props: list[str]):
+        for prop in new_props:
+            if prop not in all_properties:
+                all_properties.append(prop)
 
     def atoms_from_state(self, state, predictions, nbr_kwargs):
         if "box" in nbr_kwargs.keys():
@@ -57,7 +64,6 @@ class TrajHandler:
 
         positions = np.asarray(positions)
         momenta = np.asarray(state.momentum)
-        forces = np.asarray(state.force)
 
         atoms = Atoms(self.atomic_numbers, positions, momenta=momenta, cell=box)
         atoms.cell = atoms.cell.T
@@ -65,6 +71,9 @@ class TrajHandler:
         predictions = {k: np.array(v) for k, v in predictions.items()}
         predictions["energy"] = predictions["energy"].item()
         predictions = {k: v for k, v in predictions.items() if k in self.properties}
+        if not self.has_registered_properties:
+            self.has_registered_properties = True
+            self.register_properties(list(predictions.keys()))
         atoms.calc = SinglePointCalculator(atoms, **predictions)
         return atoms
 
@@ -87,6 +96,8 @@ class H5TrajHandler(TrajHandler):
         self.traj_path = traj_path
         self.time_step = time_step
         self.properties = properties
+        self.has_registered_properties = False
+
         if h5md_options is None:
             h5md_options = {}
         self.db = znh5md.IO(
