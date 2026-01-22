@@ -14,6 +14,7 @@ from ase.io import read, write
 
 from apax.config import Config, MDConfig
 from apax.md import run_md
+from apax.md.function_transformations import UncertaintyDrivenDynamics
 from apax.md.ase_calc import ASECalculator
 from apax.utils import jax_md_reduced, math
 from tests.conftest import load_config_and_run_training
@@ -162,8 +163,10 @@ def test_ase_calc(get_tmp_path):
     mngr.wait_until_finished()
 
     atoms = read(initial_structure_path.as_posix())
+    transformations = [UncertaintyDrivenDynamics(height=0.1, width=1.0)]
     calc = ASECalculator(
-        [model_config.data.model_version_path, model_config.data.model_version_path]
+        [model_config.data.model_version_path, model_config.data.model_version_path],
+        transformations=transformations,
     )
 
     atoms.calc = calc
@@ -178,6 +181,8 @@ def test_ase_calc(get_tmp_path):
     assert "energy_uncertainty" in atoms.calc.results.keys()
     assert "forces_uncertainty" in atoms.calc.results.keys()
     assert "stress_uncertainty" in atoms.calc.results.keys()
+    assert "charge" in atoms.calc.results.keys()
+    assert "energy_unbiased" in atoms.calc.results.keys()
 
 
 @pytest.mark.parametrize("num_data", (30,))
