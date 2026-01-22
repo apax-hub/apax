@@ -14,7 +14,7 @@ def setup_data():
     idx = None
     box = jnp.array([[3.0, 0.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]])
     properties = {
-        "charge": jnp.array([1.0, -1.0, 1.0, -1.0])[:, None]
+        "charges": jnp.array([1.0, -1.0, 1.0, -1.0])[:, None]
     }  # Charges on atoms
 
     return R, dr_vec, Z, idx, box, properties
@@ -26,7 +26,7 @@ def test_latent_ewald(setup_data):
     latent_ewald = LatentEwald(apply_mask=True, sigma=1.0, kgrid=[2, 2, 2])
 
     # Check for KeyError if "charge" property is missing
-    with pytest.raises(KeyError, match="property 'charge' not found"):
+    with pytest.raises(KeyError, match="property 'charges' not found"):
         latent_ewald(R, dr_vec, Z, idx, box, {})
 
     energy = latent_ewald(R, dr_vec, Z, idx, box, properties)
