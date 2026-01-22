@@ -177,9 +177,9 @@ class ASECalculator(Calculator):
         Updates ASE's global all_properties to ensure compatibility.
         """
         props = ["energy", "forces"]
-        
+
         self.n_models = check_for_ensemble(self.params)
-        
+
         if self.n_models > 1:
             suffixes = ["_uncertainty", "_ensemble"]
 
