@@ -19,6 +19,7 @@ APAX_PROPERTIES = [
     "charges",
 ]
 
+
 def mod_config(config_path, updated_config):
     with open(config_path.as_posix(), "r") as stream:
         config_dict = yaml.safe_load(stream)
