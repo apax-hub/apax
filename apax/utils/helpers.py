@@ -2,7 +2,6 @@ import csv
 
 import yaml
 
-
 # default whitelist of properties for jaxMD
 APAX_PROPERTIES = [
     "energy",

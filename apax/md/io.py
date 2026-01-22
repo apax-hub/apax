@@ -5,8 +5,8 @@ import h5py
 import numpy as np
 import znh5md
 from ase import Atoms
-from ase.calculators.singlepoint import SinglePointCalculator
 from ase.calculators.calculator import all_properties
+from ase.calculators.singlepoint import SinglePointCalculator
 
 from apax.md.sim_utils import System
 from apax.utils.helpers import APAX_PROPERTIES

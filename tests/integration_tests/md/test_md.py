@@ -14,8 +14,8 @@ from ase.io import read, write
 
 from apax.config import Config, MDConfig
 from apax.md import run_md
-from apax.md.function_transformations import UncertaintyDrivenDynamics
 from apax.md.ase_calc import ASECalculator
+from apax.md.function_transformations import UncertaintyDrivenDynamics
 from apax.utils import jax_md_reduced, math
 from tests.conftest import load_config_and_run_training
 
