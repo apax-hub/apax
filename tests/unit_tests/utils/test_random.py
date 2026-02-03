@@ -1,6 +1,8 @@
 import random
+
 import numpy as np
 import tensorflow as tf
+
 from apax.utils.random import seed_py_np_tf
 
 
