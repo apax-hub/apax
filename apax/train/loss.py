@@ -1,7 +1,6 @@
 import dataclasses
 from typing import Callable, Dict, List
 
-import jax
 import jax.numpy as jnp
 import jax.scipy as jsc
 import numpy as np

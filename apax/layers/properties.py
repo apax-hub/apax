@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict
+from typing import Callable, Dict
 
 import flax.linen as nn
 import jax
