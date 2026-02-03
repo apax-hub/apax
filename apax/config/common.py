@@ -1,7 +1,7 @@
 import logging
 import os
 from collections.abc import MutableMapping
-from typing import Any, Dict, List, Tuple, Union, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
