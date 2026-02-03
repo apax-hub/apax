@@ -29,7 +29,7 @@ class VesinNeighborListWrapper:
             max_sq_disp = ((self._last_positions - positions) ** 2).sum(axis=1).max()
             if max_sq_disp > self.skin**2 / 4.0:
                 recompute = True
-            
+
             # Check for cell change
             if not np.allclose(cell, self._last_cell):
                 recompute = True
@@ -55,7 +55,7 @@ class VesinNeighborListWrapper:
             padded_idxs_i = np.pad(idxs_i, (0, zeros_to_add), "constant").astype(np.int32)
             padded_idxs_j = np.pad(idxs_j, (0, zeros_to_add), "constant").astype(np.int32)
             padded_offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
-            
+
             padded_offsets = np.matmul(padded_offsets, cell)
 
 

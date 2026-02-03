@@ -20,7 +20,7 @@ def test_initial_update(vesin_wrapper, sample_atoms):
     with patch('apax.md.vesin_neighborlist.NeighborList') as mock_nl_class:
         mock_nl_instance = MagicMock()
         mock_nl_class.return_value = mock_nl_instance
-        
+
         # Simulate compute returning some data
         mock_nl_instance.compute.return_value = (
             np.array([0, 1]),  # idx_i
@@ -43,12 +43,12 @@ def test_initial_update(vesin_wrapper, sample_atoms):
 
         assert np.all(vesin_wrapper._last_positions == sample_atoms.positions)
         assert np.all(vesin_wrapper._last_cell == sample_atoms.cell.array)
-        
+
 def test_no_recomputation_on_no_change(vesin_wrapper, sample_atoms):
     with patch('apax.md.vesin_neighborlist.NeighborList') as mock_nl_class:
         mock_nl_instance = MagicMock()
         mock_nl_class.return_value = mock_nl_instance
-        
+
         # Initial call
         mock_nl_instance.compute.return_value = (
             np.array([0, 1]),
@@ -68,16 +68,16 @@ def test_recomputation_on_position_change(vesin_wrapper, sample_atoms):
     with patch('apax.md.vesin_neighborlist.NeighborList') as mock_nl_class:
         mock_nl_instance = MagicMock()
         mock_nl_class.return_value = mock_nl_instance
-        
+
         mock_nl_instance.compute.return_value = (
             np.array([0, 1]),
             np.array([1, 0]),
             np.array([[0,0,0], [0,0,0]])
         )
         vesin_wrapper.update(sample_atoms)
-        
+
         sample_atoms.positions[0, 0] += 0.4
-        
+
         # Ensure compute is called again
         mock_nl_instance.compute.reset_mock()
         vesin_wrapper.update(sample_atoms)
@@ -87,17 +87,17 @@ def test_recomputation_on_cell_change(vesin_wrapper, sample_atoms):
     with patch('apax.md.vesin_neighborlist.NeighborList') as mock_nl_class:
         mock_nl_instance = MagicMock()
         mock_nl_class.return_value = mock_nl_instance
-        
+
         mock_nl_instance.compute.return_value = (
             np.array([0, 1]),
             np.array([1, 0]),
             np.array([[0,0,0], [0,0,0]])
         )
         vesin_wrapper.update(sample_atoms)
-        
+
         # Change cell (any change should trigger recomputation)
         sample_atoms.cell[0, 0] += 0.3
-        
+
         # Ensure compute is called again
         mock_nl_instance.compute.reset_mock()
         vesin_wrapper.update(sample_atoms)
@@ -107,7 +107,7 @@ def test_padding_and_overflow(vesin_wrapper, sample_atoms):
     with patch('apax.md.vesin_neighborlist.NeighborList') as mock_nl_class:
         mock_nl_instance = MagicMock()
         mock_nl_class.return_value = mock_nl_instance
-        
+
         # Initial smaller NL
         mock_nl_instance.compute.return_value = (
             np.array([0]),
@@ -117,7 +117,7 @@ def test_padding_and_overflow(vesin_wrapper, sample_atoms):
         vesin_wrapper.update(sample_atoms)
         initial_padded_length = vesin_wrapper._padded_length
         # int(1 * 1.5) = 1
-        assert initial_padded_length == 1 
+        assert initial_padded_length == 1
 
         # Simulate a larger NL that causes overflow
         mock_nl_instance.compute.return_value = (
@@ -126,13 +126,13 @@ def test_padding_and_overflow(vesin_wrapper, sample_atoms):
             np.array([[0,0,0], [0,0,0], [0,0,0], [0,0,0]])
         )
         mock_nl_instance.compute.reset_mock()
-        
+
         # Trigger recomputation by changing positions
         sample_atoms.positions[0, 0] += 0.5
-        
+
         vesin_wrapper.update(sample_atoms)
         mock_nl_instance.compute.assert_called_once() # Should recompute
-        
+
         # New padded length should be based on the new, larger NL size
         # int(4 * 1.5) = 6
         assert vesin_wrapper._padded_length == 6
