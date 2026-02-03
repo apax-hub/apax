@@ -1,8 +1,8 @@
-import numpy as np
 import jax.numpy as jnp
+import numpy as np
 import pytest
-from apax.utils.convert import prune_dict, str_to_dtype, transpose_dict_of_lists
 
+from apax.utils.convert import prune_dict, str_to_dtype, transpose_dict_of_lists
 
 
 def test_transpose_dict_of_lists():
