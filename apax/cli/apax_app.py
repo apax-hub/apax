@@ -3,7 +3,7 @@ import importlib.resources as pkg_resources
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
 
 import typer
 import yaml

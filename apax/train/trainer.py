@@ -2,7 +2,7 @@ import logging
 import time
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp

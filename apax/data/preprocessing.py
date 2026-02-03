@@ -1,7 +1,7 @@
 import collections
 import itertools
 import logging
-from typing import Any, Deque, Iterator, Optional, Tuple
+from typing import Deque, Iterator, Optional, Tuple
 
 import jax
 import jax.numpy as jnp

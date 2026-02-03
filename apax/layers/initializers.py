@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any
 
 import jax.numpy as jnp
 from jax import random
