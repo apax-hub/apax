@@ -1,4 +1,7 @@
-def mask_by_atom(arr, Z):
+from jax import Array
+
+
+def mask_by_atom(arr: Array, Z: Array) -> Array:
     mask = (Z != 0).astype(arr.dtype)
     axes_to_add = len(arr.shape) - 1
     for _ in range(axes_to_add):
@@ -7,7 +10,7 @@ def mask_by_atom(arr, Z):
     return masked_arr
 
 
-def mask_by_neighbor(arr, idx):
+def mask_by_neighbor(arr: Array, idx: Array) -> Array:
     mask = ((idx[0] - idx[1]) != 0).astype(arr.dtype)
     if len(arr.shape) == 2:
         mask = mask[..., None]

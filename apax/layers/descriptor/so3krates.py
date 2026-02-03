@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Callable
 
 import e3x
 import flax.linen as nn
@@ -16,12 +16,12 @@ from apax.layers.descriptor.basis_functions import BesselBasis
 from apax.utils.convert import str_to_dtype
 
 
-def get_node_mask(Z):
+def get_node_mask(Z: Array) -> Array:
     mask = (Z != 0).astype(jnp.int16)
     return mask
 
 
-def get_neighbor_mask(idx):
+def get_neighbor_mask(idx: Array) -> Array:
     mask = ((idx[0] - idx[1]) != 0).astype(jnp.int16)
     return mask
 
@@ -46,7 +46,7 @@ class So3kratesRepresentation(nn.Module):
         dr_vec: Array,
         Z: Array,
         idx: Array,
-    ):
+    ) -> Array:
         dtype = str_to_dtype(self.dtype)
         dr_vec = dr_vec.astype(dtype)
 
@@ -64,8 +64,8 @@ class So3kratesRepresentation(nn.Module):
 
         r_ij = e3x.ops.norm(R_ij, axis=-1)  # -> [pairs]
 
-        cutoff_fn = getattr(e3x.nn.functions, self.cutoff_fn)
-        cutoffs = cutoff_fn(r_ij, cutoff=self.basis_fn.r_max)  # -> [pairs]
+        cutoff_fn_myrto: Callable = getattr(e3x.nn.functions, self.cutoff_fn)
+        cutoffs = cutoff_fn_myrto(r_ij, cutoff=self.basis_fn.r_max)  # -> [pairs]
         cutoffs *= pair_mask
 
         neighborhood_sizes = jax.ops.segment_sum(cutoffs, i, num_segments=Z_i.shape[0])[

@@ -2,6 +2,7 @@ import logging
 import time
 from functools import partial
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -9,7 +10,8 @@ import numpy as np
 import orbax.checkpoint as ocp
 from ase import units
 from ase.io import read
-from jax import tree_util
+from flax.core.frozen_dict import FrozenDict
+from jax import Array, tree_util
 from jax.experimental import io_callback
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
@@ -26,6 +28,7 @@ from apax.md.constraints import Constraint, ConstraintBase
 from apax.md.dynamics_checks import DynamicsCheckBase, DynamicsChecks
 from apax.md.io import H5TrajHandler, TrajHandler, truncate_trajectory_to_checkpoint
 from apax.md.md_checkpoint import load_md_state
+from apax.md.schedules import TSchedule
 from apax.md.sim_utils import SimulationFunctions, System
 from apax.train.checkpoints import (
     canonicalize_energy_model_parameters,
@@ -39,19 +42,35 @@ log = logging.getLogger(__name__)
 
 
 def create_energy_fn(
-    model,
-    params,
-    numbers,
-    n_models,
-    shallow=False,
-):
-    def full_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
+    model: Callable,
+    params: FrozenDict,
+    numbers: Array,
+    n_models: int,
+    shallow: bool = False,
+) -> Callable:
+    def full_ensemble(
+        params: FrozenDict,
+        R: Array,
+        Z: Array,
+        neighbor: partition.NeighborList,
+        box: Array,
+        offsets: Array,
+        perturbation: Optional[Array] = None,
+    ) -> Array:
         vmodel = jax.vmap(model, (0, None, None, None, None, None, None), 0)
         energies, _ = vmodel(params, R, Z, neighbor, box, offsets, perturbation)
         energy = jnp.mean(energies)
         return energy
 
-    def shallow_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
+    def shallow_ensemble(
+        params: FrozenDict,
+        R: Array,
+        Z: Array,
+        neighbor: partition.NeighborList,
+        box: Array,
+        offsets: Array,
+        perturbation: Optional[Array] = None,
+    ) -> Array:
         energies, _ = model(params, R, Z, neighbor, box, offsets, perturbation)
         energy = jnp.mean(energies)
         return energy
@@ -74,7 +93,7 @@ def create_energy_fn(
     return energy_fn
 
 
-def heights_of_box_sides(box):
+def heights_of_box_sides(box: np.ndarray) -> np.ndarray:
     heights = []
 
     for i in range(len(box)):
@@ -88,16 +107,20 @@ def heights_of_box_sides(box):
     return np.array(heights)
 
 
-def nbr_update_options_default(state):
+def nbr_update_options_default(state: simulate.NVEState) -> Dict:
     return {}
 
 
-def nbr_update_options_npt(state):
+def nbr_update_options_npt(state: simulate.NPTNoseHooverState) -> Dict[str, Array]:
     box = simulate.npt_box(state)
     return {"box": box}
 
 
-def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
+def get_ensemble(
+    ensemble: Integrator,
+    sim_fns: SimulationFunctions,
+    constaint_idxs: Optional[List[int]] = None,
+) -> Tuple[Callable, Callable, TSchedule, Callable]:
     energy, shift = sim_fns.energy_fn, sim_fns.shift_fn
 
     dt = ensemble.dt * units.fs
@@ -147,7 +170,14 @@ def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
     return init_fn, apply_fn, kT, nbr_options
 
 
-def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_ckpt):
+def handle_checkpoints(
+    state: Any,
+    step: int,
+    system: System,
+    load_momenta: bool,
+    ckpt_dir: Path,
+    should_load_ckpt: bool,
+) -> Tuple[Any, int]:
     if load_momenta and not should_load_ckpt:
         log.info("loading momenta from starting configuration")
         state = state.set(momentum=system.momenta)
@@ -157,10 +187,19 @@ def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_
     return state, step
 
 
-def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_checks):
+def create_evaluation_functions(
+    aux_fn: Callable,
+    positions: Array,
+    Z: Array,
+    neighbor: partition.NeighborList,
+    box: Array,
+    dynamics_checks: List[DynamicsCheckBase],
+) -> Tuple[Callable, Callable]:
     offsets = jnp.zeros((neighbor.idx.shape[1], 3))
 
-    def on_eval(positions, neighbor, box):
+    def on_eval(
+        positions: Array, neighbor: partition.NeighborList, box: Array
+    ) -> Tuple[Dict, bool]:
         predictions = aux_fn(positions, Z, neighbor, box, offsets)
         all_checks_passed = True
 
@@ -172,7 +211,9 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_ch
     predictions = aux_fn(positions, Z, neighbor, box, offsets)
     dummpy_preds = tree_util.tree_map(lambda x: jnp.zeros_like(x), predictions)
 
-    def no_eval(positions, neighbor, box):
+    def no_eval(
+        positions: Array, neighbor: partition.NeighborList, box: Array
+    ) -> Tuple[Dict, bool]:
         predictions = dummpy_preds
         all_checks_passed = True
         return predictions, all_checks_passed
@@ -180,9 +221,9 @@ def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_ch
     return on_eval, no_eval
 
 
-def check_unique_idxs(constraind_idxs):
-    unique_idxs = []
-    seen_idxs = set()
+def check_unique_idxs(constraind_idxs: List[Array]) -> List[int]:
+    unique_idxs: List[int] = []
+    seen_idxs: set[int] = set()
 
     for idxs in constraind_idxs:
         for val in idxs:
@@ -194,44 +235,47 @@ def check_unique_idxs(constraind_idxs):
     return unique_idxs
 
 
-def create_constraint_function(constraints: list[ConstraintBase], system):
-    constrain_fns = []
-    constraind_idxs = []
+def create_constraint_function(
+    constraints: List[ConstraintBase], system: System
+) -> Tuple[Callable, List[int]]:
+    constrain_fns: List[Callable] = []
+    constraind_idxs: List[Array] = []
 
     for constraint in constraints:
         constrain_fn, idx = constraint.create(system)
         constrain_fns.append(constrain_fn)
         constraind_idxs.append(idx)
 
+    unique_idxs = []
     if constraind_idxs:
-        constraind_idxs = check_unique_idxs(constraind_idxs)
+        unique_idxs = check_unique_idxs(constraind_idxs)
 
-    def apply_constraints(state):
+    def apply_constraints(state: System) -> System:
         for fn in constrain_fns:
             state = fn(state)
 
         return state
 
-    return apply_constraints, constraind_idxs
+    return apply_constraints, unique_idxs
 
 
 def run_sim(
     system: System,
     sim_fns: SimulationFunctions,
-    ensemble,
+    ensemble: Integrator,
     sim_dir: Path,
     n_steps: int,
     n_inner: int,
     extra_capacity: int,
-    rng_key: int,
+    rng_key: Array,
     traj_handler: TrajHandler,
     load_momenta: bool = False,
     restart: bool = True,
     checkpoint_interval: int = 50_000,
-    dynamics_checks: list[DynamicsCheckBase] = [],
-    constraints: list[ConstraintBase] = [],
+    dynamics_checks: List[DynamicsCheckBase] = [],
+    constraints: List[ConstraintBase] = [],
     disable_pbar: bool = False,
-):
+) -> None:
     """
     Performs NVT MD.
 
@@ -309,12 +353,14 @@ def run_sim(
     )
 
     @jax.jit
-    def sim(state, outer_step, neighbor):  # TODO make more modular
-        def body_fn(i, state):
+    def sim(
+        state: System, outer_step: int, neighbor: partition.NeighborList
+    ) -> Tuple[System, partition.NeighborList, float, bool]:
+        def body_fn(i: int, state: Any) -> Tuple[System, int, partition.NeighborList, bool]:
             state, outer_step, neighbor, all_checks_passed = state
             step = i + outer_step * n_inner
 
-            apply_fn_kwargs = {}
+            apply_fn_kwargs: Dict[str, Any] = {}
             if isinstance(state, simulate.NPTNoseHooverState):
                 box = state.box
             else:
@@ -435,7 +481,9 @@ def run_sim(
     )
 
 
-def md_setup(model_config: Config, md_config: MDConfig):
+def md_setup(
+    model_config: Config, md_config: MDConfig
+) -> Tuple[System, SimulationFunctions]:
     """
     Sets up the energy and neighborlist functions for an MD simulation,
     loads the initial structure.
@@ -559,7 +607,11 @@ def md_setup(model_config: Config, md_config: MDConfig):
     return system, sim_fns
 
 
-def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
+def run_md(
+    model_config: Union[Config, Dict],
+    md_config: Union[MDConfig, Dict],
+    log_level: str = "error",
+) -> None:
     """
     Utiliy function to start NVT molecualr dynamics simulations from
     a previously trained model.
@@ -583,14 +635,14 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
 
     system, sim_fns = md_setup(model_config, md_config)
 
-    dynamics_checks = []
+    dynamics_checks: List[DynamicsCheckBase] = []
     if md_config.dynamics_checks:
         check_list = [
             DynamicsChecks(check.model_dump()) for check in md_config.dynamics_checks
         ]
         dynamics_checks.extend(check_list)
 
-    constraints = []
+    constraints: List[ConstraintBase] = []
     if md_config.constraints:
         constraint_list = [Constraint(c.model_dump()) for c in md_config.constraints]
         constraints.extend(constraint_list)

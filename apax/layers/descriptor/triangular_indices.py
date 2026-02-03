@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+from jax import Array
 
 # import numpy as np
 
@@ -25,7 +26,7 @@ import jax.numpy as jnp
 #     return jnp.asarray(indices)
 
 
-def tril_2d_indices(n_radial):
+def tril_2d_indices(n_radial: int) -> Array:
     tril_idxs = []
     for i in range(n_radial):
         tril_idxs.append([i, i])
@@ -35,7 +36,7 @@ def tril_2d_indices(n_radial):
     return tril_idxs
 
 
-def tril_3d_indices(n_radial):
+def tril_3d_indices(n_radial: int) -> Array:
     tril_idxs = []
     for i in range(n_radial):
         tril_idxs.append([i, i, i])

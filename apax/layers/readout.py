@@ -3,6 +3,7 @@ from typing import Any, Callable, List
 
 import flax.linen as nn
 import jax.numpy as jnp
+from jax import Array
 
 from apax.layers.activation import swish
 from apax.layers.ntk_linear import NTKLinear
@@ -19,7 +20,7 @@ class AtomisticReadout(nn.Module):
     is_feature_fn: bool = False
     dtype: Any = jnp.float32
 
-    def setup(self):
+    def setup(self) -> None:
         units = list(self.units)
         if not self.is_feature_fn:
             readout_unit = [1]
@@ -44,7 +45,7 @@ class AtomisticReadout(nn.Module):
                 dense.append(swish)
         self.sequential = nn.Sequential(dense, name="readout")
 
-    def __call__(self, x):
+    def __call__(self, x: Array) -> Array:
         h = self.sequential(x)
         # TODO should we move aggregation here?
         return h

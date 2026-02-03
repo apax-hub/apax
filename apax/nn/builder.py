@@ -1,9 +1,11 @@
 import logging
+from typing import Callable, Dict, List, Optional
 
 import numpy as np
 
 from apax.config import ModelConfig
 from apax.layers.descriptor import (
+    Descriptor,
     EquivMPRepresentation,
     GaussianMomentDescriptor,
     So3kratesRepresentation,
@@ -13,7 +15,7 @@ from apax.layers.descriptor.basis_functions import (
     GaussianBasis,
     RadialFunction,
 )
-from apax.layers.empirical import all_corrections
+from apax.layers.empirical import EmpiricalCorrection, all_corrections
 from apax.layers.properties import PropertyHead
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
@@ -28,11 +30,11 @@ log = logging.getLogger(__name__)
 
 
 class ModelBuilder:
-    def __init__(self, model_config: ModelConfig, n_species: int = 119):
+    def __init__(self, model_config: ModelConfig, n_species: int = 119) -> None:
         self.config = model_config
         self.n_species = n_species
 
-    def build_basis_function(self):
+    def build_basis_function(self) -> Callable:
         basis_config = self.config["basis"]
         name = basis_config["name"]
 
@@ -53,7 +55,7 @@ class ModelBuilder:
             raise ValueError("unknown basis requested")
         return basis_fn
 
-    def build_radial_function(self):
+    def build_radial_function(self) -> RadialFunction:
         basis_fn = self.build_basis_function()
 
         if self.config["basis"]["name"] == "gaussian":
@@ -76,13 +78,16 @@ class ModelBuilder:
 
     def build_descriptor(
         self,
-        apply_mask,
-    ):
+        apply_mask: bool,
+    ) -> Descriptor:
         raise NotImplementedError("use a subclass to facilitate this")
 
     def build_readout(
-        self, head_config, is_feature_fn=False, only_use_n_layers: None | int = None
-    ):
+        self,
+        head_config: Dict,
+        is_feature_fn: bool = False,
+        only_use_n_layers: Optional[int] = None,
+    ) -> Optional[AtomisticReadout]:
         has_ensemble = "ensemble" in head_config.keys() and head_config["ensemble"]
         if has_ensemble and head_config["ensemble"]["kind"] == "shallow":
             n_shallow_ensemble = head_config["ensemble"]["n_members"]
@@ -115,7 +120,9 @@ class ModelBuilder:
         )
         return readout
 
-    def build_scale_shift(self, scale, shift):
+    def build_scale_shift(
+        self, scale: float, shift: float
+    ) -> PerElementScaleShift:
         scale_shift = PerElementScaleShift(
             n_species=self.n_species,
             scale=scale,
@@ -124,7 +131,7 @@ class ModelBuilder:
         )
         return scale_shift
 
-    def build_property_heads(self, apply_mask: bool = True):
+    def build_property_heads(self, apply_mask: bool = True) -> List[PropertyHead]:
         property_heads = []
         for head in self.config["property_heads"]:
             readout = self.build_readout(head)
@@ -138,7 +145,7 @@ class ModelBuilder:
             property_heads.append(phead)
         return property_heads
 
-    def build_corrections(self, apply_mask: bool = True):
+    def build_corrections(self, apply_mask: bool = True) -> List[EmpiricalCorrection]:
         corrections = []
         for correction in self.config["empirical_corrections"]:
             correction = correction.copy()
@@ -154,12 +161,12 @@ class ModelBuilder:
 
     def build_energy_model(
         self,
-        scale=1.0,
-        shift=0.0,
-        apply_mask=True,
-        init_box: np.array = np.array([0.0, 0.0, 0.0]),
-        inference_disp_fn=None,
-    ):
+        scale: float = 1.0,
+        shift: float = 0.0,
+        apply_mask: bool = True,
+        init_box: np.ndarray = np.array([0.0, 0.0, 0.0]),
+        inference_disp_fn: Optional[Callable] = None,
+    ) -> EnergyModel:
         log.debug("Building atomistic model")
 
         descriptor = self.build_descriptor(apply_mask)
@@ -182,12 +189,12 @@ class ModelBuilder:
 
     def build_energy_derivative_model(
         self,
-        scale=1.0,
-        shift=0.0,
-        apply_mask=True,
-        init_box: np.array = np.array([0.0, 0.0, 0.0]),
-        inference_disp_fn=None,
-    ):
+        scale: float = 1.0,
+        shift: float = 0.0,
+        apply_mask: bool = True,
+        init_box: np.ndarray = np.array([0.0, 0.0, 0.0]),
+        inference_disp_fn: Optional[Callable] = None,
+    ) -> EnergyDerivativeModel:
         energy_model = self.build_energy_model(
             scale,
             shift,
@@ -217,12 +224,12 @@ class ModelBuilder:
 
     def build_feature_model(
         self,
-        only_use_n_layers=None,
-        apply_mask=True,
-        init_box: np.array = np.array([0.0, 0.0, 0.0]),
-        inference_disp_fn=None,
+        only_use_n_layers: Optional[int] = None,
+        apply_mask: bool = True,
+        init_box: np.ndarray = np.array([0.0, 0.0, 0.0]),
+        inference_disp_fn: Optional[Callable] = None,
         should_average: bool = True,
-    ):
+    ) -> FeatureModel:
         log.info("Building feature model")
         descriptor = self.build_descriptor(apply_mask)
         readout = self.build_readout(
@@ -243,8 +250,8 @@ class ModelBuilder:
 class GMNNBuilder(ModelBuilder):
     def build_descriptor(
         self,
-        apply_mask,
-    ):
+        apply_mask: bool,
+    ) -> Descriptor:
         radial_fn = self.build_radial_function()
         descriptor = GaussianMomentDescriptor(
             radial_fn=radial_fn,
@@ -258,8 +265,8 @@ class GMNNBuilder(ModelBuilder):
 class EquivMPBuilder(ModelBuilder):
     def build_descriptor(
         self,
-        apply_mask,
-    ):
+        apply_mask: bool,
+    ) -> Descriptor:
         descriptor = EquivMPRepresentation(
             features=self.config["features"],
             max_degree=self.config["max_degree"],
@@ -274,8 +281,8 @@ class EquivMPBuilder(ModelBuilder):
 class So3kratesBuilder(ModelBuilder):
     def build_descriptor(
         self,
-        apply_mask,
-    ):
+        apply_mask: bool,
+    ) -> Descriptor:
         descriptor = So3kratesRepresentation(
             basis_fn=self.build_basis_function(),
             num_layers=self.config["num_layers"],

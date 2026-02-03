@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Any, Callable, Dict, List
 
 import h5py
 import numpy as np
@@ -22,7 +23,7 @@ class TrajHandler:
         buffer_size: int,
         traj_path: Path,
         time_step: float = 0.5,
-        properties: list[str] = APAX_PROPERTIES,
+        properties: List[str] = APAX_PROPERTIES,
     ) -> None:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
@@ -32,19 +33,21 @@ class TrajHandler:
         self.time_step = time_step
         self.properties = properties
 
-    def step(self, state_and_energy, transform=None):
+    def step(self, state_and_energy: Any, transform: Callable = None) -> None:
         pass
 
-    def write(self, x=None, transform=None):
+    def write(self, x: Any = None, transform: Callable = None) -> None:
         pass
 
-    def close(self):
+    def close(self) -> None:
         pass
 
-    def reset_buffer(self):
+    def reset_buffer(self) -> None:
         pass
 
-    def atoms_from_state(self, state, predictions, nbr_kwargs):
+    def atoms_from_state(
+        self, state: System, predictions: Dict[str, Any], nbr_kwargs: Dict[str, Any]
+    ) -> Atoms:
         if "box" in nbr_kwargs.keys():
             box = nbr_kwargs["box"]
         else:
@@ -77,8 +80,8 @@ class H5TrajHandler(TrajHandler):
         buffer_size: int,
         traj_path: Path,
         time_step: float,
-        properties: list[str],
-        h5md_options: dict,
+        properties: List[str],
+        h5md_options: Dict[str, Any],
     ) -> None:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
@@ -98,13 +101,13 @@ class H5TrajHandler(TrajHandler):
         )
 
         self.step_counter = 0
-        self.buffer = []
+        self.buffer: List[Atoms] = []
         self.buffer_size = buffer_size
 
-    def reset_buffer(self):
+    def reset_buffer(self) -> None:
         self.buffer = []
 
-    def step(self, state, transform=None):
+    def step(self, state: Any, transform: Callable = None) -> None:
         state, predictions, nbr_kwargs = state
 
         if self.step_counter % self.sampling_rate == 0:
@@ -115,23 +118,23 @@ class H5TrajHandler(TrajHandler):
         if len(self.buffer) >= self.buffer_size:
             self.write()
 
-    def write(self, x=None, transform=None):
+    def write(self, x: Any = None, transform: Callable = None) -> None:
         if len(self.buffer) > 0:
             self.db.extend(self.buffer)
             self.reset_buffer()
 
 
 class DSTruncator:
-    def __init__(self, length):
+    def __init__(self, length: int) -> None:
         self.length = length
-        self.node_names = []
+        self.node_names: List[str] = []
 
-    def __call__(self, name, node):
+    def __call__(self, name: str, node: h5py.Node) -> None:
         if isinstance(node, h5py.Dataset):
             if len(node.shape) > 1 or name.endswith("energy/value"):
                 self.node_names.append(name)
 
-    def truncate(self, ds):
+    def truncate(self, ds: h5py.File) -> None:
         for name in self.node_names:
             shape = tuple([None] + list(ds[name].shape[1:]))
             truncated_data = ds[name][: self.length]
@@ -139,7 +142,7 @@ class DSTruncator:
             ds.create_dataset(name, maxshape=shape, data=truncated_data, chunks=True)
 
 
-def truncate_trajectory_to_checkpoint(traj_path, length):
+def truncate_trajectory_to_checkpoint(traj_path: Path, length: int) -> None:
     truncator = DSTruncator(length=length)
     with h5py.File(traj_path, "r+") as ds:
         ds.visititems(truncator)

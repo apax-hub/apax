@@ -1,5 +1,5 @@
 from functools import partial
-from typing import List, Union
+from typing import Callable, Dict, List, Tuple, Union
 
 import jax
 import numpy as np
@@ -23,9 +23,9 @@ def create_feature_fn(
     model: EnergyModel,
     params: FrozenDict,
     base_feature_map: feature_maps.FeatureTransformation,
-    feature_transforms=[],
+    feature_transforms: List = [],
     is_ensemble: bool = False,
-):
+) -> Callable:
     """
     Converts a model into a feature map and transforms it as needed and
     sets it up for use in copmuting the features of a dataset.
@@ -91,12 +91,12 @@ def kernel_selection(
     model_dir: Union[Path, List[Path]],
     train_atoms: List[Atoms],
     pool_atoms: List[Atoms],
-    base_fm_options: dict,
+    base_fm_options: Dict,
     selection_method: str,
     feature_transforms: list = [],
     selection_batch_size: int = 10,
     processing_batch_size: int = 64,
-) -> list[int]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Main function to facilitate batch data selection.
     Currently only the last layer gradient features and MaxDist selection method

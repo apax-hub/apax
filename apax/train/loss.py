@@ -1,20 +1,21 @@
 import dataclasses
-from typing import List
+from typing import Callable, Dict, List
 
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsc
 import numpy as np
+from jax import Array
 
 from apax.utils.math import normed_dotp
 
 
 def weighted_squared_error(
-    label: jnp.array,
-    prediction: jnp.array,
-    name,
-    parameters: dict = {},
-) -> jnp.array:
+    label: Dict[str, Array],
+    prediction: Dict[str, Array],
+    name: str,
+    parameters: Dict = {},
+) -> Array:
     """
     Squared error function that allows weighting of
     individual contributions by the number of atoms in the system.
@@ -24,11 +25,11 @@ def weighted_squared_error(
 
 
 def weighted_huber_loss(
-    label: jnp.array,
-    prediction: jnp.array,
-    name,
-    parameters: dict = {},
-) -> jnp.array:
+    label: Dict[str, Array],
+    prediction: Dict[str, Array],
+    name: str,
+    parameters: Dict = {},
+) -> Array:
     """
     Huber loss function that allows weighting of
     individual contributions by the number of atoms in the system.
@@ -43,11 +44,11 @@ def weighted_huber_loss(
 
 
 def crps_loss(
-    label: jax.Array,
-    prediction: jax.Array,
-    name,
-    parameters: dict = {},
-) -> jax.Array:
+    label: Dict[str, Array],
+    prediction: Dict[str, Array],
+    name: str,
+    parameters: Dict = {},
+) -> Array:
     """Computes the CRPS of a gaussian distribution given
     means, targets and standard deviations (uncertainty estimate)
     """
@@ -55,7 +56,7 @@ def crps_loss(
     means = prediction[name]
     sigmas = prediction[name + "_uncertainty"]
 
-    sigmas = jnp.clip(sigmas, min=1e-6)
+    sigmas = jnp.clip(sigmas, a_min=1e-6)
 
     norm_x = (label - means) / sigmas
     cdf = 0.5 * (1 + jsc.special.erf(norm_x / jnp.sqrt(2)))
@@ -70,11 +71,11 @@ def crps_loss(
 
 
 def nll_loss(
-    label: jax.Array,
-    prediction: jax.Array,
-    name,
-    parameters: dict = {},
-) -> jax.Array:
+    label: Dict[str, Array],
+    prediction: Dict[str, Array],
+    name: str,
+    parameters: Dict = {},
+) -> Array:
     """Computes the gaussian NLL loss given
     means, targets and standard deviations (uncertainty estimate)
     """
@@ -83,7 +84,7 @@ def nll_loss(
     sigmas = prediction[name + "_uncertainty"]
 
     eps = 1e-6
-    sigmas = jnp.clip(sigmas, min=eps)
+    sigmas = jnp.clip(sigmas, a_min=eps)
     variances = jnp.pow(sigmas, 2)
 
     x1 = jnp.log(variances)
@@ -94,11 +95,11 @@ def nll_loss(
 
 
 def force_angle_loss(
-    label: jnp.array,
-    prediction: jnp.array,
-    name,
-    parameters: dict = {},
-) -> jnp.array:
+    label: Dict[str, Array],
+    prediction: Dict[str, Array],
+    name: str,
+    parameters: Dict = {},
+) -> Array:
     """
     Consine similarity loss function. Contributions are summed in `Loss`.
     """
@@ -108,11 +109,11 @@ def force_angle_loss(
 
 
 def force_angle_div_force_label(
-    label: jnp.array,
-    prediction: jnp.array,
-    name,
-    parameters: dict = {},
-):
+    label: Dict[str, Array],
+    prediction: Dict[str, Array],
+    name: str,
+    parameters: Dict = {},
+) -> Array:
     """
     Consine similarity loss function weighted by the norm of the force labels.
     Contributions are summed in `Loss`.
@@ -125,11 +126,11 @@ def force_angle_div_force_label(
 
 
 def force_angle_exponential_weight(
-    label: jnp.array,
-    prediction: jnp.array,
-    name,
-    parameters: dict = {},
-) -> jnp.array:
+    label: Dict[str, Array],
+    prediction: Dict[str, Array],
+    name: str,
+    parameters: Dict = {},
+) -> Array:
     """
     Consine similarity loss function exponentially scaled by the norm of the force labels.
     Contributions are summed in `Loss`.
@@ -140,7 +141,12 @@ def force_angle_exponential_weight(
     return (1.0 - dotp) * jnp.exp(-F_0_norm)
 
 
-def stress_tril(label, prediction, name, parameters: dict = {}):
+def stress_tril(
+    label: Dict[str, Array],
+    prediction: Dict[str, Array],
+    name: str,
+    parameters: Dict = {},
+) -> Array:
     label, prediction = label[name], prediction[name]
     idxs = jnp.tril_indices(3)
     label_tril = label[:, idxs[0], idxs[1]]
@@ -148,7 +154,7 @@ def stress_tril(label, prediction, name, parameters: dict = {}):
     return (label_tril - prediction_tril) ** 2
 
 
-loss_functions = {
+loss_functions: Dict[str, Callable] = {
     "mse": weighted_squared_error,
     "huber": weighted_huber_loss,
     "cosine_sim": force_angle_loss,
@@ -171,9 +177,9 @@ class Loss:
     loss_type: str
     weight: float = 1.0
     atoms_exponent: float = 1.0
-    parameters: dict = dataclasses.field(default_factory=lambda: {})
+    parameters: Dict = dataclasses.field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.loss_type not in loss_functions.keys():
             raise NotImplementedError(
                 f"the loss function '{self.loss_type}' is not known."
@@ -181,7 +187,9 @@ class Loss:
 
         self.loss_fn = loss_functions[self.loss_type]
 
-    def __call__(self, inputs: dict, prediction: dict, label: dict) -> float:
+    def __call__(
+        self, inputs: Dict, prediction: Dict, label: Dict
+    ) -> float:
         # TODO we may want to insert an additional `mask` argument for this method
 
         divisor = inputs["n_atoms"] ** self.atoms_exponent
@@ -200,7 +208,9 @@ class Loss:
 class LossCollection:
     loss_list: List[Loss]
 
-    def __call__(self, inputs: dict, predictions: dict, labels: dict) -> float:
+    def __call__(
+        self, inputs: Dict, predictions: Dict, labels: Dict
+    ) -> float:
         total_loss = 0.0
         for single_loss_fn in self.loss_list:
             loss = single_loss_fn(inputs, predictions, labels)

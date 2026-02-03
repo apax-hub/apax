@@ -1,6 +1,7 @@
 import logging
 import pathlib
 import typing as t
+from typing import Any, Dict, List
 
 import ase
 import numpy as np
@@ -33,7 +34,7 @@ log = logging.getLogger(__name__)
 
 
 class ApaxBase(zntrack.Node):
-    def get_calculator(self, **kwargs):
+    def get_calculator(self, **kwargs) -> ASECalculator:
         raise NotImplementedError
 
 
@@ -54,9 +55,9 @@ class Apax(ApaxBase):
         verbosity of logging during training
     """
 
-    data: list[ase.Atoms] = zntrack.deps()
+    data: List[ase.Atoms] = zntrack.deps()
     config: str = zntrack.params_path()
-    validation_data: list[ase.Atoms] = zntrack.deps()
+    validation_data: List[ase.Atoms] = zntrack.deps()
     model: t.Optional[ApaxBase] = zntrack.deps(None)
     nl_skin: float = zntrack.params(0.5)
     log_level: str = zntrack.params("info")
@@ -66,10 +67,10 @@ class Apax(ApaxBase):
     train_data_file: pathlib.Path = zntrack.outs_path(zntrack.nwd / "train_atoms.h5")
     validation_data_file: pathlib.Path = zntrack.outs_path(zntrack.nwd / "val_atoms.h5")
 
-    metrics: dict = zntrack.metrics()
+    metrics: Dict[str, Any] = zntrack.metrics()
 
     @property
-    def parameter(self) -> dict:
+    def parameter(self) -> Dict:
         parameter = yaml.safe_load(self.state.fs.read_text(self.config))
 
         custom_parameters = {
@@ -91,17 +92,17 @@ class Apax(ApaxBase):
         parameter["data"].update(custom_parameters)
         return parameter
 
-    def train_model(self):
+    def train_model(self) -> None:
         """Train the model using `apax.train.run`"""
         apax_run(self.parameter, log_level=self.log_level)
 
-    def get_metrics(self):
+    def get_metrics(self) -> None:
         """In addition to the plots write a model metric"""
         metrics_df = pd.read_csv(self.model_directory / "log.csv")
         best_epoch = np.argmin(metrics_df["val_loss"])
         self.metrics = metrics_df.iloc[best_epoch].to_dict()
 
-    def run(self):
+    def run(self) -> None:
         """Primary method to run which executes all steps of the model training"""
 
         if not self.state.restarted:
@@ -121,7 +122,7 @@ class Apax(ApaxBase):
         self.train_model()
         self.get_metrics()
 
-    def get_calculator(self, **kwargs):
+    def get_calculator(self, **kwargs) -> ASECalculator:
         """Get an apax ase calculator"""
         with self.state.use_tmp_path():
             calc = ASECalculator(
@@ -135,18 +136,18 @@ class ApaxApplyTransformation(ApaxBase):
     """Apply transformation to an Apax model."""
 
     model: ApaxBase = zntrack.deps()
-    transformations: list[
+    transformations: List[
         UncertaintyDrivenDynamics | GaussianAcceleratedMolecularDynamics
     ] = zntrack.deps(default_factory=list)
 
-    def run(self):
+    def run(self) -> None:
         pass
 
     @property
-    def model_directory(self):
+    def model_directory(self) -> pathlib.Path:
         return self.model.model_directory
 
-    def get_calculator(self, **kwargs):
+    def get_calculator(self, **kwargs) -> ASECalculator:
         with self.model.state.use_tmp_path():
             calc = ASECalculator(
                 model_dir=self.model_directory,
@@ -167,7 +168,7 @@ class ApaxEnsemble(ApaxBase):
         Neighborlist skin.
     """
 
-    models: list[Apax] = zntrack.deps()
+    models: List[Apax] = zntrack.deps()
     nl_skin: float = zntrack.params(0.5)
 
     def run(self) -> None:
@@ -206,7 +207,7 @@ class ApaxImport(zntrack.Node):
     nl_skin: float = zntrack.params(0.5)
 
     @property
-    def parameter(self) -> dict:
+    def parameter(self) -> Dict:
         return yaml.safe_load(self.state.fs.read_text(self.config))
 
     def get_calculator(self, **kwargs) -> ase.calculators.calculator.Calculator:
@@ -257,19 +258,19 @@ class ApaxCalibrate(ApaxBase):
     """
 
     model: ApaxBase = zntrack.deps()
-    validation_data: list[Atoms] = zntrack.deps()
+    validation_data: List[Atoms] = zntrack.deps()
     batch_size: int = zntrack.params(32)
     criterion: str = zntrack.params("ma_cal")
     shared_factor: bool = zntrack.params(False)
     optimizer_bounds: t.Tuple[float, float] = zntrack.params((1e-2, 1e2))
 
-    transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
+    transformations: t.Optional[List[Dict[str, Dict]]] = zntrack.params(None)
 
     nl_skin: float = zntrack.params(0.5)
 
-    metrics: dict = zntrack.metrics()
+    metrics: Dict[str, Any] = zntrack.metrics()
 
-    def run(self):
+    def run(self) -> None:
         """Primary method to run which executes all steps of the model training"""
 
         calc = self.model.get_calculator()
@@ -288,14 +289,14 @@ class ApaxCalibrate(ApaxBase):
         }
 
     @property
-    def model_directory(self):
+    def model_directory(self) -> pathlib.Path:
         return self.model.model_directory
 
     @property
-    def parameter(self) -> dict:
+    def parameter(self) -> Dict:
         return self.model.parameter
 
-    def get_calculator(self, **kwargs):
+    def get_calculator(self, **kwargs) -> ASECalculator:
         """Property to return a model specific ase calculator object.
 
         Returns

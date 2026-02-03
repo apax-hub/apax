@@ -1,5 +1,6 @@
 import logging
 import pathlib
+from typing import List
 
 import ase
 import h5py
@@ -27,19 +28,19 @@ class ApaxBatchPrediction(zntrack.Node):
     predictions: list[Atoms] the atoms that have the predicted properties from model
     """
 
-    data: list[ase.Atoms] = zntrack.deps()
+    data: List[ase.Atoms] = zntrack.deps()
 
     model: Apax = zntrack.deps()
     batch_size: int = zntrack.params(1)
     frames_path: pathlib.Path = zntrack.outs_path(zntrack.nwd / "frames.h5")
 
-    def run(self):
+    def run(self) -> None:
         calc = self.model.get_calculator()
         frames = calc.batch_eval(self.data, self.batch_size)
         znh5md.write(self.frames_path, frames)
 
     @property
-    def frames(self) -> list[ase.Atoms]:
+    def frames(self) -> List[ase.Atoms]:
         with self.state.fs.open(self.frames_path, "rb") as f:
             with h5py.File(f, "r") as h5:
                 return znh5md.IO(file_handle=h5)[:]

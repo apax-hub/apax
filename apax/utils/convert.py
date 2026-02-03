@@ -1,4 +1,5 @@
 import logging
+from typing import Any, Dict, List, Union
 
 import jax.numpy as jnp
 import numpy as np
@@ -18,7 +19,7 @@ unit_dict = {
 }
 
 
-def str_to_dtype(x):
+def str_to_dtype(x: Any) -> Any:
     if isinstance(x, str):
         if x == "fp32":
             y = jnp.float32
@@ -35,7 +36,7 @@ def str_to_dtype(x):
         return x
 
 
-def tf_to_jax_dict(data_dict: dict[str, list]) -> dict:
+def tf_to_jax_dict(data_dict: Dict[str, list]) -> Dict[str, jnp.ndarray]:
     """Converts a dict of tf.Tensors to a dict of jax.numpy.arrays.
     tf.Tensors must be padded.
 
@@ -53,12 +54,12 @@ def tf_to_jax_dict(data_dict: dict[str, list]) -> dict:
     return data_dict
 
 
-def prune_dict(data_dict):
+def prune_dict(data_dict: Dict[str, Union[List, np.ndarray]]) -> Dict[str, Union[List, np.ndarray]]:
     pruned = {key: val for key, val in data_dict.items() if len(val) != 0}
     return pruned
 
 
-def is_periodic(box):
+def is_periodic(box: np.ndarray) -> bool:
     pbc_dims = np.any(np.abs(box) > 1e-6)
     if np.all(pbc_dims == True) or np.all(pbc_dims == False):  # noqa: E712
         return pbc_dims
@@ -70,9 +71,9 @@ def is_periodic(box):
 
 
 def atoms_to_inputs(
-    atoms_list: list[Atoms],
+    atoms_list: List[Atoms],
     pos_unit: str = "Ang",
-) -> dict[str, dict[str, list]]:
+) -> Dict[str, list]:
     """Converts an list of ASE atoms to a dict where all inputs
     are sorted by their shape (ragged/fixed). Units are
     adjusted if ASE compatible and provided in the inputpipeline.
@@ -89,7 +90,7 @@ def atoms_to_inputs(
     labels :
         Labels are trainable system properties.
     """
-    inputs = {
+    inputs: Dict[str, list] = {
         "positions": [],
         "numbers": [],
         "n_atoms": [],
@@ -128,11 +129,11 @@ def atoms_to_inputs(
 
 
 def atoms_to_labels(
-    atoms_list: list[Atoms],
+    atoms_list: List[Atoms],
     pos_unit: str = "Ang",
     energy_unit: str = "eV",
-    additional_properties: list[str] = [],
-) -> dict[str, dict[str, list]]:
+    additional_properties: List[str] = [],
+) -> Dict[str, list]:
     """Converts an list of ASE atoms to a dict of labels
     Units are adjusted if ASE compatible and provided in the inputpipeline.
 
@@ -147,7 +148,7 @@ def atoms_to_labels(
         Labels are trainable system properties.
     """
 
-    labels = {}
+    labels: Dict[str, list] = {}
 
     property_names = [p[0] for p in additional_properties]
     for key in property_names:
@@ -189,9 +190,12 @@ def atoms_to_labels(
     return labels
 
 
-def transpose_dict_of_lists(dict_of_lists: dict):
+def transpose_dict_of_lists(dict_of_lists: Dict[str, List]) -> List[Dict[str, Any]]:
     list_of_dicts = []
     keys = list(dict_of_lists.keys())
+
+    if not keys:
+        return []
 
     for i in range(len(dict_of_lists[keys[0]])):
         data = {k: dict_of_lists[k][i] for k in keys}

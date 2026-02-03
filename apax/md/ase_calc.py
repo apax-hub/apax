@@ -1,6 +1,6 @@
 from functools import partial
 from pathlib import Path
-from typing import Callable, Union
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 import ase
 import jax
@@ -8,11 +8,12 @@ import jax.numpy as jnp
 import numpy as np
 from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
-from flax.core.frozen_dict import freeze, unfreeze
+from flax.core.frozen_dict import FrozenDict, freeze, unfreeze
 from jax import tree_util
 from tqdm import tqdm, trange
 from vesin import NeighborList
 
+from apax.config.train_config import Config
 from apax.data.input_pipeline import (
     CachedInMemoryDataset,
     OTFInMemoryDataset,
@@ -26,7 +27,7 @@ from apax.train.checkpoints import (
 from apax.utils.jax_md_reduced import partition, space
 
 
-def maybe_vmap(apply, params):
+def maybe_vmap(apply: Callable, params: FrozenDict) -> Callable:
     n_models = check_for_ensemble(params)
 
     if n_models > 1:
@@ -38,7 +39,13 @@ def maybe_vmap(apply, params):
     return energy_fn
 
 
-def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_jax):
+def build_energy_neighbor_fns(
+    atoms: ase.Atoms,
+    config: Config,
+    params: FrozenDict,
+    dr_threshold: float,
+    neigbor_from_jax: bool,
+) -> Tuple[Callable, Callable]:
     r_max = config.model.basis.r_max
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
     neigbor_from_jax = neighbor_calculable_with_jax(box, r_max)
@@ -50,7 +57,9 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
         if np.all(box < 1e-6):
             displacement_fn, _ = space.free()
         else:
-            displacement_fn, _ = space.periodic_general(box, fractional_coordinates=True)
+            displacement_fn, _ = space.periodic_general(
+                box, fractional_coordinates=True
+            )
 
         neighbor_fn = partition.neighbor_list(
             displacement_fn,
@@ -74,10 +83,18 @@ def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_
     return energy_fn, neighbor_fn
 
 
-def make_ensemble(model):
-    def ensemble(positions, Z, idx, box, offsets):
+def make_ensemble(model: Callable) -> Callable:
+    def ensemble(
+        positions: jnp.ndarray,
+        Z: jnp.ndarray,
+        idx: jnp.ndarray,
+        box: jnp.ndarray,
+        offsets: jnp.ndarray,
+    ) -> Dict[str, jnp.ndarray]:
         results = model(positions, Z, idx, box, offsets)
-        uncertainty = {k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()}
+        uncertainty = {
+            k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()
+        }
         ensemble = {k + "_ensemble": v for k, v in results.items()}
         results = {k: jnp.mean(v, axis=0) for k, v in results.items()}
         if "forces_ensemble" in ensemble.keys():
@@ -96,7 +113,9 @@ def make_ensemble(model):
     return ensemble
 
 
-def unpack_results(results, inputs):
+def unpack_results(
+    results: Dict[str, np.ndarray], inputs: Dict[str, np.ndarray]
+) -> List[Dict[str, Any]]:
     n_structures = len(results["energy"])
     unpacked_results = []
     for i in range(n_structures):
@@ -119,19 +138,19 @@ class ASECalculator(Calculator):
 
     """
 
-    implemented_properties = [
+    implemented_properties: List[str] = [
         "energy",
         "forces",
     ]
 
     def __init__(
         self,
-        model_dir: Union[Path, list[Path]],
+        model_dir: Union[Path, List[Path]],
         dr_threshold: float = 0.5,
-        transformations: list[Callable] = [],
+        transformations: List[Callable] = [],
         padding_factor: float = 1.5,
         **kwargs,
-    ):
+    ) -> None:
         """
         Parameters
         ----------
@@ -171,13 +190,13 @@ class ASECalculator(Calculator):
             ]
             self.implemented_properties += uncertainty_kws
 
-        self.step = None
-        self.neighbor_fn = None
-        self.neighbors = None
-        self.offsets = None
-        self.model = None
+        self.step: Union[Callable, None] = None
+        self.neighbor_fn: Union[Callable, None] = None
+        self.neighbors: Union[partition.NeighborList, None] = None
+        self.offsets: Union[jnp.ndarray, None] = None
+        self.model: Union[Callable, None] = None
 
-    def initialize(self, atoms):
+    def initialize(self, atoms: ase.Atoms) -> None:
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
         self.r_max = self.model_config.model.basis.r_max
         self.neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
@@ -223,9 +242,9 @@ class ASECalculator(Calculator):
 
     def get_descriptors(
         self,
-        frames: list[ase.Atoms],
+        frames: List[ase.Atoms],
         processing_batch_size: int = 1,
-        only_use_n_layers: int | None = None,
+        only_use_n_layers: Union[int, None] = None,
         should_average: bool = True,
     ) -> np.ndarray:
         """Compute the descriptors for a list of Atoms.
@@ -292,7 +311,7 @@ class ASECalculator(Calculator):
             results.append(data)
         return np.concatenate(results, axis=0)
 
-    def set_neighbours_and_offsets(self, atoms, box):
+    def set_neighbours_and_offsets(self, atoms: ase.Atoms, box: np.ndarray) -> None:
         calculator = NeighborList(cutoff=self.r_max, full_list=True)
         idxs_i, idxs_j, offsets = calculator.compute(
             points=atoms.positions,
@@ -312,7 +331,12 @@ class ASECalculator(Calculator):
         offsets = np.matmul(offsets, box)
         self.offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
 
-    def calculate(self, atoms, properties=["energy"], system_changes=all_changes):
+    def calculate(
+        self,
+        atoms: ase.Atoms,
+        properties: List[str] = ["energy"],
+        system_changes=all_changes,
+    ) -> None:
         Calculator.calculate(self, atoms, properties, system_changes)
         positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
@@ -351,8 +375,11 @@ class ASECalculator(Calculator):
         self.results["energy"] = self.results["energy"].item()
 
     def batch_eval(
-        self, atoms_list: list[ase.Atoms], batch_size: int = 64, silent: bool = False
-    ) -> list[ase.Atoms]:
+        self,
+        atoms_list: List[ase.Atoms],
+        batch_size: int = 64,
+        silent: bool = False,
+    ) -> List[ase.Atoms]:
         """Evaluate the model on a list of Atoms. This is preferable to assigning
         the calculator to each Atoms instance for 2 reasons:
         1. Processing can be abtched, which is advantageous for larger datasets.
@@ -439,14 +466,14 @@ class ASECalculator(Calculator):
         return evaluated_atoms_list
 
     @property
-    def ll_weights(self):
+    def ll_weights(self) -> np.ndarray:
         dense_layers = list(self.params["params"]["energy_model"]["readout"].keys())
         llweights = self.params["params"]["energy_model"]["readout"][dense_layers[-1]][
             "w"
         ]
         return np.asarray(llweights)
 
-    def set_ll_weights(self, new_weights):
+    def set_ll_weights(self, new_weights: np.ndarray) -> None:
         params = unfreeze(self.params)
         dense_layers = list(params["params"]["energy_model"]["readout"].keys())
         params["params"]["energy_model"]["readout"][dense_layers[-1]]["w"] = jnp.asarray(
@@ -456,7 +483,7 @@ class ASECalculator(Calculator):
         self.step = None
 
 
-def neighbor_calculable_with_jax(box, r_max):
+def neighbor_calculable_with_jax(box: np.ndarray, r_max: float) -> bool:
     if np.all(box < 1e-6):
         return True
     else:
@@ -480,12 +507,14 @@ def neighbor_calculable_with_jax(box, r_max):
             return False
 
 
-def get_step_fn(model, atoms, neigbor_from_jax):
+def get_step_fn(model: Callable, atoms: ase.Atoms, neigbor_from_jax: bool) -> Callable:
     Z = jnp.asarray(atoms.numbers)
     if neigbor_from_jax:
 
         @jax.jit
-        def step_fn(positions, neighbor, box):
+        def step_fn(
+            positions: jnp.ndarray, neighbor: partition.NeighborList, box: jnp.ndarray
+        ) -> Tuple[Dict, partition.NeighborList]:
             if np.any(atoms.get_cell().lengths() > 1e-6):
                 box = box.T
                 inv_box = jnp.linalg.inv(box)
@@ -501,7 +530,12 @@ def get_step_fn(model, atoms, neigbor_from_jax):
     else:
 
         @jax.jit
-        def step_fn(positions, neighbor, box, offsets):
+        def step_fn(
+            positions: jnp.ndarray,
+            neighbor: jnp.ndarray,
+            box: jnp.ndarray,
+            offsets: jnp.ndarray,
+        ) -> Dict:
             results = model(positions, Z, neighbor, box, offsets)
             return results
 

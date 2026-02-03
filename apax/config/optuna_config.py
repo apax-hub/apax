@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Optional, Type
+from typing import Any, Dict, Optional, Type
 
 import optuna
 from pydantic import BaseModel, PositiveInt
@@ -41,7 +41,7 @@ def get_sampler(name: str) -> Type[optuna.samplers.BaseSampler]:
             return optunahub.load_module("samplers/auto_sampler").AutoSampler
         except ImportError as e:
             raise ImportError(
-                f"pruner {name} requires optunahub. Set pruner to other or install optunahub"
+                f"pruner {name} requires optunahub, but it is not installed"
             ) from e
 
     if name not in optuna.samplers.__all__:
@@ -60,7 +60,7 @@ class OptunaPrunerConfig(BaseModel, extra="forbid"):
 
     name: str
     interval: PositiveInt = 1
-    kwargs: dict[str, Any] = {}
+    kwargs: Dict[str, Any] = {}
 
 
 class OptunaSamplerConfig(BaseModel, extra="forbid"):
@@ -72,7 +72,7 @@ class OptunaSamplerConfig(BaseModel, extra="forbid"):
     """
 
     name: str = "AutoSampler"
-    kwargs: dict[str, Any] = {}
+    kwargs: Dict[str, Any] = {}
 
 
 class OptunaConfig(BaseModel, extra="forbid"):
@@ -109,11 +109,11 @@ class OptunaConfig(BaseModel, extra="forbid"):
     """
 
     n_trials: PositiveInt
-    search_space: dict[str, dict[str, Any]]
+    search_space: Dict[str, Dict[str, Any]]
     seed: int = 1
     monitor: str = "val_loss"
     study_name: str = "study"
-    study_log_file: str | Path = "study.log"
+    study_log_file: Union[str, Path] = "study.log"
     sampler_config: OptunaSamplerConfig = OptunaSamplerConfig()
     pruner_config: Optional[OptunaPrunerConfig] = None
 

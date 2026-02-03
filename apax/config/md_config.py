@@ -1,11 +1,9 @@
 import os
-from typing import Literal, Union
+from typing import Any, Dict, List, Literal, Union
 
 import yaml
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveFloat, PositiveInt
 from typing_extensions import Annotated
-
-from apax.utils.helpers import APAX_PROPERTIES
 
 
 class ConstantTempSchedule(BaseModel, extra="forbid"):
@@ -22,7 +20,7 @@ class ConstantTempSchedule(BaseModel, extra="forbid"):
     name: Literal["constant"] = "constant"
     T0: PositiveFloat = 298.15  # K
 
-    def get_schedule(self):
+    def get_schedule(self) -> Any:
         from apax.md.schedules import ConstantTSchedule
 
         return ConstantTSchedule(self.T0)
@@ -43,10 +41,10 @@ class PiecewiseLinearTempSchedule(ConstantTempSchedule, extra="forbid"):
     """
 
     name: Literal["piecewise"] = "piecewise"
-    temperatures: list[PositiveFloat]
-    durations: list[PositiveInt]
+    temperatures: List[PositiveFloat]
+    durations: List[PositiveInt]
 
-    def get_schedule(self):
+    def get_schedule(self) -> Any:
         from apax.md.schedules import PieceWiseLinearTSchedule
 
         schedule = PieceWiseLinearTSchedule(
@@ -79,7 +77,7 @@ class OscillatingRampTempSchedule(ConstantTempSchedule, extra="forbid"):
     num_oscillations: PositiveInt
     total_steps: PositiveInt
 
-    def get_schedule(self):
+    def get_schedule(self) -> Any:
         from apax.md.schedules import OscillatingRampTSchedule
 
         schedule = OscillatingRampTSchedule(
@@ -92,8 +90,9 @@ class OscillatingRampTempSchedule(ConstantTempSchedule, extra="forbid"):
         return schedule
 
 
-TemperatureSchedule = Union[
-    ConstantTempSchedule, PiecewiseLinearTempSchedule, OscillatingRampTempSchedule
+TemperatureSchedule = Annotated[
+    Union[ConstantTempSchedule, PiecewiseLinearTempSchedule, OscillatingRampTempSchedule],
+    Field(discriminator="name"),
 ]
 
 
@@ -168,7 +167,7 @@ class NVTOptions(NVEOptions, extra="forbid"):
     """
 
     name: Literal["nvt"]
-    thermostat_chain: NHCOptions = NHCOptions()
+    thermostat_chain: NHCOptions = Field(default_factory=NHCOptions)
 
 
 class NPTOptions(NVTOptions, extra="forbid"):
@@ -187,7 +186,7 @@ class NPTOptions(NVTOptions, extra="forbid"):
 
     name: Literal["npt"]
     pressure: PositiveFloat = 1.01325  # bar
-    barostat_chain: NHCOptions = NHCOptions(tau=1000)
+    barostat_chain: NHCOptions = Field(default_factory=lambda: NHCOptions(tau=1000))
 
 
 class EnergyUncertaintyCheck(BaseModel, extra="forbid"):
@@ -242,7 +241,7 @@ class FixAtomsConstraint(BaseModel, extra="forbid"):
     """
 
     name: Literal["fixatoms"] = "fixatoms"
-    indices: list[int]
+    indices: List[int]
 
 
 class FixCenterOfMassConstraint(BaseModel, extra="forbid"):
@@ -256,7 +255,7 @@ class FixCenterOfMassConstraint(BaseModel, extra="forbid"):
     """
 
     name: Literal["fixcenterofmass"] = "fixcenterofmass"
-    position: Union[Literal["initial", "origin"], list[float]] = "initial"
+    position: Union[Literal["initial", "origin"], List[float]] = "initial"
 
 
 class FixLayerConstraint(BaseModel, extra="forbid"):
@@ -289,7 +288,7 @@ class H5MDOptions(BaseModel, extra="forbid"):
         | Email address of the author. Defaults to "N/A".
     """
 
-    compression: str | None = "gzip"
+    compression: Optional[str] = "gzip"
     compression_opts: int = 4
     store: Literal["time", "linear"] = "time"
     author: str = "N/A"
@@ -356,9 +355,9 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     seed: int = 1
 
     # https://docs.pydantic.dev/latest/usage/types/unions/#discriminated-unions-aka-tagged-unions
-    ensemble: Union[NVEOptions, NVTOptions, NPTOptions] = Field(
-        NVTOptions(name="nvt"), discriminator="name"
-    )
+    ensemble: Annotated[
+        Union[NVEOptions, NVTOptions, NPTOptions], Field(discriminator="name")
+    ] = Field(default_factory=NVTOptions)
 
     duration: PositiveFloat
     n_inner: PositiveInt = 500
@@ -367,12 +366,12 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     dr_threshold: PositiveFloat = 0.5
     extra_capacity: NonNegativeInt = 0
 
-    biases: list[BiasEnergy] = []
-    dynamics_checks: list[DynamicsCheck] = []
-    constraints: list[Constraint] = []
+    biases: List[BiasEnergy] = Field(default_factory=list)
+    dynamics_checks: List[DynamicsCheck] = Field(default_factory=list)
+    constraints: List[Constraint] = Field(default_factory=list)
 
-    properties: list[str] = APAX_PROPERTIES
-    h5md_options: H5MDOptions = H5MDOptions()
+    properties: List[str] = Field(default_factory=list)  # APAX_PROPERTIES
+    h5md_options: H5MDOptions = Field(default_factory=H5MDOptions)
 
     initial_structure: str
     load_momenta: bool = False
@@ -383,10 +382,15 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     checkpoint_interval: int = 50_000
     disable_pbar: bool = False
 
-    def dump_config(self):
+    def dump_config(self) -> None:
         """
         Writes the current config file to the MD directory.
 
         """
+        from apax.utils.helpers import APAX_PROPERTIES
+
+        if not self.properties:
+            self.properties = APAX_PROPERTIES
+
         with open(os.path.join(self.sim_dir, "md_config.yaml"), "w") as conf:
             yaml.dump(self.model_dump(), conf, default_flow_style=False)

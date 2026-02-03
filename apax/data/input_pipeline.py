@@ -8,12 +8,13 @@ from pathlib import Path
 from queue import Queue
 from random import shuffle
 from threading import Event
-from typing import Dict, Iterator, Optional
+from typing import Any, Deque, Dict, Iterator, List, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
+from ase import Atoms
 from jax import tree_util
 
 from apax.data.preprocessing import compute_nl, prefetch_to_single_device
@@ -27,7 +28,9 @@ from apax.utils.convert import (
 log = logging.getLogger(__name__)
 
 
-def pad_nl(idx, offsets, max_neighbors):
+def pad_nl(
+    idx: np.ndarray, offsets: np.ndarray, max_neighbors: int
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Pad the neighbor list arrays to the maximal number of neighbors occurring.
 
@@ -51,7 +54,7 @@ def pad_nl(idx, offsets, max_neighbors):
     return idx, offsets
 
 
-def find_largest_system(inputs, r_max) -> tuple[int]:
+def find_largest_system(inputs: Dict[str, Any], r_max: float) -> tuple[int, int]:
     """
     Finds the maximal number of atoms and neighbors.
 
@@ -84,17 +87,17 @@ class InMemoryDataset:
 
     def __init__(
         self,
-        atoms_list,
-        cutoff,
-        bs,
-        n_epochs,
+        atoms_list: List[Atoms],
+        cutoff: float,
+        bs: int,
+        n_epochs: int,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
-        additional_properties: list[tuple] = [],
-        pre_shuffle=False,
-        shuffle_buffer_size=1000,
-        ignore_labels=False,
-        cache_path=".",
+        additional_properties: List[Tuple[str, Any]] = [],
+        pre_shuffle: bool = False,
+        shuffle_buffer_size: int = 1000,
+        ignore_labels: bool = False,
+        cache_path: str = ".",
     ) -> None:
         self.n_epochs = n_epochs
         self.cutoff = cutoff
@@ -120,7 +123,7 @@ class InMemoryDataset:
             self.labels = None
 
         self.count = 0
-        self.buffer = deque()
+        self.buffer: Deque = deque()
         self.file = Path(cache_path) / str(uuid.uuid4())
 
         self.enqueue(min(self.buffer_size, self.n_data))
@@ -143,7 +146,7 @@ class InMemoryDataset:
             batch_size = self.n_data
         return batch_size
 
-    def prepare_data(self, i):
+    def prepare_data(self, i: int) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         inputs = {k: v[i] for k, v in self.inputs.items()}
         idx, offsets = compute_nl(inputs["positions"], inputs["box"], self.cutoff)
         inputs["idx"], inputs["offsets"] = pad_nl(idx, offsets, self.max_nbrs)
@@ -176,14 +179,14 @@ class InMemoryDataset:
 
         return (inputs, labels)
 
-    def enqueue(self, num_elements):
+    def enqueue(self, num_elements: int) -> None:
         for _ in range(num_elements):
             data = self.prepare_data(self.count)
             self.buffer.append(data)
             self.count += 1
 
-    def make_signature(self) -> tf.TensorSpec:
-        input_signature = {}
+    def make_signature(self) -> Union[Dict[str, tf.TensorSpec], Tuple[Dict[str, tf.TensorSpec], Dict[str, tf.TensorSpec]]]:
+        input_signature: Dict[str, tf.TensorSpec] = {}
         input_signature["n_atoms"] = tf.TensorSpec((), dtype=tf.int16, name="n_atoms")
         input_signature["numbers"] = tf.TensorSpec(
             (self.max_atoms,), dtype=tf.int16, name="numbers"
@@ -202,7 +205,7 @@ class InMemoryDataset:
         if not self.labels:
             return input_signature
 
-        label_signature = {}
+        label_signature: Dict[str, tf.TensorSpec] = {}
         if "energy" in self.labels.keys():
             label_signature["energy"] = tf.TensorSpec((), dtype=tf.float64, name="energy")
         if "forces" in self.labels.keys():
@@ -224,7 +227,7 @@ class InMemoryDataset:
         signature = (input_signature, label_signature)
         return signature
 
-    def init_input(self) -> Dict[str, np.ndarray]:
+    def init_input(self) -> Tuple[Dict[str, np.ndarray], np.ndarray]:
         """Returns first batch of inputs and labels to init the model."""
         positions = self.sample_atoms.positions * unit_dict[self.pos_unit]
         box = self.sample_atoms.cell.array * unit_dict[self.pos_unit]
@@ -241,16 +244,16 @@ class InMemoryDataset:
         inputs = tree_util.tree_map(lambda x: jnp.array(x), inputs)
         return inputs, np.array(box)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         raise NotImplementedError
 
-    def shuffle_and_batch(self):
+    def shuffle_and_batch(self, sharding: Optional[jax.sharding.PositionalSharding] = None) -> Iterator:
         raise NotImplementedError
 
-    def batch(self) -> Iterator[jax.Array]:
+    def batch(self, sharding: Optional[jax.sharding.PositionalSharding] = None) -> Iterator[jax.Array]:
         raise NotImplementedError
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         pass
 
 
@@ -262,7 +265,7 @@ class CachedInMemoryDataset(InMemoryDataset):
     Most performant option for datasets with samples of very similar size.
     """
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         while self.count < self.n_data or len(self.buffer) > 0:
             yield self.buffer.popleft()
 
@@ -271,7 +274,7 @@ class CachedInMemoryDataset(InMemoryDataset):
                 space = self.n_data - self.count
             self.enqueue(space)
 
-    def shuffle_and_batch(self, sharding=None):
+    def shuffle_and_batch(self, sharding: Optional[jax.sharding.PositionalSharding] = None) -> Iterator:
         """Shuffles and batches the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
 
@@ -294,7 +297,7 @@ class CachedInMemoryDataset(InMemoryDataset):
         ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, sharding)
         return ds
 
-    def batch(self, sharding=None) -> Iterator[jax.Array]:
+    def batch(self, sharding: Optional[jax.sharding.PositionalSharding] = None) -> Iterator[jax.Array]:
         ds = (
             tf.data.Dataset.from_generator(
                 lambda: self, output_signature=self.make_signature()
@@ -306,7 +309,7 @@ class CachedInMemoryDataset(InMemoryDataset):
         ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, sharding)
         return ds
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         for p in self.file.parent.glob(f"{self.file.name}.data*"):
             p.unlink()
 
@@ -321,7 +324,7 @@ class OTFInMemoryDataset(InMemoryDataset):
     Mostly for internal purposes.
     """
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         outer_count = 0
         max_iter = self.n_data * self.n_epochs
         while outer_count < max_iter:
@@ -336,7 +339,7 @@ class OTFInMemoryDataset(InMemoryDataset):
             self.enqueue(space)
             outer_count += 1
 
-    def shuffle_and_batch(self, sharding=None):
+    def shuffle_and_batch(self, sharding: Optional[jax.sharding.PositionalSharding] = None) -> Iterator:
         """Shuffles and batches the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
 
@@ -355,7 +358,7 @@ class OTFInMemoryDataset(InMemoryDataset):
         ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, sharding)
         return ds
 
-    def batch(self, sharding=None) -> Iterator[jax.Array]:
+    def batch(self, sharding: Optional[jax.sharding.PositionalSharding] = None) -> Iterator[jax.Array]:
         ds = tf.data.Dataset.from_generator(
             lambda: self, output_signature=self.make_signature()
         )
@@ -364,11 +367,11 @@ class OTFInMemoryDataset(InMemoryDataset):
         return ds
 
 
-def next_power_of_two(x):
+def next_power_of_two(x: int) -> int:
     return 1 << (int(x) - 1).bit_length()
 
 
-def round_up_to_multiple(value, multiple):
+def round_up_to_multiple(value: int, multiple: int) -> int:
     """
     Rounds up the given integer `value` to the next multiple of `multiple`.
 
@@ -385,12 +388,12 @@ def round_up_to_multiple(value, multiple):
 class BatchProcessor:
     def __init__(
         self,
-        cutoff,
+        cutoff: float,
         atom_padding: int,
         nl_padding: int,
-        forces=True,
-        stress=False,
-        additional_properties=[],
+        forces: bool = True,
+        stress: bool = False,
+        additional_properties: List[Tuple[str, Any]] = [],
     ) -> None:
         self.cutoff = cutoff
         self.atom_padding = atom_padding
@@ -400,19 +403,19 @@ class BatchProcessor:
         self.stress = stress
         self.additional_properties = additional_properties
 
-    def __call__(self, samples: list[dict]):
+    def __call__(self, samples: List[Tuple[Dict[str, Any], Dict[str, Any]]]) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
         n_samples = len(samples)
         max_atoms = np.max([inp[0]["n_atoms"] for inp in samples])
         max_atoms = round_up_to_multiple(max_atoms, self.atom_padding)
 
-        inputs = {
+        inputs: Dict[str, np.ndarray] = {
             "numbers": np.zeros((n_samples, max_atoms), dtype=np.int16),
             "n_atoms": np.zeros(n_samples, dtype=np.int16),
             "positions": np.zeros((n_samples, max_atoms, 3), dtype=np.float64),
             "box": np.zeros((n_samples, 3, 3), dtype=np.float32),
         }
 
-        labels = {
+        labels: Dict[str, np.ndarray] = {
             "energy": np.zeros(n_samples, dtype=np.float64),
         }
         for prop in self.additional_properties:
@@ -486,17 +489,17 @@ class PerBatchPaddedDataset(InMemoryDataset):
 
     def __init__(
         self,
-        atoms_list,
-        cutoff,
-        bs,
-        n_epochs,
+        atoms_list: List[Atoms],
+        cutoff: float,
+        bs: int,
+        n_epochs: int,
         num_workers: Optional[int] = None,
         atom_padding: int = 10,
         nl_padding: int = 2000,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
-        additional_properties=[],
-        pre_shuffle=False,
+        additional_properties: List[Tuple[str, Any]] = [],
+        pre_shuffle: bool = False,
     ) -> None:
         self.cutoff = cutoff
         self.n_epochs = n_epochs
@@ -536,7 +539,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.max_count = self.n_epochs * self.steps_per_epoch()
 
         self.buffer_size = min(600, self.steps_per_epoch())
-        self.buffer = Queue(maxsize=self.buffer_size)
+        self.buffer: Queue = Queue(maxsize=self.buffer_size)
 
         self.process_pool = ProcessPoolExecutor(self.num_workers)
         self.thread_pool = ThreadPoolExecutor(1)  # Single thread for buffering batches
@@ -544,7 +547,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.enqueue_future = None
         self.needs_data = Event()
 
-    def enqueue_batches(self):
+    def enqueue_batches(self) -> None:
         """Function to enqueue batches on a side thread."""
         while self.count < self.steps_per_epoch() * self.n_epochs:
             self.needs_data.wait()
@@ -558,7 +561,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
                 self.enqueue(num_batches)
             self.needs_data.clear()  # Reset event
 
-    def enqueue(self, num_batches):
+    def enqueue(self, num_batches: int) -> None:
         start = self.count * self.batch_size
 
         # Split data into chunks and submit tasks to the process pool
@@ -578,7 +581,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
 
         self.count += num_batches
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         for n in range(self.n_epochs):
             self.count = 0
             self.buffer.queue.clear()  # Reset buffer
@@ -601,12 +604,12 @@ class PerBatchPaddedDataset(InMemoryDataset):
             self.needs_data.set()
             self.enqueue_future.result()
 
-    def shuffle_and_batch(self, sharding):
+    def shuffle_and_batch(self, sharding: jax.sharding.PositionalSharding) -> Iterator:
         self.should_shuffle = True
         ds = prefetch_to_single_device(iter(self), 2, sharding)
         return ds
 
-    def batch(self, sharding) -> Iterator[jax.Array]:
+    def batch(self, sharding: jax.sharding.PositionalSharding) -> Iterator[jax.Array]:
         self.should_shuffle = False
         ds = prefetch_to_single_device(iter(self), 2, sharding)
         return ds
@@ -614,7 +617,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
     def make_signature(self) -> None:
         pass
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         self.epoch_finished = True
         self.needs_data.set()
         self.enqueue_future.result()
