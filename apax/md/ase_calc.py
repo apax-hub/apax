@@ -11,13 +11,13 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from flax.core.frozen_dict import freeze, unfreeze
 from jax import tree_util
 from tqdm import tqdm, trange
-from vesin import NeighborList
 
 from apax.data.input_pipeline import (
     CachedInMemoryDataset,
     OTFInMemoryDataset,
 )
 from apax.md.function_transformations import ProcessStress
+from apax.md.vesin_neighborlist import VesinNeighborListWrapper
 from apax.train.checkpoints import (
     canonicalize_energy_model_parameters,
     check_for_ensemble,
@@ -176,6 +176,11 @@ class ASECalculator(Calculator):
         self.neighbors = None
         self.offsets = None
         self.model = None
+        self._vesin_nl_wrapper = VesinNeighborListWrapper(
+            cutoff=self.model_config.model.basis.r_max,
+            skin=self.dr_threshold,
+            padding_factor=self.padding_factor
+        )
 
     def initialize(self, atoms):
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
@@ -211,15 +216,6 @@ class ASECalculator(Calculator):
                 self.neighbors = self.neighbor_fn.allocate(positions, box=box)
             else:
                 self.neighbors = self.neighbor_fn.allocate(positions)
-        else:
-            calculator = NeighborList(cutoff=self.r_max, full_list=True)
-            idxs_i, _, _ = calculator.compute(
-                points=atoms.positions,
-                box=atoms.cell.array,
-                periodic=bool(np.any(atoms.pbc)),
-                quantities="ijS",
-            )
-            self.padded_length = int(len(idxs_i) * self.padding_factor)
 
     def get_descriptors(
         self,
@@ -293,24 +289,10 @@ class ASECalculator(Calculator):
         return np.concatenate(results, axis=0)
 
     def set_neighbours_and_offsets(self, atoms, box):
-        calculator = NeighborList(cutoff=self.r_max, full_list=True)
-        idxs_i, idxs_j, offsets = calculator.compute(
-            points=atoms.positions,
-            box=atoms.cell.array,
-            periodic=bool(np.any(atoms.pbc)),
-            quantities="ijS",
-        )
-        if len(idxs_i) > self.padded_length:
-            print("neighbor list overflowed, extending.")
-            self.initialize(atoms)
-
-        zeros_to_add = self.padded_length - len(idxs_i)
+        idxs_i, idxs_j, offsets = self._vesin_nl_wrapper.update(atoms)
 
         self.neighbors = np.array([idxs_i, idxs_j], dtype=np.int32)
-        self.neighbors = np.pad(self.neighbors, ((0, 0), (0, zeros_to_add)), "constant")
-
-        offsets = np.matmul(offsets, box)
-        self.offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
+        self.offsets = offsets
 
     def calculate(self, atoms, properties=["energy"], system_changes=all_changes):
         Calculator.calculate(self, atoms, properties, system_changes)
