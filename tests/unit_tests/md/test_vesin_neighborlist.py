@@ -1,9 +1,11 @@
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-from ase import Atoms
-from unittest.mock import patch, MagicMock
 import pytest
+from ase import Atoms
 
 from apax.md.vesin_neighborlist import VesinNeighborListWrapper
+
 
 @pytest.fixture
 def sample_atoms():

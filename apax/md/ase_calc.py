@@ -11,14 +11,13 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from flax.core.frozen_dict import freeze, unfreeze
 from jax import tree_util
 from tqdm import tqdm, trange
-from vesin import NeighborList
-from apax.md.vesin_neighborlist import VesinNeighborListWrapper
 
 from apax.data.input_pipeline import (
     CachedInMemoryDataset,
     OTFInMemoryDataset,
 )
 from apax.md.function_transformations import ProcessStress
+from apax.md.vesin_neighborlist import VesinNeighborListWrapper
 from apax.train.checkpoints import (
     canonicalize_energy_model_parameters,
     check_for_ensemble,
