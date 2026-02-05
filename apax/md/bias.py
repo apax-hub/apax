@@ -1,21 +1,33 @@
-from typing import Any, Callable, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 import jax
 import jax.numpy as jnp
+from jax import Array
 from pydantic import BaseModel, TypeAdapter
 
 from apax.utils.jax_md_reduced.space import distance
 
 
 class BiasEnergyBase(BaseModel):
-    def energy(self, R, neighbor, box, pertubation=None):
+    def energy(
+        self,
+        R: Array,
+        neighbor: Array,
+        box: Array,
+        pertubation: Optional[Array] = None,
+    ) -> Array:
         raise NotImplementedError()
 
 
-def apply_bias_energy(bias: BiasEnergyBase, model) -> Callable[..., dict[str, Any]]:
+def apply_bias_energy(bias: BiasEnergyBase, model: Callable) -> Callable[..., Dict[str, Any]]:
     # Function signature:
     # Array, Array, Array, pertubation -> float
-    def energy_fn(R, neighbor, box, pertubation=None):
+    def energy_fn(
+        R: Array,
+        neighbor: Array,
+        box: Array,
+        pertubation: Optional[Array] = None,
+    ) -> Array:
         energy = model(R=R, neighbor=neighbor, box=box)
         E_bias = bias.energy(R, neighbor, box, pertubation=pertubation)
 
@@ -24,8 +36,16 @@ def apply_bias_energy(bias: BiasEnergyBase, model) -> Callable[..., dict[str, An
     return energy_fn
 
 
-def apply_bias_auxiliary(bias: BiasEnergyBase, model) -> Callable[..., dict[str, Any]]:
-    def aux_fn(R, Z, neighbor, box, offsets):
+def apply_bias_auxiliary(
+    bias: BiasEnergyBase, model: Callable
+) -> Callable[..., Dict[str, Any]]:
+    def aux_fn(
+        R: Array,
+        Z: Array,
+        neighbor: Array,
+        box: Array,
+        offsets: Array,
+    ) -> Dict[str, Array]:
         E_bias, neg_F_bias = jax.value_and_grad(bias.energy)(R, neighbor, box)
 
         prediction = model(R=R, Z=Z, neighbor=neighbor, box=box, offsets=offsets)
@@ -57,8 +77,14 @@ class SphericalWall(BiasEnergyBase):
     radius: float
     spring_constant: float
 
-    def energy(self, R, neighbor, box, pertubation=None):
-        distance_outside_radius = jnp.clip(distance(R) - self.radius, min=0.0)
+    def energy(
+        self,
+        R: Array,
+        neighbor: Array,
+        box: Array,
+        pertubation: Optional[Array] = None,
+    ) -> Array:
+        distance_outside_radius = jnp.clip(distance(R) - self.radius, a_min=0.0)
         return 0.5 * self.spring_constant * jnp.sum(distance_outside_radius**2)
 
 

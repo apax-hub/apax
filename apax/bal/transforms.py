@@ -1,5 +1,8 @@
+from typing import Any, Dict
+
 import jax
 import jax.numpy as jnp
+from flax.core.frozen_dict import FrozenDict
 
 from apax.bal.feature_maps import FeatureMap
 
@@ -10,7 +13,7 @@ def ensemble_features(feature_fn: FeatureMap) -> FeatureMap:
     """
     ensemble_feature_fn = jax.vmap(feature_fn, (0, None), 0)
 
-    def averaged_feature_fn(params, x):
+    def averaged_feature_fn(params: FrozenDict, x: Dict[str, Any]) -> jax.Array:
         g = ensemble_feature_fn(params, x)
 
         if len(g.shape) != 2:

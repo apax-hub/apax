@@ -1,22 +1,24 @@
 import dataclasses
 from typing import Callable, Optional
 
+import ase
 import jax.numpy as jnp
 import numpy as np
+from jax import Array
 
 from apax.utils.jax_md_reduced import space
 
 
 @dataclasses.dataclass
 class System:
-    atomic_numbers: jnp.array
-    masses: jnp.array
-    positions: jnp.array
-    box: jnp.array
-    momenta: Optional[jnp.array]
+    atomic_numbers: Array
+    masses: Array
+    positions: Array
+    box: Array
+    momenta: Optional[Array]
 
     @classmethod
-    def from_atoms(cls, atoms):
+    def from_atoms(cls, atoms: ase.Atoms) -> "System":
         atomic_numbers = jnp.asarray(atoms.numbers, dtype=jnp.int32)
         masses = jnp.asarray(atoms.get_masses(), dtype=jnp.float64)
         momenta = atoms.get_momenta()

@@ -1,14 +1,15 @@
 import logging
 import os
 import sys
-from typing import List, Union
+from pathlib import Path
+from typing import Any, Dict, List, Tuple, Union
 
 import jax
 
 from apax.config import Config, LossConfig, parse_config
 from apax.data.initialization import load_data_files
-from apax.data.input_pipeline import dataset_dict
-from apax.data.statistics import compute_scale_shift_parameters
+from apax.data.input_pipeline import InMemoryDataset, dataset_dict
+from apax.data.statistics import DatasetStats, compute_scale_shift_parameters
 from apax.optimizer import get_opt
 from apax.train.callbacks import initialize_callbacks
 from apax.train.checkpoints import create_params, create_train_state
@@ -22,7 +23,7 @@ from apax.utils.random import seed_py_np_tf
 log = logging.getLogger(__name__)
 
 
-def setup_logging(log_file, log_level):
+def setup_logging(log_file: Path, log_level: str) -> None:
     """
     Setup logging configuration.
 
@@ -77,10 +78,10 @@ def initialize_loss_fn(loss_config_list: List[LossConfig]) -> LossCollection:
     return LossCollection(loss_funcs)
 
 
-def compute_property_shapes(config: Config):
+def compute_property_shapes(config: Config) -> List[Tuple[str, List[Any]]]:
     property_configs = [p.model_dump() for p in config.model.property_heads]
 
-    additional_properties = []
+    additional_properties: List[Tuple[str, List[Any]]] = []
 
     if len(property_configs) == 0:
         return additional_properties
@@ -90,11 +91,15 @@ def compute_property_shapes(config: Config):
         name = pconf["name"]
         if name not in loss_names:
             continue
-        shape = []
+        shape: List[Any] = []
         if pconf["aggregation"] == "none":
             shape.append("natoms")
 
-        feature_shapes = {"l0": [1], "l1": [3], "symmetric_traceless_l2": [3, 3]}
+        feature_shapes: Dict[str, List[int]] = {
+            "l0": [1],
+            "l1": [3],
+            "symmetric_traceless_l2": [3, 3],
+        }
 
         shape.extend(feature_shapes[pconf["mode"]])
 
@@ -103,7 +108,9 @@ def compute_property_shapes(config: Config):
     return additional_properties
 
 
-def initialize_datasets(config: Config):
+def initialize_datasets(
+    config: Config,
+) -> Tuple[InMemoryDataset, InMemoryDataset, DatasetStats]:
     """
     Initialize training and validation datasets based on the provided configuration.
 
@@ -166,7 +173,9 @@ def initialize_datasets(config: Config):
     return train_ds, val_ds, ds_stats
 
 
-def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
+def run(
+    user_config: Union[str, os.PathLike, Dict[str, Any]], log_level: str = "error"
+) -> None:
     """
     Starts the training of a model with parameters provided by a the config.
 
@@ -209,7 +218,7 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
         n_full_models = 1
     params, rng_key = create_params(model, rng_key, sample_input, n_full_models)
 
-    freeze_layers = []
+    freeze_layers: List[str] = []
     do_transfer_learning = config.transfer_learning is not None
     if do_transfer_learning:
         freeze_layers = config.transfer_learning.freeze_layers
@@ -230,7 +239,7 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
         state = transfer_parameters(state, config.transfer_learning)
 
     if config.weight_average:
-        ema_handler = EMAParameters(
+        ema_handler: EMAParameters = EMAParameters(
             config.weight_average.ema_start, config.weight_average.alpha
         )
     else:

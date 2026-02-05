@@ -3,7 +3,7 @@ from typing import Any
 import einops
 import flax.linen as nn
 import jax.numpy as jnp
-from jax import vmap
+from jax import Array, vmap
 
 from apax.layers.descriptor.basis_functions import RadialFunction
 from apax.layers.descriptor.moments import geometric_moments
@@ -19,7 +19,7 @@ class GaussianMomentDescriptor(nn.Module):
     dtype: Any = jnp.float32
     apply_mask: bool = True
 
-    def setup(self):
+    def setup(self) -> None:
         self.r_max = self.radial_fn.r_max
         self.n_radial = self.radial_fn._n_radial
 
@@ -28,7 +28,7 @@ class GaussianMomentDescriptor(nn.Module):
         self.triang_idxs_2d = tril_2d_indices(self.n_radial)
         self.triang_idxs_3d = tril_3d_indices(self.n_radial)
 
-    def __call__(self, dr_vec, Z, neighbor_idxs):
+    def __call__(self, dr_vec: Array, Z: Array, neighbor_idxs: Array) -> Array:
         dtype = str_to_dtype(self.dtype)
         dr_vec = dr_vec.astype(dtype)
         # Z shape n_atoms

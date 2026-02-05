@@ -1,10 +1,11 @@
 import logging
+from typing import Callable, Dict, List, Tuple
 
 import jax.numpy as jnp
 import numpy as np
 import optax
 from flax import traverse_util
-from flax.core.frozen_dict import freeze
+from flax.core.frozen_dict import FrozenDict, freeze
 from optax._src import base
 
 from apax.optimizer.optimizers import ademamix, sam
@@ -14,7 +15,7 @@ log = logging.getLogger(__name__)
 
 def cyclic_cosine_decay_schedule(
     init_value: float,
-    steps_per_epoch,
+    steps_per_epoch: int,
     period: int,
     decay_factor: float = 0.9,
 ) -> base.Schedule:
@@ -28,7 +29,7 @@ def cyclic_cosine_decay_schedule(
         A function that maps step counts to values.
     """
 
-    def schedule(count):
+    def schedule(count: int) -> float:
         cycle = count // (period * steps_per_epoch)
         step_in_period = jnp.mod(count, period * steps_per_epoch)
         arg = np.pi * step_in_period / (period * steps_per_epoch)
@@ -43,7 +44,7 @@ def get_schedule(
     lr: float,
     n_epochs: int,
     steps_per_epoch: int,
-    schedule_kwargs: dict,
+    schedule_kwargs: Dict,
 ) -> optax._src.base.Schedule:
     """
     builds a linear learning rate schedule.
@@ -63,7 +64,13 @@ def get_schedule(
 
 class OptimizerFactory:
     def __init__(
-        self, opt, n_epochs, steps_per_epoch, gradient_clipping, kwargs, schedule
+        self,
+        opt: Callable,
+        n_epochs: int,
+        steps_per_epoch: int,
+        gradient_clipping: float,
+        kwargs: Dict,
+        schedule: Dict,
     ) -> None:
         self.opt = opt
         self.n_epochs = n_epochs
@@ -72,7 +79,7 @@ class OptimizerFactory:
         self.kwargs = kwargs
         self.schedule = schedule
 
-    def create(self, lr):
+    def create(self, lr: float) -> base.GradientTransformation:
         if lr <= 1e-7:
             optimizer = optax.set_to_zero()
         else:
@@ -88,7 +95,7 @@ class OptimizerFactory:
 
 
 def get_opt(
-    params,
+    params: FrozenDict,
     n_epochs: int,
     steps_per_epoch: int,
     emb_lr: float = 0.02,
@@ -98,11 +105,11 @@ def get_opt(
     zbl_lr: float = 0.001,
     rep_scale_lr: float = 0.001,
     rep_prefactor_lr: float = 0.0001,
-    gradient_clipping=1000.0,
-    freeze_layers: list[str] = [],
+    gradient_clipping: float = 1000.0,
+    freeze_layers: List[str] = [],
     name: str = "adam",
-    kwargs: dict = {},
-    schedule: dict = {},
+    kwargs: Dict = {},
+    schedule: Dict = {},
 ) -> optax._src.base.GradientTransformation:
     """
     Builds an optimizer with different learning rates for each parameter group.
@@ -155,7 +162,7 @@ def get_opt(
 
     param_groups = list(partition_optimizers.keys())
 
-    def get_param_group(path, x):
+    def get_param_group(path: Tuple[str, ...], x: jnp.ndarray) -> str:
         """
         Assigns each parameter to a group based on its path.
         - Freezes layers with matching name

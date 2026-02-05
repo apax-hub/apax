@@ -1,15 +1,21 @@
+from typing import Callable, Optional, Tuple, Union
+
 import jax.numpy as jnp
 import numpy as np
-from jax import vmap
+from jax import Array, vmap
 
 from apax.utils.jax_md_reduced import partition, space
 
 
-def canonicalize_neighbors(neighbor):
+def canonicalize_neighbors(
+    neighbor: Union[partition.NeighborList, Array]
+) -> Array:
     return neighbor.idx if isinstance(neighbor, partition.NeighborList) else neighbor
 
 
-def disp_fn(ri, rj, perturbation, box):
+def disp_fn(
+    ri: Array, rj: Array, perturbation: Optional[Array], box: Array
+) -> Array:
     dR = space.pairwise_displacement(ri, rj)
     dR = space.transform(box, dR)
 
@@ -22,14 +28,18 @@ def disp_fn(ri, rj, perturbation, box):
     return dR
 
 
-def get_disp_fn(displacement):
-    def disp_fn(ri, rj, perturbation, box):
+def get_disp_fn(displacement: Callable) -> Callable:
+    def disp_fn(
+        ri: Array, rj: Array, perturbation: Optional[Array], box: Array
+    ) -> Array:
         return displacement(ri, rj, perturbation, box=box)
 
     return disp_fn
 
 
-def make_distance_fn(init_box, inference_disp_fn=None):
+def make_distance_fn(
+    init_box: np.ndarray, inference_disp_fn: Optional[Callable] = None
+) -> Callable:
     """Model which post processes the output of an atomistic model and
     adds empirical energy terms.
     """
@@ -45,7 +55,13 @@ def make_distance_fn(init_box, inference_disp_fn=None):
         mappable_displacement_fn = get_disp_fn(inference_disp_fn)
         displacement = vmap(mappable_displacement_fn, (0, 0, None, None), 0)
 
-    def compute_distances(R, neighbor, box, offsets, perturbation=None):
+    def compute_distances(
+        R: Array,
+        neighbor: Union[partition.NeighborList, Array],
+        box: Array,
+        offsets: Array,
+        perturbation: Optional[Array] = None,
+    ) -> Tuple[Array, Array]:
         # Distances
         idx = canonicalize_neighbors(neighbor)
         idx_i, idx_j = idx[0], idx[1]

@@ -1,5 +1,6 @@
 import flax.linen as nn
 import jax.numpy as jnp
+from jax import Array
 
 from apax.utils.convert import str_to_dtype
 
@@ -17,7 +18,7 @@ class NTKLinear(nn.Module):
     dtype: str = "fp32"
 
     @nn.compact
-    def __call__(self, inputs):
+    def __call__(self, inputs: Array) -> Array:
         dtype = str_to_dtype(self.dtype)
         inputs = inputs.astype(dtype)
 

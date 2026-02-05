@@ -1,9 +1,12 @@
 import logging
 from functools import partial
+from typing import Dict, List
 
 import jax.numpy as jnp
 from clu import metrics
+from jax import Array
 
+from apax.config.train_config import MetricsConfig
 from apax.utils.math import normed_dotp
 
 log = logging.getLogger(__name__)
@@ -21,13 +24,13 @@ class RootAverage(Averagefp64):
     Meant to be used with `mse_fn`.
     """
 
-    def compute(self) -> jnp.array:
+    def compute(self) -> Array:
         return jnp.sqrt(self.total / self.count)
 
 
 def mae_fn(
-    inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str
-) -> jnp.array:
+    inputs: Dict, label: Dict[str, Array], prediction: Dict[str, Array], key: str
+) -> Array:
     """
     Computes the Mean Absolute Error of two arrays.
     """
@@ -35,8 +38,8 @@ def mae_fn(
 
 
 def mse_fn(
-    inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str
-) -> jnp.array:
+    inputs: Dict, label: Dict[str, Array], prediction: Dict[str, Array], key: str
+) -> Array:
     """
     Computes the Mean Squared Error of two arrays.
     """
@@ -44,8 +47,8 @@ def mse_fn(
 
 
 def cosine_sim(
-    inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str
-) -> jnp.array:
+    inputs: Dict, label: Dict[str, Array], prediction: Dict[str, Array], key: str
+) -> Array:
     """
     Computes the cosine similarity of two arrays.
     """
@@ -55,8 +58,8 @@ def cosine_sim(
 
 
 def per_atom_mae_fn(
-    inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str
-) -> jnp.array:
+    inputs: Dict, label: Dict[str, Array], prediction: Dict[str, Array], key: str
+) -> Array:
     """
     Computes the per atom Mean Absolute Error of two arrays.
     Only reasanable when using with structural
@@ -67,8 +70,8 @@ def per_atom_mae_fn(
 
 
 def per_atom_mse_fn(
-    inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str
-) -> jnp.array:
+    inputs: Dict, label: Dict[str, Array], prediction: Dict[str, Array], key: str
+) -> Array:
     """
     Computes the per atom Mean Squared Error of two arrays.
     Only reasanable when using with structural
@@ -104,21 +107,21 @@ def make_single_metric(key: str, reduction: str) -> metrics.Average:
     return metric.from_fun(reduction_fn)
 
 
-def initialize_metrics(metrics_list) -> metrics.Collection:
+def initialize_metrics(metrics_list: List[MetricsConfig]) -> metrics.Collection:
     """
     Builds a `clu` metrics `Collection` by looping over all `keys` and `reductions`.
     the metrics are named according to `key_reduction`.
     See `make_single_metric` for details on the individual metrics.
     """
     log.info("Initializing Metrics")
-    keys = []
-    reductions = []
+    keys: List[str] = []
+    reductions: List[str] = []
     for metric in metrics_list:
         for reduction in metric.reductions:
             keys.append(metric.name)
             reductions.append(reduction)
 
-    metric_dict = {}
+    metric_dict: Dict[str, metrics.Average] = {}
     for key, reduction in zip(keys, reductions):
         metric = make_single_metric(key, reduction)
         metric_identifier = f"{key}_{reduction}"

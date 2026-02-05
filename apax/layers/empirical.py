@@ -1,20 +1,20 @@
 from dataclasses import field
-from typing import Any
+from typing import Any, Dict, List
 
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import numpy as np
 from ase import data
-from jax import vmap
+from jax import Array, vmap
 
-from apax.layers.masking import mask_by_atom, mask_by_neighbor
+from apax.layers.masking import mask_by_neighbor
 from apax.utils.convert import str_to_dtype
 from apax.utils.jax_md_reduced import space
 from apax.utils.math import fp64_sum
 
 
-def inverse_softplus(x):
+def inverse_softplus(x: Array) -> Array:
     return jnp.log(jnp.exp(x) - 1.0)
 
 
@@ -26,7 +26,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
     r_max: float = 2.0
     apply_mask: bool = True
 
-    def setup(self):
+    def setup(self) -> None:
         self.distance = vmap(space.distance, 0, 0)
 
         coeffs = jnp.array([0.18175, 0.50986, 0.28022, 0.02817])[:, None]
@@ -47,7 +47,15 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
             "rep_scale", nn.initializers.constant(rep_scale_isp), (1,)
         )
 
-    def __call__(self, R, dr_vec, Z, idx, box, properties):
+    def __call__(
+        self,
+        R: Array,
+        dr_vec: Array,
+        Z: Array,
+        idx: Array,
+        box: Array,
+        properties: Dict[str, Array],
+    ) -> Array:
         dtype = str_to_dtype(self.dtype)
         # Z shape n_atoms
 
@@ -85,7 +93,7 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
     r_max: float = 2.0
     apply_mask: bool = True
 
-    def setup(self):
+    def setup(self) -> None:
         self.distance = vmap(space.distance, 0, 0)
 
         radii = data.covalent_radii * 0.8
@@ -95,7 +103,15 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
             "rep_prefactor", nn.initializers.constant(100.0), (119,)
         )
 
-    def __call__(self, R, dr_vec, Z, idx, box, properties):
+    def __call__(
+        self,
+        R: Array,
+        dr_vec: Array,
+        Z: Array,
+        idx: Array,
+        box: Array,
+        properties: Dict[str, Array],
+    ) -> Array:
         dtype = str_to_dtype(self.dtype)
 
         # Z shape n_atoms
@@ -131,11 +147,19 @@ class LatentEwald(EmpiricalEnergyTerm):
     Requires a property head which predicts 'charge' per atom.
     """
 
-    kgrid: list[int] = field(default_factory=lambda: [2, 2, 2])
+    kgrid: List[int] = field(default_factory=lambda: [2, 2, 2])
     sigma: float = 1.0
     apply_mask: bool = True
 
-    def __call__(self, R, dr_vec, Z, idx, box, properties):
+    def __call__(
+        self,
+        R: Array,
+        dr_vec: Array,
+        Z: Array,
+        idx: Array,
+        box: Array,
+        properties: Dict[str, Array],
+    ) -> Array:
         # Z shape n_atoms
         if "charge" not in properties:
             raise KeyError(

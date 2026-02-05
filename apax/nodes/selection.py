@@ -1,6 +1,7 @@
 import logging
 import typing
 from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
 import ase.io
 import numpy as np
@@ -25,7 +26,9 @@ from apax.nodes.model import ApaxBase
 log = logging.getLogger(__name__)
 
 
-def plot_with_uncertainty(value, ylabel: str, xlabel: str, x=None, **kwargs) -> tuple:
+def plot_with_uncertainty(
+    value: Any, ylabel: str, xlabel: str, x: np.ndarray = None, **kwargs
+) -> Tuple[plt.Figure, plt.Axes, Dict[str, np.ndarray]]:
     """Parameters
     ----------
     value: data of shape (n, m) where n is the number of ensembles.
@@ -97,13 +100,13 @@ class BatchKernelSelection(zntrack.Node):
         Does not affect the result, just the speed of computing features.
     """
 
-    data: typing.Union[list[ase.Atoms], IO] = zntrack.deps()
-    train_data: list[ase.Atoms] = zntrack.deps()
+    data: typing.Union[List[ase.Atoms], IO] = zntrack.deps()
+    train_data: List[ase.Atoms] = zntrack.deps()
 
-    selected_ids: list[int] = zntrack.outs(independent=True)
+    selected_ids: List[int] = zntrack.outs(independent=True)
 
-    models: typing.Union[ApaxBase, typing.List[ApaxBase]] = zntrack.deps()
-    base_feature_map: dict = zntrack.params(
+    models: typing.Union[ApaxBase, List[ApaxBase]] = zntrack.deps()
+    base_feature_map: Dict[str, Any] = zntrack.params(
         default_factory=lambda: {"name": "ll_grad", "layer_name": "dense_2"}
     )
     selection_method: str = zntrack.params("max_dist")
@@ -117,30 +120,30 @@ class BatchKernelSelection(zntrack.Node):
     img_features_pca: Path = zntrack.outs_path(zntrack.nwd / "features_pca.png")
     img_features_umap: Path = zntrack.outs_path(zntrack.nwd / "features_umap.png")
 
-    def get_data(self) -> list[ase.Atoms]:
+    def get_data(self) -> List[ase.Atoms]:
         """Get the atoms data to process."""
         if self.data is not None:
             return self.data
         else:
             raise ValueError("No data given.")
 
-    def run(self):
+    def run(self) -> None:
         """ZnTrack Node Run method."""
 
         log.debug(f"Selecting from {len(self.data)} configurations.")
         self.selected_ids = self.select_atoms(self.data)
 
     @property
-    def frames(self) -> list[ase.Atoms]:
+    def frames(self) -> List[ase.Atoms]:
         """Get a list of the selected atoms objects."""
         return [atoms for i, atoms in enumerate(self.data) if i in self.selected_ids]
 
     @property
-    def excluded_frames(self) -> list[ase.Atoms]:
+    def excluded_frames(self) -> List[ase.Atoms]:
         """Get a list of the atoms objects that were not selected."""
         return [atoms for i, atoms in enumerate(self.data) if i not in self.selected_ids]
 
-    def select_atoms(self, atoms_lst: typing.List[ase.Atoms] | IO) -> typing.List[int]:
+    def select_atoms(self, atoms_lst: typing.Union[List[ase.Atoms], IO]) -> List[int]:
         if isinstance(self.models, list):
             param_files = [m.parameter["data"]["directory"] for m in self.models]
         else:
@@ -192,8 +195,8 @@ class BatchKernelSelection(zntrack.Node):
         return [int(x) for x in ranking]
 
     def _get_selection_plot(
-        self, atoms_lst: typing.List[ase.Atoms], indices: typing.List[int]
-    ):
+        self, atoms_lst: List[ase.Atoms], indices: List[int]
+    ) -> None:
         has_calc = any(atoms.calc is not None for atoms in atoms_lst)
         if not has_calc:
             energies = np.zeros(len(atoms_lst))
@@ -265,7 +268,7 @@ class BatchKernelSelection(zntrack.Node):
         fig.savefig(self.img_selection, bbox_inches="tight", dpi=240)
         plt.close()
 
-    def _get_distances_plot(self, distances: np.ndarray, last_selected: int):
+    def _get_distances_plot(self, distances: np.ndarray, last_selected: int) -> None:
         fig, ax = plt.subplots()
         ax.semilogy(distances, label="sq. distances")
 
@@ -279,7 +282,7 @@ class BatchKernelSelection(zntrack.Node):
 
     def _get_pca_plot(
         self, g_train: np.ndarray, g_selection: np.ndarray, g_remaining: np.ndarray
-    ):
+    ) -> None:
         if PCA:
             all_features = [g_train, g_selection]
             if len(g_remaining) > 0:
@@ -333,7 +336,7 @@ class BatchKernelSelection(zntrack.Node):
 
     def _get_umap_plot(
         self, g_train: np.ndarray, g_selection: np.ndarray, g_remaining: np.ndarray
-    ):
+    ) -> None:
         if umap is None:
             return
 

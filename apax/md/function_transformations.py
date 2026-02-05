@@ -1,16 +1,26 @@
 import dataclasses
+from typing import Callable, Dict
 
 import jax
 import jax.numpy as jnp
+from jax import Array
 
 from apax.utils.jax_md_reduced import quantity
 
 
-def make_biased_energy_force_fn(bias_fn):
-    def biased_energy_force_fn(positions, Z, idx, box, offsets):
+def make_biased_energy_force_fn(bias_fn: Callable) -> Callable:
+    def biased_energy_force_fn(
+        positions: Array,
+        Z: Array,
+        idx: Array,
+        box: Array,
+        offsets: Array,
+    ) -> Dict[str, Array]:
         bias_and_grad_fn = jax.value_and_grad(bias_fn, has_aux=True)
 
-        (E_bias, results), neg_F_bias = bias_and_grad_fn(positions, Z, idx, box, offsets)
+        (E_bias, results), neg_F_bias = bias_and_grad_fn(
+            positions, Z, idx, box, offsets
+        )
 
         if "energy_unbiased" not in results.keys():
             results["energy_unbiased"] = results["energy"]
@@ -46,8 +56,14 @@ class UncertaintyDrivenDynamics:
     height: float
     width: float
 
-    def apply(self, model):
-        def udd_energy(positions, Z, idx, box, offsets):
+    def apply(self, model: Callable) -> Callable:
+        def udd_energy(
+            positions: Array,
+            Z: Array,
+            idx: Array,
+            box: Array,
+            offsets: Array,
+        ) -> tuple[Array, Dict[str, Array]]:
             n_atoms = positions.shape[0]
             results = model(positions, Z, idx, box, offsets)
             n_models = results["energy_ensemble"].shape[0]
@@ -81,8 +97,14 @@ class GaussianAcceleratedMolecularDynamics:
     energy_target: float
     spring_constant: float
 
-    def apply(self, model):
-        def gamd_energy(positions, Z, idx, box, offsets):
+    def apply(self, model: Callable) -> Callable:
+        def gamd_energy(
+            positions: Array,
+            Z: Array,
+            idx: Array,
+            box: Array,
+            offsets: Array,
+        ) -> tuple[Array, Dict[str, Array]]:
             results = model(positions, Z, idx, box, offsets)
 
             energy = jnp.clip(results["energy"], a_max=self.energy_target)
@@ -114,8 +136,14 @@ class GlobalCalibration:
     energy_factor: float
     forces_factor: float
 
-    def apply(self, model):
-        def calibrated_model(positions, Z, idx, box, offsets):
+    def apply(self, model: Callable) -> Callable:
+        def calibrated_model(
+            positions: Array,
+            Z: Array,
+            idx: Array,
+            box: Array,
+            offsets: Array,
+        ) -> Dict[str, Array]:
             results = model(positions, Z, idx, box, offsets)
 
             results["energy_uncertainty"] = (
@@ -142,8 +170,14 @@ class ProcessStress:
     Remove Volume factor from stress predictions.
     """
 
-    def apply(self, model):
-        def corrected_model(positions, Z, idx, box, offsets):
+    def apply(self, model: Callable) -> Callable:
+        def corrected_model(
+            positions: Array,
+            Z: Array,
+            idx: Array,
+            box: Array,
+            offsets: Array,
+        ) -> Dict[str, Array]:
             results = model(positions, Z, idx, box, offsets)
 
             V = quantity.volume(3, box)

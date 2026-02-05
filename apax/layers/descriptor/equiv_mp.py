@@ -4,6 +4,7 @@ from typing import Any
 import e3x
 import flax.linen as nn
 import jax.numpy as jnp
+from jax import Array
 
 from apax.layers.descriptor.basis_functions import BesselBasis
 from apax.layers.masking import mask_by_neighbor
@@ -20,7 +21,7 @@ class EquivMPRepresentation(nn.Module):
     apply_mask: bool = True
 
     @nn.compact
-    def __call__(self, dr_vec, Z, neighbor_idxs):
+    def __call__(self, dr_vec: Array, Z: Array, neighbor_idxs: Array) -> Array:
         dtype = str_to_dtype(self.dtype)
         dr_vec = dr_vec.astype(dtype)
 

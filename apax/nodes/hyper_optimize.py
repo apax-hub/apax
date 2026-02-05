@@ -2,7 +2,7 @@ import json
 import logging
 import pathlib
 from copy import deepcopy
-from typing import Any
+from typing import Any, Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -51,8 +51,8 @@ class ApaxOptimizeHyperparameters(zntrack.Node):
     """
 
     config: str = zntrack.params_path()
-    data: list[Atoms] = zntrack.deps()
-    validation_data: list[Atoms] = zntrack.deps()
+    data: List[Atoms] = zntrack.deps()
+    validation_data: List[Atoms] = zntrack.deps()
     optuna_config_path: str = zntrack.params_path()
 
     train_log_level: str = zntrack.params("info")
@@ -67,9 +67,9 @@ class ApaxOptimizeHyperparameters(zntrack.Node):
     img_slices: pathlib.Path = zntrack.outs_path(zntrack.nwd / "slices.png")
     img_trials: pathlib.Path = zntrack.outs_path(zntrack.nwd / "trials.png")
 
-    metrics: dict = zntrack.metrics()
+    metrics: Dict[str, Any] = zntrack.metrics()
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         optuna.logging.enable_propagation()
         optuna.logging.set_verbosity(self.optuna_log_level.upper())
 
@@ -88,7 +88,7 @@ class ApaxOptimizeHyperparameters(zntrack.Node):
 
         # TODO: Make number of nodes possible vary per layer.
 
-    def _get_trial_configuration(self, trial: optuna.trial.Trial) -> dict[str, Any]:
+    def _get_trial_configuration(self, trial: optuna.trial.Trial) -> Dict[str, Any]:
         params = trial.params.copy()
 
         # Since "model_nn" is a list of number of nodes for each layer, we
@@ -116,7 +116,7 @@ class ApaxOptimizeHyperparameters(zntrack.Node):
         dct["data"] = {"directory": self.get_trial_directory(trial.number).as_posix()}
         return dct
 
-    def _update_configuration(self, trial: optuna.trial.Trial) -> dict[str, Any]:
+    def _update_configuration(self, trial: optuna.trial.Trial) -> Dict[str, Any]:
         trial_config = self._get_trial_configuration(trial)
         log.debug(f"Trial {trial.number} configuration: {trial_config}")
 
@@ -144,7 +144,7 @@ class ApaxOptimizeHyperparameters(zntrack.Node):
 
     def run_trial(
         self, trial: optuna.trial.Trial
-    ) -> tuple[float, optuna.trial.TrialState]:
+    ) -> Tuple[float, optuna.trial.TrialState]:
         config = self._update_configuration(trial)
 
         try:
@@ -188,13 +188,13 @@ class ApaxOptimizeHyperparameters(zntrack.Node):
         log.debug(f"{ntrials_done} done in previous study")
         return ntrials_done
 
-    def _setup(self):
+    def _setup(self) -> None:
         self.optuna_config: OptunaConfig = parse_config(
             self.optuna_config_path, mode="optuna"
         )
         self.check_search_space()
 
-        self.distributions = {}
+        self.distributions: Dict[str, optuna.distributions.BaseDistribution] = {}
         for param, dct in self.optuna_config.search_space.items():
             self.distributions[param] = optuna.distributions.json_to_distribution(
                 json.dumps(dct)
@@ -221,7 +221,7 @@ class ApaxOptimizeHyperparameters(zntrack.Node):
             val_db = znh5md.IO(self.default_config["data"]["val_data_path"])
             val_db.extend(self.validation_data)
 
-    def run(self):
+    def run(self) -> None:
         self._setup()
         ntrials_done = self._get_n_trials_run_previous_study()
 
@@ -264,7 +264,7 @@ class ApaxOptimizeHyperparameters(zntrack.Node):
         self.get_metrics()
         optuna.logging.disable_propagation()
 
-    def _get_plots(self, study: optuna.study.Study):
+    def _get_plots(self, study: optuna.study.Study) -> None:
         plt.figure()
         ax = optuna.visualization.matplotlib.plot_optimization_history(
             study, target_name="Loss"
@@ -291,7 +291,7 @@ class ApaxOptimizeHyperparameters(zntrack.Node):
         plt.savefig(self.img_trials, bbox_inches="tight")
         plt.close()
 
-    def get_metrics(self):
+    def get_metrics(self) -> None:
         """In addition to the plots write a model metric"""
         best_trial_number = self.get_best_trial_number()
         metrics_df = pd.read_csv(self.get_trial_directory(best_trial_number) / "log.csv")

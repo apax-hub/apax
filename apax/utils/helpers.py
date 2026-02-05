@@ -1,7 +1,7 @@
 import collections
 import csv
 from pathlib import Path
-from typing import Any, Union
+from typing import Any, Dict, List, Union
 
 import yaml
 
@@ -20,7 +20,7 @@ APAX_PROPERTIES = [
 ]
 
 
-def setup_ase():
+def setup_ase() -> None:
     """Add uncertainty keys to ASE all properties.
     from https://github.com/zincware/IPSuite/blob/main/ipsuite/utils/helpers.py#L10
     """
@@ -32,8 +32,8 @@ def setup_ase():
 
 
 def mod_config(
-    config_path: Union[str, Path], updated_config: dict[str, Any]
-) -> dict[str, Any]:
+    config_path: Union[str, Path], updated_config: Dict[str, Any]
+) -> Dict[str, Any]:
     """Update a configuration in a YAML file.
 
     Args:
@@ -59,7 +59,7 @@ def mod_config(
     return config_dict
 
 
-def load_csv_metrics(path: Union[str, Path]) -> dict[str, list[float]]:
+def load_csv_metrics(path: Union[str, Path]) -> Dict[str, List[float]]:
     """Load metrics from during training.
 
     Args:
@@ -70,7 +70,7 @@ def load_csv_metrics(path: Union[str, Path]) -> dict[str, list[float]]:
             metric and values of each metric during training.
     """
 
-    data_dict = {}
+    data_dict: Dict[str, List[float]] = {}
 
     with open(path, "r") as file:
         reader = csv.reader(file)
@@ -91,7 +91,7 @@ def load_csv_metrics(path: Union[str, Path]) -> dict[str, list[float]]:
     return data_dict
 
 
-def update_nested_dictionary(dct: dict, other: dict) -> dict:
+def update_nested_dictionary(dct: Dict, other: Dict) -> Dict:
     """Update a nested dictionary with new key-value pairs.
 
     Args:
