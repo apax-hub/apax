@@ -4,42 +4,65 @@ from typing import Callable
 import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
-from openmm.app import Simulation, Topology
+from openmm.app import Element, Simulation, Topology
 from openmm.openmm import Integrator, State, System
 from openmm.unit import angstrom, ev
 from vesin import NeighborList
 
-from apax.md.ase_calc import (
-    build_energy_neighbor_fns,
-    check_for_ensemble,
-    get_step_fn,
-    neighbor_calculable_with_jax,
-)
+from apax.md.ase_calc import (build_energy_neighbor_fns, check_for_ensemble,
+                              get_step_fn, neighbor_calculable_with_jax)
 from apax.train.checkpoints import restore_parameters
 from apax.utils.jax_md_reduced import space
 
 
-def create_topology_from_ase_atoms(atoms: Atoms) -> tuple[System, np.ndarray]:
+def create_topology_from_ase_atoms(atoms: Atoms) -> System:
     topology = Topology()
-    for atom in atoms:
-        topology.addAtom(atom)
+    for i, atom in enumerate(atoms):
+        chain = topology.addChain()
+        residue = topology.addResidue(f"atom-{i}", chain)
+        element = Element.getByAtomicNumber(atom.number)
+        topology.addAtom(f"atom-{i}", element, residue)
+
     return topology
+
+
+def create_system(atoms: Atoms) -> System:
+    system = System()
+    for atom in atoms:
+        system.addParticle(atom.mass)
+    return system
 
 
 def create_simulation(atoms: Atoms, system: System, integrator: Integrator) -> Simulation:
     topology = create_topology_from_ase_atoms(atoms)
     simulation = Simulation(topology, system, integrator)
 
-    simulation.context.setPositions(atoms.positions)
+    simulation.context.setPositions(atoms.positions * angstrom)
+
+    if np.any(atoms.cell.array > 1e-6):
+        a, b, c = (
+            atoms.cell[0] * angstrom,
+            atoms.cell[1] * angstrom,
+            atoms.cell[2] * angstrom,
+        )
+        simulation.context.setPeriodicBoxVectors(a, b, c)
     return simulation
 
 
 class OpenMMInterface:
-    def __init__(self, model_dir: str | Path, padding_factor: float = 1.5):
+    def __init__(
+        self,
+        model_dir: str | Path,
+        dr_threshold: float = 0.5,
+        padding_factor: float = 1.5,
+        transformations: list[Callable] = [],
+    ):
         self.model_config, self.params = restore_parameters(model_dir)
 
         self.n_models = check_for_ensemble(self.params)
         self.padding_factor = padding_factor
+        self.dr_threshold = dr_threshold
+        self.transformations = transformations
         self.padded_length = 0
 
         self.step = None
@@ -51,8 +74,8 @@ class OpenMMInterface:
     def _initialize(self, atoms: Atoms) -> None:
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
         self.r_max = self.model_config.model.basis.r_max
-        neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
-        model, neighbor_fn = build_energy_neighbor_fns(
+        self.neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
+        self.model, self.neighbor_fn = build_energy_neighbor_fns(
             atoms,
             self.model_config,
             self.params,
@@ -60,18 +83,16 @@ class OpenMMInterface:
             self.neigbor_from_jax,
         )
 
-        # if self.n_models > 1:
-        #     model = make_ensemble(model)
+        if self.n_models > 1:
+            self.model = make_ensemble(self.model)
 
         # if "stress" in self.implemented_properties:
         #     model = ProcessStress().apply(model)
 
-        # for transformation in self.transformations:
-        #     model = transformation.apply(model)
+        for transformation in self.transformations:
+            self.model = transformation.apply(self.model)
 
-        self.model = model
-        self.step = get_step_fn(model, atoms, neigbor_from_jax)
-        self.neighbor_fn = neighbor_fn
+        self.step = get_step_fn(self.model, atoms, self.neigbor_from_jax)
 
         if self.neigbor_from_jax:
             positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
@@ -117,7 +138,7 @@ class OpenMMInterface:
         neighbors = np.pad(neighbors, ((0, 0), (0, zeros_to_add)), "constant")
 
         offsets = np.matmul(offsets, box)
-        self.offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
+        offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
         return neighbors, offsets
 
     def get_python_force_fn(
@@ -169,7 +190,7 @@ class OpenMMInterface:
 
         prev_neigbor_from_jax = self.neigbor_from_jax
 
-        def compute(state: State) -> tuple[float, np.ndarray]:
+        def compute_periodic(state: State) -> tuple[float, np.ndarray]:
             pos = jnp.asarray(
                 state.getPositions(asNumpy=True).value_in_unit(angstrom),
                 dtype=jnp.float64,
@@ -180,9 +201,13 @@ class OpenMMInterface:
             )
 
             neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
-            if prev_neigbor_from_jax != neigbor_from_jax:
-                step = inline_initialize(pos, box)
-                prev_neigbor_from_jax = neigbor_from_jax
+            if not neigbor_from_jax:
+                raise ValueError(
+                    f"The box is not big enough for the neighbors to be calculated with jax. This is not implemented for {self.__name__}"
+                )
+                # prev_neigbor_from_jax != neigbor_from_jax:
+                # step = inline_initialize(pos, box)
+                # prev_neigbor_from_jax = neigbor_from_jax
 
             # predict
             if neigbor_from_jax:
@@ -192,15 +217,30 @@ class OpenMMInterface:
                     raise ValueError(
                         f"neighbor list overflowed, reallocating not implemented yet for {self.__name__}."
                     )
-                    step = inline_initialize(pos, box)
-                    results, self.neighbors = step(pos, self.neighbors, box)
+                    # step = inline_initialize(pos, box)
+                    # results, _ = step(pos, self.neighbors, box)
 
-            else:
-                neighbors, offsets = self.get_neighbours_and_offsets(atoms, box)
-                pos = np.array(space.transform(np.linalg.inv(box), pos))
+            # else:
+            #     neighbors, offsets = self.get_neighbours_and_offsets(atoms, box)
+            #     pos = np.array(space.transform(np.linalg.inv(box), pos))
 
-                results = step(pos, neighbors, box, offsets)
+            #     results = step(pos, neighbors, box, offsets)
 
-            return results["energy"] * ev, results["forces"] * ev / angstrom
+            return results["energy"] * ev, np.asarray(results["forces"] * ev / angstrom)
 
-        pass
+        def compute_nonperiodic(state: State) -> tuple[float, np.ndarray]:
+            pos = jnp.asarray(
+                state.getPositions(asNumpy=True).value_in_unit(angstrom),
+                dtype=jnp.float64,
+            )
+            results, _ = self.step(pos, self.neighbors, box)
+            return results["energy"] * ev, np.asarray(results["forces"] * ev / angstrom)
+
+        if np.any(atoms.cell.array > 1e-6):
+            return compute_periodic
+        else:
+            return compute_nonperiodic
+
+
+if __name__ == "__main__":
+    pass
