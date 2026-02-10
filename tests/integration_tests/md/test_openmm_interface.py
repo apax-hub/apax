@@ -14,7 +14,8 @@ from openmm.openmm import LangevinMiddleIntegrator, PythonForce
 from openmm.unit import femtosecond, kelvin, picosecond
 
 from apax.config import Config
-from apax.md.openmm_interface import OpenMMInterface, create_simulation, create_system
+from apax.md.openmm_interface import (OpenMMInterface, create_simulation,
+                                      create_system)
 from apax.utils import jax_md_reduced
 from apax.utils.openmm_reporters import XYZReporter
 
@@ -204,6 +205,12 @@ def test_xyz_reporter_openmm_interface(get_tmp_path):
         XYZReporter(xyz_path, xyz_write_interval, atoms.symbols, enforcePeriodicBox=False)
     )
     simulation.step(md_steps)
+
+    with open(xyz_path, "r") as file:
+        lines = file.readlines()
+
+    assert len(lines) == md_steps // xyz_write_interval * (2 + len(atoms))
+    assert lines[0] == len(atoms)
 
     output_trajectory = read(xyz_path, index=":")
 
