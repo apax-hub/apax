@@ -13,6 +13,7 @@ from jax import tree_util
 from tqdm import tqdm, trange
 from vesin import NeighborList
 
+from apax.config.train_config import Config
 from apax.data.input_pipeline import (
     CachedInMemoryDataset,
     OTFInMemoryDataset,
@@ -38,10 +39,11 @@ def maybe_vmap(apply, params):
     return energy_fn
 
 
-def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_jax):
+def build_energy_neighbor_fns(
+    atoms: ase.Atoms, config: Config, params, dr_threshold: float, neigbor_from_jax: bool
+):
     r_max = config.model.basis.r_max
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
-    neigbor_from_jax = neighbor_calculable_with_jax(box, r_max)
     box = box.T
     displacement_fn = None
     neighbor_fn = None
