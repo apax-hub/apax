@@ -6,6 +6,8 @@ from openmm.app import Simulation
 from openmm.openmm import State
 from openmm.unit import angstrom, ev, femtosecond, item
 
+_float_width = 18
+
 
 class XYZReporter:
     def __init__(
@@ -17,6 +19,7 @@ class XYZReporter:
         atomSubset: list[int] | None = None,
         includeVelocities: bool = False,
         includeForces: bool = False,
+        flushEvery: int = 1,
     ):
         self._out = open(file, "w")
         self._reportInterval = reportInterval
@@ -26,6 +29,9 @@ class XYZReporter:
             atomSubset = list(range(len(elements)))
         self._atomSubset = atomSubset
         self._n_atoms_string = "".join([str(len(self._atomSubset)), "\n"])
+
+        self._flush_every = flushEvery
+        self._flush_counter = 1
 
         self._includeForces = includeForces
         self._includeVelocities = includeVelocities
@@ -44,6 +50,8 @@ class XYZReporter:
             self._properties_string = ":".join([self._properties_string, "forces:R:3"])
         self._properties_string = "".join([self._properties_string, " Time="])
 
+        self._is_pbc = None
+
     def __del__(self):
         if hasattr(self._out, "flush") and callable(self._out.flush):
             self._out.flush()
@@ -59,7 +67,6 @@ class XYZReporter:
 
     def report(self, simulation: Simulation, state: State) -> None:
         time = state.getTime().value_in_unit(femtosecond)
-        lattice = state.getPeriodicBoxVectors().value_in_unit(angstrom)
         positions = state.getPositions().value_in_unit(angstrom)
 
         if self._includeForces:
@@ -70,30 +77,41 @@ class XYZReporter:
                 * ase_fs
             )
 
-        self._out.write(self._n_atoms_string)
+        if self._is_pbc is None:
+            self._is_pbc = simulation.system.usesPeriodicBoundaryConditions()
 
-        lattice_string = f'Lattice="{lattice[0][0]} {lattice[0][1]} {lattice[0][2]} {lattice[1][0]} {lattice[1][1]} {lattice[1][2]} {lattice[2][0]} {lattice[2][1]} {lattice[2][2]}" '
-        self._out.write(
-            "".join([lattice_string, self._properties_string, f"{time:.2f} # fs\n"])
-        )
+        if self._is_pbc:
+            lattice = state.getPeriodicBoxVectors().value_in_unit(angstrom)
+            lattice_string = f'Lattice="{lattice[0][0]} {lattice[0][1]} {lattice[0][2]} {lattice[1][0]} {lattice[1][1]} {lattice[1][2]} {lattice[2][0]} {lattice[2][1]} {lattice[2][2]}" '
+            properties_string = "".join([lattice_string, self._properties_string])
+        else:
+            properties_string = self._properties_string
+
+        self._out.write(self._n_atoms_string)
+        self._out.write("".join([properties_string, f"{time:.2f} # fs\n"]))
 
         for atom_idx in self._atomSubset:
-            atom_line = f"{self._elements[atom_idx]:<10}{positions[atom_idx][0]:<16f}{positions[atom_idx][1]:<16f}{positions[atom_idx][2]:<16f}"
+            atom_line = f" {self._elements[atom_idx]:<10}{positions[atom_idx][0]:< {_float_width}f}{positions[atom_idx][1]:< {_float_width}f}{positions[atom_idx][2]:< {_float_width}f}"
             if self._includeVelocities:
                 atom_line = "".join(
                     [
                         atom_line,
-                        f"{velocities[atom_idx][0]:<16f}{velocities[atom_idx][2]:<16f}{velocities[atom_idx][2]:<16f}",
+                        f"{velocities[atom_idx][0]:< {_float_width}f}{velocities[atom_idx][1]:< {_float_width}f}{velocities[atom_idx][2]:< {_float_width}f}",
                     ]
                 )
             if self._includeForces:
                 atom_line = "".join(
                     [
                         atom_line,
-                        f"{forces[atom_idx][0]:<16f}{forces[atom_idx][1]:<16f}{forces[atom_idx][2]:<16f}",
+                        f"{forces[atom_idx][0]:< {_float_width}f}{forces[atom_idx][1]:< {_float_width}f}{forces[atom_idx][2]:< {_float_width}f}",
                     ]
                 )
             self._out.write("".join([atom_line, "\n"]))
 
+        if self._flush_counter != self._flush_every:
+            self._flush_counter += 1
+            return
+
+        self._flush_counter = 1
         if hasattr(self._out, "flush") and callable(self._out.flush):
             self._out.flush()

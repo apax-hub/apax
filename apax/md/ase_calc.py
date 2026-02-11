@@ -14,16 +14,10 @@ from tqdm import tqdm, trange
 from vesin import NeighborList
 
 from apax.config.train_config import Config
-from apax.data.input_pipeline import (
-    CachedInMemoryDataset,
-    OTFInMemoryDataset,
-)
+from apax.data.input_pipeline import CachedInMemoryDataset, OTFInMemoryDataset
 from apax.md.function_transformations import ProcessStress
-from apax.train.checkpoints import (
-    canonicalize_energy_model_parameters,
-    check_for_ensemble,
-    restore_parameters,
-)
+from apax.train.checkpoints import (canonicalize_energy_model_parameters,
+                                    check_for_ensemble, restore_parameters)
 from apax.utils.jax_md_reduced import partition, space
 
 
@@ -458,7 +452,7 @@ class ASECalculator(Calculator):
         self.step = None
 
 
-def neighbor_calculable_with_jax(box, r_max):
+def neighbor_calculable_with_jax(box: np.ndarray, r_max: float) -> bool:
     if np.all(box < 1e-6):
         return True
     else:
@@ -482,7 +476,7 @@ def neighbor_calculable_with_jax(box, r_max):
             return False
 
 
-def get_step_fn(model, atoms, neigbor_from_jax):
+def get_step_fn(model: Callable, atoms: ase.Atoms, neigbor_from_jax: bool) -> Callable:
     Z = jnp.asarray(atoms.numbers)
     if neigbor_from_jax:
 
