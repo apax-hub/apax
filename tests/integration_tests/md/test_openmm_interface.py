@@ -14,8 +14,7 @@ from openmm.openmm import LangevinMiddleIntegrator, PythonForce
 from openmm.unit import femtosecond, kelvin, picosecond
 
 from apax.config import Config
-from apax.md.openmm_interface import (OpenMMInterface, create_simulation,
-                                      create_system)
+from apax.md.openmm_interface import OpenMMInterface, create_simulation, create_system
 from apax.utils import jax_md_reduced
 from apax.utils.openmm_reporters import XYZReporter
 
@@ -198,19 +197,45 @@ def test_xyz_reporter_openmm_interface(get_tmp_path):
     simulation.context.setVelocitiesToTemperature(300 * kelvin, 1)
 
     xyz_path = (get_tmp_path / "test.xyz").as_posix()
+    xyz_subset_path = (get_tmp_path / "test_subset.xyz").as_posix()
     md_steps = 3
     xyz_write_interval = 1
 
     simulation.reporters.append(
-        XYZReporter(xyz_path, xyz_write_interval, atoms.symbols, enforcePeriodicBox=False)
+        XYZReporter(
+            xyz_path,
+            xyz_write_interval,
+            atoms.symbols,
+            enforcePeriodicBox=False,
+            includeForces=True,
+            includeVelocities=True,
+        )
     )
+
+    subset_indices = [0, 1]
+    simulation.reporters.append(
+        XYZReporter(
+            xyz_subset_path,
+            xyz_write_interval,
+            atoms.symbols,
+            enforcePeriodicBox=False,
+            includeForces=True,
+            includeVelocities=False,
+            atomSubset=subset_indices,
+        )
+    )
+
     simulation.step(md_steps)
 
     with open(xyz_path, "r") as file:
         lines = file.readlines()
 
     assert len(lines) == md_steps // xyz_write_interval * (2 + len(atoms))
-    assert lines[0] == len(atoms)
+    assert int(lines[0].strip()) == len(atoms)
+
+    assert "pos:R:3" in lines[1]
+    assert "vel:R:3" in lines[1]
+    assert "forces:R:3" in lines[1]
 
     output_trajectory = read(xyz_path, index=":")
 
@@ -219,3 +244,32 @@ def test_xyz_reporter_openmm_interface(get_tmp_path):
     assert np.all(output_trajectory[0].cell == atoms.cell)
 
     assert len(output_trajectory) == md_steps // xyz_write_interval
+
+    with open(xyz_subset_path, "r") as file:
+        lines_subset = file.readlines()
+
+    subset_atoms = atoms[0]
+    assert len(lines_subset) == md_steps // xyz_write_interval * (2 + len(subset_indices))
+
+    assert int(lines_subset[0].strip()) == len(subset_indices)
+
+    assert "pos:R:3" in lines_subset[1]
+    assert "forces:R:3" in lines_subset[1]
+    assert "vel:R:3" not in lines_subset[1]
+
+    assert len(lines_subset[2].split()) == 1 + 3 + 3  # spec + pos + forces
+
+    output_trajectory_subset = read(xyz_subset_path, index=":")
+
+    assert np.all(output_trajectory_subset[0].numbers == atoms.numbers[subset_indices])
+    assert np.allclose(
+        atoms.positions[subset_indices], output_trajectory_subset[0].positions, atol=1e-4
+    )
+    assert np.all(
+        output_trajectory[0].positions[subset_indices]
+        == output_trajectory_subset[0].positions,
+    )
+    assert np.all(
+        output_trajectory[0].get_forces()[subset_indices]
+        == output_trajectory_subset[0].get_forces()
+    )
