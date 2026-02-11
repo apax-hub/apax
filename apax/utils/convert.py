@@ -5,11 +5,6 @@ import numpy as np
 from ase import Atoms
 from ase.units import Ang, Bohr, Hartree, eV, kcal, kJ, mol
 
-try:
-    from openmm import unit as openmm_unit
-except ImportError:
-    openmm_unit = None
-
 log = logging.getLogger(__name__)
 
 DTYPE = np.float64
@@ -21,17 +16,6 @@ unit_dict = {
     "Hartree": Hartree,
     "kJ/mol": kJ / mol,
 }
-
-
-if openmm_unit is not None:
-    openmm_unit_dict = {
-        "Ang": openmm_unit.angstrom,
-        "Bohr": openmm_unit.bohr,
-        "eV": openmm_unit.ev / openmm_unit.item,
-        "kcal/mol": openmm_unit.kilocalorie_per_mole,
-        "Hartree": openmm_unit.hartree / openmm_unit.item,
-        "kJ/mol": openmm_unit.kilojoule_per_mole,
-    }
 
 
 def str_to_dtype(x):

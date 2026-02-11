@@ -16,8 +16,11 @@ from vesin import NeighborList
 from apax.config.train_config import Config
 from apax.data.input_pipeline import CachedInMemoryDataset, OTFInMemoryDataset
 from apax.md.function_transformations import ProcessStress
-from apax.train.checkpoints import (canonicalize_energy_model_parameters,
-                                    check_for_ensemble, restore_parameters)
+from apax.train.checkpoints import (
+    canonicalize_energy_model_parameters,
+    check_for_ensemble,
+    restore_parameters,
+)
 from apax.utils.jax_md_reduced import partition, space
 
 

@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -7,6 +8,8 @@ from openmm.openmm import State
 from openmm.unit import angstrom, ev, femtosecond, item
 
 _float_width = 18
+
+log = logging.getLogger(__name__)
 
 
 class XYZReporter:
@@ -20,8 +23,13 @@ class XYZReporter:
         includeVelocities: bool = False,
         includeForces: bool = False,
         flushEvery: int = 1,
+        append: bool = False,
     ):
-        self._out = open(file, "w")
+        if append:
+            self._out = open(file, "a")
+        else:
+            self._out = open(file, "w")
+
         self._reportInterval = reportInterval
         self._elements = elements
         self._enforcePeriodicBox = enforcePeriodicBox
