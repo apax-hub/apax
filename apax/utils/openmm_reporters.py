@@ -13,6 +13,11 @@ log = logging.getLogger(__name__)
 
 
 class XYZReporter:
+    """Convenient way to write an xyz file during an OpenMM simulation
+
+    See https://docs.openmm.org/latest/userguide/application/04_advanced_sim_examples.html#extracting-and-reporting-forces-and-other-data
+    """
+
     def __init__(
         self,
         file: str | Path,
@@ -25,6 +30,25 @@ class XYZReporter:
         flushEvery: int = 1,
         append: bool = False,
     ):
+        """
+        Parameters
+        ----------
+        file (str | Path): file to write to
+        reportInterval (int): Write a report every reportInterval steps
+        elements (list[str]): Elemental symbols of the simulated system.
+        enforcePeriodicBox (bool | None): Whether to wrap atomic coordinates
+            to within PBC. If None, decide automatically. See
+            https://docs.openmm.org/7.3.0/api-python/generated/simtk.openmm.app.pdbreporter.PDBxReporter.html
+        atomSubset (list[int] | None): if a list of integers, only write the
+            atoms indeces in the list. Default = None.
+        includeVelocities (bool): Whether to also write the velocities in
+            ase units. Default = False
+        includeForces (bool): Whether to also write the forces in
+            eV / Angstrom. Default = False
+        flushEvery (int): flush every flushEvery reports. Default = 1
+        append (bool): if True, append to the end of the file instead of
+            overwriting it. Default = False
+        """
         if append:
             self._out = open(file, "a")
         else:

@@ -8,7 +8,6 @@ from ase import Atoms
 from openmm.app import Element, Simulation, Topology
 from openmm.openmm import CMMotionRemover, Integrator, PythonForce, State, System
 from openmm.unit import angstrom, ev, item
-from openmm.vec3 import Vec3
 from vesin import NeighborList
 
 from apax.md.ase_calc import (
@@ -28,10 +27,13 @@ def create_topology_from_ase_atoms(atoms: Atoms) -> Topology:
     """Create an OpenMM topology from an Atoms instance.
 
     Args:
-        atoms (Atoms):
+        atoms (Atoms): atoms to create a Topology from. No bonds
+            are created
 
     Returns:
-        toplogy (Topology):
+        toplogy (Topology): Topology, where all atoms in the Atoms instance
+            are within one Chain and Residue. The periodic box vectors are set
+            according to atoms.cell.array.
     """
     topology = Topology()
     chain = topology.addChain()
@@ -41,15 +43,6 @@ def create_topology_from_ase_atoms(atoms: Atoms) -> Topology:
         topology.addAtom(f"atom-{i}", element, residue)
 
     if np.any(atoms.cell.array > 1e-6):
-        a, b, c = (
-            atoms.cell[0] * angstrom,
-            atoms.cell[1] * angstrom,
-            atoms.cell[2] * angstrom,
-        )
-        a = Vec3(a[0], a[1], a[2])
-        b = Vec3(b[0], b[1], b[2])
-        c = Vec3(c[0], c[1], c[2])
-
         topology.setPeriodicBoxVectors(atoms.cell.array * angstrom)
 
     return topology
@@ -59,12 +52,14 @@ def create_system(atoms: Atoms, removeCMMotion: bool = True) -> System:
     """Create an OpenMM System from an Atoms instance.
 
     Args:
-        atoms (Atoms):
+        atoms (Atoms): atoms to create a System from.
         removeCMMotion (bool): whether to keep the center-of-mass fixed during
             the simulation. Default = True
 
     Returns:
-        system (System):
+        system (System): System with particles with masses of those
+            in the Atoms instance. The periodic box vectors are set
+            according to atoms.cell.array.
     """
     system = System()
     for atom in atoms:
@@ -88,12 +83,14 @@ def create_simulation(atoms: Atoms, system: System, integrator: Integrator) -> S
     """Create an OpenMM Simulation.
 
     Args:
-        atoms (Atoms):
-        system (System):
-        integrator (Integrator):
+        atoms (Atoms): Atoms to integrate
+        system (System): system with masses and PBCs (if applicable)
+        integrator (Integrator): integrator moving the atoms according to
+            Newton's equation of motion
 
     Returns:
-        simulation (Simulation):
+        simulation (Simulation): simulation that can be ran to do, for example,
+            molecular dynamics.
     """
     topology = create_topology_from_ase_atoms(atoms)
     simulation = Simulation(topology, system, integrator)
@@ -115,13 +112,38 @@ _dummy_box = jnp.full((3, 3), 0.0, dtype=jnp.float64)
 
 
 class OpenMMInterface:
+    """
+    OpenMM interface for Apax models.
+    Can create a function that can be turned into a PythonForce
+    for calculating energies and forces during OpenMM simulations,
+    see `OpenMMInterface.get_python_force_fn`.
+
+    """
+
     def __init__(
         self,
         model_dir: str | Path,
         dr_threshold: float = 0.5,
-        padding_factor: float = 1.5,
         transformations: list[Callable] = [],
+        padding_factor: float = 1.5,
     ):
+        """
+        Parameters
+        ----------
+        model_dir:
+            Path to a model directory of the form `.../directory/experiment`
+            (see Config docs for details).
+            If a list of model paths is provided, they will be ensembled.
+        dr_threshold:
+            Neighborlist skin for the JaxMD neighborlist.
+        transformations:
+            Function transformations applied on top of the EnergyDerivativeModel.
+            Transfomrations are implemented under `apax.md.transformations`.
+        padding_factor:
+            Multiple of the fallback vesin's amount of neighbors.
+            This NL will be padded to `len(neighbors) * padding_factor`
+            on NL initialization.
+        """
         self.model_config, self.params = restore_parameters(model_dir)
         self.r_max = self.model_config.model.basis.r_max
 
@@ -139,7 +161,7 @@ class OpenMMInterface:
     def _initialize(self, atoms: Atoms) -> None:
         if self._atoms is not None:
             raise ValueError(
-                f"This PythonForceClass instance was already initialized with atoms {atoms}, and cannot be reinitialized with different atoms. Please create a new instance"
+                f"This PythonForceClass instance was already initialized with atoms {self._atoms}, and cannot be reinitialized with different atoms. Please create a new instance"
             )
         self._atoms = atoms
         self._atoms_is_periodic = bool(np.any(atoms.pbc))
@@ -165,9 +187,9 @@ class OpenMMInterface:
 
         positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
         self.previous_cell = box
-        self.allocate_neighbors(positions, box)
+        self._allocate_neighbors(positions, box)
 
-    def allocate_neighbors(self, positions: jnp.ndarray, box: jnp.ndarray) -> None:
+    def _allocate_neighbors(self, positions: jnp.ndarray, box: jnp.ndarray) -> None:
         if self.neigbor_from_jax:
             if np.any(box > 1e-6):
                 inv_box = jnp.linalg.inv(box.T)
@@ -185,7 +207,9 @@ class OpenMMInterface:
             )
             self.padded_length = int(len(idxs_i) * self.padding_factor)
 
-    def set_neighbors_and_offsets(self, positions: jnp.ndarray, box: jnp.ndarray) -> None:
+    def _set_neighbors_and_offsets(
+        self, positions: jnp.ndarray, box: jnp.ndarray
+    ) -> None:
         if self.neigbor_from_jax:
             log.warning(
                 "Setting neighbors and offsets for a PythonForceClass that has self.neigbor_from_jax = True. Unnecessary?"
@@ -199,7 +223,7 @@ class OpenMMInterface:
         )
         if len(idxs_i) > self.padded_length:
             log.warning("Neighbor list overflowed, extending.")
-            self.allocate_neighbors(positions, box)
+            self._allocate_neighbors(positions, box)
 
         zeros_to_add = self.padded_length - len(idxs_i)
 
@@ -210,6 +234,17 @@ class OpenMMInterface:
         self.offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
 
     def get_python_force_fn(self, atoms: Atoms) -> Callable:
+        """Get the function that can be turned into a `PythonForce` instance
+        for use in OpenMM simulations.
+
+        Args:
+            atoms (Atoms): atoms to be simulated in the OpenMM simulation
+
+        Returns:
+            Callable: Function that can be turned into a `PythonForce`.
+                Returns the periodic version if `atoms.cell.array` has non-zero values.
+                Otherwise, non-periodic.
+        """
         self._initialize(atoms)
 
         if np.any(atoms.cell.array > 1e-6):
@@ -225,6 +260,15 @@ class OpenMMInterface:
             return self._python_force_fn
 
     def _python_force_fn_periodic(self, state: State) -> tuple[float, np.ndarray]:
+        """Function that can be turned into a `PythonForce` instance. Takes into
+        the periodic boundary conditions.
+
+        Args:
+            state (State): state of simulation. Should contain periodicBoxVectors.
+
+        Returns:
+            tuple[float, np.ndarray]: tuple of energy in kJ/mol and forces in kJ/(mol nm)
+        """
         pos = jnp.asarray(
             state.getPositions(asNumpy=True).value_in_unit(angstrom), dtype=jnp.float64
         )
@@ -241,7 +285,7 @@ class OpenMMInterface:
             if neigbor_from_jax != self.neigbor_from_jax:
                 raise NotImplementedError("Need to re-get step fn. Not implemented yet.")
                 self.neigbor_from_jax = neigbor_from_jax
-                self.allocate_neighbors(pos, box)
+                self._allocate_neighbors(pos, box)
             self.previous_cell = box
 
         if self.neigbor_from_jax:
@@ -253,7 +297,7 @@ class OpenMMInterface:
                 self.neighbors = self.neighbor_fn.allocate(frac_pos, box=box.T)
             results, self.neighbors = self.step(pos, self.neighbors, box)
         else:
-            self.set_neighbors_and_offsets(pos, box)
+            self._set_neighbors_and_offsets(pos, box)
             pos = np.array(space.transform(np.linalg.inv(box), pos))
 
             results = self.step(pos, self.neighbors, box, self.offsets)
@@ -263,6 +307,15 @@ class OpenMMInterface:
         )
 
     def _python_force_fn(self, state: State) -> tuple[float, np.ndarray]:
+        """Function that can be turned into a `PythonForce` instance. Does not
+        take into account the periodic boundary conditions.
+
+        Args:
+            state (State): state of simulation.
+
+        Returns:
+            tuple[float, np.ndarray]: tuple of energy in kJ/mol and forces in kJ/(mol nm)
+        """
         pos = jnp.asarray(
             state.getPositions(asNumpy=True).value_in_unit(angstrom), dtype=jnp.float64
         )
@@ -282,11 +335,13 @@ def get_PythonForce_from_Apax(model_dir: str | Path, atoms: Atoms) -> PythonForc
     a trained Apax model and the Atoms instance that it will be used for.
 
     Args:
-        model_dir (str | Path):
-        atoms (Atoms):
+        model_dir (str | Path): path to Apax model directory
+        atoms (Atoms): Atoms instance that will be simulated
 
     Returns:
-        python_force (PythonForce):
+        python_force (PythonForce): instantiated PythonForce.
+            Its `usesPeriodicBoundaryConditions` attribute is set according to
+            whether any `atoms.pbc` is True.
     """
     log.debug(f"Creating PythonForce instance with atoms {atoms}")
 
