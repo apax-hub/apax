@@ -148,6 +148,77 @@ def stress_tril(label, prediction, name, parameters: dict = {}):
     return (label_tril - prediction_tril) ** 2
 
 
+
+def inv_and_det_3x3(Sigma):
+    a00 = Sigma[..., 0, 0]
+    a01 = Sigma[..., 0, 1]
+    a02 = Sigma[..., 0, 2]
+    a10 = Sigma[..., 1, 0] # Sym: a01
+    a11 = Sigma[..., 1, 1]
+    a12 = Sigma[..., 1, 2]
+    a20 = Sigma[..., 2, 0] # Sym: a02
+    a21 = Sigma[..., 2, 1] # Sym: a12
+    a22 = Sigma[..., 2, 2]
+
+    # 3. Analytical Determinant (Rule of Sarrus)
+    det = (a00 * (a11 * a22 - a12 * a21) -
+            a01 * (a10 * a22 - a12 * a20) +
+            a02 * (a10 * a21 - a11 * a20))
+    
+    invDet = 1.0 / det
+    inv00 = (a11 * a22 - a12 * a21) * invDet
+    inv01 = (a02 * a21 - a01 * a22) * invDet
+    inv02 = (a01 * a12 - a02 * a11) * invDet
+
+    inv10 = (a12 * a20 - a10 * a22) * invDet
+    inv11 = (a00 * a22 - a02 * a20) * invDet
+    inv12 = (a10 * a02 - a00 * a12) * invDet
+
+
+    inv12 = (a02 * a10 - a00 * a12) * invDet
+    inv20 = (a10 * a21 - a11 * a20) * invDet # Same as inv02 if symmetric
+    inv21 = (a20 * a01 - a00 * a21) * invDet # Same as inv12 if symmetric
+    inv22 = (a00 * a11 - a01 * a10) * invDet
+
+    # Reconstruct Inverse Matrix (N, 3, 3)
+    # Stack is faster than assignment
+    row0 = jnp.stack([inv00, inv01, inv02], axis=-1)
+    row1 = jnp.stack([inv10, inv11, inv12], axis=-1)
+    row2 = jnp.stack([inv20, inv21, inv22], axis=-1)
+    Sigma_inv = jnp.stack([row0, row1, row2], axis=-2)
+    return Sigma_inv, det
+
+
+def nll_3x3(label, prediction, name, parameters: dict = {}):
+    label = label[name]
+    means = prediction[name]
+    ensemble = prediction[name + "_ensemble"]
+
+    diff = label - means 
+
+    deviations = ensemble - means[..., None]
+    K = deviations.shape[2]  # Number of members
+    Sigma = jnp.einsum('bijk,bilk->bijl', deviations, deviations) / (K - 1)  # Sample covariance matrix
+
+    Sigma = Sigma + jnp.eye(3)[None, None, ...] * 1e-5
+
+    Sigma_inv, det = inv_and_det_3x3(Sigma)
+
+    det = jnp.maximum(det, 1e-12)
+    log_det = jnp.log(det)
+
+    # diff.T @ Sigma_inv @ diff
+    # Einsum: (N, 3) * (N, 3, 3) * (N, 3) -> (N,)
+    # z = Sigma_inv @ diff
+    z = jnp.einsum('...ij, ...j -> ...i', Sigma_inv, diff)
+    mahalanobis = jnp.sum(diff * z, axis=-1)
+
+    nll = 0.5 * (mahalanobis + log_det)
+
+    return nll
+
+
+
 loss_functions = {
     "mse": weighted_squared_error,
     "huber": weighted_huber_loss,
@@ -157,6 +228,7 @@ loss_functions = {
     "tril": stress_tril,
     "crps": crps_loss,
     "nll": nll_loss,
+    "nll_3x3": nll_3x3,
 }
 
 
