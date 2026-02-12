@@ -212,11 +212,12 @@ class ASECalculator(Calculator):
                 self.neighbors = self.neighbor_fn.allocate(positions)
         else:
             calculator = NeighborList(cutoff=self.r_max, full_list=True)
-            idxs_i, _, _ = calculator.compute(
+
+            (idxs_i,) = calculator.compute(
                 points=atoms.positions,
                 box=atoms.cell.array,
                 periodic=bool(np.any(atoms.pbc)),
-                quantities="ijS",
+                quantities="i",
             )
             self.padded_length = int(len(idxs_i) * self.padding_factor)
 
@@ -291,7 +292,7 @@ class ASECalculator(Calculator):
             results.append(data)
         return np.concatenate(results, axis=0)
 
-    def set_neighbours_and_offsets(self, atoms, box):
+    def set_neighbours_and_offsets(self, atoms: ase.Atoms, box: np.ndarray) -> None:
         calculator = NeighborList(cutoff=self.r_max, full_list=True)
         idxs_i, idxs_j, offsets = calculator.compute(
             points=atoms.positions,
@@ -484,7 +485,7 @@ def get_step_fn(model: Callable, atoms: ase.Atoms, neigbor_from_jax: bool) -> Ca
     if neigbor_from_jax:
 
         @jax.jit
-        def step_fn(positions, neighbor, box):
+        def step_fn(positions: jnp.ndarray, neighbor, box: jnp.ndarray):
             if np.any(atoms.get_cell().lengths() > 1e-6):
                 box = box.T
                 inv_box = jnp.linalg.inv(box)
@@ -500,7 +501,7 @@ def get_step_fn(model: Callable, atoms: ase.Atoms, neigbor_from_jax: bool) -> Ca
     else:
 
         @jax.jit
-        def step_fn(positions, neighbor, box, offsets):
+        def step_fn(positions: jnp.ndarray, neighbor, box: jnp.ndarray, offsets):
             results = model(positions, Z, neighbor, box, offsets)
             return results
 

@@ -83,6 +83,7 @@ def test_openmm_interface(get_tmp_path):
     atoms = read(initial_structure_path.as_posix())
     interface = OpenMMInterface(model_config.data.model_version_path)
     force = PythonForce(interface.get_python_force_fn(atoms))
+
     force.setUsesPeriodicBoundaryConditions(True)
 
     integrator = LangevinMiddleIntegrator(
@@ -104,9 +105,7 @@ def test_openmm_interface(get_tmp_path):
     output_trajectory = read(pdb_path, index=":")
 
     assert np.all(output_trajectory[0].numbers == atoms.numbers)
-
-    # This will fail, since pdb does not contain cell information
-    # assert np.all(output_trajectory[0].cell == atoms.cell)
+    assert np.all(output_trajectory[0].cell == atoms.cell)
 
     assert len(output_trajectory) == md_steps // pdb_write_interval
 
