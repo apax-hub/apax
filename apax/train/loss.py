@@ -164,7 +164,7 @@ def inv_and_det_3x3(Sigma):
     det = (a00 * (a11 * a22 - a12 * a21) -
             a01 * (a10 * a22 - a12 * a20) +
             a02 * (a10 * a21 - a11 * a20))
-    
+
     invDet = 1.0 / det
     inv00 = (a11 * a22 - a12 * a21) * invDet
     inv01 = (a02 * a21 - a01 * a22) * invDet
@@ -194,7 +194,7 @@ def nll_3x3(label, prediction, name, parameters: dict = {}):
     means = prediction[name]
     ensemble = prediction[name + "_ensemble"]
 
-    diff = label - means 
+    diff = label - means
 
     deviations = ensemble - means[..., None]
     K = deviations.shape[2]  # Number of members
