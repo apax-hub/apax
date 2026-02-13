@@ -216,7 +216,7 @@ class ASECalculator(Calculator):
             idxs_i, _, _ = calculator.compute(
                 points=atoms.positions,
                 box=atoms.cell.array,
-                periodic=np.any(atoms.pbc),
+                periodic=bool(np.any(atoms.pbc)),
                 quantities="ijS",
             )
             self.padded_length = int(len(idxs_i) * self.padding_factor)
@@ -297,7 +297,7 @@ class ASECalculator(Calculator):
         idxs_i, idxs_j, offsets = calculator.compute(
             points=atoms.positions,
             box=atoms.cell.array,
-            periodic=np.any(atoms.pbc),
+            periodic=bool(np.any(atoms.pbc)),
             quantities="ijS",
         )
         if len(idxs_i) > self.padded_length:
