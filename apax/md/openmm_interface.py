@@ -28,7 +28,7 @@ def create_topology_from_ase_atoms(atoms: Atoms) -> Topology:
 
     Args:
         atoms (Atoms): atoms to create a Topology from. No bonds
-            are created
+            are created.
 
     Returns:
         toplogy (Topology): Topology, where all atoms in the Atoms instance
@@ -169,7 +169,7 @@ class OpenMMInterface:
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
         self.neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
 
-        model, self.neighbor_fn = build_energy_neighbor_fns(
+        self.model, self.neighbor_fn = build_energy_neighbor_fns(
             self._atoms,
             self.model_config,
             self.params,
@@ -178,16 +178,17 @@ class OpenMMInterface:
         )
 
         if self.n_models > 1:
-            model = make_ensemble(model)
+            self.model = make_ensemble(self.model)
 
         for transformation in self.transformations:
-            model = transformation.apply(model)
-
-        self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
+            self.model = transformation.apply(self.model)
 
         positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
         self.previous_cell = box
         self._allocate_neighbors(positions, box)
+
+    def _set_step_fn(self) -> None:
+        self.step = get_step_fn(self.model, self._atoms, self.neigbor_from_jax)
 
     def _allocate_neighbors(self, positions: jnp.ndarray, box: jnp.ndarray) -> None:
         if self.neigbor_from_jax:
@@ -283,8 +284,11 @@ class OpenMMInterface:
             )
             neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
             if neigbor_from_jax != self.neigbor_from_jax:
-                raise NotImplementedError("Need to re-get step fn. Not implemented yet.")
+                log.debug(
+                    f"New neigbor_from_jax is {neigbor_from_jax}. Re-getting step fn"
+                )
                 self.neigbor_from_jax = neigbor_from_jax
+                self._set_step_fn()
                 self._allocate_neighbors(pos, box)
             self.previous_cell = box
 
