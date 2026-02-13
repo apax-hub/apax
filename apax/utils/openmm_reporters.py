@@ -3,9 +3,15 @@ from pathlib import Path
 from typing import Any
 
 from ase.units import fs as ase_fs
-from openmm.app import Simulation
-from openmm.openmm import State
-from openmm.unit import angstrom, ev, femtosecond, item
+
+try:
+    from openmm.app import Simulation
+    from openmm.openmm import State
+    from openmm.unit import angstrom, ev, femtosecond, item
+
+    _openmm_imported = True
+except ImportError:
+    _openmm_imported = False
 
 _float_width = 18
 
@@ -49,6 +55,9 @@ class XYZReporter:
         append (bool): if True, append to the end of the file instead of
             overwriting it. Default = False
         """
+        if not _openmm_imported:
+            raise ImportError(f"XYZReporter requires OpenMM to be installed")
+
         if append:
             self._out = open(file, "a")
         else:

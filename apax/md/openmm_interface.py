@@ -5,9 +5,16 @@ from typing import Callable
 import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
-from openmm.app import Element, Simulation, Topology
-from openmm.openmm import CMMotionRemover, Integrator, PythonForce, State, System
-from openmm.unit import angstrom, ev, item
+
+try:
+    from openmm.app import Element, Simulation, Topology
+    from openmm.openmm import CMMotionRemover, Integrator, PythonForce, State, System
+    from openmm.unit import angstrom, ev, item
+
+    _openmm_imported = True
+except ImportError:
+    _openmm_imported = False
+
 from vesin import NeighborList
 
 from apax.md.ase_calc import (
@@ -35,6 +42,10 @@ def create_topology_from_ase_atoms(atoms: Atoms) -> Topology:
             are within one Chain and Residue. The periodic box vectors are set
             according to atoms.cell.array.
     """
+    if not _openmm_imported:
+        raise ImportError(
+            "create_topology_from_ase_atoms requires OpenMM with at least version 8.5.0 to be installed."
+        )
     topology = Topology()
     chain = topology.addChain()
     residue = topology.addResidue("structure", chain)
@@ -61,6 +72,10 @@ def create_system(atoms: Atoms, removeCMMotion: bool = True) -> System:
             in the Atoms instance. The periodic box vectors are set
             according to atoms.cell.array.
     """
+    if not _openmm_imported:
+        raise ImportError(
+            "create_system requires OpenMM with at least version 8.5.0 to be installed."
+        )
     system = System()
     for atom in atoms:
         system.addParticle(atom.mass)
@@ -138,12 +153,16 @@ class OpenMMInterface:
             Neighborlist skin for the JaxMD neighborlist.
         transformations:
             Function transformations applied on top of the EnergyDerivativeModel.
-            Transfomrations are implemented under `apax.md.transformations`.
+            Transformations are implemented under `apax.md.transformations`.
         padding_factor:
             Multiple of the fallback vesin's amount of neighbors.
             This NL will be padded to `len(neighbors) * padding_factor`
             on NL initialization.
         """
+        if not _openmm_imported:
+            raise ImportError(
+                "OpenMMInterface requires OpenMM with at least version 8.5.0 to be installed."
+            )
         self.model_config, self.params = restore_parameters(model_dir)
         self.r_max = self.model_config.model.basis.r_max
 
@@ -183,6 +202,8 @@ class OpenMMInterface:
         for transformation in self.transformations:
             self.model = transformation.apply(self.model)
 
+        self._set_step_fn()
+
         positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
         self.previous_cell = box
         self._allocate_neighbors(positions, box)
@@ -211,10 +232,6 @@ class OpenMMInterface:
     def _set_neighbors_and_offsets(
         self, positions: jnp.ndarray, box: jnp.ndarray
     ) -> None:
-        if self.neigbor_from_jax:
-            log.warning(
-                "Setting neighbors and offsets for a PythonForceClass that has self.neigbor_from_jax = True. Unnecessary?"
-            )
         calculator = NeighborList(cutoff=self.r_max, full_list=True)
         idxs_i, idxs_j, offsets = calculator.compute(
             points=positions,
@@ -347,6 +364,11 @@ def get_PythonForce_from_Apax(model_dir: str | Path, atoms: Atoms) -> PythonForc
             Its `usesPeriodicBoundaryConditions` attribute is set according to
             whether any `atoms.pbc` is True.
     """
+    if not _openmm_imported:
+        raise ImportError(
+            "get_PythonForce_from_Apax requires OpenMM with at least version 8.5.0 to be installed."
+        )
+
     log.debug(f"Creating PythonForce instance with atoms {atoms}")
 
     atoms_is_periodic = bool(np.any(atoms.pbc))
