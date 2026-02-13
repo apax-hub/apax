@@ -15,3 +15,4 @@ Modules
    transfer_learning
    bal
    utils
+   nodes

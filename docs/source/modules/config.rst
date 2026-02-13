@@ -40,7 +40,7 @@ Training Configuration
 
 .. autoclass:: apax.config.train_config.CSVCallback
     :members:
-    :exclude-members: model_config  , model_computed_fields, model_fields
+    :exclude-members: model_config, model_computed_fields, model_fields
 
 .. autoclass:: apax.config.train_config.TBCallback
     :members:
@@ -50,7 +50,9 @@ Training Configuration
     :members:
     :exclude-members: model_config, model_computed_fields, model_fields
 
-
+.. autoclass:: apax.config.train_config.KerasPruningCallback
+    :members:
+    :exclude-members: model_config, model_computed_fields, model_fields
 
 Molecular Dynamics Configuration
 --------------------------------
@@ -60,5 +62,20 @@ Molecular Dynamics Configuration
     :exclude-members: model_config, model_computed_fields, model_fields
 
 .. autoclass:: apax.config.md_config.NPTOptions
+    :members:
+    :exclude-members: model_config, model_computed_fields, model_fields
+
+Hyperparameter Optimization Configuration
+-----------------------------------------
+
+.. autoclass:: apax.config.optuna_config.OptunaPrunerConfig
+    :members:
+    :exclude-members: model_config, model_computed_fields, model_fields
+
+.. autoclass:: apax.config.optuna_config.OptunaSamplerConfig
+    :members:
+    :exclude-members: model_config, model_computed_fields, model_fields
+
+.. autoclass:: apax.config.optuna_config.OptunaConfig
     :members:
     :exclude-members: model_config, model_computed_fields, model_fields
