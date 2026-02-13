@@ -56,7 +56,7 @@ class XYZReporter:
             overwriting it. Default = False
         """
         if not _openmm_imported:
-            raise ImportError(f"XYZReporter requires OpenMM to be installed")
+            raise ImportError("XYZReporter requires OpenMM to be installed")
 
         if append:
             self._out = open(file, "a")
