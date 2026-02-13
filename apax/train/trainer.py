@@ -1,7 +1,7 @@
 import logging
 import time
 from functools import partial
-from typing import Callable, Optional, Any, Union
+from typing import Any, Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp
