@@ -8,7 +8,14 @@ from ase import Atoms
 
 try:
     from openmm.app import Element, Simulation, Topology
-    from openmm.openmm import CMMotionRemover, Integrator, PythonForce, State, System
+    from openmm.openmm import (
+        CMMotionRemover,
+        Integrator,
+        Platform,
+        PythonForce,
+        State,
+        System,
+    )
     from openmm.unit import angstrom, ev, item
 
     _openmm_imported = True
@@ -94,7 +101,9 @@ def create_system(atoms: Atoms, removeCMMotion: bool = True) -> System:
     return system
 
 
-def create_simulation(atoms: Atoms, system: System, integrator: Integrator) -> Simulation:
+def create_simulation(
+    atoms: Atoms, system: System, integrator: Integrator, platform: Platform | None = None
+) -> Simulation:
     """Create an OpenMM Simulation.
 
     Args:
@@ -102,13 +111,16 @@ def create_simulation(atoms: Atoms, system: System, integrator: Integrator) -> S
         system (System): system with masses and PBCs (if applicable)
         integrator (Integrator): integrator moving the atoms according to
             Newton's equation of motion
+        platform (Platform | None): Platform to run simulation on. If None, OpenMM
+            tries to select the fastest platform. Default = None.
+            See https://docs.openmm.org/latest/userguide/application/02_running_sims.html#platforms
 
     Returns:
         simulation (Simulation): simulation that can be ran to do, for example,
             molecular dynamics.
     """
     topology = create_topology_from_ase_atoms(atoms)
-    simulation = Simulation(topology, system, integrator)
+    simulation = Simulation(topology, system, integrator, platform=platform)
 
     simulation.context.setPositions(atoms.positions * angstrom)
 
