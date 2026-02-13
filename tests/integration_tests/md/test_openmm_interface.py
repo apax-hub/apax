@@ -13,8 +13,7 @@ from openmm.openmm import LangevinMiddleIntegrator, PythonForce
 from openmm.unit import femtosecond, kelvin, picosecond
 
 from apax.config import Config
-from apax.md.openmm_interface import (OpenMMInterface, create_simulation,
-                                      create_system)
+from apax.md.openmm_interface import OpenMMInterface, create_simulation, create_system
 from apax.utils import jax_md_reduced
 from apax.utils.openmm_reporters import XYZReporter
 

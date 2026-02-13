@@ -14,8 +14,7 @@ from openmm.unit import angstrom, ev, femtosecond, item, kelvin, picosecond
 
 from apax.config import Config
 from apax.md.ase_calc import ASECalculator
-from apax.md.openmm_interface import (OpenMMInterface, create_simulation,
-                                      create_system)
+from apax.md.openmm_interface import OpenMMInterface, create_simulation, create_system
 from apax.utils import jax_md_reduced
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
