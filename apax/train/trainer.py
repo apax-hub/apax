@@ -289,7 +289,13 @@ def make_ensemble_eval(update_fn: Callable) -> Callable:
     return ensemble_eval_fn
 
 
-def make_step_fns(loss_fn: Callable, Metrics: metrics.Collection, model: Any, is_ensemble: bool, return_predictions: bool=False) -> tuple[Callable, Callable]:
+def make_step_fns(
+    loss_fn: Callable,
+    Metrics: metrics.Collection,
+    model: Any,
+    is_ensemble: bool,
+    return_predictions: bool = False,
+) -> tuple[Callable, Callable]:
     """
     Creates JIT-compiled training and validation step functions.
 
@@ -335,7 +341,7 @@ def make_step_fns(loss_fn: Callable, Metrics: metrics.Collection, model: Any, is
         eval_fn = loss_calculator
 
     @jax.jit
-    def train_step(carry, batch)-> tuple[tuple[TrainState, metrics.Collection],float]:
+    def train_step(carry, batch) -> tuple[tuple[TrainState, metrics.Collection], float]:
         state, batch_metrics = carry
         inputs, labels = batch
         loss, predictions, state = update_fn(state, inputs, labels)
@@ -349,7 +355,9 @@ def make_step_fns(loss_fn: Callable, Metrics: metrics.Collection, model: Any, is
         return new_carry, loss
 
     @jax.jit
-    def val_step(params, batch, batch_metrics) -> Union[tuple[float, metrics.Collection], tuple[float, metrics.Collection, Any]]:
+    def val_step(
+        params, batch, batch_metrics
+    ) -> Union[tuple[float, metrics.Collection], tuple[float, metrics.Collection, Any]]:
         inputs, labels = batch
         loss, predictions = eval_fn(params, inputs, labels)
 
