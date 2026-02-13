@@ -293,7 +293,7 @@ def make_step_fns(loss_fn: Callable, Metrics: metrics.Collection, model: Any, is
     """
     Creates JIT-compiled training and validation step functions.
 
-    This factory handles the boilerplate for gradient calculation, state updates, 
+    This factory handles the boilerplate for gradient calculation, state updates,
     metric aggregation, and optional ensemble logic.
 
     Parameters
@@ -301,15 +301,15 @@ def make_step_fns(loss_fn: Callable, Metrics: metrics.Collection, model: Any, is
         loss_fn: Callable
             A callable that takes (predictions, labels) and returns a scalar loss.
         Metrics: metrics.Collection
-            A class (typically a clu.metrics.Collection) used to track 
+            A class (typically a clu.metrics.Collection) used to track
             and merge batch statistics. Must implement `single_from_model_output`.
         model: Any
             The model architecture (e.g., a flax.linen.Module).
         is_ensemble: bool
-            If True, wraps the update and eval functions with 
+            If True, wraps the update and eval functions with
             ensemble-specific handling logic.
         return_predictions: bool, default = False
-            If True, the validation step will return the 
+            If True, the validation step will return the
             raw model predictions in addition to metrics and loss.
 
     Returns
