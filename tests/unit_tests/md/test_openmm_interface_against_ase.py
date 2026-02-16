@@ -59,18 +59,6 @@ def test_openmm_interface(atoms, get_tmp_path):
     os.makedirs(model_config.data.model_version_path, exist_ok=True)
     model_config.dump_config(model_config.data.model_version_path)
 
-    # cell_size = 20.0
-    # positions = np.array(
-    #     [
-    #         [1.0, 0.0, 0.0],
-    #         [0.0, 1.0, 0.0],
-    #         [0.0, 0.0, 1.0],
-    #     ]
-    # )
-    # atomic_numbers = np.array([1, 1, 8])
-    # box = np.diag([cell_size] * 3)
-    # atoms = Atoms(atomic_numbers, positions, cell=box)
-
     offsets = jnp.full([3, 3], 0)
     write(initial_structure_path.as_posix(), atoms)
 

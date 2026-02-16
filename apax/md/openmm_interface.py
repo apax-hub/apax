@@ -219,6 +219,7 @@ class OpenMMInterface:
         positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
         self.previous_cell = box
         self._allocate_neighbors(positions, box)
+        self._set_step_fn()
 
     def _set_step_fn(self) -> None:
         self.step = get_step_fn(self.model, self._atoms, self.neigbor_from_jax)
