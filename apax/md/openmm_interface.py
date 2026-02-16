@@ -336,10 +336,9 @@ class OpenMMInterface:
             results, self.neighbors = self.step(pos, self.neighbors, box)
             if self.neighbors.did_buffer_overflow:
                 log.debug("Neighbor list overflowed, reallocating")
-                inv_box = jnp.linalg.inv(box.T)
-                frac_pos = space.transform(inv_box, pos)  # frac coords
+                frac_pos = space.transform(jnp.linalg.inv(box.T), pos)  # frac coords
                 self.neighbors = self.neighbor_fn.allocate(frac_pos, box=box.T)
-            results, self.neighbors = self.step(pos, self.neighbors, box)
+                results, self.neighbors = self.step(pos, self.neighbors, box)
         else:
             self._set_neighbors_and_offsets(pos, box)
             pos = np.array(space.transform(np.linalg.inv(box), pos))
@@ -367,7 +366,7 @@ class OpenMMInterface:
         results, self.neighbors = self.step(pos, self.neighbors, _dummy_box)
         if self.neighbors.did_buffer_overflow:
             self.neighbors = self.neighbor_fn.allocate(pos)
-        results, self.neighbors = self.step(pos, self.neighbors, _dummy_box)
+            results, self.neighbors = self.step(pos, self.neighbors, _dummy_box)
 
         return results["energy"] * ev / item, np.asarray(results["forces"]) * ev / (
             item * angstrom
