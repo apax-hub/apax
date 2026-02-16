@@ -62,7 +62,7 @@ def test_openmm_interface(atoms, get_tmp_path):
     offsets = jnp.full([3, 3], 0)
     write(initial_structure_path.as_posix(), atoms)
 
-    atoms_is_periodic = bool(np.any(atoms.pbc))
+    atoms_is_periodic = bool(np.any(atoms.cell.array > 1e-6))
 
     if atoms_is_periodic:
         displacement_fn, _ = jax_md_reduced.space.periodic_general(
