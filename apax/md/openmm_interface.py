@@ -102,7 +102,11 @@ def create_system(atoms: Atoms, removeCMMotion: bool = True) -> System:
 
 
 def create_simulation(
-    atoms: Atoms, system: System, integrator: Integrator, platform: Platform | None = None
+    atoms: Atoms,
+    system: System,
+    integrator: Integrator,
+    platform: Platform | None = None,
+    platformProperties: dict[str, str] | None = None,
 ) -> Simulation:
     """Create an OpenMM Simulation.
 
@@ -120,7 +124,13 @@ def create_simulation(
             molecular dynamics.
     """
     topology = create_topology_from_ase_atoms(atoms)
-    simulation = Simulation(topology, system, integrator, platform=platform)
+    simulation = Simulation(
+        topology,
+        system,
+        integrator,
+        platform=platform,
+        platformProperties=platformProperties,
+    )
 
     simulation.context.setPositions(atoms.positions * angstrom)
 
