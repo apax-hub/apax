@@ -23,7 +23,6 @@ except ImportError:
     _openmm_imported = False
 
 from ase.units import eV, kJ, mol, nm
-from jax._src.lax import lax
 from vesin import NeighborList
 
 from apax.md.ase_calc import (
