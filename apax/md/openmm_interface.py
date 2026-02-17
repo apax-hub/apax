@@ -16,12 +16,14 @@ try:
         State,
         System,
     )
-    from openmm.unit import angstrom, ev, item
+    from openmm.unit import angstrom
 
     _openmm_imported = True
 except ImportError:
     _openmm_imported = False
 
+from ase.units import eV, kJ, mol, nm
+from jax._src.lax import lax
 from vesin import NeighborList
 
 from apax.md.ase_calc import (
@@ -146,6 +148,9 @@ def create_simulation(
 
 
 _dummy_box = jnp.full((3, 3), 0.0, dtype=jnp.float64)
+_energy_scaling = eV / (kJ / mol)
+_pos_scaling = 1.0 / nm
+_force_scaling = _energy_scaling / _pos_scaling
 
 
 class OpenMMInterface:
@@ -185,10 +190,7 @@ class OpenMMInterface:
             raise ImportError(
                 "OpenMMInterface requires OpenMM with at least version 8.5.0 to be installed."
             )
-        self.model_config, self.params = restore_parameters(model_dir)
-        self.r_max = self.model_config.model.basis.r_max
-
-        self.n_models = check_for_ensemble(self.params)
+        self.model_dir = model_dir
 
         self.dr_threshold = dr_threshold
         self.transformations = transformations
@@ -197,42 +199,50 @@ class OpenMMInterface:
         self.step = None
         self.neighbor_fn = None
         self.neighbors = None
-        self._atoms = None
+        self._is_initialized = False
 
     def _initialize(self, atoms: Atoms) -> None:
-        if self._atoms is not None:
+        if self._is_initialized:
             raise ValueError(
-                f"This PythonForceClass instance was already initialized with atoms {self._atoms}, and cannot be reinitialized with different atoms. Please create a new instance"
+                "This PythonForceClass instance was already initialized, and cannot be reinitialized with different atoms. Please create a new instance"
             )
-        self._atoms = atoms
+        model_config, params = restore_parameters(self.model_dir)
+        self.r_max = model_config.model.basis.r_max
+
         self._atoms_is_periodic = bool(np.any(atoms.pbc))
+        self._atomic_numbers = lax.asarray(atoms.numbers)
 
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
         self.neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
 
         self.model, self.neighbor_fn = build_energy_neighbor_fns(
-            self._atoms,
-            self.model_config,
-            self.params,
+            atoms,
+            model_config,
+            params,
             self.dr_threshold,
             self.neigbor_from_jax,
         )
 
-        if self.n_models > 1:
+        n_models = check_for_ensemble(params)
+        if n_models > 1:
             self.model = make_ensemble(self.model)
 
         for transformation in self.transformations:
             self.model = transformation.apply(self.model)
 
+        self.previous_cell = box
+        self._allocate_neighbors(jnp.asarray(atoms.positions, dtype=jnp.float64), box)
         self._set_step_fn()
 
-        positions = jnp.asarray(atoms.positions, dtype=jnp.float64)
-        self.previous_cell = box
-        self._allocate_neighbors(positions, box)
-        self._set_step_fn()
+        self._is_initialized = True
 
     def _set_step_fn(self) -> None:
-        self.step = get_step_fn(self.model, self._atoms, self.neigbor_from_jax)
+        self.step = get_step_fn(
+            self.model,
+            self._atomic_numbers,
+            self._atoms_is_periodic,
+            self.neigbor_from_jax,
+        )
 
     def _allocate_neighbors(self, positions: jnp.ndarray, box: jnp.ndarray) -> None:
         if self.neigbor_from_jax:
@@ -310,6 +320,10 @@ class OpenMMInterface:
         Returns:
             tuple[float, np.ndarray]: tuple of energy in kJ/mol and forces in kJ/(mol nm)
         """
+
+        # Use lax.asarray instead of jnp.asarray because it is faster?
+        # However, we then need to convert the dtype still
+
         pos = jnp.asarray(
             state.getPositions(asNumpy=True).value_in_unit(angstrom), dtype=jnp.float64
         )
@@ -318,7 +332,7 @@ class OpenMMInterface:
             dtype=jnp.float64,
         )
 
-        if jnp.any(box != self.previous_cell):
+        if (box != self.previous_cell).any():
             log.debug(
                 "Cell changed, rechecking if neighbor list can be calculated with Jax"
             )
@@ -336,8 +350,9 @@ class OpenMMInterface:
             results, self.neighbors = self.step(pos, self.neighbors, box)
             if self.neighbors.did_buffer_overflow:
                 log.debug("Neighbor list overflowed, reallocating")
-                frac_pos = space.transform(jnp.linalg.inv(box.T), pos)  # frac coords
-                self.neighbors = self.neighbor_fn.allocate(frac_pos, box=box.T)
+                self.neighbors = self.neighbor_fn.allocate(
+                    space.transform(jnp.linalg.inv(box.T), pos)
+                )
                 results, self.neighbors = self.step(pos, self.neighbors, box)
         else:
             self._set_neighbors_and_offsets(pos, box)
@@ -345,9 +360,9 @@ class OpenMMInterface:
 
             results = self.step(pos, self.neighbors, box, self.offsets)
 
-        return results["energy"] * ev / item, np.asarray(results["forces"]) * ev / (
-            item * angstrom
-        )
+        return results["energy"] * _energy_scaling, np.asarray(
+            results["forces"]
+        ) * _force_scaling
 
     def _python_force_fn(self, state: State) -> tuple[float, np.ndarray]:
         """Function that can be turned into a `PythonForce` instance. Does not
@@ -368,9 +383,9 @@ class OpenMMInterface:
             self.neighbors = self.neighbor_fn.allocate(pos)
             results, self.neighbors = self.step(pos, self.neighbors, _dummy_box)
 
-        return results["energy"] * ev / item, np.asarray(results["forces"]) * ev / (
-            item * angstrom
-        )
+        return results["energy"] * _energy_scaling, np.asarray(
+            results["forces"]
+        ) * _force_scaling
 
 
 def get_PythonForce_from_Apax(model_dir: str | Path, atoms: Atoms) -> PythonForce:

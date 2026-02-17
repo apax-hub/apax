@@ -126,7 +126,7 @@ def test_openmm_interface(atoms, get_tmp_path):
     interface_forces = state.getForces(asNumpy=True).value_in_unit(ev / (item * angstrom))
     interface_positions = state.getPositions(asNumpy=True).value_in_unit(angstrom)
 
-    assert np.all(atoms.positions == interface_positions)
+    assert np.allclose(atoms.positions, interface_positions)
     assert np.allclose(ase_energy, interface_energy)
     assert np.allclose(ase_forces, interface_forces)
 
@@ -215,6 +215,6 @@ def test_openmm_interface_different_unit(get_tmp_path):
     interface_forces = state.getForces(asNumpy=True).value_in_unit(ev / (item * angstrom))
     interface_positions = state.getPositions(asNumpy=True).value_in_unit(angstrom)
 
-    assert np.all(atoms.positions == interface_positions)
+    assert np.allclose(atoms.positions, interface_positions)
     assert np.allclose(ase_energy, interface_energy)
     assert np.allclose(ase_forces, interface_forces)

@@ -198,7 +198,12 @@ class ASECalculator(Calculator):
             model = transformation.apply(model)
 
         self.model = model
-        self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
+        self.step = get_step_fn(
+            model,
+            jnp.asarray(atoms.numbers),
+            bool(np.any(atoms.cell.array > 1e-6)),
+            self.neigbor_from_jax,
+        )
         self.neighbor_fn = neighbor_fn
 
         if self.neigbor_from_jax:
@@ -480,13 +485,14 @@ def neighbor_calculable_with_jax(box: np.ndarray, r_max: float) -> bool:
             return False
 
 
-def get_step_fn(model: Callable, atoms: ase.Atoms, neigbor_from_jax: bool) -> Callable:
-    Z = jnp.asarray(atoms.numbers)
+def get_step_fn(
+    model: Callable, Z: jnp.ndarray, atoms_is_periodic: bool, neigbor_from_jax: bool
+) -> Callable:
     if neigbor_from_jax:
 
         @jax.jit
         def step_fn(positions: jnp.ndarray, neighbor, box: jnp.ndarray):
-            if np.any(atoms.get_cell().lengths() > 1e-6):
+            if atoms_is_periodic:
                 box = box.T
                 inv_box = jnp.linalg.inv(box)
                 positions = space.transform(inv_box, positions)
