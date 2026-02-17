@@ -209,8 +209,8 @@ class OpenMMInterface:
         model_config, params = restore_parameters(self.model_dir)
         self.r_max = model_config.model.basis.r_max
 
-        self._atoms_is_periodic = bool(np.any(atoms.pbc))
-        self._atomic_numbers = lax.asarray(atoms.numbers)
+        self._atoms_is_periodic = bool(np.any(atoms.cell.array > 1e-6))
+        self._atomic_numbers = jnp.asarray(atoms.numbers)
 
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
         self.neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
