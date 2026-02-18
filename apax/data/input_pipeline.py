@@ -15,6 +15,8 @@ import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
 from jax import tree_util
+from jax.sharding import NamedSharding
+from jax.sharding import PartitionSpec as P
 
 from apax.data.preprocessing import compute_nl, prefetch_to_single_device
 from apax.utils.convert import (
@@ -224,7 +226,7 @@ class InMemoryDataset:
         signature = (input_signature, label_signature)
         return signature
 
-    def init_input(self) -> Dict[str, np.ndarray]:
+    def init_input(self) -> tuple[Dict[str, jnp.ndarray], np.ndarray]:
         """Returns first batch of inputs and labels to init the model."""
         positions = self.sample_atoms.positions * unit_dict[self.pos_unit]
         box = self.sample_atoms.cell.array * unit_dict[self.pos_unit]
@@ -244,10 +246,10 @@ class InMemoryDataset:
     def __iter__(self):
         raise NotImplementedError
 
-    def shuffle_and_batch(self):
+    def shuffle_and_batch(self, mesh=None):
         raise NotImplementedError
 
-    def batch(self) -> Iterator[jax.Array]:
+    def batch(self, mesh=None) -> Iterator[jax.Array]:
         raise NotImplementedError
 
     def cleanup(self):
@@ -271,7 +273,7 @@ class CachedInMemoryDataset(InMemoryDataset):
                 space = self.n_data - self.count
             self.enqueue(space)
 
-    def shuffle_and_batch(self, sharding=None):
+    def shuffle_and_batch(self, mesh=None):
         """Shuffles and batches the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
 
@@ -291,10 +293,14 @@ class CachedInMemoryDataset(InMemoryDataset):
         ds = ds.shuffle(
             buffer_size=self.buffer_size, reshuffle_each_iteration=True
         ).batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, sharding)
+        if mesh:
+            data_sharding = NamedSharding(mesh, P("data"))
+        else:
+            data_sharding = None
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, data_sharding)
         return ds
 
-    def batch(self, sharding=None) -> Iterator[jax.Array]:
+    def batch(self, mesh=None) -> Iterator[jax.Array]:
         ds = (
             tf.data.Dataset.from_generator(
                 lambda: self, output_signature=self.make_signature()
@@ -303,7 +309,11 @@ class CachedInMemoryDataset(InMemoryDataset):
             .repeat(self.n_epochs)
         )
         ds = ds.batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, sharding)
+        if mesh:
+            data_sharding = NamedSharding(mesh, P("data"))
+        else:
+            data_sharding = None
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, data_sharding)
         return ds
 
     def cleanup(self):
@@ -336,7 +346,7 @@ class OTFInMemoryDataset(InMemoryDataset):
             self.enqueue(space)
             outer_count += 1
 
-    def shuffle_and_batch(self, sharding=None):
+    def shuffle_and_batch(self, mesh=None):
         """Shuffles and batches the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
 
@@ -352,15 +362,23 @@ class OTFInMemoryDataset(InMemoryDataset):
         ds = ds.shuffle(
             buffer_size=self.buffer_size, reshuffle_each_iteration=True
         ).batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, sharding)
+        if mesh:
+            data_sharding = NamedSharding(mesh, P("data"))
+        else:
+            data_sharding = None
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, data_sharding)
         return ds
 
-    def batch(self, sharding=None) -> Iterator[jax.Array]:
+    def batch(self, mesh=None) -> Iterator[jax.Array]:
         ds = tf.data.Dataset.from_generator(
             lambda: self, output_signature=self.make_signature()
         )
         ds = ds.batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, sharding)
+        if mesh:
+            data_sharding = NamedSharding(mesh, P("data"))
+        else:
+            data_sharding = None
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, data_sharding)
         return ds
 
 
@@ -601,14 +619,22 @@ class PerBatchPaddedDataset(InMemoryDataset):
             self.needs_data.set()
             self.enqueue_future.result()
 
-    def shuffle_and_batch(self, sharding):
+    def shuffle_and_batch(self, mesh):
         self.should_shuffle = True
-        ds = prefetch_to_single_device(iter(self), 2, sharding)
+        if mesh:
+            data_sharding = NamedSharding(mesh, P("data"))
+        else:
+            data_sharding = None
+        ds = prefetch_to_single_device(iter(self), 2, data_sharding)
         return ds
 
-    def batch(self, sharding) -> Iterator[jax.Array]:
+    def batch(self, mesh) -> Iterator[jax.Array]:
         self.should_shuffle = False
-        ds = prefetch_to_single_device(iter(self), 2, sharding)
+        if mesh:
+            data_sharding = NamedSharding(mesh, P("data"))
+        else:
+            data_sharding = None
+        ds = prefetch_to_single_device(iter(self), 2, data_sharding)
         return ds
 
     def make_signature(self) -> None:

@@ -1,6 +1,5 @@
 from typing import Callable, Literal, Union
 
-import jax
 import jax.numpy as jnp
 from pydantic import BaseModel, TypeAdapter
 
@@ -21,8 +20,6 @@ class ConstraintBase(BaseModel):
 
 
 class FixAtoms(ConstraintBase, extra="forbid"):
-    """ """
-
     name: Literal["fixatoms"] = "fixatoms"
     indices: list[int]
 
@@ -61,7 +58,6 @@ class FixCenterOfMass(ConstraintBase, extra="forbid"):
                 ref_com = jnp.array([0, 0, 0])
         else:
             ref_com = jnp.array(self.position)
-        jax.debug.print("reference position: {}", ref_com)
 
         def fn(state):
             masses = state.mass[:, 0]
