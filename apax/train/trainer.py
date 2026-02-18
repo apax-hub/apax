@@ -1,7 +1,7 @@
 import logging
 import time
 from functools import partial
-from typing import Callable, Optional
+from typing import Any, Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -11,7 +11,8 @@ from clu import metrics
 from flax.training.train_state import TrainState
 from jax import tree_util
 from jax.experimental import mesh_utils
-from jax.sharding import PositionalSharding
+from jax.sharding import Mesh, NamedSharding
+from jax.sharding import PartitionSpec as P
 from tqdm import trange
 
 from apax.data.input_pipeline import InMemoryDataset
@@ -99,17 +100,19 @@ def fit(
 
     devices = len(jax.devices())
     if devices > 1 and data_parallel:
-        sharding = PositionalSharding(mesh_utils.create_device_mesh((devices,)))
-        state = jax.device_put(state, sharding.replicate())
+        devices = mesh_utils.create_device_mesh((jax.device_count(),))
+        mesh = Mesh(devices, axis_names=("data",))
+        replicated_sharding = NamedSharding(mesh, P())
+        state = jax.device_put(state, replicated_sharding)
     else:
-        sharding = None
+        mesh = None
 
     train_steps_per_epoch = train_ds.steps_per_epoch()
-    batch_train_ds = train_ds.shuffle_and_batch(sharding)
+    batch_train_ds = train_ds.shuffle_and_batch(mesh)
 
     if val_ds is not None:
         val_steps_per_epoch = val_ds.steps_per_epoch()
-        batch_val_ds = val_ds.batch(sharding)
+        batch_val_ds = val_ds.batch(mesh)
 
     best_loss = np.inf
     early_stopping_counter = 0
@@ -289,7 +292,42 @@ def make_ensemble_eval(update_fn: Callable) -> Callable:
     return ensemble_eval_fn
 
 
-def make_step_fns(loss_fn, Metrics, model, is_ensemble):
+def make_step_fns(
+    loss_fn: Callable,
+    Metrics: metrics.Collection,
+    model: Any,
+    is_ensemble: bool,
+    return_predictions: bool = False,
+) -> tuple[Callable, Callable]:
+    """
+    Creates JIT-compiled training and validation step functions.
+
+    This factory handles the boilerplate for gradient calculation, state updates,
+    metric aggregation, and optional ensemble logic.
+
+    Parameters
+    ----------
+        loss_fn: Callable
+            A callable that takes (predictions, labels) and returns a scalar loss.
+        Metrics: metrics.Collection
+            A class (typically a clu.metrics.Collection) used to track
+            and merge batch statistics. Must implement `single_from_model_output`.
+        model: Any
+            The model architecture (e.g., a flax.linen.Module).
+        is_ensemble: bool
+            If True, wraps the update and eval functions with
+            ensemble-specific handling logic.
+        return_predictions: bool, default = False
+            If True, the validation step will return the
+            raw model predictions in addition to metrics and loss.
+
+    Returns
+    -------
+        Tuple[Callable, Callable]
+            A tuple of (train_step, val_step), where:
+            - train_step: (carry, batch) -> (new_carry, loss)
+            - val_step: (params, batch, metrics) -> (loss, metrics, [predictions])
+    """
     loss_calculator = partial(calc_loss, loss_fn=loss_fn, model=model)
     grad_fn = jax.value_and_grad(loss_calculator, 0, has_aux=True)
 
@@ -306,7 +344,7 @@ def make_step_fns(loss_fn, Metrics, model, is_ensemble):
         eval_fn = loss_calculator
 
     @jax.jit
-    def train_step(carry, batch):
+    def train_step(carry, batch) -> tuple[tuple[TrainState, metrics.Collection], float]:
         state, batch_metrics = carry
         inputs, labels = batch
         loss, predictions, state = update_fn(state, inputs, labels)
@@ -320,7 +358,9 @@ def make_step_fns(loss_fn, Metrics, model, is_ensemble):
         return new_carry, loss
 
     @jax.jit
-    def val_step(params, batch, batch_metrics):
+    def val_step(
+        params, batch, batch_metrics
+    ) -> Union[tuple[float, metrics.Collection], tuple[float, metrics.Collection, Any]]:
         inputs, labels = batch
         loss, predictions = eval_fn(params, inputs, labels)
 
@@ -328,6 +368,9 @@ def make_step_fns(loss_fn, Metrics, model, is_ensemble):
             inputs=inputs, label=labels, prediction=predictions
         )
         batch_metrics = batch_metrics.merge(new_batch_metrics)
-        return loss, batch_metrics
+        if return_predictions:
+            return loss, batch_metrics, predictions
+        else:
+            return loss, batch_metrics
 
     return train_step, val_step

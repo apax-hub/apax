@@ -32,5 +32,4 @@ try:
 
     __all__.append("ApaxOptimizeHyperparameters")
 except ImportError:
-    print("Could not import hyper_optimize")
     pass
