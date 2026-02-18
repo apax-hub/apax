@@ -6,8 +6,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import tree_util
-from jax.sharding import NamedSharding
-from jax.sharding import PartitionSpec as P
 from vesin import NeighborList
 
 log = logging.getLogger(__name__)
@@ -84,7 +82,7 @@ def get_shrink_wrapped_cell(positions):
     return cell, cell_origin
 
 
-def prefetch_to_single_device(iterator, size: int, mesh=None):
+def prefetch_to_single_device(iterator, size: int, data_sharding=None):
     """
     inspired by
     https://flax.readthedocs.io/en/latest/_modules/flax/jax_utils.html#prefetch_to_device
@@ -92,8 +90,7 @@ def prefetch_to_single_device(iterator, size: int, mesh=None):
     queue = collections.deque()
 
     def _prefetch(x: jax.Array):
-        if mesh:
-            data_sharding = NamedSharding(mesh, P("data"))
+        if data_sharding:
             x = jax.device_put(x, data_sharding)
         else:
             x = jnp.asarray(x)

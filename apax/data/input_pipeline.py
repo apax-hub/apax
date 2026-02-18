@@ -15,6 +15,8 @@ import jax.numpy as jnp
 import numpy as np
 import tensorflow as tf
 from jax import tree_util
+from jax.sharding import NamedSharding
+from jax.sharding import PartitionSpec as P
 
 from apax.data.preprocessing import compute_nl, prefetch_to_single_device
 from apax.utils.convert import (
@@ -291,7 +293,11 @@ class CachedInMemoryDataset(InMemoryDataset):
         ds = ds.shuffle(
             buffer_size=self.buffer_size, reshuffle_each_iteration=True
         ).batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, mesh)
+        if mesh:
+            data_sharding = NamedSharding(mesh, P("data"))
+        else:
+            data_sharding = None
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, data_sharding)
         return ds
 
     def batch(self, mesh=None) -> Iterator[jax.Array]:
@@ -303,7 +309,11 @@ class CachedInMemoryDataset(InMemoryDataset):
             .repeat(self.n_epochs)
         )
         ds = ds.batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, mesh)
+        if mesh:
+            data_sharding = NamedSharding(mesh, P("data"))
+        else:
+            data_sharding = None
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, data_sharding)
         return ds
 
     def cleanup(self):
@@ -352,7 +362,11 @@ class OTFInMemoryDataset(InMemoryDataset):
         ds = ds.shuffle(
             buffer_size=self.buffer_size, reshuffle_each_iteration=True
         ).batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, mesh)
+        if mesh:
+            data_sharding = NamedSharding(mesh, P("data"))
+        else:
+            data_sharding = None
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, data_sharding)
         return ds
 
     def batch(self, mesh=None) -> Iterator[jax.Array]:
@@ -360,7 +374,11 @@ class OTFInMemoryDataset(InMemoryDataset):
             lambda: self, output_signature=self.make_signature()
         )
         ds = ds.batch(batch_size=self.batch_size)
-        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, mesh)
+        if mesh:
+            data_sharding = NamedSharding(mesh, P("data"))
+        else:
+            data_sharding = None
+        ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, data_sharding)
         return ds
 
 
@@ -603,12 +621,20 @@ class PerBatchPaddedDataset(InMemoryDataset):
 
     def shuffle_and_batch(self, mesh):
         self.should_shuffle = True
-        ds = prefetch_to_single_device(iter(self), 2, mesh)
+        if mesh:
+            data_sharding = NamedSharding(mesh, P("data"))
+        else:
+            data_sharding = None
+        ds = prefetch_to_single_device(iter(self), 2, data_sharding)
         return ds
 
     def batch(self, mesh) -> Iterator[jax.Array]:
         self.should_shuffle = False
-        ds = prefetch_to_single_device(iter(self), 2, mesh)
+        if mesh:
+            data_sharding = NamedSharding(mesh, P("data"))
+        else:
+            data_sharding = None
+        ds = prefetch_to_single_device(iter(self), 2, data_sharding)
         return ds
 
     def make_signature(self) -> None:
