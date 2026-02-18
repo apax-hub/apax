@@ -61,6 +61,7 @@ Training Configuration
 .. autoclass:: apax.config.train_config.KerasPruningCallback
     :members:
     :exclude-members: model_config, model_computed_fields, model_fields
+
 .. autoclass:: apax.config.train_config.TransferLearningConfig
     :members:
     :exclude-members: model_config, model_computed_fields, model_fields
