@@ -29,7 +29,7 @@ def test_batch_features():
     params = jnp.zeros(5)  # dummy
     x_batch = jax.random.normal(key, (4, 3))  # batch, features
 
-    def mock_feature_fn(params, x):
+    def mock_feature_fn(_params, x):
         return x
 
     batch_ff = batch_features(mock_feature_fn)
