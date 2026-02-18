@@ -175,32 +175,43 @@ class ASECalculator(Calculator):
         including custom heads, stress, and ensemble uncertainties.
         Updates ASE's global all_properties to ensure compatibility.
         """
-        props = ["energy", "forces"]
+        props = {"energy", "forces"}
 
-        self.n_models = check_for_ensemble(self.params)
+        if self.model_config.model.calc_stress:
+            props.add("stress")
 
-        if self.n_models > 1:
-            suffixes = ["_uncertainty", "_ensemble"]
+        for head in self.model_config.model.property_heads:
+            props.add(head.name)
 
-            base_props = list(props)
-            for p in base_props:
-                for suff in suffixes:
-                    props.append(f"{p}{suff}")
+        # Handle ensembles
+        ensemble_config = self.model_config.model.ensemble
+        if ensemble_config:
+            ensembled_props = set()
+            if ensemble_config.kind == "full":
+                # For a full ensemble, all base properties are ensembled
+                ensembled_props.update(props)
 
-        if self.model_config.model.model_dump().get("calc_stress", False):
-            if "stress" not in props:
-                props.append("stress")
+            elif ensemble_config.kind == "shallow":
+                # For a shallow ensemble, only energy and potentially forces are ensembled
+                ensembled_props.add("energy")
+                if ensemble_config.force_variance:
+                    ensembled_props.add("forces")
 
-        if hasattr(self.model_config.model, "property_heads"):
-            for head in self.model_config.model.property_heads:
-                if head.name not in props:
-                    props.append(head.name)
+            for p in ensembled_props:
+                props.add(f"{p}_uncertainty")
+                props.add(f"{p}_ensemble")
 
-        for p in props:
+        # Handle individual property head ensembles
+        for head in self.model_config.model.property_heads:
+            if head.n_shallow_members > 0:
+                props.add(f"{head.name}_uncertainty")
+                props.add(f"{head.name}_ensemble")
+
+        # Finalize and update global list
+        self.implemented_properties = sorted(list(props))
+        for p in self.implemented_properties:
             if p not in all_properties:
                 all_properties.append(p)
-
-        self.implemented_properties = props
 
     def initialize(self, atoms):
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
