@@ -208,7 +208,7 @@ class ASECalculator(Calculator):
                 props.add(f"{head.name}_ensemble")
 
         # Finalize and update global list
-        self.implemented_properties = sorted(list(props))
+        self.implemented_properties = sorted(props)
         for p in self.implemented_properties:
             if p not in all_properties:
                 all_properties.append(p)
