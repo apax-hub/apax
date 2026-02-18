@@ -73,7 +73,6 @@ def test_property_head(setup_data):
     assert prop.shape == (5, 3, 3)
     assert jnp.allclose(prop, jnp.swapaxes(prop, -1, -2))
 
-
     # Test mode `symmetric_traceless_l2`
     property_head = PropertyHead(
         pname="property", mode="symmetric_traceless_l2", apply_mask=True
@@ -85,8 +84,7 @@ def test_property_head(setup_data):
     assert jnp.allclose(prop, jnp.swapaxes(prop, -1, -2))
 
     diag = jnp.diagonal(prop, axis1=1, axis2=2)
-    assert jnp.all(jnp.sum(diag, axis=1) < 1e-4) # traceless
-
+    assert jnp.all(jnp.sum(diag, axis=1) < 1e-4)  # traceless
 
     # Test ensemble detection
     property_head = PropertyHead(
