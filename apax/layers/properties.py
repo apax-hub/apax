@@ -85,11 +85,11 @@ class PropertyHead(nn.Module):
             Rc = R - jnp.mean(R, axis=0, keepdims=True)
             r_hat = Rc / jnp.linalg.norm(Rc, axis=1)[:, None]
             p_i = p_i * r_hat
-            
+
         elif self.mode == "symmetric_l2":
             Rc = R - jnp.mean(R, axis=0, keepdims=True)
             r_hat = Rc / jnp.linalg.norm(Rc, axis=1)[:, None]
-            
+
             r_rt = jnp.einsum("ni, nj -> nij", r_hat, r_hat)
             p_i = p_i[..., None] * r_rt
 
