@@ -65,13 +65,31 @@ def test_property_head(setup_data):
     assert "property" in output.keys()
     assert output["property"].shape == (5, 3)
 
+
+    # Test mode `symmetric_l2`
+    property_head = PropertyHead(
+        pname="property", mode="symmetric_l2", apply_mask=True
+    )
+    output = property_head.apply(params, g, R, dr_vec, Z, idx, box)
+    assert "property" in output.keys()
+    property = output["property"]
+    assert property.shape == (5, 3, 3)
+    assert jnp.allclose(property, property.T)
+
+
     # Test mode `symmetric_traceless_l2`
     property_head = PropertyHead(
         pname="property", mode="symmetric_traceless_l2", apply_mask=True
     )
     output = property_head.apply(params, g, R, dr_vec, Z, idx, box)
     assert "property" in output.keys()
-    assert output["property"].shape == (5, 3, 3)
+    property = output["property"]
+    assert property.shape == (5, 3, 3)
+    assert jnp.allclose(property, property.T)
+
+    diag = jnp.diag (output)
+    assert jnp.sum(diag) < 1e-4 # traceless
+
 
     # Test ensemble detection
     property_head = PropertyHead(
