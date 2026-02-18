@@ -1,8 +1,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from apax.config.model_config import (
     FullEnsembleConfig,
     GMNNConfig,
