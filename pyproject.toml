@@ -53,6 +53,13 @@ docs = [
 umap = [
     "umap-learn>=0.5.9.post2",
 ]
+optuna = [
+    "optuna>=4.6.0",
+    "optunahub>=0.4.0",
+]
+openmm = [
+    "openmm>=8.5.0b0",
+]
 
 [dependency-groups]
 dev = [

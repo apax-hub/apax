@@ -18,9 +18,16 @@ from apax.md.function_transformations import (
     UncertaintyDrivenDynamics,
     available_transformations,
 )
+from apax.nodes.utils import check_duplicate_keys
 from apax.train.run import run as apax_run
 
-from .utils import check_duplicate_keys
+if t.TYPE_CHECKING:
+    import optuna
+
+try:
+    import optuna
+except ImportError:
+    optuna = None
 
 log = logging.getLogger(__name__)
 
@@ -237,8 +244,9 @@ class ApaxCalibrate(ApaxBase):
         Calibration atoms
     batch_size: int, default = 32
         Processing batch size. Choose the largest allowed by your VRAM.
-    criterion: str, default = "ma_cal
-        Calibration criterion. See uncertainty_toolbox for more details.
+    criterion: str, default = "nll"
+        Calibration criterion. Currently available: "nll", "ma_cal", "rms_cal", "miscal".
+        We generally recommend "nll".
     shared_factor: bool, default = False
         Whether or not to calibrate energies and forces separately.
     optimizer_bounds: Tuple[float, float], default = (1e-2, 1e2)
@@ -252,7 +260,7 @@ class ApaxCalibrate(ApaxBase):
     model: ApaxBase = zntrack.deps()
     validation_data: list[Atoms] = zntrack.deps()
     batch_size: int = zntrack.params(32)
-    criterion: str = zntrack.params("ma_cal")
+    criterion: str = zntrack.params("nll")
     shared_factor: bool = zntrack.params(False)
     optimizer_bounds: t.Tuple[float, float] = zntrack.params((1e-2, 1e2))
 
