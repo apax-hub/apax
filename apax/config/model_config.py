@@ -118,6 +118,7 @@ class LatentEwald(Correction, extra="forbid"):
     name: Literal["latent_ewald"]
     kgrid: list
     sigma: float = 1.0
+    use_property: str = "charges"
 
 
 EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion, LatentEwald]

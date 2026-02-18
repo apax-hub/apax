@@ -5,6 +5,7 @@ from typing import Any, Union
 
 import yaml
 
+# default whitelist of properties for jaxMD
 APAX_PROPERTIES = [
     "energy",
     "forces",
@@ -17,18 +18,9 @@ APAX_PROPERTIES = [
     "stress_ensemble",
     "energy_unbiased",
     "forces_unbiased",
+    "charge",
+    "charges",
 ]
-
-
-def setup_ase():
-    """Add uncertainty keys to ASE all properties.
-    from https://github.com/zincware/IPSuite/blob/main/ipsuite/utils/helpers.py#L10
-    """
-    from ase.calculators.calculator import all_properties
-
-    for val in APAX_PROPERTIES:
-        if val not in all_properties:
-            all_properties.append(val)
 
 
 def mod_config(
