@@ -213,8 +213,17 @@ DynamicsCheck = Annotated[
 
 
 class SphericalWallEnergy(BaseModel, extra="forbid"):
+    """Bias energy to prevent atoms from moving outside of radius from origin.
+
+    Attributes:
+        name (Literal['spherical_wall'])
+        radius (PositiveFloat): radius where to put spherical wall in Angstrom
+        spring_constant (float): spring constant in eV/Angstrom^2
+
+    """
+
     name: Literal["spherical_wall"] = "spherical_wall"
-    radius: float
+    radius: PositiveFloat
     spring_constant: float
 
 
@@ -225,11 +234,27 @@ BiasEnergy = Annotated[
 
 
 class FixAtomsConstraint(BaseModel, extra="forbid"):
+    """Fix atoms in cartesian coordinates.
+
+    Attributes:
+        name (Literal['fixatoms'])
+        indices (list[int]): list of atom indices to fix
+    """
+
     name: Literal["fixatoms"] = "fixatoms"
     indices: list[int]
 
 
 class FixCenterOfMassConstraint(BaseModel, extra="forbid"):
+    """Fix the center of mass of the system.
+
+    Attributes:
+        name (Literal['fixcenterofmass'])
+        position (Union[Literal['initial', 'origin'], list[float]]):
+            position where to keep the center of mass fixed.
+
+    """
+
     name: Literal["fixcenterofmass"] = "fixcenterofmass"
     position: Union[Literal["initial", "origin"], list[float]] = "initial"
 
