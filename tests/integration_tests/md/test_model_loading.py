@@ -2,7 +2,6 @@ import pathlib
 import shutil
 
 import orbax.checkpoint as ocp
-import pytest
 
 from apax.md import ASECalculator
 from tests.conftest import initialize_model, load_and_dump_config
@@ -10,8 +9,8 @@ from tests.conftest import initialize_model, load_and_dump_config
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
 
-def test_model_loading(get_tmp_path, get_sample_input):
-    pytest.MonkeyPatch().chdir(get_tmp_path)
+def test_moved_model_loading(get_tmp_path, get_sample_input, monkeypatch):
+    monkeypatch.chdir(get_tmp_path)
     model_config_path = TEST_PATH / "config.yaml"
 
     model_config = load_and_dump_config(model_config_path, get_tmp_path)
@@ -39,8 +38,8 @@ def test_model_loading(get_tmp_path, get_sample_input):
         _ = ASECalculator(ckpt_dir.parent)
 
 
-def test_moved_model_loading(get_tmp_path, get_sample_input):
-    pytest.MonkeyPatch().chdir(get_tmp_path)
+def test_model_loading(get_tmp_path, get_sample_input, monkeypatch):
+    monkeypatch.chdir(get_tmp_path)
     model_config_path = TEST_PATH / "config.yaml"
 
     # 1. Create original directory and save model
