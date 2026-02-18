@@ -294,6 +294,8 @@ def run_sim(
         length = step * n_inner
         truncate_trajectory_to_checkpoint(traj_handler.traj_path, length)
 
+    initial_step = step  # used for measuring time correctly
+
     n_outer = int(np.ceil(n_steps / n_inner))
     pbar_update_freq = int(np.ceil(500 / n_inner))
     pbar_increment = n_inner * pbar_update_freq
@@ -418,7 +420,7 @@ def run_sim(
     traj_handler.close()
     end = time.time()
     elapsed_wall_time = end - start
-    elapsed_sim_time = step * n_inner * ensemble.dt / 1000
+    elapsed_sim_time = (step - initial_step) * n_inner * ensemble.dt / 1000
 
     ps_per_s = elapsed_sim_time / elapsed_wall_time
     nanosec_per_day = ps_per_s / 1e3 * 60 * 60 * 24

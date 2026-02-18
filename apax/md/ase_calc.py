@@ -13,10 +13,8 @@ from jax import tree_util
 from tqdm import tqdm, trange
 from vesin import NeighborList
 
-from apax.data.input_pipeline import (
-    CachedInMemoryDataset,
-    OTFInMemoryDataset,
-)
+from apax.config.train_config import Config
+from apax.data.input_pipeline import CachedInMemoryDataset, OTFInMemoryDataset
 from apax.md.function_transformations import ProcessStress
 from apax.train.checkpoints import (
     canonicalize_energy_model_parameters,
@@ -38,10 +36,11 @@ def maybe_vmap(apply, params):
     return energy_fn
 
 
-def build_energy_neighbor_fns(atoms, config, params, dr_threshold, neigbor_from_jax):
+def build_energy_neighbor_fns(
+    atoms: ase.Atoms, config: Config, params, dr_threshold: float, neigbor_from_jax: bool
+):
     r_max = config.model.basis.r_max
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
-    neigbor_from_jax = neighbor_calculable_with_jax(box, r_max)
     box = box.T
     displacement_fn = None
     neighbor_fn = None
@@ -199,7 +198,12 @@ class ASECalculator(Calculator):
             model = transformation.apply(model)
 
         self.model = model
-        self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
+        self.step = get_step_fn(
+            model,
+            jnp.asarray(atoms.numbers),
+            bool(np.any(atoms.cell.array > 1e-6)),
+            self.neigbor_from_jax,
+        )
         self.neighbor_fn = neighbor_fn
 
         if self.neigbor_from_jax:
@@ -213,11 +217,12 @@ class ASECalculator(Calculator):
                 self.neighbors = self.neighbor_fn.allocate(positions)
         else:
             calculator = NeighborList(cutoff=self.r_max, full_list=True)
-            idxs_i, _, _ = calculator.compute(
+
+            (idxs_i,) = calculator.compute(
                 points=atoms.positions,
                 box=atoms.cell.array,
                 periodic=bool(np.any(atoms.pbc)),
-                quantities="ijS",
+                quantities="i",
             )
             self.padded_length = int(len(idxs_i) * self.padding_factor)
 
@@ -292,7 +297,7 @@ class ASECalculator(Calculator):
             results.append(data)
         return np.concatenate(results, axis=0)
 
-    def set_neighbours_and_offsets(self, atoms, box):
+    def set_neighbours_and_offsets(self, atoms: ase.Atoms, box: np.ndarray) -> None:
         calculator = NeighborList(cutoff=self.r_max, full_list=True)
         idxs_i, idxs_j, offsets = calculator.compute(
             points=atoms.positions,
@@ -456,7 +461,7 @@ class ASECalculator(Calculator):
         self.step = None
 
 
-def neighbor_calculable_with_jax(box, r_max):
+def neighbor_calculable_with_jax(box: np.ndarray, r_max: float) -> bool:
     if np.all(box < 1e-6):
         return True
     else:
@@ -480,13 +485,14 @@ def neighbor_calculable_with_jax(box, r_max):
             return False
 
 
-def get_step_fn(model, atoms, neigbor_from_jax):
-    Z = jnp.asarray(atoms.numbers)
+def get_step_fn(
+    model: Callable, Z: jnp.ndarray, atoms_is_periodic: bool, neigbor_from_jax: bool
+) -> Callable:
     if neigbor_from_jax:
 
         @jax.jit
-        def step_fn(positions, neighbor, box):
-            if np.any(atoms.get_cell().lengths() > 1e-6):
+        def step_fn(positions: jnp.ndarray, neighbor, box: jnp.ndarray):
+            if atoms_is_periodic:
                 box = box.T
                 inv_box = jnp.linalg.inv(box)
                 positions = space.transform(inv_box, positions)
@@ -501,7 +507,7 @@ def get_step_fn(model, atoms, neigbor_from_jax):
     else:
 
         @jax.jit
-        def step_fn(positions, neighbor, box, offsets):
+        def step_fn(positions: jnp.ndarray, neighbor, box: jnp.ndarray, offsets):
             results = model(positions, Z, neighbor, box, offsets)
             return results
 
