@@ -37,7 +37,12 @@ def maybe_vmap(apply, params):
 
 
 def build_energy_neighbor_fns(
-    atoms: ase.Atoms, config: Config, params, dr_threshold: float, neigbor_from_jax: bool
+    atoms: ase.Atoms,
+    config: Config,
+    params,
+    dr_threshold: float,
+    neigbor_from_jax: bool,
+    calc_hessian: bool = False,
 ):
     r_max = config.model.basis.r_max
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
@@ -69,8 +74,19 @@ def build_energy_neighbor_fns(
         apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
     )
 
+    if calc_hessian:
+        model = model.copy(calc_hessian=True)
+
     energy_fn = maybe_vmap(model.apply, params)
     return energy_fn, neighbor_fn
+
+
+def build_hessian_neighbor_fns(
+    atoms: ase.Atoms, config: Config, params, dr_threshold: float, neigbor_from_jax: bool
+):
+    return build_energy_neighbor_fns(
+        atoms, config, params, dr_threshold, neigbor_from_jax, calc_hessian=True
+    )
 
 
 def make_ensemble(model):
@@ -164,6 +180,7 @@ class ASECalculator(Calculator):
         self._update_implemented_properties()
 
         self.step = None
+        self.hessian_step = None
         self.neighbor_fn = None
         self.neighbors = None
         self.offsets = None
@@ -176,6 +193,13 @@ class ASECalculator(Calculator):
         Updates ASE's global all_properties to ensure compatibility.
         """
         props = {"energy", "forces"}
+
+        is_shallow_ensemble = (
+            self.model_config.model.ensemble
+            and self.model_config.model.ensemble.kind == "shallow"
+        )
+        if self.n_models == 1 or is_shallow_ensemble:
+            props.add("hessian")
 
         if self.model_config.model.calc_stress:
             props.add("stress")
@@ -241,6 +265,21 @@ class ASECalculator(Calculator):
             bool(np.any(atoms.cell.array > 1e-6)),
             self.neigbor_from_jax,
         )
+
+        if "hessian" in self.implemented_properties:
+            hessian_model, _ = build_hessian_neighbor_fns(
+                atoms,
+                self.model_config,
+                self.params,
+                self.dr_threshold,
+                self.neigbor_from_jax,
+            )
+            self.hessian_step = get_step_fn(
+                hessian_model,
+                jnp.asarray(atoms.numbers),
+                bool(np.any(atoms.cell.array > 1e-6)),
+                self.neigbor_from_jax,
+            )
         self.neighbor_fn = neighbor_fn
 
         if self.neigbor_from_jax:
@@ -383,14 +422,31 @@ class ASECalculator(Calculator):
                 self.initialize(atoms)
                 results, self.neighbors = self.step(positions, self.neighbors, box)
 
+            if "hessian" in properties:
+                hessian_results, _ = self.hessian_step(positions, self.neighbors, box)
+                results["hessian"] = hessian_results["hessian"]
+
         else:
             self.set_neighbours_and_offsets(atoms, box)
             positions = np.array(space.transform(np.linalg.inv(box), atoms.positions))
 
             results = self.step(positions, self.neighbors, box, self.offsets)
+            if "hessian" in properties:
+                hessian_results = self.hessian_step(
+                    positions, self.neighbors, box, self.offsets
+                )
+                results["hessian"] = hessian_results["hessian"]
 
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
+        if "hessian" in self.results:
+            n_atoms = len(atoms)
+            self.results["hessian"] = self.results["hessian"].reshape(
+                3 * n_atoms, 3 * n_atoms
+            )
+
+    def get_hessian(self, atoms):
+        return self.get_property("hessian", atoms)
 
     def batch_eval(
         self, atoms_list: list[ase.Atoms], batch_size: int = 64, silent: bool = False
