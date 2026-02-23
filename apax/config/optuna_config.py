@@ -24,7 +24,7 @@ def get_pruner(name: str) -> Type["optuna.pruners.BasePruner"]:
             "optuna is required for hyperparameter optimisation. "
             "Install it via `pip install optuna`."
         ) from e
-    
+
     if name not in optuna.pruners.__all__:
         raise ValueError(f"pruner with name {name} not in optuna.pruners")
     return getattr(optuna.pruners, name)
