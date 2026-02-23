@@ -11,10 +11,13 @@ from apax.config.train_config import Config
 from apax.md.ase_calc import ASECalculator
 
 
-def get_mock_config(calc_stress, ensemble_config=None, property_heads=None):
+def get_mock_config(
+    calc_stress, calc_hessian=False, ensemble_config=None, property_heads=None
+):
     """Creates a mock Config object for testing."""
     model_config = GMNNConfig(
         calc_stress=calc_stress,
+        calc_hessian=calc_hessian,
         ensemble=ensemble_config,
         property_heads=property_heads or [],
     )
@@ -32,6 +35,18 @@ def test_no_ensemble():
             calc = ASECalculator(model_dir=Path("dummy"))
 
     expected_properties = ["energy", "forces"]
+    assert sorted(calc.implemented_properties) == sorted(expected_properties)
+
+
+def test_no_ensemble_with_hessian():
+    mock_config = get_mock_config(calc_stress=False, calc_hessian=True)
+
+    with patch("apax.md.ase_calc.restore_parameters") as mock_restore:
+        mock_restore.return_value = (mock_config, None)
+        with patch("apax.md.ase_calc.check_for_ensemble", return_value=1):
+            calc = ASECalculator(model_dir=Path("dummy"))
+
+    expected_properties = ["energy", "forces", "hessian"]
     assert sorted(calc.implemented_properties) == sorted(expected_properties)
 
 

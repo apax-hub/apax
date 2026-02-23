@@ -186,6 +186,18 @@ class ASECalculator(Calculator):
         self.offsets = None
         self.model = None
 
+    def _wrap_model(self, model):
+        if self.n_models > 1:
+            model = make_ensemble(model)
+
+        if "stress" in self.implemented_properties:
+            model = ProcessStress().apply(model)
+
+        for transformation in self.transformations:
+            model = transformation.apply(model)
+
+        return model
+
     def _update_implemented_properties(self):
         """
         Dynamically determines the properties this model produces based on its config,
@@ -198,7 +210,9 @@ class ASECalculator(Calculator):
             self.model_config.model.ensemble
             and self.model_config.model.ensemble.kind == "shallow"
         )
-        if self.n_models == 1 or is_shallow_ensemble:
+        if (self.n_models == 1 or is_shallow_ensemble) and getattr(
+            self.model_config.model, "calc_hessian", False
+        ):
             props.add("hessian")
 
         if self.model_config.model.calc_stress:
@@ -249,14 +263,7 @@ class ASECalculator(Calculator):
             self.neigbor_from_jax,
         )
 
-        if self.n_models > 1:
-            model = make_ensemble(model)
-
-        if "stress" in self.implemented_properties:
-            model = ProcessStress().apply(model)
-
-        for transformation in self.transformations:
-            model = transformation.apply(model)
+        model = self._wrap_model(model)
 
         self.model = model
         self.step = get_step_fn(
@@ -266,20 +273,6 @@ class ASECalculator(Calculator):
             self.neigbor_from_jax,
         )
 
-        if "hessian" in self.implemented_properties:
-            hessian_model, _ = build_hessian_neighbor_fns(
-                atoms,
-                self.model_config,
-                self.params,
-                self.dr_threshold,
-                self.neigbor_from_jax,
-            )
-            self.hessian_step = get_step_fn(
-                hessian_model,
-                jnp.asarray(atoms.numbers),
-                bool(np.any(atoms.cell.array > 1e-6)),
-                self.neigbor_from_jax,
-            )
         self.neighbor_fn = neighbor_fn
 
         if self.neigbor_from_jax:
@@ -301,6 +294,22 @@ class ASECalculator(Calculator):
                 quantities="i",
             )
             self.padded_length = int(len(idxs_i) * self.padding_factor)
+
+    def _initialize_hessian(self, atoms):
+        hessian_model, _ = build_hessian_neighbor_fns(
+            atoms,
+            self.model_config,
+            self.params,
+            self.dr_threshold,
+            self.neigbor_from_jax,
+        )
+        hessian_model = self._wrap_model(hessian_model)
+        self.hessian_step = get_step_fn(
+            hessian_model,
+            jnp.asarray(atoms.numbers),
+            bool(np.any(atoms.cell.array > 1e-6)),
+            self.neigbor_from_jax,
+        )
 
     def get_descriptors(
         self,
@@ -423,6 +432,8 @@ class ASECalculator(Calculator):
                 results, self.neighbors = self.step(positions, self.neighbors, box)
 
             if "hessian" in properties:
+                if self.hessian_step is None:
+                    self._initialize_hessian(atoms)
                 hessian_results, _ = self.hessian_step(positions, self.neighbors, box)
                 results["hessian"] = hessian_results["hessian"]
 
@@ -432,6 +443,8 @@ class ASECalculator(Calculator):
 
             results = self.step(positions, self.neighbors, box, self.offsets)
             if "hessian" in properties:
+                if self.hessian_step is None:
+                    self._initialize_hessian(atoms)
                 hessian_results = self.hessian_step(
                     positions, self.neighbors, box, self.offsets
                 )
@@ -499,14 +512,7 @@ class ASECalculator(Calculator):
 
         model = partial(model, self.params)
 
-        if self.n_models > 1:
-            model = make_ensemble(model)
-
-        if "stress" in self.implemented_properties:
-            model = ProcessStress().apply(model)
-
-        for transformation in self.transformations:
-            model = transformation.apply(model)
+        model = self._wrap_model(model)
 
         model = jax.vmap(model, in_axes=(0, 0, 0, 0, 0))
         model = jax.jit(model)

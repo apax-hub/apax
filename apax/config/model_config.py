@@ -184,6 +184,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     empirical_corrections: list[EmpiricalCorrection] = []
 
     calc_stress: bool = False
+    calc_hessian: bool = False
 
     descriptor_dtype: Literal["fp32", "fp64"] = "fp32"
     readout_dtype: Literal["fp32", "fp64"] = "fp32"
