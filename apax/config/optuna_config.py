@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Optional, Type, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional, Type
 
 from pydantic import BaseModel, PositiveInt
 
