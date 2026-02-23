@@ -1,8 +1,9 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+
 from apax.nn.models import EnergyDerivativeModel, EnergyModel
-from apax.utils.transform import make_energy_only_model
+
 
 def test_hessian_prediction():
     # Use float64 for better precision in Hessian
