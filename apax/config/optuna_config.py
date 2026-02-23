@@ -60,7 +60,7 @@ def get_sampler(name: str) -> Type["optuna.samplers.BaseSampler"]:
             return optunahub.load_module("samplers/auto_sampler").AutoSampler
         except ImportError as e:
             raise ImportError(
-                f"sampler {name} requires optunahub. Set pruner to other or install optunahub"
+                f"sampler {name} requires optunahub. Set sampler to other or install optunahub"
             ) from e
 
     if name not in optuna.samplers.__all__:
