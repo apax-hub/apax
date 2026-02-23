@@ -1,5 +1,6 @@
 import os
 import pathlib
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -12,6 +13,7 @@ from apax.config import Config
 from apax.md.ase_calc import ASECalculator
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
+
 
 def test_ase_hessian(get_tmp_path):
     model_confg_path = TEST_PATH / "config.yaml"
@@ -26,11 +28,9 @@ def test_ase_hessian(get_tmp_path):
 
     # Simple water molecule for vibrations
     # roughly equilibrium geometry for a dummy model
-    positions = np.array([
-        [0.0, 0.0, 0.0],
-        [0.0, 0.7, 0.5],
-        [0.0, -0.7, 0.5]
-    ], dtype=np.float64)
+    positions = np.array(
+        [[0.0, 0.0, 0.0], [0.0, 0.7, 0.5], [0.0, -0.7, 0.5]], dtype=np.float64
+    )
     atomic_numbers = np.array([8, 1, 1])
     box = np.array([0.0, 0.0, 0.0], dtype=np.float64)
     atoms = Atoms(atomic_numbers, positions, cell=box)
@@ -42,7 +42,7 @@ def test_ase_hessian(get_tmp_path):
     model = builder.build_energy_derivative_model(apply_mask=False)
 
     rng_key = jax.random.PRNGKey(model_config.seed)
-    
+
     # Minimal input for init
     R = jnp.asarray(positions, dtype=jnp.float64)
     Z = jnp.asarray(atomic_numbers)
@@ -71,13 +71,13 @@ def test_ase_hessian(get_tmp_path):
     # 2. Test compatibility with Vibrations module
     vib_dir = get_tmp_path / "vib"
     vib = Vibrations(atoms, name=str(vib_dir), nfree=4)
-    
+
     analytical_hessian = calc.get_hessian(atoms)
-    
+
     # Numerical Hessian from Vibrations (finite difference of forces)
     vib.run()
     numerical_hessian = vib.get_vibrations().get_hessian().reshape(9, 9)
-    
+
     # Compare analytical vs numerical
     # tolerance is higher because finite difference is less accurate than analytical
     assert np.allclose(analytical_hessian, numerical_hessian, atol=1e-2)
