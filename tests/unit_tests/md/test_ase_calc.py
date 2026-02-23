@@ -34,19 +34,35 @@ def test_no_ensemble():
         with patch("apax.md.ase_calc.check_for_ensemble", return_value=1):
             calc = ASECalculator(model_dir=Path("dummy"))
 
+    # Hessian should not be present by default anymore
     expected_properties = ["energy", "forces"]
     assert sorted(calc.implemented_properties) == sorted(expected_properties)
 
 
-def test_no_ensemble_with_hessian():
+def test_no_ensemble_with_hessian_override():
+    mock_config = get_mock_config(calc_stress=False, calc_hessian=False)
+
+    with patch("apax.md.ase_calc.restore_parameters") as mock_restore:
+        mock_restore.return_value = (mock_config, None)
+        with patch("apax.md.ase_calc.check_for_ensemble", return_value=1):
+            # Explicitly enable Hessian override
+            calc = ASECalculator(model_dir=Path("dummy"), calc_hessian=True)
+
+    expected_properties = ["energy", "forces", "hessian"]
+    assert sorted(calc.implemented_properties) == sorted(expected_properties)
+
+
+def test_no_ensemble_with_hessian_disabled_override():
+    # Hessian enabled in training config
     mock_config = get_mock_config(calc_stress=False, calc_hessian=True)
 
     with patch("apax.md.ase_calc.restore_parameters") as mock_restore:
         mock_restore.return_value = (mock_config, None)
         with patch("apax.md.ase_calc.check_for_ensemble", return_value=1):
-            calc = ASECalculator(model_dir=Path("dummy"))
+            # Hessian should be disabled by default now, but let's be explicit
+            calc = ASECalculator(model_dir=Path("dummy"), calc_hessian=False)
 
-    expected_properties = ["energy", "forces", "hessian"]
+    expected_properties = ["energy", "forces"]
     assert sorted(calc.implemented_properties) == sorted(expected_properties)
 
 

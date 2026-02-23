@@ -187,6 +187,9 @@ class ModelBuilder:
         apply_mask=True,
         init_box: np.array = np.array([0.0, 0.0, 0.0]),
         inference_disp_fn=None,
+        calc_stress: bool | None = None,
+        calc_hessian: bool | None = None,
+        force_variance: bool | None = None,
     ):
         energy_model = self.build_energy_model(
             scale,
@@ -195,23 +198,34 @@ class ModelBuilder:
             init_box=init_box,
             inference_disp_fn=inference_disp_fn,
         )
+
+        if calc_stress is None:
+            calc_stress = self.config["calc_stress"]
+        if calc_hessian is None:
+            calc_hessian = self.config["calc_hessian"]
+
         if (
             self.config["ensemble"]
             and self.config["ensemble"]["kind"] == "shallow"
             and self.config["ensemble"]["n_members"] > 1
         ):
+            if force_variance is None:
+                force_variance = self.config["ensemble"]["force_variance"]
+
             log.info("Building ShallowEnsemble model")
             model = ShallowEnsembleModel(
                 energy_model,
-                calc_stress=self.config["calc_stress"],
-                force_variance=self.config["ensemble"]["force_variance"],
+                calc_stress=calc_stress,
+                calc_hessian=calc_hessian,
+                force_variance=force_variance,
                 chunk_size=self.config["ensemble"]["chunk_size"],
             )
         else:
             log.info("Building Standard model")
             model = EnergyDerivativeModel(
                 energy_model,
-                calc_stress=self.config["calc_stress"],
+                calc_stress=calc_stress,
+                calc_hessian=calc_hessian,
             )
         return model
 

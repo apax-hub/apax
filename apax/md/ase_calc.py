@@ -42,7 +42,9 @@ def build_energy_neighbor_fns(
     params,
     dr_threshold: float,
     neigbor_from_jax: bool,
-    calc_hessian: bool = False,
+    calc_stress: bool | None = None,
+    calc_hessian: bool | None = None,
+    force_variance: bool | None = None,
 ):
     r_max = config.model.basis.r_max
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
@@ -71,21 +73,36 @@ def build_energy_neighbor_fns(
     builder = Builder(config.model.model_dump(), n_species=n_species)
 
     model = builder.build_energy_derivative_model(
-        apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
+        apply_mask=True,
+        init_box=np.array(box),
+        inference_disp_fn=displacement_fn,
+        calc_stress=calc_stress,
+        calc_hessian=calc_hessian,
+        force_variance=force_variance,
     )
-
-    if calc_hessian:
-        model = model.copy(calc_hessian=True)
 
     energy_fn = maybe_vmap(model.apply, params)
     return energy_fn, neighbor_fn
 
 
 def build_hessian_neighbor_fns(
-    atoms: ase.Atoms, config: Config, params, dr_threshold: float, neigbor_from_jax: bool
+    atoms: ase.Atoms,
+    config: Config,
+    params,
+    dr_threshold: float,
+    neigbor_from_jax: bool,
+    calc_stress: bool | None = None,
+    force_variance: bool | None = None,
 ):
     return build_energy_neighbor_fns(
-        atoms, config, params, dr_threshold, neigbor_from_jax, calc_hessian=True
+        atoms,
+        config,
+        params,
+        dr_threshold,
+        neigbor_from_jax,
+        calc_stress=calc_stress,
+        calc_hessian=True,
+        force_variance=force_variance,
     )
 
 
@@ -128,9 +145,33 @@ class ASECalculator(Calculator):
     """
     ASE Calculator for apax models.
     Always implements energy and force predictions.
-    Stress predictions and corresponding uncertainties are added to
-    `implemented_properties` based on whether the stress flag is set
-    in the model config and whether a model ensemble is loaded.
+    Additional properties like stress, Hessian, and uncertainties can be enabled
+    dynamically, independent of the training configuration.
+
+    **Property Prediction Control:**
+
+    The calculator can be configured to compute additional properties during
+    initialization. This is useful for predicting properties that were not
+    part of the training loss (e.g., computing Hessians for vibrational analysis
+    with a model trained only on energies and forces) or for disabling expensive
+    computations during high-throughput inference or MD simulations.
+
+    *   `calc_stress`: Set to `True` to enable stress tensor prediction.
+    *   `calc_hessian`: Set to `True` to enable Hessian matrix prediction.
+        Defaults to `False` to avoid expensive computations even if enabled during training.
+    *   `force_variance`: For shallow ensembles, determines whether to compute
+        force uncertainties.
+
+    Example:
+        Predict Hessians with a model not configured for it during training:
+
+        >>> calc = ASECalculator(model_dir, calc_hessian=True)
+        >>> atoms.calc = calc
+        >>> hessian = atoms.get_hessian()
+
+        Disable stress calculation even if enabled in the training config:
+
+        >>> calc = ASECalculator(model_dir, calc_stress=False)
 
     """
 
@@ -145,6 +186,9 @@ class ASECalculator(Calculator):
         dr_threshold: float = 0.5,
         transformations: list[Callable] = [],
         padding_factor: float = 1.5,
+        calc_stress: bool | None = None,
+        calc_hessian: bool = False,
+        force_variance: bool | None = None,
         **kwargs,
     ):
         """
@@ -163,12 +207,25 @@ class ASECalculator(Calculator):
             Multiple of the fallback vesin's amount of neighbors.
             This NL will be padded to `len(neighbors) * padding_factor`
             on NL initialization.
+        calc_stress:
+            Whether to calculate the stress tensor.
+            Overrides the model config if provided.
+        calc_hessian:
+            Whether to calculate the Hessian matrix.
+            Defaults to False.
+        force_variance:
+            Whether to calculate the force variance (for shallow ensembles).
+            Overrides the model config if provided.
         """
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
         self.transformations = transformations
 
         self.model_config, self.params = restore_parameters(model_dir)
+
+        self.calc_stress = calc_stress
+        self.calc_hessian = calc_hessian
+        self.force_variance = force_variance
 
         for head in self.model_config.model.property_heads:
             self.implemented_properties.append(head.name)
@@ -210,12 +267,15 @@ class ASECalculator(Calculator):
             self.model_config.model.ensemble
             and self.model_config.model.ensemble.kind == "shallow"
         )
-        if (self.n_models == 1 or is_shallow_ensemble) and getattr(
-            self.model_config.model, "calc_hessian", False
-        ):
+
+        if self.calc_hessian and (self.n_models == 1 or is_shallow_ensemble):
             props.add("hessian")
 
-        if self.model_config.model.calc_stress:
+        calc_stress = self.calc_stress
+        if calc_stress is None:
+            calc_stress = self.model_config.model.calc_stress
+
+        if calc_stress:
             props.add("stress")
 
         for head in self.model_config.model.property_heads:
@@ -232,7 +292,12 @@ class ASECalculator(Calculator):
             elif ensemble_config.kind == "shallow":
                 # For a shallow ensemble, only energy and potentially forces are ensembled
                 ensembled_props.add("energy")
-                if ensemble_config.force_variance:
+
+                force_variance = self.force_variance
+                if force_variance is None:
+                    force_variance = ensemble_config.force_variance
+
+                if force_variance:
                     ensembled_props.add("forces")
 
             for p in ensembled_props:
@@ -261,6 +326,9 @@ class ASECalculator(Calculator):
             self.params,
             self.dr_threshold,
             self.neigbor_from_jax,
+            calc_stress=self.calc_stress,
+            calc_hessian=self.calc_hessian,
+            force_variance=self.force_variance,
         )
 
         model = self._wrap_model(model)
@@ -302,6 +370,8 @@ class ASECalculator(Calculator):
             self.params,
             self.dr_threshold,
             self.neigbor_from_jax,
+            calc_stress=self.calc_stress,
+            force_variance=self.force_variance,
         )
         hessian_model = self._wrap_model(hessian_model)
         self.hessian_step = get_step_fn(

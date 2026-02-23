@@ -60,7 +60,7 @@ def test_ase_hessian(get_tmp_path):
         mngr.save(0, args=ocp.args.StandardSave(ckpt))
 
     # Initialize ASE Calculator
-    calc = ASECalculator(model_config.data.model_version_path)
+    calc = ASECalculator(model_config.data.model_version_path, calc_hessian=True)
     atoms.calc = calc
 
     # 1. Test direct hessian calculation via calculator

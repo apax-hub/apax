@@ -540,8 +540,18 @@ def md_setup(model_config: Config, md_config: MDConfig):
         bias_list = [BiasEnergies(b.model_dump()) for b in md_config.biases]
         biases.extend(bias_list)
 
+    force_variance = "forces_uncertainty" in md_config.properties
+    for check in md_config.dynamics_checks:
+        if check.name == "forces_uncertainty":
+            force_variance = True
+
     auxiliary_fn = builder.build_energy_derivative_model(
-        apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
+        apply_mask=True,
+        init_box=np.array(system.box),
+        inference_disp_fn=displacement_fn,
+        calc_stress="stress" in md_config.properties,
+        calc_hessian="hessian" in md_config.properties,
+        force_variance=force_variance,
     ).apply
 
     if n_models > 1 and not shallow:
