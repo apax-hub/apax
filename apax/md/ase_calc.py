@@ -268,7 +268,7 @@ class ASECalculator(Calculator):
             and self.model_config.model.ensemble.kind == "shallow"
         )
 
-        if self.calc_hessian and (self.n_models == 1 or is_shallow_ensemble):
+        if self.calc_hessian:
             props.add("hessian")
 
         calc_stress = self.calc_stress
@@ -340,6 +340,7 @@ class ASECalculator(Calculator):
             bool(np.any(atoms.cell.array > 1e-6)),
             self.neigbor_from_jax,
         )
+        self.hessian_step = None
 
         self.neighbor_fn = neighbor_fn
 
@@ -501,7 +502,7 @@ class ASECalculator(Calculator):
                 self.initialize(atoms)
                 results, self.neighbors = self.step(positions, self.neighbors, box)
 
-            if "hessian" in properties:
+            if "hessian" in properties and "hessian" not in results:
                 if self.hessian_step is None:
                     self._initialize_hessian(atoms)
                 hessian_results, _ = self.hessian_step(positions, self.neighbors, box)
@@ -512,7 +513,7 @@ class ASECalculator(Calculator):
             positions = np.array(space.transform(np.linalg.inv(box), atoms.positions))
 
             results = self.step(positions, self.neighbors, box, self.offsets)
-            if "hessian" in properties:
+            if "hessian" in properties and "hessian" not in results:
                 if self.hessian_step is None:
                     self._initialize_hessian(atoms)
                 hessian_results = self.hessian_step(

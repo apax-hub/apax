@@ -541,9 +541,10 @@ def md_setup(model_config: Config, md_config: MDConfig):
         biases.extend(bias_list)
 
     force_variance = "forces_uncertainty" in md_config.properties
-    for check in md_config.dynamics_checks:
-        if check.name == "forces_uncertainty":
-            force_variance = True
+    if md_config.dynamics_checks:
+        for check in md_config.dynamics_checks:
+            if check.name == "forces_uncertainty":
+                force_variance = True
 
     auxiliary_fn = builder.build_energy_derivative_model(
         apply_mask=True,

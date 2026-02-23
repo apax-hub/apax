@@ -31,11 +31,11 @@ Note that to use the analytical Hessian for vibrational analysis, you should use
     calc = ASECalculator("path/to/model", calc_hessian=True)
     atoms.calc = calc
 
-    # Get the analytical Hessian (3N x 3N matrix)
-    hessian = atoms.get_hessian()
+    # Get the analytical Hessian (3N x 3N matrix) from the calculator
+    hessian = calc.get_hessian(atoms)
 
     # Use the analytical Hessian for vibrational analysis
-    vib = VibrationsData(atoms, hessian)
+    vib = VibrationsData.from_2d(atoms, hessian)
     freqs = vib.get_frequencies()
 
 Disabling Expensive Properties

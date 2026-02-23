@@ -16,9 +16,9 @@ TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
 
 def test_ase_hessian(get_tmp_path):
-    model_confg_path = TEST_PATH / "config.yaml"
+    model_config_path = TEST_PATH / "config.yaml"
 
-    with open(model_confg_path.as_posix(), "r") as stream:
+    with open(model_config_path.as_posix(), "r") as stream:
         model_config_dict = yaml.safe_load(stream)
 
     model_config_dict["data"]["directory"] = get_tmp_path.as_posix()
