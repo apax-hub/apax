@@ -37,7 +37,7 @@ def get_sampler(name: str) -> Type["optuna.samplers.BaseSampler"]:
         name (str): name of sampler
 
     Returns:
-        Type[optuna.pruners.BaseSampler]: uninstantiated sampler
+        Type[optuna.samplers.BaseSampler]: uninstantiated sampler
 
     Notes:
         Also can include the AutoSampler, which automatically infer the "best"
@@ -60,7 +60,7 @@ def get_sampler(name: str) -> Type["optuna.samplers.BaseSampler"]:
             return optunahub.load_module("samplers/auto_sampler").AutoSampler
         except ImportError as e:
             raise ImportError(
-                f"pruner {name} requires optunahub. Set pruner to other or install optunahub"
+                f"sampler {name} requires optunahub. Set pruner to other or install optunahub"
             ) from e
 
     if name not in optuna.samplers.__all__:
