@@ -14,6 +14,7 @@ from apax.md.ase_calc import ASECalculator
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
+
 def test_ase_hessian(get_tmp_path):
     model_confg_path = TEST_PATH / "config.yaml"
 
@@ -27,11 +28,9 @@ def test_ase_hessian(get_tmp_path):
 
     # Simple water molecule for vibrations
     # roughly equilibrium geometry for a dummy model
-    positions = np.array([
-        [0.0, 0.0, 0.0],
-        [0.0, 0.7, 0.5],
-        [0.0, -0.7, 0.5]
-    ], dtype=np.float64)
+    positions = np.array(
+        [[0.0, 0.0, 0.0], [0.0, 0.7, 0.5], [0.0, -0.7, 0.5]], dtype=np.float64
+    )
     atomic_numbers = np.array([8, 1, 1])
     box = np.array([0.0, 0.0, 0.0], dtype=np.float64)
     atoms = Atoms(atomic_numbers, positions, cell=box)
