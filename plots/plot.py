@@ -1,9 +1,6 @@
 
 import subprocess
 
-
-
-
 content1 = r"""\documentclass{standalone}
 \usepackage{amsmath}
 \usepackage{physics}
