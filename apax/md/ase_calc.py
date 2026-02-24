@@ -553,7 +553,7 @@ def get_step_fn(
 
         @jax.jit
         def step_fn(
-            positions: jnp.ndarray: jnp.ndarray, neighbor, box: jnp.ndarray: jnp.ndarray
+            positions: jnp.ndarray, neighbor: partition.NeighborList, box: jnp.ndarray
         ) -> Tuple[Dict, partition.NeighborList]:
             if atoms_is_periodic:
                 box = box.T
