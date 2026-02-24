@@ -13,7 +13,9 @@ class MLFlowLogger:
         :param run_name: Name of the run to be logged in MLFlow.
         """
         mlflow.login()
-        mlflow.set_experiment(experiment)
+        if experiment is not None:
+            mlflow.set_experiment(experiment)
+
 
         # Start a new MLFlow run
         self.run = mlflow.start_run(run_name=run_name)
@@ -43,4 +45,5 @@ class MLFlowLogger:
         """
         End the current MLFlow run.
         """
+        _ = logs
         mlflow.end_run()

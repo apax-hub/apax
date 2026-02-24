@@ -104,6 +104,8 @@ class FixLayer(ConstraintBase, extra="forbid"):
     def create(self, system: System) -> Callable:
         if jnp.any(system.box > 10e-4):
             cart_pos = system.positions @ system.box
+        else:
+            cart_pos = system.positions
 
         z_coordinates = cart_pos[:, 2]
 

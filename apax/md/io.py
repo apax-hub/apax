@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 import h5py
 import numpy as np
@@ -35,10 +35,10 @@ class TrajHandler:
         self.properties = properties
         self.has_registered_properties = False
 
-    def step(self, state_and_energy: Any, transform: Callable = None) -> None:
+    def step(self, state_and_energy: Any, transform: Optional[Callable] = None) -> None:
         pass
 
-    def write(self, x: Any = None, transform: Callable = None) -> None:
+    def write(self, x: Any = None, transform: Optional[Callable] = None) -> None:
         pass
 
     def close(self) -> None:
@@ -118,7 +118,7 @@ class H5TrajHandler(TrajHandler):
     def reset_buffer(self) -> None:
         self.buffer = []
 
-    def step(self, state: Any, transform: Callable = None) -> None:
+    def step(self, state: Any, transform: Optional[Callable] = None) -> None:
         state, predictions, nbr_kwargs = state
 
         if self.step_counter % self.sampling_rate == 0:
@@ -129,7 +129,7 @@ class H5TrajHandler(TrajHandler):
         if len(self.buffer) >= self.buffer_size:
             self.write()
 
-    def write(self, x: Any = None, transform: Callable = None) -> None:
+    def write(self, x: Any = None, transform: Optional[Callable] = None) -> None:
         if len(self.buffer) > 0:
             self.db.extend(self.buffer)
             self.reset_buffer()
@@ -140,7 +140,7 @@ class DSTruncator:
         self.length = length
         self.node_names: List[str] = []
 
-    def __call__(self, name: str, node: h5py.Node) -> None:
+    def __call__(self, name: str, node: h5py.Dataset) -> None:
         if isinstance(node, h5py.Dataset):
             if len(node.shape) > 1 or name.endswith("energy/value"):
                 self.node_names.append(name)

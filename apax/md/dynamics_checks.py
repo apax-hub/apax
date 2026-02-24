@@ -11,7 +11,7 @@ class DynamicsCheckBase(BaseModel):
     def check(
         self, predictions: Dict[str, Array], positions: Array, box: Array
     ) -> Array:
-        pass
+        raise NotImplementedError("check must be implemented by subclasses")
 
 
 class EnergyUncertaintyCheck(DynamicsCheckBase, extra="forbid"):

@@ -272,8 +272,8 @@ def run_sim(
     load_momenta: bool = False,
     restart: bool = True,
     checkpoint_interval: int = 50_000,
-    dynamics_checks: List[DynamicsCheckBase] = [],
-    constraints: List[ConstraintBase] = [],
+    dynamics_checks: Optional[List[DynamicsCheckBase]] = None,
+    constraints: Optional[List[ConstraintBase]] = None,
     disable_pbar: bool = False,
 ) -> None:
     """
@@ -299,6 +299,11 @@ def run_sim(
     sim_dir : Path
         Directory where the trajectory and simulation checkpoints will be saved.
     """
+    if dynamics_checks is None:
+        dynamics_checks = []
+    if constraints is None:
+        constraints = []
+
     neighbor_fn = sim_fns.neighbor_fn
     ckpt_dir = sim_dir / "ckpts"
     ckpt_dir.mkdir(exist_ok=True)

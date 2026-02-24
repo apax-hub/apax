@@ -14,7 +14,7 @@ class TSchedule:
 
 
 class ConstantTSchedule(TSchedule):
-    def __call__(self, step: int) -> float:
+    def __call__(self, _step: int) -> float:
         return self.T0 * units.kB
 
 

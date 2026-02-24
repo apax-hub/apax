@@ -1,11 +1,11 @@
 import logging
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import jax.numpy as jnp
 import numpy as np
 import optax
 from flax import traverse_util
-from flax.core.frozen_dict import FrozenDict, freeze
+from flax.core.frozen_dict import freeze
 from optax._src import base
 
 from apax.optimizer.optimizers import ademamix, sam
@@ -95,7 +95,7 @@ class OptimizerFactory:
 
 
 def get_opt(
-    params: FrozenDict,
+    params: dict,
     n_epochs: int,
     steps_per_epoch: int,
     emb_lr: float = 0.02,
@@ -106,15 +106,18 @@ def get_opt(
     rep_scale_lr: float = 0.001,
     rep_prefactor_lr: float = 0.0001,
     gradient_clipping: float = 1000.0,
-    freeze_layers: List[str] = [],
+    freeze_layers: Optional[List[str]] = None,
     name: str = "adam",
-    kwargs: Dict = {},
-    schedule: Dict = {},
+    kwargs: Optional[Dict] = None,
+    schedule: Optional[Dict] = None,
 ) -> optax._src.base.GradientTransformation:
     """
     Builds an optimizer with different learning rates for each parameter group.
     Several `optax` optimizers are supported.
     """
+    freeze_layers = freeze_layers or []
+    kwargs = kwargs or {}
+    schedule = schedule or {}
 
     log.info("Initializing Optimizer")
     if name == "sam":

@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import jax.numpy as jnp
 import numpy as np
@@ -61,7 +61,7 @@ def split_idxs(atoms_list: List[Atoms], n_train: int, n_valid: int) -> Tuple[np.
 
 
 def split_atoms(
-    atoms_list: List[Atoms], train_idxs: np.ndarray, val_idxs: np.ndarray = None
+    atoms_list: List[Atoms], train_idxs: np.ndarray, val_idxs: Optional[np.ndarray] = None
 ) -> Tuple[List[Atoms], List[Atoms]]:
     """
     Split the list of atoms into training and validation sets (validation is optional).
@@ -70,9 +70,9 @@ def split_atoms(
     ----------
     atoms_list : list[ase.Atoms]
         List of atoms.
-    train_idxs : list[int]
+    train_idxs : np.ndarray
         List of indices for the training set.
-    val_idxs : list[int], optional
+    val_idxs : np.ndarray, optional
         List of indices for the validation set.
 
     Returns

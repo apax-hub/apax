@@ -29,7 +29,7 @@ def setup_logging(log_file: Path, log_level: str) -> None:
 
     Parameters
     ----------
-    log_file : str
+    log_file : Path
         Path to the log file.
     log_level : str
         Logging level. Options: {'debug', 'info', 'warning', 'error', 'critical'}.
@@ -125,8 +125,8 @@ def initialize_datasets(
         Training dataset.
     val_ds : Dataset
         Validation dataset.
-    ds_stats : Dict[str, Tuple[float, float]]
-        Dictionary containing scale and shift parameters for normalization.
+    ds_stats : DatasetStats
+        Dataset statistics containing scale and shift parameters.
     """
 
     train_raw_ds, val_raw_ds = load_data_files(config.data)

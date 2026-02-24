@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import jax
 import numpy as np
@@ -23,7 +23,7 @@ def create_feature_fn(
     model: EnergyModel,
     params: FrozenDict,
     base_feature_map: feature_maps.FeatureTransformation,
-    feature_transforms: List = [],
+    feature_transforms: Optional[List] = None,
     is_ensemble: bool = False,
 ) -> Callable:
     """
@@ -51,7 +51,7 @@ def create_feature_fn(
     if is_ensemble:
         feature_fn = transforms.ensemble_features(feature_fn)
 
-    for transform in feature_transforms:
+    for transform in (feature_transforms or []):
         feature_fn = transform.apply(feature_fn)
 
     feature_fn = transforms.batch_features(feature_fn)
@@ -93,7 +93,7 @@ def kernel_selection(
     pool_atoms: List[Atoms],
     base_fm_options: Dict,
     selection_method: str,
-    feature_transforms: list = [],
+    feature_transforms: Optional[List] = None,
     selection_batch_size: int = 10,
     processing_batch_size: int = 64,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:

@@ -8,7 +8,7 @@ from pathlib import Path
 from queue import Queue
 from random import shuffle
 from threading import Event
-from typing import Any, Deque, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Deque, Dict, Iterator, List, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -95,7 +95,7 @@ class InMemoryDataset:
         n_epochs: int,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
-        additional_properties: List[Tuple[str, Any]] = [],
+        additional_properties: Optional[List[Tuple[str, Any]]] = None,
         pre_shuffle: bool = False,
         shuffle_buffer_size: int = 1000,
         ignore_labels: bool = False,
@@ -107,6 +107,8 @@ class InMemoryDataset:
         self.n_data = len(atoms_list)
         self.batch_size = self.validate_batch_size(bs)
         self.pos_unit = pos_unit
+        if additional_properties is None:
+            additional_properties = []
         self.additional_properties = additional_properties
 
         if pre_shuffle:
@@ -148,7 +150,9 @@ class InMemoryDataset:
             batch_size = self.n_data
         return batch_size
 
-    def prepare_data(self, i: int) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def prepare_data(self, i: int) -> Union[
+        Dict[str, Any], Tuple[Dict[str, Any], Dict[str, Any]]
+    ]:
         inputs = {k: v[i] for k, v in self.inputs.items()}
         idx, offsets = compute_nl(inputs["positions"], inputs["box"], self.cutoff)
         inputs["idx"], inputs["offsets"] = pad_nl(idx, offsets, self.max_nbrs)
@@ -249,10 +253,10 @@ class InMemoryDataset:
     def __iter__(self) -> Iterator:
         raise NotImplementedError
 
-    def shuffle_and_batch(self, mesh: Optional[jax.sharding.PositionalSharding] = None) -> Iterator:
+    def shuffle_and_batch(self, mesh: Optional[jax.sharding.Sharding] = None) -> Iterator:
         raise NotImplementedError
 
-    def batch(self, mesh: Optional[jax.sharding.PositionalSharding] = None) -> Iterator[jax.Array]:
+    def batch(self, mesh: Optional[jax.sharding.Sharding] = None) -> Iterator[jax.Array]:
         raise NotImplementedError
 
     def cleanup(self) -> None:
@@ -276,7 +280,7 @@ class CachedInMemoryDataset(InMemoryDataset):
                 space = self.n_data - self.count
             self.enqueue(space)
 
-    def shuffle_and_batch(self, mesh: Optional[jax.sharding.PositionalSharding] = None) -> Iterator:
+    def shuffle_and_batch(self, mesh: Optional[jax.sharding.Sharding] = None) -> Iterator:
         """Shuffles and batches the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
 
@@ -303,7 +307,7 @@ class CachedInMemoryDataset(InMemoryDataset):
         ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, data_sharding)
         return ds
 
-    def batch(self, mesh: Optional[jax.sharding.PositionalSharding] = None) -> Iterator[jax.Array]:
+    def batch(self, mesh: Optional[jax.sharding.Sharding] = None) -> Iterator[jax.Array]:
         ds = (
             tf.data.Dataset.from_generator(
                 lambda: self, output_signature=self.make_signature()
@@ -349,7 +353,7 @@ class OTFInMemoryDataset(InMemoryDataset):
             self.enqueue(space)
             outer_count += 1
 
-    def shuffle_and_batch(self, mesh: Optional[jax.sharding.PositionalSharding] = None) -> Iterator:
+    def shuffle_and_batch(self, mesh: Optional[jax.sharding.Sharding] = None) -> Iterator:
         """Shuffles and batches the inputs/labels. This function prepares the
         inputs and labels for the whole training and prefetches the data.
 
@@ -372,7 +376,7 @@ class OTFInMemoryDataset(InMemoryDataset):
         ds = prefetch_to_single_device(ds.as_numpy_iterator(), 2, data_sharding)
         return ds
 
-    def batch(self, mesh: Optional[jax.sharding.PositionalSharding] = None) -> Iterator[jax.Array]:
+    def batch(self, mesh: Optional[jax.sharding.Sharding] = None) -> Iterator[jax.Array]:
         ds = tf.data.Dataset.from_generator(
             lambda: self, output_signature=self.make_signature()
         )
@@ -411,7 +415,7 @@ class BatchProcessor:
         nl_padding: int,
         forces: bool = True,
         stress: bool = False,
-        additional_properties: List[Tuple[str, Any]] = [],
+        additional_properties: Optional[List[Tuple[str, Any]]] = None,
     ) -> None:
         self.cutoff = cutoff
         self.atom_padding = atom_padding
@@ -419,6 +423,8 @@ class BatchProcessor:
 
         self.forces = forces
         self.stress = stress
+        if additional_properties is None:
+            additional_properties = []
         self.additional_properties = additional_properties
 
     def __call__(self, samples: List[Tuple[Dict[str, Any], Dict[str, Any]]]) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
@@ -516,7 +522,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         nl_padding: int = 2000,
         pos_unit: str = "Ang",
         energy_unit: str = "eV",
-        additional_properties: List[Tuple[str, Any]] = [],
+        additional_properties: Optional[List[Tuple[str, Any]]] = None,
         pre_shuffle: bool = False,
     ) -> None:
         self.cutoff = cutoff
@@ -524,6 +530,8 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.n_data = len(atoms_list)
         self.batch_size = self.validate_batch_size(bs)
         self.pos_unit = pos_unit
+        if additional_properties is None:
+            additional_properties = []
         self.additional_properties = additional_properties
 
         if num_workers:
@@ -545,6 +553,8 @@ class PerBatchPaddedDataset(InMemoryDataset):
                 transpose_dict_of_lists(self.inputs), transpose_dict_of_lists(self.labels)
             )
         )
+        if pre_shuffle:
+            shuffle(self.data)
 
         forces = "forces" in label_keys
         stress = "stress" in label_keys
@@ -622,7 +632,9 @@ class PerBatchPaddedDataset(InMemoryDataset):
             self.needs_data.set()
             self.enqueue_future.result()
 
-    def shuffle_and_batch(self, mesh: jax.sharding.PositionalSharding) -> Iterator:
+    def shuffle_and_batch(
+        self, mesh: Optional[jax.sharding.Sharding] = None
+    ) -> Iterator:
         self.should_shuffle = True
         if mesh:
             data_sharding = NamedSharding(mesh, P("data"))
@@ -631,7 +643,9 @@ class PerBatchPaddedDataset(InMemoryDataset):
         ds = prefetch_to_single_device(iter(self), 2, data_sharding)
         return ds
 
-    def batch(self, mesh: jax.sharding.PositionalSharding) -> Iterator[jax.Array]:
+    def batch(
+        self, mesh: Optional[jax.sharding.Sharding] = None
+    ) -> Iterator[jax.Array]:
         self.should_shuffle = False
         if mesh:
             data_sharding = NamedSharding(mesh, P("data"))

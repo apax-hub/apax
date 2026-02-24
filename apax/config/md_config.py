@@ -1,5 +1,5 @@
 import os
-from typing import Any, List, Literal, Union
+from typing import Any, List, Literal, Union, Optional
 
 import yaml
 from pydantic import BaseModel, Field, NonNegativeInt, PositiveFloat, PositiveInt
@@ -357,7 +357,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     # https://docs.pydantic.dev/latest/usage/types/unions/#discriminated-unions-aka-tagged-unions
     ensemble: Annotated[
         Union[NVEOptions, NVTOptions, NPTOptions], Field(discriminator="name")
-    ] = Field(default_factory=NVTOptions)
+    ] = Field(default_factory=lambda: NVTOptions(name="nvt"))
 
     duration: PositiveFloat
     n_inner: PositiveInt = 500
@@ -389,8 +389,9 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
         """
         from apax.utils.helpers import APAX_PROPERTIES
 
-        if not self.properties:
-            self.properties = APAX_PROPERTIES
+        properties = self.properties or APAX_PROPERTIES
+        data = self.model_dump()
+        data["properties"] = properties
 
         with open(os.path.join(self.sim_dir, "md_config.yaml"), "w") as conf:
-            yaml.dump(self.model_dump(), conf, default_flow_style=False)
+            yaml.dump(data, conf, default_flow_style=False)

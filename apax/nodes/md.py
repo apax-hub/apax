@@ -42,7 +42,7 @@ class ApaxJaxMD(zntrack.Node):
     model: ApaxBase = zntrack.deps()
     repeat: Optional[int | Tuple[int, int, int]] = zntrack.params(None)
 
-    config: Optional[str] = zntrack.params_path(None)
+    config: str = zntrack.params_path("md.config.yaml")
 
     sim_dir: pathlib.Path = zntrack.outs_path(zntrack.nwd / "md")
     init_struc_dir: pathlib.Path = zntrack.outs_path(zntrack.nwd / "initial_structure.h5")
@@ -76,7 +76,7 @@ class ApaxJaxMD(zntrack.Node):
         run_md(self.model.parameter, self.parameter, log_level="info")
 
     def map(self) -> None:
-        os.environ["JAX_COMPILATION_CACHE_DIR"] = '"/tmp/jax_cache"'
+        os.environ["JAX_COMPILATION_CACHE_DIR"] = "/tmp/jax_cache"
 
         jax.config.update("jax_compilation_cache_dir", "/tmp/jax_cache")
         jax.config.update("jax_persistent_cache_min_entry_size_bytes", -1)

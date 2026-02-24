@@ -88,7 +88,7 @@ def get_shrink_wrapped_cell(positions: np.ndarray) -> Tuple[np.ndarray, np.ndarr
 def prefetch_to_single_device(
     iterator: Iterator,
     size: int,
-    data_sharding: Optional[jax.sharding.PositionalSharding] = None,
+    data_sharding: Optional[jax.sharding.Sharding] = None,
 ) -> Iterator:
     """
     inspired by

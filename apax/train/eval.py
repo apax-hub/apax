@@ -73,7 +73,7 @@ def load_test_data(
         idxs_dict = np.load(model_version_path / "train_val_idxs.npz")
 
         used_idxs = idxs_dict["train_idxs"]
-        np.append(used_idxs, idxs_dict["val_idxs"])
+        used_idxs = np.append(used_idxs, idxs_dict["val_idxs"])
 
         test_idxs = get_test_idxs(atoms_list, used_idxs, n_test)
 

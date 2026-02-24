@@ -37,6 +37,7 @@ def mod_config(
         config_dict (dict[str, Any]): dictionary of updated configuration
     """
 
+    config_path = Path(config_path)
     with open(config_path.as_posix(), "r") as stream:
         config_dict = yaml.safe_load(stream)
 

@@ -19,7 +19,7 @@ class BiasEnergyBase(BaseModel):
         raise NotImplementedError()
 
 
-def apply_bias_energy(bias: BiasEnergyBase, model: Callable) -> Callable[..., Dict[str, Any]]:
+def apply_bias_energy(bias: BiasEnergyBase, model: Callable) -> Callable[..., Array]:
     # Function signature:
     # Array, Array, Array, pertubation -> float
     def energy_fn(

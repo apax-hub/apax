@@ -174,7 +174,7 @@ class ApaxEnsemble(ApaxBase):
     def run(self) -> None:
         pass
 
-    def get_calculator(self, **kwargs) -> ase.calculators.calculator.Calculator:
+    def get_calculator(self, **kwargs) -> ASECalculator:
         """Property to return a model specific ase calculator object.
 
         Returns
@@ -210,7 +210,7 @@ class ApaxImport(zntrack.Node):
     def parameter(self) -> Dict:
         return yaml.safe_load(self.state.fs.read_text(self.config))
 
-    def get_calculator(self, **kwargs) -> ase.calculators.calculator.Calculator:
+    def get_calculator(self, **kwargs) -> ASECalculator:
         """Property to return a model specific ase calculator object.
 
         Returns
@@ -265,7 +265,7 @@ class ApaxCalibrate(ApaxBase):
     shared_factor: bool = zntrack.params(False)
     optimizer_bounds: t.Tuple[float, float] = zntrack.params((1e-2, 1e2))
 
-    transformations: t.Optional[List[Dict[str, Dict]]] = zntrack.params(None)
+    transformations: t.Optional[Dict[str, Dict[str, Any]]] = zntrack.params(None)
 
     nl_skin: float = zntrack.params(0.5)
 

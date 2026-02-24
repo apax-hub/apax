@@ -15,7 +15,7 @@ from apax.layers.descriptor.basis_functions import (
     GaussianBasis,
     RadialFunction,
 )
-from apax.layers.empirical import EmpiricalCorrection, all_corrections
+from apax.layers.empirical import EmpiricalEnergyTerm, all_corrections
 from apax.layers.properties import PropertyHead
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
@@ -145,7 +145,7 @@ class ModelBuilder:
             property_heads.append(phead)
         return property_heads
 
-    def build_corrections(self, apply_mask: bool = True) -> List[EmpiricalCorrection]:
+    def build_corrections(self, apply_mask: bool = True) -> List[EmpiricalEnergyTerm]:
         corrections = []
         for correction in self.config["empirical_corrections"]:
             correction = correction.copy()
