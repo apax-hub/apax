@@ -152,9 +152,8 @@ checkpoint*
 config.yaml
 parameters.yaml
 md_config.yaml
-
-# Unignore checkpoints.py
-!checkpoints.py
+/*.py
+*.dvc
 
 # data
 *.extxyz
