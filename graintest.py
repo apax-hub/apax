@@ -67,5 +67,3 @@ class RandomAccessDataSource():
 
         return (inputs, labels)
   
-
-
