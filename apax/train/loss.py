@@ -84,7 +84,7 @@ def nll_loss(
 
     eps = 1e-6
     sigmas = jnp.clip(sigmas, min=eps)
-    variances = jnp.pow(sigmas, 2)
+    variances = jnp.power(sigmas, 2)
 
     x1 = jnp.log(variances)
     x2 = ((means - label) ** 2) / variances
