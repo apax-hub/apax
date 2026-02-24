@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List
 import jax
 import numpy as np
 from ase.atoms import Atoms
+from clu import metrics
 from flax.core.frozen_dict import FrozenDict
 from tqdm import trange
 
@@ -14,7 +15,7 @@ from apax.config import Config, parse_config
 from apax.data.input_pipeline import OTFInMemoryDataset
 from apax.train.callbacks import CallbackCollection, initialize_callbacks
 from apax.train.checkpoints import restore_single_parameters
-from apax.train.metrics import Metric, initialize_metrics
+from apax.train.metrics import initialize_metrics
 from apax.train.run import initialize_loss_fn, setup_logging
 from apax.train.trainer import make_step_fns
 from apax.utils.data import load_data, split_atoms
@@ -93,7 +94,7 @@ def load_test_data(
 def predict(
     model: Callable,
     params: FrozenDict,
-    Metrics: List[Metric],
+    Metrics: List[metrics.Metric],
     loss_fn: Callable,
     test_ds: OTFInMemoryDataset,
     callbacks: CallbackCollection,
@@ -127,7 +128,7 @@ def predict(
 
     batch_test_ds = test_ds.batch()
 
-    test_metrics: List[Metric] = Metrics.empty()
+    test_metrics: List[metrics.Metric] = Metrics.empty()
 
     batch_pbar = trange(
         0, test_ds.n_data, desc="Structure", ncols=100, disable=False, leave=True
