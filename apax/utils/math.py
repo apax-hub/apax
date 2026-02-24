@@ -6,13 +6,13 @@ from jax import Array
 
 def fp64_sum(
     X: Array, axis: Optional[Union[Iterable[int], int]] = None, keepdims: bool = False
-):
+) -> Array:
     dtyp = jnp.float64
     result = jnp.sum(X, axis=axis, dtype=dtyp, keepdims=keepdims)
     return result
 
 
-def normed_dotp(F_0, F_pred):
+def normed_dotp(F_0: Array, F_pred: Array) -> Array:
     F_0_norm = jnp.linalg.norm(F_0, ord=2, axis=2, keepdims=True)
     F_p_norm = jnp.linalg.norm(F_pred, ord=2, axis=2, keepdims=True)
 

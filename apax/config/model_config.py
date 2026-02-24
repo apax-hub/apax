@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 from pydantic import (
     BaseModel,
@@ -116,7 +116,7 @@ class ExponentialRepulsion(Correction, extra="forbid"):
 
 class LatentEwald(Correction, extra="forbid"):
     name: Literal["latent_ewald"]
-    kgrid: list
+    kgrid: List[int]
     sigma: float = 1.0
     use_property: str = "charges"
 
@@ -131,7 +131,7 @@ class PropertyHead(BaseModel, extra="forbid"):
     aggregation: str = "none"
     mode: str = "l0"
 
-    nn: List[PositiveInt] = [128, 128]
+    nn: List[PositiveInt] = Field(default_factory=lambda: [128, 128])
     n_shallow_members: int = 0
     w_init: Literal["normal", "lecun"] = "lecun"
     b_init: Literal["normal", "zeros"] = "zeros"
@@ -169,19 +169,21 @@ class BaseModelConfig(BaseModel, extra="forbid"):
         Data type for scale and shift parameters.
     """
 
-    basis: BasisConfig = Field(BesselBasisConfig(name="bessel"), discriminator="name")
+    basis: BasisConfig = Field(
+        default_factory=lambda: BesselBasisConfig(name="bessel"), discriminator="name"
+    )
 
-    nn: List[PositiveInt] = [256, 256]
+    nn: List[PositiveInt] = Field(default_factory=lambda: [256, 256])
     w_init: Literal["normal", "lecun"] = "lecun"
     b_init: Literal["normal", "zeros"] = "zeros"
     use_ntk: bool = False
 
     ensemble: Optional[EnsembleConfig] = None
 
-    property_heads: list[PropertyHead] = []
+    property_heads: List[PropertyHead] = Field(default_factory=list)
 
     # corrections
-    empirical_corrections: list[EmpiricalCorrection] = []
+    empirical_corrections: List[EmpiricalCorrection] = Field(default_factory=list)
 
     calc_stress: bool = False
 
@@ -210,7 +212,7 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
     n_contr: int = 8
     emb_init: Optional[str] = "uniform"
 
-    def get_builder(self):
+    def get_builder(self) -> Any:
         from apax.nn.builder import GMNNBuilder
 
         return GMNNBuilder
@@ -236,7 +238,7 @@ class EquivMPConfig(BaseModelConfig, extra="forbid"):
     max_degree: PositiveInt = 2
     num_iterations: PositiveInt = 1
 
-    def get_builder(self):
+    def get_builder(self) -> Any:
         from apax.nn.builder import EquivMPBuilder
 
         return EquivMPBuilder
@@ -284,7 +286,7 @@ class So3kratesConfig(BaseModelConfig, extra="forbid"):
     cutoff_fn: str = "cosine_cutoff"
     transform_input_features: bool = False
 
-    def get_builder(self):
+    def get_builder(self) -> Any:
         from apax.nn.builder import So3kratesBuilder
 
         return So3kratesBuilder

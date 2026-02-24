@@ -3,6 +3,7 @@ import logging
 import os
 import pathlib
 import typing
+from typing import Dict, List, Optional, Tuple
 
 import ase
 import h5py
@@ -35,19 +36,19 @@ class ApaxJaxMD(zntrack.Node):
         path to the MD simulation parameter file
     """
 
-    data: list[ase.Atoms] = zntrack.deps()
+    data: List[ase.Atoms] = zntrack.deps()
     data_id: int = zntrack.params(-1)
 
     model: ApaxBase = zntrack.deps()
-    repeat: None | int | tuple[int, int, int] = zntrack.params(None)
+    repeat: Optional[int | Tuple[int, int, int]] = zntrack.params(None)
 
-    config: str = zntrack.params_path(None)
+    config: str = zntrack.params_path("md.config.yaml")
 
     sim_dir: pathlib.Path = zntrack.outs_path(zntrack.nwd / "md")
     init_struc_dir: pathlib.Path = zntrack.outs_path(zntrack.nwd / "initial_structure.h5")
 
     @property
-    def parameter(self) -> dict:
+    def parameter(self) -> Dict:
         with self.state.fs.open(self.config, "r") as f:
             parameter = yaml.safe_load(f)
 
@@ -60,22 +61,22 @@ class ApaxJaxMD(zntrack.Node):
 
         return parameter
 
-    def _write_initial_structure(self):
+    def _write_initial_structure(self) -> None:
         atoms = self.data[self.data_id]
         if self.repeat is not None:
             atoms = atoms.repeat(self.repeat)
         db = znh5md.IO(self.init_struc_dir.as_posix())
         db.extend([atoms])
 
-    def run(self):
+    def run(self) -> None:
         """Primary method to run which executes all steps of the model training"""
         if not self.state.restarted:
             self._write_initial_structure()
 
         run_md(self.model.parameter, self.parameter, log_level="info")
 
-    def map(self):
-        os.environ["JAX_COMPILATION_CACHE_DIR"] = '"/tmp/jax_cache"'
+    def map(self) -> None:
+        os.environ["JAX_COMPILATION_CACHE_DIR"] = "/tmp/jax_cache"
 
         jax.config.update("jax_compilation_cache_dir", "/tmp/jax_cache")
         jax.config.update("jax_persistent_cache_min_entry_size_bytes", -1)

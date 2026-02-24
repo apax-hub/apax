@@ -3,6 +3,7 @@ import importlib.resources as pkg_resources
 import json
 import sys
 from pathlib import Path
+from typing import Any, Dict, List
 
 import typer
 import yaml
@@ -37,7 +38,7 @@ def train(
         ..., help="Training configuration YAML file."
     ),
     log_level: str = typer.Option("info", help="Sets the training logging level."),
-):
+) -> None:
     """
     Starts the training of a model with parameters provided by a configuration file.
     """
@@ -53,7 +54,7 @@ def md(
     ),
     md_config_path: Path = typer.Argument(..., help="MD configuration YAML file."),
     log_level: str = typer.Option("info", help="Sets the training logging level."),
-):
+) -> None:
     """
     Starts performing a molecular dynamics simulation (currently only NHC thermostat)
     with parameters provided by a configuration file.
@@ -75,7 +76,7 @@ def eval(
             " it) Gets ignored if test_data_path is specified"
         ),
     ),
-):
+) -> None:
     """
     Starts performing the evaluation of the test dataset
     with parameters provided by a configuration file.
@@ -86,7 +87,7 @@ def eval(
 
 
 @app.command()
-def docs():
+def docs() -> None:
     """
     Opens the documentation website in your browser.
     """
@@ -95,7 +96,7 @@ def docs():
 
 
 @app.command()
-def schema():
+def schema() -> None:
     """
     Generating JSON schemata for autocompletion of train/md inputs in VSCode.
     """
@@ -135,7 +136,7 @@ def schema():
         json.dump(md_schema, f, indent=2)
 
 
-def format_error(error):
+def format_error(error: Dict[str, Any]) -> str:
     input_type = type(error["input"]).__name__
     loc = ".".join(error["loc"])
     error_msg = error["msg"]
@@ -147,8 +148,8 @@ def format_error(error):
     return msg
 
 
-def cleanup_error(e):
-    e_clean = []
+def cleanup_error(e: ValidationError) -> str:
+    e_clean: List[str] = []
     for error in e.errors():
         error.pop("url")
         e_clean.append(format_error(error))
@@ -161,7 +162,7 @@ def validate_train_config(
     config_path: Path = typer.Argument(
         ..., help="Configuration YAML file to be validated."
     ),
-):
+) -> None:
     """
     Validates a training configuration file.
 
@@ -191,7 +192,7 @@ def validate_md_config(
     config_path: Path = typer.Argument(
         ..., help="Configuration YAML file to be validated."
     ),
-):
+) -> None:
     """
     Validates a molecular dynamics configuration file.
 
@@ -224,7 +225,7 @@ def visualize_model(
             " sample input."
         ),
     ),
-):
+) -> None:
     """
     Visualize a model based on a configuration file.
     A CO molecule is taken as sample input (influences number of atoms,
@@ -259,7 +260,7 @@ def visualize_model(
 @template_app.command("train")
 def template_train_config(
     full: bool = typer.Option(False, help="Use all input options."),
-):
+) -> None:
     """
     Creates a training input template in the current working directory.
     """
@@ -281,7 +282,7 @@ def template_train_config(
 
 
 @template_app.command("md")
-def template_md_config():
+def template_md_config() -> None:
     """
     Creates a training input template in the current working directory.
     """
@@ -311,6 +312,6 @@ def main(
     version: bool = typer.Option(
         None, "--version", "-V", callback=version_callback, is_eager=True
     ),
-):
+) -> None:
     # Taken from https://github.com/zincware/dask4dvc/blob/main/dask4dvc/cli/main.py
     _ = version

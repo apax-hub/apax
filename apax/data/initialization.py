@@ -1,13 +1,16 @@
 import logging
+from typing import List, Tuple
 
 import numpy as np
+from ase import Atoms
 
+from apax.config.train_config import DataConfig
 from apax.utils.data import load_data, split_atoms, split_idxs
 
 log = logging.getLogger(__name__)
 
 
-def load_data_files(data_config):
+def load_data_files(data_config: DataConfig) -> Tuple[List[Atoms], List[Atoms]]:
     """
     Load data files for training and validation.
 

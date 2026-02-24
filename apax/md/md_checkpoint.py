@@ -8,6 +8,21 @@ log = logging.getLogger(__name__)
 
 
 def load_md_state(state: t.Any, ckpt_dir: Path) -> tuple[t.Any, int]:
+    """
+    Loads an MD state from a checkpoint directory.
+
+    Parameters
+    ----------
+    state :
+        An example state that has the same structure as the one that should be loaded.
+    ckpt_dir :
+        Directory where the checkpoint is stored.
+
+    Returns
+    -------
+    tuple[t.Any, int]
+        Loaded state and step.
+    """
     try:
         log.info(f"loading MD state from {ckpt_dir}")
         target = {"state": state, "step": 0}

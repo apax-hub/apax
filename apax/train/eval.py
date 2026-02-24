@@ -2,14 +2,18 @@ import logging
 import os
 import time
 from pathlib import Path
+from typing import Any, Callable, Dict, List
 
 import jax
 import numpy as np
+from ase.atoms import Atoms
+from clu import metrics
+from flax.core.frozen_dict import FrozenDict
 from tqdm import trange
 
-from apax.config import parse_config
+from apax.config import Config, parse_config
 from apax.data.input_pipeline import OTFInMemoryDataset
-from apax.train.callbacks import initialize_callbacks
+from apax.train.callbacks import CallbackCollection, initialize_callbacks
 from apax.train.checkpoints import restore_single_parameters
 from apax.train.metrics import initialize_metrics
 from apax.train.run import initialize_loss_fn, setup_logging
@@ -20,7 +24,9 @@ from apax.utils.random import seed_py_np_tf
 log = logging.getLogger(__name__)
 
 
-def get_test_idxs(atoms_list, used_idxs, n_test=-1):
+def get_test_idxs(
+    atoms_list: List[Atoms], used_idxs: np.ndarray, n_test: int = -1
+) -> np.ndarray:
     idxs = np.arange(len(atoms_list))
     test_idxs = np.setdiff1d(idxs, used_idxs)
     np.random.shuffle(test_idxs)
@@ -31,8 +37,8 @@ def get_test_idxs(atoms_list, used_idxs, n_test=-1):
 
 
 def load_test_data(
-    config, model_version_path, eval_path, n_test=-1
-):  # TODO double code run.py in progress
+    config: Config, model_version_path: Path, eval_path: Path, n_test: int = -1
+) -> List[Atoms]:
     """
     Load test data for evaluation.
 
@@ -68,7 +74,7 @@ def load_test_data(
         idxs_dict = np.load(model_version_path / "train_val_idxs.npz")
 
         used_idxs = idxs_dict["train_idxs"]
-        np.append(used_idxs, idxs_dict["val_idxs"])
+        used_idxs = np.append(used_idxs, idxs_dict["val_idxs"])
 
         test_idxs = get_test_idxs(atoms_list, used_idxs, n_test)
 
@@ -85,7 +91,15 @@ def load_test_data(
     return atoms_list
 
 
-def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=False):
+def predict(
+    model: Callable,
+    params: FrozenDict,
+    Metrics: List[metrics.Metric],
+    loss_fn: Callable,
+    test_ds: OTFInMemoryDataset,
+    callbacks: CallbackCollection,
+    is_ensemble: bool = False,
+) -> None:
     """
     Perform predictions on the test dataset.
 
@@ -114,7 +128,7 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=Fal
 
     batch_test_ds = test_ds.batch()
 
-    test_metrics = Metrics.empty()
+    test_metrics: List[metrics.Metric] = Metrics.empty()
 
     batch_pbar = trange(
         0, test_ds.n_data, desc="Structure", ncols=100, disable=False, leave=True
@@ -124,7 +138,7 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=Fal
         batch_start_time = time.time()
 
         batch_loss, test_metrics = test_step_fn(params, batch, test_metrics)
-        batch_metrics = {"test_loss": float(batch_loss)}
+        batch_metrics: Dict[str, Any] = {"test_loss": float(batch_loss)}
         batch_metrics.update(
             {f"test_{key}": float(val) for key, val in test_metrics.compute().items()}
         )
@@ -139,7 +153,12 @@ def predict(model, params, Metrics, loss_fn, test_ds, callbacks, is_ensemble=Fal
     callbacks.on_train_end()
 
 
-def eval_model(config_path, n_test=-1, log_file="eval.log", log_level="error"):
+def eval_model(
+    config_path: Path,
+    n_test: int = -1,
+    log_file: str = "eval.log",
+    log_level: str = "error",
+) -> None:
     """
     Evaluate the model using the provided configuration.
 

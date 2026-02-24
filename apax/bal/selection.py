@@ -1,11 +1,13 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 
 from apax.bal.kernel import KernelMatrix
 
 
-def max_dist_selection(matrix: KernelMatrix, batch_size: Optional[int] = None):
+def max_dist_selection(
+    matrix: KernelMatrix, batch_size: Optional[int] = None
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Iteratively selects samples from the pool which are
     most distant from all previously selected samples.

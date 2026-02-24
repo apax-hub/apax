@@ -1,9 +1,12 @@
+from typing import Any
+
 import jax
+from flax.core.frozen_dict import FrozenDict
 from jax import tree_util
 
 
 @jax.jit
-def tree_ema(tree1, tree2, alpha):
+def tree_ema(tree1: Any, tree2: Any, alpha: float) -> Any:
     """Exponential moving average of two pytrees."""
     ema = tree_util.tree_map(lambda a, b: alpha * a + (1 - alpha) * b, tree1, tree2)
     return ema
@@ -26,7 +29,7 @@ class EMAParameters:
         self.ema_start = ema_start
         self.ema_params = None
 
-    def update(self, opt_params, epoch):
+    def update(self, opt_params: FrozenDict, epoch: int) -> None:
         if epoch > self.ema_start:
             self.ema_params = tree_ema(opt_params, self.ema_params, self.alpha)
         else:

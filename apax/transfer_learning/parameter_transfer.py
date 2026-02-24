@@ -1,5 +1,5 @@
 import logging
-from typing import Union
+from typing import Dict, List, Union
 
 from flax.core.frozen_dict import FrozenDict, freeze, unfreeze
 from flax.training.train_state import TrainState
@@ -12,9 +12,9 @@ log = logging.getLogger(__name__)
 
 
 def black_list_param_transfer(
-    source_params: Union[FrozenDict, dict],
-    target_params: Union[FrozenDict, dict],
-    param_black_list: list[str],
+    source_params: Union[FrozenDict, Dict],
+    target_params: Union[FrozenDict, Dict],
+    param_black_list: List[str],
 ) -> FrozenDict:
     """Transfer parameters from one dictionary to another, while keeping
         some key-value pairs unchanged.
