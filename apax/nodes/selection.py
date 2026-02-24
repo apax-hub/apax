@@ -194,9 +194,7 @@ class BatchKernelSelection(zntrack.Node):
         self._get_selection_plot(atoms_lst, ranking)
         return [int(x) for x in ranking]
 
-    def _get_selection_plot(
-        self, atoms_lst: List[ase.Atoms], indices: List[int]
-    ) -> None:
+    def _get_selection_plot(self, atoms_lst: List[ase.Atoms], indices: List[int]) -> None:
         has_calc = any(atoms.calc is not None for atoms in atoms_lst)
         if not has_calc:
             energies = np.zeros(len(atoms_lst))

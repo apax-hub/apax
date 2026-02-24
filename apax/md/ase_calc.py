@@ -53,9 +53,7 @@ def build_energy_neighbor_fns(
         if np.all(box < 1e-6):
             displacement_fn, _ = space.free()
         else:
-            displacement_fn, _ = space.periodic_general(
-                box, fractional_coordinates=True
-            )
+            displacement_fn, _ = space.periodic_general(box, fractional_coordinates=True)
 
         neighbor_fn = partition.neighbor_list(
             displacement_fn,
@@ -88,9 +86,7 @@ def make_ensemble(model: Callable) -> Callable:
         offsets: jnp.ndarray,
     ) -> Dict[str, jnp.ndarray]:
         results = model(positions, Z, idx, box, offsets)
-        uncertainty = {
-            k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()
-        }
+        uncertainty = {k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()}
         ensemble = {k + "_ensemble": v for k, v in results.items()}
         results = {k: jnp.mean(v, axis=0) for k, v in results.items()}
         if "forces_ensemble" in ensemble.keys():

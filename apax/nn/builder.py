@@ -120,9 +120,7 @@ class ModelBuilder:
         )
         return readout
 
-    def build_scale_shift(
-        self, scale: float, shift: float
-    ) -> PerElementScaleShift:
+    def build_scale_shift(self, scale: float, shift: float) -> PerElementScaleShift:
         scale_shift = PerElementScaleShift(
             n_species=self.n_species,
             scale=scale,

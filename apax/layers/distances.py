@@ -7,15 +7,11 @@ from jax import Array, vmap
 from apax.utils.jax_md_reduced import partition, space
 
 
-def canonicalize_neighbors(
-    neighbor: Union[partition.NeighborList, Array]
-) -> Array:
+def canonicalize_neighbors(neighbor: Union[partition.NeighborList, Array]) -> Array:
     return neighbor.idx if isinstance(neighbor, partition.NeighborList) else neighbor
 
 
-def disp_fn(
-    ri: Array, rj: Array, perturbation: Optional[Array], box: Array
-) -> Array:
+def disp_fn(ri: Array, rj: Array, perturbation: Optional[Array], box: Array) -> Array:
     dR = space.pairwise_displacement(ri, rj)
     dR = space.transform(box, dR)
 
@@ -29,9 +25,7 @@ def disp_fn(
 
 
 def get_disp_fn(displacement: Callable) -> Callable:
-    def disp_fn(
-        ri: Array, rj: Array, perturbation: Optional[Array], box: Array
-    ) -> Array:
+    def disp_fn(ri: Array, rj: Array, perturbation: Optional[Array], box: Array) -> Array:
         return displacement(ri, rj, perturbation, box=box)
 
     return disp_fn

@@ -51,7 +51,7 @@ def create_feature_fn(
     if is_ensemble:
         feature_fn = transforms.ensemble_features(feature_fn)
 
-    for transform in (feature_transforms or []):
+    for transform in feature_transforms or []:
         feature_fn = transform.apply(feature_fn)
 
     feature_fn = transforms.batch_features(feature_fn)

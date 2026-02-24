@@ -66,9 +66,7 @@ def format_str(k: Any) -> str:
 
 
 class CSVLoggerApax(CSVLogger):
-    def __init__(
-        self, filename: str, separator: str = ",", append: bool = False
-    ) -> None:
+    def __init__(self, filename: str, separator: str = ",", append: bool = False) -> None:
         super().__init__(filename, separator=separator, append=append)
 
     def on_epoch_end(self, epoch: int, logs: Optional[Dict] = None) -> None:

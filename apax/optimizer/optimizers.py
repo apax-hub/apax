@@ -60,7 +60,9 @@ def scale_by_ademamix(
         )
 
     def update_fn(
-        updates: base.Updates, state: ScaleByAdemamixState, params: Optional[base.Params] = None
+        updates: base.Updates,
+        state: ScaleByAdemamixState,
+        params: Optional[base.Params] = None,
     ) -> tuple[base.Updates, ScaleByAdemamixState]:
         del params
         c_b3 = b3_scheduler(state.count_m2) if b3_scheduler is not None else b3

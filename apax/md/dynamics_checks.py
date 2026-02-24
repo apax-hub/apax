@@ -8,9 +8,7 @@ from apax.utils.jax_md_reduced.space import distance
 
 
 class DynamicsCheckBase(BaseModel):
-    def check(
-        self, predictions: Dict[str, Array], positions: Array, box: Array
-    ) -> Array:
+    def check(self, predictions: Dict[str, Array], positions: Array, box: Array) -> Array:
         raise NotImplementedError("check must be implemented by subclasses")
 
 
@@ -19,9 +17,7 @@ class EnergyUncertaintyCheck(DynamicsCheckBase, extra="forbid"):
     threshold: float
     per_atom: bool = True
 
-    def check(
-        self, predictions: Dict[str, Array], positions: Array, box: Array
-    ) -> Array:
+    def check(self, predictions: Dict[str, Array], positions: Array, box: Array) -> Array:
         if "energy_uncertainty" not in predictions.keys():
             m = "No energy uncertainty found. Are you using a model ensemble?"
             raise ValueError(m)
@@ -39,9 +35,7 @@ class ForceUncertaintyCheck(DynamicsCheckBase, extra="forbid"):
     name: Literal["forces_uncertainty"] = "forces_uncertainty"
     threshold: float
 
-    def check(
-        self, predictions: Dict[str, Array], positions: Array, box: Array
-    ) -> Array:
+    def check(self, predictions: Dict[str, Array], positions: Array, box: Array) -> Array:
         if "forces_uncertainty" not in predictions.keys():
             m = "No force uncertainties found. Are you using a model ensemble?"
             raise ValueError(m)
@@ -56,9 +50,7 @@ class ReflectionCheck(DynamicsCheckBase, extra="forbid"):
     name: Literal["reflection"] = "reflection"
     cutoff_plane_height: float
 
-    def check(
-        self, predictions: Dict[str, Array], positions: Array, box: Array
-    ) -> Array:
+    def check(self, predictions: Dict[str, Array], positions: Array, box: Array) -> Array:
         cartesian = positions @ box
         z_pos = cartesian[:, 2]
 
@@ -71,9 +63,7 @@ class RadiusCheck(DynamicsCheckBase, extra="forbid"):
     name: Literal["radius"] = "radius"
     cutoff_radius: float
 
-    def check(
-        self, predictions: Dict[str, Array], positions: Array, box: Array
-    ) -> Array:
+    def check(self, predictions: Dict[str, Array], positions: Array, box: Array) -> Array:
         cartesian = positions @ box
         radius = distance(cartesian)
 

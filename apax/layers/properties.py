@@ -10,9 +10,7 @@ from apax.layers.readout import AtomisticReadout
 from apax.utils.math import fp64_sum
 
 
-def stress_times_vol(
-    energy_fn: Callable, position: Array, box: Array, **kwargs
-) -> Array:
+def stress_times_vol(energy_fn: Callable, position: Array, box: Array, **kwargs) -> Array:
     """Computes the internal stress of a system multiplied with the box volume.
     For training purposes.
 

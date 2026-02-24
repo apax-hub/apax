@@ -11,7 +11,9 @@ from ase.io import read
 log = logging.getLogger(__name__)
 
 
-def make_minimal_input() -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, np.ndarray, np.ndarray]:
+def make_minimal_input() -> Tuple[
+    jnp.ndarray, jnp.ndarray, jnp.ndarray, np.ndarray, np.ndarray
+]:
     R, Z, idx = (
         jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=jnp.float32),
         jnp.array([6, 8]),
@@ -51,7 +53,9 @@ def load_data(data_path: Union[str, Path]) -> List[Atoms]:
     return atoms_list
 
 
-def split_idxs(atoms_list: List[Atoms], n_train: int, n_valid: int) -> Tuple[np.ndarray, np.ndarray]:
+def split_idxs(
+    atoms_list: List[Atoms], n_train: int, n_valid: int
+) -> Tuple[np.ndarray, np.ndarray]:
     idxs = np.arange(len(atoms_list))
     np.random.shuffle(idxs)
     train_idxs = idxs[:n_train]

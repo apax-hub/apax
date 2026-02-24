@@ -19,9 +19,7 @@ class ConstantTSchedule(TSchedule):
 
 
 class PieceWiseLinearTSchedule(TSchedule):
-    def __init__(
-        self, T0: int, temperatures: List[float], durations: List[int]
-    ) -> None:
+    def __init__(self, T0: int, temperatures: List[float], durations: List[int]) -> None:
         self.T0 = T0
         self.temperatures = jnp.array(temperatures)
         steps = np.cumsum(durations)

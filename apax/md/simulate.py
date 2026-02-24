@@ -363,7 +363,9 @@ def run_sim(
     def sim(
         state: System, outer_step: int, neighbor: partition.NeighborList
     ) -> Tuple[System, partition.NeighborList, float, bool]:
-        def body_fn(i: int, state: Any) -> Tuple[System, int, partition.NeighborList, bool]:
+        def body_fn(
+            i: int, state: Any
+        ) -> Tuple[System, int, partition.NeighborList, bool]:
             state, outer_step, neighbor, all_checks_passed = state
             step = i + outer_step * n_inner
 

@@ -4,7 +4,9 @@ import mlflow
 
 
 class MLFlowLogger:
-    def __init__(self, experiment: Optional[str] = None, run_name: Optional[str] = None) -> None:
+    def __init__(
+        self, experiment: Optional[str] = None, run_name: Optional[str] = None
+    ) -> None:
         """
         Initialize the MLFlow logger.
 
@@ -15,7 +17,6 @@ class MLFlowLogger:
         mlflow.login()
         if experiment is not None:
             mlflow.set_experiment(experiment)
-
 
         # Start a new MLFlow run
         self.run = mlflow.start_run(run_name=run_name)

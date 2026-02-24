@@ -18,9 +18,7 @@ def make_biased_energy_force_fn(bias_fn: Callable) -> Callable:
     ) -> Dict[str, Array]:
         bias_and_grad_fn = jax.value_and_grad(bias_fn, has_aux=True)
 
-        (E_bias, results), neg_F_bias = bias_and_grad_fn(
-            positions, Z, idx, box, offsets
-        )
+        (E_bias, results), neg_F_bias = bias_and_grad_fn(positions, Z, idx, box, offsets)
 
         if "energy_unbiased" not in results.keys():
             results["energy_unbiased"] = results["energy"]

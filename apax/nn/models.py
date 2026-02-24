@@ -187,9 +187,7 @@ def make_mean_energy_fn(energy_fn: Callable) -> Callable:
     return mean_energy_fn
 
 
-def make_member_chunk_jac(
-    energy_model: Callable, start: int, end: int
-) -> Callable:
+def make_member_chunk_jac(energy_model: Callable, start: int, end: int) -> Callable:
     def energy_chunk_fn(
         R: Array,
         Z: Array,

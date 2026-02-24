@@ -186,9 +186,7 @@ class Loss:
 
         self.loss_fn = loss_functions[self.loss_type]
 
-    def __call__(
-        self, inputs: Dict, prediction: Dict, label: Dict
-    ) -> float:
+    def __call__(self, inputs: Dict, prediction: Dict, label: Dict) -> float:
         # TODO we may want to insert an additional `mask` argument for this method
 
         divisor = inputs["n_atoms"] ** self.atoms_exponent
@@ -207,9 +205,7 @@ class Loss:
 class LossCollection:
     loss_list: List[Loss]
 
-    def __call__(
-        self, inputs: Dict, predictions: Dict, labels: Dict
-    ) -> float:
+    def __call__(self, inputs: Dict, predictions: Dict, labels: Dict) -> float:
         total_loss = 0.0
         for single_loss_fn in self.loss_list:
             loss = single_loss_fn(inputs, predictions, labels)

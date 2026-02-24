@@ -69,9 +69,7 @@ def _unflatten_rec(
     for param, value in flat_dct.items():
         for key, nested_key_tuple in nested_keys.items():
             # Check if param starts with the current key or its full path including parent_key
-            current_param_prefix = (
-                f"{parent_key}{separator}{key}" if parent_key else key
-            )
+            current_param_prefix = f"{parent_key}{separator}{key}" if parent_key else key
             if not param.startswith(current_param_prefix):
                 continue
 

@@ -54,7 +54,9 @@ def tf_to_jax_dict(data_dict: Dict[str, list]) -> Dict[str, jnp.ndarray]:
     return data_dict
 
 
-def prune_dict(data_dict: Dict[str, Union[List, np.ndarray]]) -> Dict[str, Union[List, np.ndarray]]:
+def prune_dict(
+    data_dict: Dict[str, Union[List, np.ndarray]],
+) -> Dict[str, Union[List, np.ndarray]]:
     pruned = {key: val for key, val in data_dict.items() if len(val) != 0}
     return pruned
 
