@@ -1,3 +1,0 @@
-- **Typing:** strictly use `jaxtyping` for all array annotations.
-- Do not use standard numpy (`import numpy as np`); always use `import jax.numpy as jnp`.
-- When writing new tests, ensure they pass `jit` compilation checks.
