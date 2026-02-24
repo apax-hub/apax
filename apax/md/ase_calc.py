@@ -116,9 +116,9 @@ def make_ensemble(model):
             ensemble["forces_ensemble"] = jnp.transpose(
                 ensemble["forces_ensemble"], (1, 2, 0)
             )
-        if "forces_ensemble" in ensemble.keys():
+        if "stress_ensemble" in ensemble.keys():
             ensemble["stress_ensemble"] = jnp.transpose(
-                ensemble["forces_ensemble"], (1, 2, 0)
+                ensemble["stress_ensemble"], (1, 2, 0)
             )
         results.update(uncertainty)
         results.update(ensemble)
@@ -167,7 +167,7 @@ class ASECalculator(Calculator):
 
         >>> calc = ASECalculator(model_dir, calc_hessian=True)
         >>> atoms.calc = calc
-        >>> hessian = atoms.get_hessian()
+        >>> hessian = calc.get_hessian(atoms)
 
         Disable stress calculation even if enabled in the training config:
 
@@ -262,11 +262,6 @@ class ASECalculator(Calculator):
         Updates ASE's global all_properties to ensure compatibility.
         """
         props = {"energy", "forces"}
-
-        is_shallow_ensemble = (
-            self.model_config.model.ensemble
-            and self.model_config.model.ensemble.kind == "shallow"
-        )
 
         if self.calc_hessian:
             props.add("hessian")
@@ -485,9 +480,6 @@ class ASECalculator(Calculator):
         elif "numbers" in system_changes:
             self.initialize(atoms)
 
-            if self.neigbor_from_jax:
-                self.neighbors = self.neighbor_fn.allocate(positions)
-
         elif "cell" in system_changes:
             neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
             if self.neigbor_from_jax != neigbor_from_jax:
@@ -523,7 +515,7 @@ class ASECalculator(Calculator):
 
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
-        if "hessian" in self.results:
+        if "hessian" in results:
             n_atoms = len(atoms)
             self.results["hessian"] = self.results["hessian"].reshape(
                 3 * n_atoms, 3 * n_atoms

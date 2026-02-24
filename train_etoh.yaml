@@ -1,0 +1,94 @@
+n_epochs: 100
+
+data:
+  directory: test_3x3 # 1526
+  experiment: test_3x32 # 2544
+  data_path:  etoh.traj # data/bmim/train_atoms.extxyz # data/li3po4-joint-together.xyz # etoh.traj
+  # train_data_path: ../apax_tests/data/bmim/train_atoms_bmim_nod3.extxyz
+  # val_data_path: ../apax_tests/data/bmim/val_atoms_bmim_nod3.extxyz
+
+  dataset:
+    processing: cached
+
+  n_train: 100
+  n_valid: 20
+  batch_size: 4
+  valid_batch_size: 10
+
+metrics:
+  - name: energy
+    reductions: [mae]
+  - name: forces
+    reductions: [mae]
+
+loss:
+  - name: energy
+    loss_type: nll
+    # parameters:
+    #   delta: 1.0
+    weight: 1.
+    atoms_exponent: 1
+  - name: forces
+    loss_type: nll_3x3
+    # parameters:
+    #   delta: 0.1
+    weight: 1.
+    atoms_exponent: 1
+
+model:
+  name: gmnn
+  basis:
+    name: gaussian
+    n_basis: 16
+    r_min: 0.8
+    r_max: 5.5
+
+  # Lmax: 4
+  # Kmax: 4
+  n_radial: 6
+
+  # readout:
+  #   name: moe
+  #   num_experts: 6
+  #   nn: [32, 32]
+  #   gating_nn: [32]
+
+  ensemble:
+    kind: shallow
+    n_members: 8
+
+  calc_stress: false
+  scale_shift_dtype:  fp32
+  descriptor_dtype:   fp32
+  readout_dtype:      fp32
+
+callbacks:
+  - name: csv
+
+optimizer:
+  name: adamw
+  emb_lr: 0.0005
+  nn_lr: 0.0005
+  scale_lr: 0.0005
+  shift_lr: 0.0005
+  rep_scale_lr: 0.001
+  rep_prefactor_lr: 0.0001
+  gradient_clipping: 5.0
+
+  kwargs:
+    #   # sync_period: 5
+    weight_decay: 0.00001
+  #   alpha: 20
+
+  schedule:
+    name: linear
+    # period: 50
+    # decay_factor: 0.50
+
+# transfer_learning:
+#   base_model_checkpoint: test_tl/test0
+#   freeze_layers: [dense_0]
+
+progress_bar:
+  disable_epoch_pbar: false
+  disable_batch_pbar: true

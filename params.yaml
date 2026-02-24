@@ -1,0 +1,49 @@
+ASEMD:
+  data_id: -1
+  data_ids: null
+  dump_rate: 1000
+  pop_last: false
+  repeat:
+  - 1
+  - 1
+  - 1
+  sampling_rate: 100
+  seed: 42
+  steps: 50000
+  thermostat:
+    _cls: ipsuite.calculators.ase_md.LangevinThermostat
+    friction: 0.001
+    temperature: 400
+    time_step: 0.5
+  use_momenta: false
+  wrap: false
+AddData:
+  lines_to_read: null
+Apax:
+  log_level: info
+  nl_skin: 0.5
+  transformations: null
+RandomSelection:
+  n_configurations: 500
+  seed: 1234
+RandomSelection_1:
+  n_configurations: 100
+  seed: 1234
+bal_fullgradrp:
+  base_feature_map:
+    name: full_grad_rp
+    num_rp: 512
+  min_distance_threshold: 0.0
+  n_configurations: 100
+  processing_batch_size: 1
+  rank_all: true
+  selection_method: max_dist
+bal_llgrad:
+  base_feature_map:
+    layer_name: dense_2
+    name: ll_grad
+  min_distance_threshold: 0.0
+  n_configurations: 100
+  processing_batch_size: 1
+  rank_all: true
+  selection_method: max_dist

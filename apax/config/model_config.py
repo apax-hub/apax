@@ -161,6 +161,8 @@ class BaseModelConfig(BaseModel, extra="forbid"):
         Whether to include the ZBL correction.
     calc_stress : bool, default = False
         Whether to calculate stress during model evaluation.
+    calc_hessian : bool, default = False
+        Whether to calculate Hessians during model evaluation.
     descriptor_dtype : Literal["fp32", "fp64"], default = "fp32"
         Data type for descriptor calculations.
     readout_dtype : Literal["fp32", "fp64"], default = "fp32"
