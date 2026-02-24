@@ -31,7 +31,7 @@ equations = [
 
     # r"p(y|x,\mathcal{D}) \approx \mathcal{N}( f(x, \boldsymbol{\theta}_{\mathrm{MAP}}), \mathrm{Var} \left[ f(x, \boldsymbol{\theta})\right])",
     # r"\mathrm{Var} \left[ f(x, \boldsymbol{\theta})\right] = \grad_{\boldsymbol{\theta}} f(x, \boldsymbol{\theta}_{\mathrm{MAP}})^T H^{-1} \grad_{\boldsymbol{\theta}} f(x, \boldsymbol{\theta}_{\mathrm{MAP}})",
-                                                                                                    
+
 
     # r"p(\boldsymbol{\theta} \mid \mathcal{D}) \approx \frac{1}{K} \sum_{k=1}^K \delta(\boldsymbol{\theta} - \boldsymbol{\theta}_{\text{MAP}}^k)",
     # r"p(y \mid x, \mathcal{D}) = \frac{1}{K} \sum_{k=1}^K \delta\left( y - f_k(x, \boldsymbol{\theta}) \right)",
@@ -61,7 +61,7 @@ equations = [
     r"\sigma_y  = \frac{1}{N_{\text{ens}} - 1} \sum_k^{N_{\text{ens}}} (y^{(k)} - \bar{y})^2",
 
 
-    
+
 
 
 
@@ -72,5 +72,5 @@ for ii, eq in enumerate(equations):
 
     with open(f"{ii}.tex", "w") as f:
         f.write(string)
-    subprocess.run(["pdflatex", f"{ii}.tex"]) 
-    subprocess.run(["pdf2svg", f"{ii}.pdf", f"{ii}.svg"]) 
+    subprocess.run(["pdflatex", f"{ii}.tex"])
+    subprocess.run(["pdf2svg", f"{ii}.pdf", f"{ii}.svg"])
