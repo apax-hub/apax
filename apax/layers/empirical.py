@@ -150,6 +150,7 @@ class LatentEwald(EmpiricalEnergyTerm):
     kgrid: List[int] = field(default_factory=lambda: [2, 2, 2])
     sigma: float = 1.0
     apply_mask: bool = True
+    use_property: str = "charges"
 
     def __call__(
         self,
@@ -161,12 +162,12 @@ class LatentEwald(EmpiricalEnergyTerm):
         properties: Dict[str, Array],
     ) -> Array:
         # Z shape n_atoms
-        if "charge" not in properties:
+        if self.use_property not in properties:
             raise KeyError(
-                "property 'charge' not found. Make sure to predict it in the model section"
+                f"property '{self.use_property}' not found. Make sure to predict it in the model section"
             )
 
-        q = properties["charge"]
+        q = properties[self.use_property]
 
         V = jnp.linalg.det(box)
         Lx, Ly, Lz = jnp.linalg.norm(box, axis=1)

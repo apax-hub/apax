@@ -28,6 +28,9 @@ model:
     - name: exponential
       r_max: 1.5
 
+  property_heads:
+    - name: charge
+
   descriptor_dtype: fp64
   readout_dtype: fp32
   scale_shift_dtype: fp64

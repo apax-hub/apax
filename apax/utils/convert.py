@@ -81,7 +81,7 @@ def atoms_to_inputs(
     Parameters
     ----------
     atoms_list :
-        List of all structures. Enties are ASE atoms objects.
+        List of all structures. Entries are ASE atoms objects.
 
     Returns
     -------
@@ -140,7 +140,7 @@ def atoms_to_labels(
     Parameters
     ----------
     atoms_list :
-        List of all structures. Enties are ASE atoms objects.
+        List of all structures. Entries are ASE atoms objects.
 
     Returns
     -------

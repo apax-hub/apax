@@ -1,11 +1,13 @@
 from pathlib import Path
-from typing import Any, Dict, Optional, Type
+from typing import TYPE_CHECKING, Any, Dict, Optional, Type
 
-import optuna
 from pydantic import BaseModel, PositiveInt
 
+if TYPE_CHECKING:
+    import optuna
 
-def get_pruner(name: str) -> Type[optuna.pruners.BasePruner]:
+
+def get_pruner(name: str) -> Type["optuna.pruners.BasePruner"]:
     """Get the pruner class from the name.
 
     Args:
@@ -14,25 +16,42 @@ def get_pruner(name: str) -> Type[optuna.pruners.BasePruner]:
     Returns:
         Type[optuna.pruners.BasePruner]: uninstantiated pruner
     """
+
+    try:
+        import optuna
+    except ImportError as e:
+        raise ImportError(
+            "optuna is required for hyperparameter optimisation. "
+            "Install it via `pip install optuna`."
+        ) from e
+
     if name not in optuna.pruners.__all__:
         raise ValueError(f"pruner with name {name} not in optuna.pruners")
     return getattr(optuna.pruners, name)
 
 
-def get_sampler(name: str) -> Type[optuna.samplers.BaseSampler]:
+def get_sampler(name: str) -> Type["optuna.samplers.BaseSampler"]:
     """Get the sampler class from the name.
 
     Args:
         name (str): name of sampler
 
     Returns:
-        Type[optuna.pruners.BaseSampler]: uninstantiated sampler
+        Type[optuna.samplers.BaseSampler]: uninstantiated sampler
 
     Notes:
         Also can include the AutoSampler, which automatically infer the "best"
             sampler based on the study parameters, see
             https://hub.optuna.org/samplers/auto_sampler
     """
+    try:
+        import optuna
+    except ImportError as e:
+        raise ImportError(
+            "optuna is required for hyperparameter optimisation. "
+            "Install it via `pip install optuna`."
+        ) from e
+
     if name == "AutoSampler":
         try:
             import optunahub
@@ -41,7 +60,7 @@ def get_sampler(name: str) -> Type[optuna.samplers.BaseSampler]:
             return optunahub.load_module("samplers/auto_sampler").AutoSampler
         except ImportError as e:
             raise ImportError(
-                f"pruner {name} requires optunahub, but it is not installed"
+                f"sampler {name} requires optunahub. Set sampler to other or install optunahub"
             ) from e
 
     if name not in optuna.samplers.__all__:
@@ -120,7 +139,7 @@ class OptunaConfig(BaseModel, extra="forbid"):
 
 def get_pruner_from_config(
     optuna_config: OptunaConfig,
-) -> Optional[optuna.pruners.BasePruner]:
+) -> Optional["optuna.pruners.BasePruner"]:
     """Get the instantiated pruner from the optuna configuration
 
     Args:
@@ -140,7 +159,7 @@ def get_pruner_from_config(
     return pruner_class(**pruner_kwargs)
 
 
-def get_sampler_from_config(optuna_config: OptunaConfig) -> optuna.samplers.BaseSampler:
+def get_sampler_from_config(optuna_config: OptunaConfig) -> "optuna.samplers.BaseSampler":
     """Get the instantiated sampler from the optuna configuration
 
     Args:

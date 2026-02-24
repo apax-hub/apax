@@ -6,7 +6,7 @@ import ase
 import jax
 import jax.numpy as jnp
 import numpy as np
-from ase.calculators.calculator import Calculator, all_changes
+from ase.calculators.calculator import Calculator, all_changes, all_properties
 from ase.calculators.singlepoint import SinglePointCalculator
 from flax.core.frozen_dict import FrozenDict, freeze, unfreeze
 from jax import tree_util
@@ -14,10 +14,7 @@ from tqdm import tqdm, trange
 from vesin import NeighborList
 
 from apax.config.train_config import Config
-from apax.data.input_pipeline import (
-    CachedInMemoryDataset,
-    OTFInMemoryDataset,
-)
+from apax.data.input_pipeline import CachedInMemoryDataset, OTFInMemoryDataset
 from apax.md.function_transformations import ProcessStress
 from apax.train.checkpoints import (
     canonicalize_energy_model_parameters,
@@ -48,7 +45,6 @@ def build_energy_neighbor_fns(
 ) -> Tuple[Callable, Callable]:
     r_max = config.model.basis.r_max
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
-    neigbor_from_jax = neighbor_calculable_with_jax(box, r_max)
     box = box.T
     displacement_fn = None
     neighbor_fn = None
@@ -181,20 +177,57 @@ class ASECalculator(Calculator):
         self.padding_factor = padding_factor
         self.padded_length = 0
 
-        if self.model_config.model.calc_stress:
-            self.implemented_properties.append("stress")
-
-        if self.n_models > 1:
-            uncertainty_kws = [
-                prop + "_uncertainty" for prop in self.implemented_properties
-            ]
-            self.implemented_properties += uncertainty_kws
+        self._update_implemented_properties()
 
         self.step: Union[Callable, None] = None
         self.neighbor_fn: Union[Callable, None] = None
         self.neighbors: Union[partition.NeighborList, None] = None
         self.offsets: Union[jnp.ndarray, None] = None
         self.model: Union[Callable, None] = None
+
+    def _update_implemented_properties(self):
+        """
+        Dynamically determines the properties this model produces based on its config,
+        including custom heads, stress, and ensemble uncertainties.
+        Updates ASE's global all_properties to ensure compatibility.
+        """
+        props = {"energy", "forces"}
+
+        if self.model_config.model.calc_stress:
+            props.add("stress")
+
+        for head in self.model_config.model.property_heads:
+            props.add(head.name)
+
+        # Handle ensembles
+        ensemble_config = self.model_config.model.ensemble
+        if ensemble_config:
+            ensembled_props = set()
+            if ensemble_config.kind == "full":
+                # For a full ensemble, all base properties are ensembled
+                ensembled_props.update(props)
+
+            elif ensemble_config.kind == "shallow":
+                # For a shallow ensemble, only energy and potentially forces are ensembled
+                ensembled_props.add("energy")
+                if ensemble_config.force_variance:
+                    ensembled_props.add("forces")
+
+            for p in ensembled_props:
+                props.add(f"{p}_uncertainty")
+                props.add(f"{p}_ensemble")
+
+        # Handle individual property head ensembles
+        for head in self.model_config.model.property_heads:
+            if head.n_shallow_members > 0:
+                props.add(f"{head.name}_uncertainty")
+                props.add(f"{head.name}_ensemble")
+
+        # Finalize and update global list
+        self.implemented_properties = sorted(props)
+        for p in self.implemented_properties:
+            if p not in all_properties:
+                all_properties.append(p)
 
     def initialize(self, atoms: ase.Atoms) -> None:
         box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
@@ -218,7 +251,12 @@ class ASECalculator(Calculator):
             model = transformation.apply(model)
 
         self.model = model
-        self.step = get_step_fn(model, atoms, self.neigbor_from_jax)
+        self.step = get_step_fn(
+            model,
+            jnp.asarray(atoms.numbers),
+            bool(np.any(atoms.cell.array > 1e-6)),
+            self.neigbor_from_jax,
+        )
         self.neighbor_fn = neighbor_fn
 
         if self.neigbor_from_jax:
@@ -232,11 +270,12 @@ class ASECalculator(Calculator):
                 self.neighbors = self.neighbor_fn.allocate(positions)
         else:
             calculator = NeighborList(cutoff=self.r_max, full_list=True)
-            idxs_i, _, _ = calculator.compute(
+
+            (idxs_i,) = calculator.compute(
                 points=atoms.positions,
                 box=atoms.cell.array,
                 periodic=bool(np.any(atoms.pbc)),
-                quantities="ijS",
+                quantities="i",
             )
             self.padded_length = int(len(idxs_i) * self.padding_factor)
 
@@ -507,15 +546,16 @@ def neighbor_calculable_with_jax(box: np.ndarray, r_max: float) -> bool:
             return False
 
 
-def get_step_fn(model: Callable, atoms: ase.Atoms, neigbor_from_jax: bool) -> Callable:
-    Z = jnp.asarray(atoms.numbers)
+def get_step_fn(
+    model: Callable, Z: jnp.ndarray, atoms_is_periodic: bool, neigbor_from_jax: bool
+) -> Callable:
     if neigbor_from_jax:
 
         @jax.jit
         def step_fn(
-            positions: jnp.ndarray, neighbor: partition.NeighborList, box: jnp.ndarray
+            positions: jnp.ndarray: jnp.ndarray, neighbor, box: jnp.ndarray: jnp.ndarray
         ) -> Tuple[Dict, partition.NeighborList]:
-            if np.any(atoms.get_cell().lengths() > 1e-6):
+            if atoms_is_periodic:
                 box = box.T
                 inv_box = jnp.linalg.inv(box)
                 positions = space.transform(inv_box, positions)
