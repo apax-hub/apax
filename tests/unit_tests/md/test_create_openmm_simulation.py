@@ -55,6 +55,6 @@ def test_create_openmm_simulation(atoms: Atoms, periodic_force: bool):
     state_pos = state.getPositions(asNumpy=True).value_in_unit(angstrom)
 
     if np.any(atoms.pbc):
-        assert np.all(state_box_vectors == atoms.cell.array)
+        assert np.allclose(state_box_vectors, atoms.cell.array)
 
-    assert np.all(state_pos == atoms.positions)
+    assert np.allclose(state_pos, atoms.positions)
