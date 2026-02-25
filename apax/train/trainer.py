@@ -133,9 +133,6 @@ def fit(
                 epoch_start_time = time.time()
                 callbacks.on_epoch_begin(epoch=epoch + 1)
 
-                if ema_handler:
-                    ema_handler.update(state.params, epoch)
-
                 epoch_loss.update({"train_loss": 0.0})
                 train_batch_metrics = Metrics.empty()
 
@@ -219,20 +216,22 @@ def fit(
                 if epoch % ckpt_interval == 0:
                     latest_ckpt_manager.save(epoch, args=ocp.args.StandardSave(ckpt))
 
-                if epoch_metrics["val_loss"] < best_loss:
-                    best_ckpt_manager.save(epoch, args=ocp.args.StandardSave(ckpt))
-                    if abs(epoch_metrics["val_loss"] - best_loss) < patience_min_delta:
-                        early_stopping_counter += 1
-                    else:
-                        early_stopping_counter = 0
+                if val_ds is not None:
+                    if epoch_metrics["val_loss"] < best_loss:
+                        best_ckpt_manager.save(epoch, args=ocp.args.StandardSave(ckpt))
+                        if abs(epoch_metrics["val_loss"] - best_loss) < patience_min_delta:
+                            early_stopping_counter += 1
+                        else:
+                            early_stopping_counter = 0
 
-                    best_loss = epoch_metrics["val_loss"]
-                else:
-                    early_stopping_counter += 1
+                        best_loss = epoch_metrics["val_loss"]
+                    else:
+                        early_stopping_counter += 1
 
                 callbacks.on_epoch_end(epoch=epoch, logs=epoch_metrics)
 
-                epoch_pbar.set_postfix(val_loss=epoch_metrics["val_loss"])
+                epoch_pbar.set_postfix(**{k: v for k, v in epoch_metrics.items()
+                                          if k in ("train_loss", "val_loss")})
                 epoch_pbar.update()
 
                 if patience is not None and early_stopping_counter >= patience:

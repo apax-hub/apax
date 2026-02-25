@@ -96,7 +96,7 @@ def stack_parameters(param_list: List[FrozenDict]) -> FrozenDict:
         flat_params = flatten_dict(params)
         flat_param_list.append(flat_params)
 
-    stacked_flat_params = flat_params
+    stacked_flat_params = {}
     for p in flat_param_list[0].keys():
         stacked_flat_params[p] = jnp.stack(
             [flat_param[p] for flat_param in flat_param_list]
