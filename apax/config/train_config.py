@@ -88,6 +88,25 @@ class PBPDatset(DatasetConfig, extra="forbid"):
     nl_padding: PositiveInt = 2000
 
 
+class GrainDataset(DatasetConfig, extra="forbid"):
+    """Dataset which uses Google Grain for scalable data loading.
+
+    Parameters
+    ----------
+    num_workers : int, default = 0
+        | Number of worker processes/threads for preprocessing.
+    bucket_boundaries : List[int], optional
+        | Atom counts defining size buckets for padding.
+    worker_buffer_size : int, default = 1
+        | Number of batches buffered per worker.
+    """
+
+    processing: Literal["grain"] = "grain"
+    num_workers: int = 0
+    bucket_boundaries: Optional[List[int]] = None
+    worker_buffer_size: int = 1
+
+
 class DataConfig(BaseModel, extra="forbid"):
     """
     Configuration for data loading, preprocessing and training.
@@ -126,7 +145,7 @@ class DataConfig(BaseModel, extra="forbid"):
 
     directory: str
     experiment: str
-    dataset: Union[CachedDataset, OTFDataset, PBPDatset] = Field(
+    dataset: Union[CachedDataset, OTFDataset, PBPDatset, GrainDataset] = Field(
         CachedDataset(processing="cached"), discriminator="processing"
     )
 

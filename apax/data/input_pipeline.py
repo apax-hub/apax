@@ -650,8 +650,11 @@ class PerBatchPaddedDataset(InMemoryDataset):
         self.buffer.queue.clear()
 
 
+from apax.data.grain_pipeline import ApaxGrainDataLoader
+
 dataset_dict = {
     "cached": CachedInMemoryDataset,
     "otf": OTFInMemoryDataset,
     "pbp": PerBatchPaddedDataset,
+    "grain": ApaxGrainDataLoader,
 }
