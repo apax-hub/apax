@@ -84,7 +84,8 @@ Implement `ApaxGrainDataLoader` using `grain.python.DataLoader`.
 
 ---
 
-### Task 4: Implement Benchmark Script
+### Task 4: Implement Benchmark Script [x] 9b82898
+
 **Files:**
 - Create: `benchmark_pipelines.py`
 
