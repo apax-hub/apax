@@ -1,3 +1,16 @@
+import importlib.metadata
+import os
+import warnings
+
+import jax
+
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+jax.config.update("jax_enable_x64", True)
+
+warnings.filterwarnings("ignore", message=".*os.fork()*")
+
+
 import time
 import numpy as np
 from ase import Atoms
@@ -19,7 +32,7 @@ def create_dummy_data(num_samples=1000, num_atoms=10):
         atoms_list.append(atoms)
     return atoms_list
 
-def benchmark_legacy(atoms_list, batch_size, cutoff, num_epochs=1):
+def benchmark_legacy(atoms_list, batch_size, cutoff, num_epochs=10):
     start_init = time.time()
     ds = CachedInMemoryDataset(
         atoms_list,
@@ -27,18 +40,28 @@ def benchmark_legacy(atoms_list, batch_size, cutoff, num_epochs=1):
         bs=batch_size,
         n_epochs=num_epochs,
     )
+    train_steps_per_epoch = ds.steps_per_epoch()
     iterator = ds.shuffle_and_batch()
     init_time = time.time() - start_init
     
     start_run = time.time()
     num_batches = 0
-    for batch in iterator:
-        num_batches += 1
+    # for batch in iterator:
+    for epoch in range(num_epochs):
+        count = 0
+        for batch_idx in range(train_steps_per_epoch):
+            print(count)
+            count += 1
+            batch = next(iterator)
+            num_batches += 1
+        print()
     run_time = time.time() - start_run
+
+    ds.cleanup()
     
     return init_time, run_time, num_batches
 
-def benchmark_grain(atoms_list, batch_size, cutoff, num_epochs=1):
+def benchmark_grain(atoms_list, batch_size, cutoff, num_epochs=10):
     start_init = time.time()
     # Convert atoms to SoA
     inputs = atoms_to_inputs(atoms_list)
@@ -67,36 +90,40 @@ def benchmark_grain(atoms_list, batch_size, cutoff, num_epochs=1):
         padded_data,
         batch_size=batch_size,
         cutoff=cutoff,
-        max_nbrs=2000, # typical default
+        max_nbrs=4000, # typical default
+        num_epochs=num_epochs,
         shuffle=True,
-        num_workers=4,
+        num_workers=4, # Enable workers for better performance
     )
     init_time = time.time() - start_init
     
     start_run = time.time()
     num_batches = 0
+    # Let Grain's iterator handle all epochs in a single loop
     for batch in loader:
         num_batches += 1
+    
     run_time = time.time() - start_run
     
     return init_time, run_time, num_batches
 
 if __name__ == "__main__":
-    num_samples = 2000
-    batch_size = 32
+    num_samples = 500
+    batch_size = 2
     cutoff = 5.0
+    num_atoms = 250
     
     print(f"Generating {num_samples} dummy samples...")
-    atoms_list = create_dummy_data(num_samples)
+    atoms_list = create_dummy_data(num_samples=num_samples, num_atoms=num_atoms)
     
-    print("\nBenchmarking Legacy (TensorFlow-based) Pipeline...")
-    legacy_init, legacy_run, legacy_batches = benchmark_legacy(atoms_list, batch_size, cutoff)
-    print(f"Initialization: {legacy_init:.4f}s")
-    print(f"Execution (1 epoch): {legacy_run:.4f}s")
-    print(f"Throughput: {num_samples / legacy_run:.2f} samples/s")
+    # print("\nBenchmarking Legacy (TensorFlow-based) Pipeline...")
+    # legacy_init, legacy_run, legacy_batches = benchmark_legacy(atoms_list, batch_size, cutoff)
+    # print(f"Initialization: {legacy_init:.4f}s")
+    # print(f"Execution (10 epoch): {legacy_run:.4f}s")
+    # print(f"Throughput: {num_samples / legacy_run*10:.2f} samples/s")
     
     print("\nBenchmarking Grain-based Pipeline...")
     grain_init, grain_run, grain_batches = benchmark_grain(atoms_list, batch_size, cutoff)
     print(f"Initialization: {grain_init:.4f}s")
-    print(f"Execution (1 epoch): {grain_run:.4f}s")
-    print(f"Throughput: {num_samples / grain_run:.2f} samples/s")
+    print(f"Execution (10 epoch): {grain_run:.4f}s")
+    print(f"Throughput: {num_samples / grain_run*10:.2f} samples/s")

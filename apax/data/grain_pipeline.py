@@ -58,6 +58,7 @@ class ApaxGrainDataLoader:
         batch_size: int,
         cutoff: float,
         max_nbrs: int = None,
+        num_epochs: int = 1,
         shuffle: bool = True,
         num_workers: int = 0,
     ):
@@ -67,7 +68,7 @@ class ApaxGrainDataLoader:
         if shuffle:
             self.sampler = grain.IndexSampler(
                 num_records=len(self.data_source),
-                num_epochs=1,
+                num_epochs=num_epochs,
                 shard_options=grain.NoSharding(),
                 shuffle=True,
                 seed=42,
@@ -75,7 +76,7 @@ class ApaxGrainDataLoader:
         else:
             self.sampler = grain.IndexSampler(
                 num_records=len(self.data_source),
-                num_epochs=1,
+                num_epochs=num_epochs,
                 shard_options=grain.NoSharding(),
                 shuffle=False,
             )
