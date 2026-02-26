@@ -15,7 +15,7 @@ import time
 import numpy as np
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from apax.data.input_pipeline import CachedInMemoryDataset
+from apax.data.input_pipeline import CachedInMemoryDataset, prefetch_to_single_device
 from apax.data.grain_pipeline import ApaxGrainDataLoader
 from apax.utils.convert import atoms_to_inputs, atoms_to_labels
 
@@ -40,21 +40,14 @@ def benchmark_legacy(atoms_list, batch_size, cutoff, num_epochs=10):
         bs=batch_size,
         n_epochs=num_epochs,
     )
-    train_steps_per_epoch = ds.steps_per_epoch()
     iterator = ds.shuffle_and_batch()
     init_time = time.time() - start_init
     
     start_run = time.time()
     num_batches = 0
-    # for batch in iterator:
-    for epoch in range(num_epochs):
-        count = 0
-        for batch_idx in range(train_steps_per_epoch):
-            print(count)
-            count += 1
-            batch = next(iterator)
-            num_batches += 1
-        print()
+    for batch in iterator:
+        jax.tree_util.tree_map(lambda x: x.block_until_ready(), batch)
+        num_batches += 1
     run_time = time.time() - start_run
 
     ds.cleanup()
@@ -94,13 +87,17 @@ def benchmark_grain(atoms_list, batch_size, cutoff, num_epochs=10):
         num_epochs=num_epochs,
         shuffle=True,
         num_workers=4, # Enable workers for better performance
+        worker_buffer_size=4, # Increase buffer
     )
+    # Wrap in prefetch_to_single_device
+    prefetched_loader = prefetch_to_single_device(iter(loader), 2)
+    
     init_time = time.time() - start_init
     
     start_run = time.time()
     num_batches = 0
-    # Let Grain's iterator handle all epochs in a single loop
-    for batch in loader:
+    for batch in prefetched_loader:
+        jax.tree_util.tree_map(lambda x: x.block_until_ready(), batch)
         num_batches += 1
     
     run_time = time.time() - start_run
@@ -116,14 +113,14 @@ if __name__ == "__main__":
     print(f"Generating {num_samples} dummy samples...")
     atoms_list = create_dummy_data(num_samples=num_samples, num_atoms=num_atoms)
     
-    # print("\nBenchmarking Legacy (TensorFlow-based) Pipeline...")
-    # legacy_init, legacy_run, legacy_batches = benchmark_legacy(atoms_list, batch_size, cutoff)
-    # print(f"Initialization: {legacy_init:.4f}s")
-    # print(f"Execution (10 epoch): {legacy_run:.4f}s")
-    # print(f"Throughput: {num_samples / legacy_run*10:.2f} samples/s")
+    print("\nBenchmarking Legacy (TensorFlow-based) Pipeline...")
+    legacy_init, legacy_run, legacy_batches = benchmark_legacy(atoms_list, batch_size, cutoff)
+    print(f"Initialization: {legacy_init:.4f}s")
+    print(f"Execution (10 epoch): {legacy_run:.4f}s")
+    print(f"Throughput: {num_samples * 10 / legacy_run:.2f} samples/s")
     
     print("\nBenchmarking Grain-based Pipeline...")
     grain_init, grain_run, grain_batches = benchmark_grain(atoms_list, batch_size, cutoff)
     print(f"Initialization: {grain_init:.4f}s")
     print(f"Execution (10 epoch): {grain_run:.4f}s")
-    print(f"Throughput: {num_samples / grain_run*10:.2f} samples/s")
+    print(f"Throughput: {num_samples * 10 / grain_run:.2f} samples/s")

@@ -8,7 +8,6 @@ class SoADataSource(grain.RandomAccessDataSource):
     """
     def __init__(self, data: dict):
         self._data = data
-        # Assume all arrays have the same first dimension (num_samples)
         self._num_samples = len(next(iter(data.values())))
 
     def __len__(self):
@@ -35,8 +34,6 @@ class NeighborListTransform(grain.MapTransform):
         if self.max_nbrs:
             n_nbrs = idx.shape[1]
             if n_nbrs > self.max_nbrs:
-                # Should we raise an error or just truncate? 
-                # Apax usually expects max_nbrs to be sufficient.
                 idx = idx[:, :self.max_nbrs]
                 offsets = offsets[:self.max_nbrs]
             else:
@@ -50,7 +47,7 @@ class NeighborListTransform(grain.MapTransform):
 
 class ApaxGrainDataLoader:
     """
-    A high-level wrapper for the Grain DataLoader.
+    A high-level wrapper for the Grain DataLoader using threaded prefetching.
     """
     def __init__(
         self,
@@ -61,37 +58,37 @@ class ApaxGrainDataLoader:
         num_epochs: int = 1,
         shuffle: bool = True,
         num_workers: int = 0,
+        worker_buffer_size: int = 1,
     ):
-        self.data_source = SoADataSource(data)
+        # 1. Create MapDataset
+        ds = grain.MapDataset.source(SoADataSource(data))
         
-        # Sampler
+        # 2. Shuffle and Repeat
         if shuffle:
-            self.sampler = grain.IndexSampler(
-                num_records=len(self.data_source),
-                num_epochs=num_epochs,
-                shard_options=grain.NoSharding(),
-                shuffle=True,
-                seed=42,
-            )
-        else:
-            self.sampler = grain.IndexSampler(
-                num_records=len(self.data_source),
-                num_epochs=num_epochs,
-                shard_options=grain.NoSharding(),
-                shuffle=False,
-            )
-            
-        # Operations
-        ops = [
-            NeighborListTransform(cutoff, max_nbrs),
-            grain.Batch(batch_size=batch_size, drop_remainder=True),
-        ]
+            ds = ds.shuffle(seed=42)
+        if num_epochs > 1:
+            ds = ds.repeat(num_epochs)
         
-        self.loader = grain.DataLoader(
-            data_source=self.data_source,
-            sampler=self.sampler,
-            operations=ops,
-            worker_count=num_workers,
+        # 3. Transform
+        ds = ds.map(NeighborListTransform(cutoff, max_nbrs))
+        
+        # 4. Optimized Threaded Conversion to IterDataset
+        # This uses C++ threads (if available) or background Python threads to parallelize mapping.
+        # It's often faster for small-to-medium tasks than full multiprocess prefetching.
+        self.loader = ds.to_iter_dataset(
+            grain.ReadOptions(
+                num_threads=max(1, num_workers),
+                prefetch_buffer_size=batch_size * worker_buffer_size
+            )
+        )
+        
+        # 5. Batching
+        self.loader = self.loader.batch(batch_size, drop_remainder=True)
+        
+        # 6. Final Thread Prefetch
+        self.loader = grain.experimental.ThreadPrefetchIterDataset(
+            self.loader, 
+            prefetch_buffer_size=worker_buffer_size
         )
 
     def __iter__(self):
