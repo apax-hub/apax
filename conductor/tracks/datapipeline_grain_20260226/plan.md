@@ -103,8 +103,42 @@ Implement a script that compares `CachedInMemoryDataset` and `ApaxGrainDataLoade
 
 ## Phase 3: Advanced Features & Integration
 
-### Task 5: Implement Bucketed Padding (Approach 2)
-(Details to be expanded after benchmarking Phase 2)
+### Task 5: Implement Bucketed Padding (Approach 2) [x] fb11dcd
 
-### Task 6: Integration with Training Loop
-(Details to be expanded)
+**Files:**
+- Modify: `apax/data/grain_pipeline.py`
+- Test: `tests/unit_tests/data/test_grain_pipeline.py`
+
+**Step 1: Write the failing test**
+Create a test with systems of different sizes and verify that `BatchWithBucketing` produces batches with minimal padding.
+
+**Step 2: Run test to verify it fails**
+
+**Step 3: Write minimal implementation**
+Implement bucketing logic in `ApaxGrainDataLoader`.
+
+**Step 4: Run test to verify it passes**
+
+**Step 5: Commit**
+`git add apax/data/grain_pipeline.py tests/unit_tests/data/test_grain_pipeline.py`
+`git commit -m "feat(data): Implement bucketed padding for Grain pipeline"`
+
+---
+
+### Task 6: Integration with Training Loop [ ]
+**Files:**
+- Modify: `apax/train/run.py`
+- Modify: `apax/config/train_config.py`
+
+**Step 1: Add config option**
+Add `use_grain` (default False) to the training configuration.
+
+**Step 2: Update training run**
+Modify `run` in `apax/train/run.py` to initialize the Grain pipeline if requested.
+
+**Step 3: Write integration test**
+Run a minimal training loop using Grain.
+
+**Step 4: Commit**
+`git add apax/train/run.py apax/config/train_config.py`
+`git commit -m "feat(train): Integrate Grain pipeline into training loop"`
