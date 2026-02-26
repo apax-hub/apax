@@ -4,7 +4,6 @@ from typing import List, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 import orbax.checkpoint as ocp
 from flax.core.frozen_dict import FrozenDict, freeze, unfreeze
 from flax.training import train_state
