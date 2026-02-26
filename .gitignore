@@ -161,3 +161,4 @@ md_config.yaml
 *.npz
 
 /models
+stuff/
