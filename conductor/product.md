@@ -12,6 +12,7 @@ To develop a high-performance molecular dynamics tool powered by machine learnin
 
 ## Core Features
 - **ML Potential Training:** Training interatomic potentials to predict energy and forces based on atomic configurations.
+- **Scalable Data Pipeline:** A JAX-native, high-performance data loading system capable of handling large-scale datasets with efficient shuffling and bucketing.
 - **High-Performance MD:** Running large-scale molecular dynamics simulations with optimized performance and scalability.
 - **JAX-Powered Performance:** Utilizing JAX for efficient computation and multi-GPU acceleration.
 

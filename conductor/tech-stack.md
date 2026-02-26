@@ -10,6 +10,7 @@
 
 ## Machine Learning & Performance
 - **JAX:** For high-performance numerical computing and machine learning with automatic differentiation and GPU/TPU acceleration.
+- **Google Grain:** For scalable, deterministic, and high-performance data loading and preprocessing in JAX.
 
 ## Data Management
 - **HDF5:** For high-performance, hierarchical data storage of large datasets like molecular trajectories and training sets.
