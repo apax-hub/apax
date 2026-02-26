@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from apax.data.grain_pipeline import SoADataSource
+from apax.data.grain_pipeline import SoADataSource, NeighborListTransform
 
 def test_soa_datasource():
     data = {
@@ -31,3 +31,18 @@ def test_soa_datasource_slicing():
     sliced = source[2:5]
     assert len(sliced["energy"]) == 3
     assert np.all(sliced["energy"] == np.array([2, 3, 4]))
+
+def test_nl_transform():
+    sample = {
+        "positions": np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
+        "box": np.array([[10.0, 0.0, 0.0], [0.0, 10.0, 0.0], [0.0, 0.0, 10.0]]),
+    }
+    cutoff = 2.0
+    
+    transform = NeighborListTransform(cutoff)
+    transformed_sample = transform.map(sample)
+    
+    assert "idx" in transformed_sample
+    assert "offsets" in transformed_sample
+    assert transformed_sample["idx"].shape[0] == 2
+    assert transformed_sample["idx"].shape[1] > 0
