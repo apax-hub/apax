@@ -7,6 +7,7 @@ def test_apax_grain_dataloader():
     batch_size = 4
     data = {
         "positions": np.random.rand(num_samples, 3, 3),
+        "numbers": np.random.randint(1, 10, (num_samples, 3)),
         "box": np.random.rand(num_samples, 3, 3),
         "energy": np.random.rand(num_samples),
     }
@@ -33,6 +34,7 @@ def test_apax_grain_dataloader_shuffle():
     batch_size = 4
     data = {
         "energy": np.arange(num_samples),
+        "numbers": np.random.randint(1, 10, (num_samples, 3)),
         "positions": np.random.rand(num_samples, 3, 3),
         "box": np.random.rand(num_samples, 3, 3),
     }
@@ -49,22 +51,42 @@ def test_apax_grain_dataloader_shuffle():
     all_energies = np.concatenate([b["energy"] for b in batches])
     assert not np.all(all_energies == np.arange(num_samples))
 
-def test_nl_transform_padding_scenarios():
-    sample = {
-        "positions": np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
-        "box": np.array([[10.0, 0.0, 0.0], [0.0, 10.0, 0.0], [0.0, 0.0, 10.0]]),
+def test_apax_grain_dataloader_ragged():
+    # Data with different number of atoms
+    data = {
+        "positions": [
+            np.random.rand(3, 3),
+            np.random.rand(5, 3),
+            np.random.rand(4, 3),
+            np.random.rand(6, 3),
+        ],
+        "numbers": [
+            np.random.randint(1, 10, 3),
+            np.random.randint(1, 10, 5),
+            np.random.randint(1, 10, 4),
+            np.random.randint(1, 10, 6),
+        ],
+        "box": [np.eye(3)] * 4,
+        "energy": np.random.rand(4),
     }
-    cutoff = 2.0
     
-    # Case 1: Padding needed
-    transform = NeighborListTransform(cutoff, max_nbrs=10)
-    transformed = transform.map(sample.copy())
-    assert transformed["idx"].shape == (2, 10)
+    loader = ApaxGrainDataLoader(
+        data,
+        batch_size=2,
+        cutoff=2.0,
+        bucket_boundaries=[4, 10],
+        shuffle=False,
+    )
     
-    # Case 2: Truncation needed (unlikely in real use but covered in code)
-    transform = NeighborListTransform(cutoff, max_nbrs=1)
-    transformed = transform.map(sample.copy())
-    assert transformed["idx"].shape == (2, 1)
+    batches = list(loader)
+    # With batch_size=2:
+    # Bucket 4 contains samples with size 3, 4 -> 1 batch
+    # Bucket 10 contains samples with size 5, 6 -> 1 batch
+    assert len(batches) == 2
+    
+    # Check that one batch has max_atoms=4 and other has max_atoms=6
+    shapes = sorted([b["numbers"].shape[1] for b in batches])
+    assert shapes == [4, 6]
     data = {
         "positions": np.random.rand(10, 3, 3),
         "numbers": np.random.randint(1, 10, (10, 3)),
