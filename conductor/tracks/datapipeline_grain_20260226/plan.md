@@ -36,7 +36,8 @@ Implement `SoADataSource` inheriting from `grain.python.RandomAccessDataSource`.
 
 ---
 
-### Task 2: Implement `NeighborListTransform`
+### Task 2: Implement `NeighborListTransform` [x] fd1c794
+
 **Files:**
 - Modify: `apax/data/grain_pipeline.py`
 - Test: `tests/unit_tests/data/test_grain_pipeline.py`
