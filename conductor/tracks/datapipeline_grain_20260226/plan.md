@@ -125,7 +125,8 @@ Implement bucketing logic in `ApaxGrainDataLoader`.
 
 ---
 
-### Task 6: Integration with Training Loop [ ]
+### Task 6: Integration with Training Loop [x] 0be6f8e
+
 **Files:**
 - Modify: `apax/train/run.py`
 - Modify: `apax/config/train_config.py`
