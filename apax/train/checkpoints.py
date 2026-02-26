@@ -4,6 +4,7 @@ from typing import List, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import orbax.checkpoint as ocp
 from flax.core.frozen_dict import FrozenDict, freeze, unfreeze
 from flax.training import train_state
@@ -76,7 +77,8 @@ def load_state(state, ckpt_dir):
     checkpoints_exist = ckpt_dir.is_dir()
     if checkpoints_exist:
         log.info("Loading checkpoint")
-        with ocp.CheckpointManager(ckpt_dir.resolve()) as mngr:
+        options = ocp.CheckpointManagerOptions(cleanup_tmp_directories=True)
+        with ocp.CheckpointManager(ckpt_dir.resolve(), options=options) as mngr:
             restored = mngr.restore(step=None, args=ocp.args.StandardRestore(target))
 
         state = restored["model"]
@@ -109,21 +111,35 @@ def stack_parameters(param_list: List[FrozenDict]) -> FrozenDict:
 
 def load_params(model_version_path: Path, best=True) -> FrozenDict:
     model_version_path = Path(model_version_path)
-
     if best:
         model_version_path = model_version_path / "best"
     log.info(f"loading checkpoint from {model_version_path}")
-    try:
-        raw_restored = ocp.CheckpointManager(model_version_path.resolve()).restore(
-            step=None, args=ocp.args.StandardRestore()
-        )
 
+    options = ocp.CheckpointManagerOptions(cleanup_tmp_directories=True)
+    try:
+        with ocp.CheckpointManager(model_version_path.resolve(), options=options) as mngr:
+            step = mngr.latest_step()
+            if step is None:
+                raise FileNotFoundError(f"No checkpoint found at {model_version_path}")
+            # Restore as numpy arrays so checkpoints saved on GPU can be loaded
+            # on CPU-only machines (orbax uses saved sharding without restore_args).
+            # Passing jax.ShapeDtypeStruct as item forces numpy restoration per orbax docs.
+            abstract = mngr.item_metadata(step)
+            item = jax.tree_util.tree_map(
+                lambda m: jax.ShapeDtypeStruct(m.shape, m.dtype),
+                abstract,
+            )
+            raw_restored = mngr.restore(
+                step=step,
+                args=ocp.args.StandardRestore(item=item),
+            )
     except FileNotFoundError:
         raise FileNotFoundError(f"No checkpoint found at {model_version_path}")
+
     if raw_restored is None:
         raise FileNotFoundError(f"No checkpoint found at {model_version_path}")
-    params = jax.tree.map(jnp.asarray, raw_restored["model"]["params"])
 
+    params = jax.tree.map(jnp.asarray, raw_restored["model"]["params"])
     return params
 
 

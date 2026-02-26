@@ -85,7 +85,9 @@ def fit(
     latest_dir = ckpt_dir / "latest"
     best_dir = ckpt_dir / "best"
 
-    options = ocp.CheckpointManagerOptions(max_to_keep=2, save_interval_steps=1)
+    options = ocp.CheckpointManagerOptions(
+        max_to_keep=2, save_interval_steps=1, cleanup_tmp_directories=True
+    )
 
     train_step, val_step = make_step_fns(
         loss_fn, Metrics, model=state.apply_fn, is_ensemble=is_ensemble
