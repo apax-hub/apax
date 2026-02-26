@@ -60,7 +60,7 @@ Implement `NeighborListTransform` inheriting from `grain.python.MapTransform`.
 
 ---
 
-## Phase 2: Pipeline & Benchmarking
+## Phase 2: Pipeline ## Phase 2: Pipeline & Benchmarking Benchmarking [checkpoint: 34418c6]
 
 ### Task 3: Implement `ApaxGrainDataLoader` (Fixed Padding) [x] 24ea328
 
