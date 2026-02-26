@@ -10,7 +10,7 @@
 
 ---
 
-## Phase 1: Core Grain Components
+## Phase 1: Core Grain Components [checkpoint: 61fa5f7]
 
 ### Task 1: Implement `SoADataSource` [x] 5267f22
 
