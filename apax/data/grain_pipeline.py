@@ -1,10 +1,12 @@
-import numpy as np
 import grain.python as grain
 import jax.numpy as jnp
+import numpy as np
 from jax import tree_util
-from apax.data.preprocessing import compute_nl, prefetch_to_single_device
 from jax.sharding import NamedSharding
 from jax.sharding import PartitionSpec as P
+
+from apax.data.preprocessing import compute_nl, prefetch_to_single_device
+from apax.utils.convert import atoms_to_inputs, atoms_to_labels, unit_dict
 
 class SoADataSource(grain.RandomAccessDataSource):
     """
@@ -84,6 +86,20 @@ class InputLabelSplitTransform(grain.MapTransform):
 class ApaxGrainDataLoader:
     """
     A high-level wrapper for the Grain DataLoader with support for fixed and bucketed padding.
+
+    Args:
+        atoms_list: List of ASE Atoms objects.
+        cutoff: Cutoff radius for the neighbor list.
+        bs: Batch size.
+        n_epochs: Number of epochs to repeat the data.
+        pos_unit: Unit for positions (default: "Ang").
+        energy_unit: Unit for energy (default: "eV").
+        pre_shuffle: Whether to shuffle the data before batching (default: False).
+        additional_properties: List of additional properties to extract.
+        num_workers: Number of multiprocessing workers for prefetching.
+        worker_buffer_size: Prefetch buffer size per worker.
+        bucket_boundaries: List of atom counts defining bucket sizes for ragged data.
+        max_nbrs: Maximum number of neighbors for padding. If None, it is computed from the data.
     """
     def __init__(
         self,
@@ -100,8 +116,6 @@ class ApaxGrainDataLoader:
         bucket_boundaries: list[int] = None,
         max_nbrs: int = None,
     ):
-        from apax.utils.convert import atoms_to_inputs, atoms_to_labels
-        
         self.cutoff = cutoff
         self.batch_size = bs
         self.n_epochs = n_epochs
@@ -130,7 +144,6 @@ class ApaxGrainDataLoader:
 
     def init_input(self):
         """Returns first batch of inputs and labels to init the model."""
-        from apax.utils.convert import unit_dict
         positions = self.sample_atoms.positions * unit_dict["Ang"] # default
         box = self.sample_atoms.cell.array * unit_dict["Ang"]
         idx, offsets = compute_nl(positions, box, self.cutoff)
@@ -235,3 +248,6 @@ class ApaxGrainDataLoader:
 
     def cleanup(self):
         pass
+
+    def __iter__(self):
+        return self.batch()
