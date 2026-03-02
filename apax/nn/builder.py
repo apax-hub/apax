@@ -3,6 +3,7 @@ import logging
 import numpy as np
 
 from apax.config import ModelConfig
+from apax.layers.activation import get_activation_fn
 from apax.layers.descriptor import (
     EquivMPRepresentation,
     GaussianMomentDescriptor,
@@ -104,6 +105,8 @@ class ModelBuilder:
             if len(nn_layers) == 0:
                 return None
 
+        activation_fn = get_activation_fn(self.config["activation_fn"])
+
         readout = AtomisticReadout(
             units=nn_layers,
             b_init=head_config["b_init"],
@@ -112,6 +115,7 @@ class ModelBuilder:
             is_feature_fn=is_feature_fn,
             n_shallow_ensemble=n_shallow_ensemble,
             dtype=dtype,
+            activation_fn=activation_fn,
         )
         return readout
 
