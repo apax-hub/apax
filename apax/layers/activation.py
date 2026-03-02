@@ -5,10 +5,19 @@ import jax
 
 
 def get_activation_fn(name: str) -> Callable[[float], float]:
-    """Get the activation function"""
+    """Get the activation function from jax.nn. Also performs a bunch of checks
+    to make sure that it is a valid activation function.
+
+    Args:
+        name (str): name of the activation function in jax.nn.
+
+    Returns:
+        activation_fn (Callable): Activation function, that takes in a float
+            and returns a float.
+    """
     if not hasattr(jax.nn, name):
         raise AttributeError(
-            f"jax.nn has no attribute {name}. Is not a valid activation function. See https://docs.jax.dev/en/latest/jax.nn.html for options."
+            f"jax.nn has no attribute {name}, see https://docs.jax.dev/en/latest/jax.nn.html for options."
         )
 
     activation_fn = getattr(jax.nn, name)
@@ -27,7 +36,7 @@ def get_activation_fn(name: str) -> Callable[[float], float]:
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
             ]
         )
-        and (p.default == inspect._empty)
+        and (p.default == inspect.Parameter.empty)
     ]
     if len(required_positional) != 1:
         raise TypeError(
