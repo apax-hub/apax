@@ -1,10 +1,11 @@
+
+import numpy as np
 import yaml
-import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-import numpy as np
-from pathlib import Path
+
 from apax.train.run import run
+
 
 def create_dummy_data(tmp_path):
     atoms_list = []

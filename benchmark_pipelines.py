@@ -1,4 +1,3 @@
-import importlib.metadata
 import os
 import warnings
 
@@ -12,12 +11,15 @@ warnings.filterwarnings("ignore", message=".*os.fork()*")
 
 
 import time
+
 import numpy as np
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from apax.data.input_pipeline import CachedInMemoryDataset, prefetch_to_single_device
+
 from apax.data.grain_pipeline import ApaxGrainDataLoader
+from apax.data.input_pipeline import CachedInMemoryDataset, prefetch_to_single_device
 from apax.utils.convert import atoms_to_inputs, atoms_to_labels
+
 
 def create_dummy_data(num_samples=1000, num_atoms=10):
     atoms_list = []

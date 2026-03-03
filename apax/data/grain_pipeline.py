@@ -8,6 +8,7 @@ from jax.sharding import PartitionSpec as P
 from apax.data.preprocessing import compute_nl, prefetch_to_single_device
 from apax.utils.convert import atoms_to_inputs, atoms_to_labels, unit_dict
 
+
 class SoADataSource(grain.RandomAccessDataSource):
     """
     A Grain DataSource that operates on a Structure of Arrays (SoA).

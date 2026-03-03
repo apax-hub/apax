@@ -1,8 +1,13 @@
 import numpy as np
-import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from apax.data.grain_pipeline import SoADataSource, NeighborListTransform, ApaxGrainDataLoader
+
+from apax.data.grain_pipeline import (
+    ApaxGrainDataLoader,
+    NeighborListTransform,
+    SoADataSource,
+)
+
 
 def create_dummy_atoms(num_samples=12, num_atoms=3):
     atoms_list = []
