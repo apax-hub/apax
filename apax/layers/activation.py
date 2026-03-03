@@ -4,6 +4,11 @@ from typing import Callable
 import jax
 
 
+def variance_preserving_swish(x) -> float:
+    out = 1.6765324703310907 * jax.nn.swish(x)
+    return out
+
+
 def get_activation_fn(name: str) -> Callable[[float], float]:
     """Get the activation function from jax.nn. Also performs a bunch of checks
     to make sure that it is a valid activation function.
@@ -15,6 +20,11 @@ def get_activation_fn(name: str) -> Callable[[float], float]:
         activation_fn (Callable): Activation function, that takes in a float
             and returns a float.
     """
+
+    if name == "variance_preserving_swish":
+        # Keep backwards compatibility
+        return variance_preserving_swish
+
     if not hasattr(jax.nn, name):
         raise AttributeError(
             f"jax.nn has no attribute {name}, see https://docs.jax.dev/en/latest/jax.nn.html for options."
@@ -36,7 +46,7 @@ def get_activation_fn(name: str) -> Callable[[float], float]:
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
             ]
         )
-        and (p.default == inspect.Parameter.empty)
+        and (p.default is inspect.Parameter.empty)
     ]
     if len(required_positional) != 1:
         raise TypeError(

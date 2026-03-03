@@ -153,9 +153,11 @@ class BaseModelConfig(BaseModel, extra="forbid"):
         Initialization scheme for the neural network weights.
     b_init : Literal["normal", "zeros"], default = "zeros"
         Initialization scheme for the neural network biases.
-    activation_fn: str, default = "swish"
+    activation_fn: str, default = "variance_preserving_swish"
         Activation function to use. Options are those shown at
-        https://docs.jax.dev/en/latest/jax.nn.html
+        https://docs.jax.dev/en/latest/jax.nn.html and `variance_preserving_swish`,
+        which is a variant of swish that preserves the second moment of the
+        input.
     use_ntk : bool, default = False
         Whether or not to use NTK parametrization.
     ensemble : Optional[EnsembleConfig], default = None
@@ -177,7 +179,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     nn: List[PositiveInt] = [256, 256]
     w_init: Literal["normal", "lecun"] = "lecun"
     b_init: Literal["normal", "zeros"] = "zeros"
-    activation_fn: str = "swish"
+    activation_fn: str = "variance_preserving_swish"
     use_ntk: bool = False
 
     ensemble: Optional[EnsembleConfig] = None
