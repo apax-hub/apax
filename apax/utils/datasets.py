@@ -1,9 +1,11 @@
 import os
-import urllib
+import urllib.request
 import zipfile
+from pathlib import Path
+from typing import Tuple
 
 
-def download_md22_stachyose(data_path):
+def download_md22_stachyose(data_path: Path) -> Path:
     url = "http://www.quantum-machine.org/gdml/repo/static/md22_stachyose.zip"
     file_path = data_path / "md22_stachyose.zip"
 
@@ -20,7 +22,7 @@ def download_md22_stachyose(data_path):
     return file_path
 
 
-def download_benzene_DFT(data_path):
+def download_benzene_DFT(data_path: Path) -> Path:
     url = "http://www.quantum-machine.org/gdml/data/xyz/benzene2018_dft.zip"
     file_path = data_path / "benzene2018_dft.zip"
 
@@ -36,7 +38,7 @@ def download_benzene_DFT(data_path):
     return new_file_path
 
 
-def download_etoh_ccsdt(data_path):
+def download_etoh_ccsdt(data_path: Path) -> Tuple[Path, Path]:
     url = "http://www.quantum-machine.org/gdml/data/xyz/ethanol_ccsd_t.zip"
     file_path = data_path / "ethanol_ccsd_t.zip"
 
@@ -53,7 +55,7 @@ def download_etoh_ccsdt(data_path):
     return train_file_path, test_file_path
 
 
-def download_md22_benzene_CCSDT(data_path):
+def download_md22_benzene_CCSDT(data_path: Path) -> Tuple[Path, Path]:
     url = "http://www.quantum-machine.org/gdml/data/xyz/benzene_ccsd_t.zip"
     file_path = data_path / "benzene_ccsdt.zip"
 
@@ -70,7 +72,7 @@ def download_md22_benzene_CCSDT(data_path):
     return train_file_path, test_file_path
 
 
-def modify_xyz_file(file_path, target_string, replacement_string):
+def modify_xyz_file(file_path: Path, target_string: str, replacement_string: str) -> Path:
     new_file_path = file_path.with_name(file_path.stem + "_mod" + file_path.suffix)
 
     with open(file_path, "r") as input_file, open(new_file_path, "w") as output_file:
@@ -81,7 +83,7 @@ def modify_xyz_file(file_path, target_string, replacement_string):
     return new_file_path
 
 
-def mod_md_datasets(file_path):
+def mod_md_datasets(file_path: Path) -> Path:
     new_file_path = file_path.with_name(file_path.stem + "_mod" + file_path.suffix)
     with open(file_path, "r") as input_file, open(new_file_path, "w") as output_file:
         for line in input_file:

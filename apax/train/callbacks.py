@@ -3,6 +3,7 @@ import csv
 import logging
 import typing as t
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import tensorflow as tf
@@ -28,50 +29,50 @@ log = logging.getLogger(__name__)
 
 
 class CallbackCollection:
-    def __init__(self, callbacks: list) -> None:
+    def __init__(self, callbacks: List[Callback]) -> None:
         self.callbacks = callbacks
 
-    def on_train_begin(self, logs=None):
+    def on_train_begin(self, logs: Optional[Dict] = None) -> None:
         for cb in self.callbacks:
             cb.on_train_begin(logs)
 
-    def on_epoch_begin(self, epoch, logs=None):
+    def on_epoch_begin(self, epoch: int, logs: Optional[Dict] = None) -> None:
         for cb in self.callbacks:
-            cb.on_epoch_begin(epoch)
+            cb.on_epoch_begin(epoch, logs)
 
-    def on_train_batch_begin(self, batch, logs=None):
+    def on_train_batch_begin(self, batch: int, logs: Optional[Dict] = None) -> None:
         for cb in self.callbacks:
-            cb.on_train_batch_begin(batch)
+            cb.on_train_batch_begin(batch, logs)
 
-    def on_train_batch_end(self, batch, logs=None):
+    def on_train_batch_end(self, batch: int, logs: Optional[Dict] = None) -> None:
         for cb in self.callbacks:
-            cb.on_train_batch_end(batch)
+            cb.on_train_batch_end(batch, logs)
 
-    def on_epoch_end(self, epoch, logs):
+    def on_epoch_end(self, epoch: int, logs: Dict) -> None:
         for cb in self.callbacks:
             cb.on_epoch_end(epoch, logs)
 
-    def on_train_end(self, logs=None):
+    def on_train_end(self, logs: Optional[Dict] = None) -> None:
         for cb in self.callbacks:
             cb.on_train_end(logs)
 
-    def on_test_batch_end(self, batch, logs=None):
+    def on_test_batch_end(self, batch: int, logs: Optional[Dict] = None) -> None:
         for cb in self.callbacks:
             cb.on_test_batch_end(batch, logs)
 
 
-def format_str(k):
+def format_str(k: Any) -> str:
     return f"{k:.5f}"
 
 
 class CSVLoggerApax(CSVLogger):
-    def __init__(self, filename, separator=",", append=False):
+    def __init__(self, filename: str, separator: str = ",", append: bool = False) -> None:
         super().__init__(filename, separator=separator, append=append)
 
-    def on_epoch_end(self, epoch, logs=None):
+    def on_epoch_end(self, epoch: int, logs: Optional[Dict] = None) -> None:
         logs = logs or {}
 
-        def handle_value(k):
+        def handle_value(k: Any) -> Any:
             is_zero_dim_ndarray = isinstance(k, np.ndarray) and k.ndim == 0
             if isinstance(k, str):
                 return k
@@ -110,10 +111,10 @@ class CSVLoggerApax(CSVLogger):
         self.writer.writerow(row_dict)
         self.csv_file.flush()
 
-    def on_test_batch_end(self, batch, logs=None):
+    def on_test_batch_end(self, batch: int, logs: Optional[Dict] = None) -> None:
         logs = logs or {}
 
-        def handle_value(k):
+        def handle_value(k: Any) -> Any:
             is_zero_dim_ndarray = isinstance(k, np.ndarray) and k.ndim == 0
             if isinstance(k, str):
                 return k
@@ -173,7 +174,7 @@ class KerasPruningCallback(Callback):
         self,
         study_name: str,
         trial_id: int,
-        study_log_file: str | Path,
+        study_log_file: t.Union[str, Path],
         monitor: str = "val_loss",
         interval: int = 1,
     ) -> None:
@@ -183,7 +184,7 @@ class KerasPruningCallback(Callback):
             raise ImportError(f"{self.__name__} requires optuna, but could not import it")
 
         storage = optuna.storages.JournalStorage(
-            optuna.storages.journal.JournalFileBackend(study_log_file)
+            optuna.storages.journal.JournalFileBackend(str(study_log_file))
         )
         study = optuna.load_study(
             study_name=study_name, storage=storage, sampler=None, pruner=None
@@ -199,7 +200,7 @@ class KerasPruningCallback(Callback):
         self._interval = interval
         self._trial = optuna.trial.Trial(study, trial_id)
 
-    def on_epoch_end(self, epoch: int, logs: dict[str, float] | None = None) -> None:
+    def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, float]] = None) -> None:
         if epoch % self._interval != 0:
             return
 
@@ -220,13 +221,13 @@ class KerasPruningCallback(Callback):
             raise optuna.TrialPruned(message)
 
 
-def initialize_callbacks(config: Config, model_version_path: Path):
+def initialize_callbacks(config: Config, model_version_path: Path) -> CallbackCollection:
     callback_configs = config.callbacks
     log.info("Initializing Callbacks")
 
     dummy_model = tf.keras.Model()
     dummy_model.compile(loss="mse", optimizer="adam")
-    callback_dict = {
+    callback_dict: Dict[str, Dict[str, Any]] = {
         "csv": {
             "class": CSVLoggerApax,
             "log_path": model_version_path / "log.csv",
@@ -250,7 +251,7 @@ def initialize_callbacks(config: Config, model_version_path: Path):
         },
     }
 
-    callbacks = []
+    callbacks: List[Callback] = []
     for callback_config in callback_configs:
         if callback_config.name == "mlflow":
             callback = MLFlowLogger(

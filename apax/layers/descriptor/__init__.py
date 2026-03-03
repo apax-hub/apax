@@ -1,3 +1,5 @@
+import flax.linen as nn
+
 from apax.layers.descriptor.equiv_mp import EquivMPRepresentation
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 
@@ -6,4 +8,11 @@ try:
 except ImportError:
     So3kratesRepresentation = None
 
-__all__ = ["GaussianMomentDescriptor", "EquivMPRepresentation", "So3kratesRepresentation"]
+Descriptor = nn.Module
+
+__all__ = [
+    "GaussianMomentDescriptor",
+    "EquivMPRepresentation",
+    "So3kratesRepresentation",
+    "Descriptor",
+]

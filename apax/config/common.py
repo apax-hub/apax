@@ -1,7 +1,7 @@
 import logging
 import os
 from collections.abc import MutableMapping
-from typing import Any, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
@@ -12,7 +12,9 @@ from apax.config.train_config import Config
 log = logging.getLogger(__name__)
 
 
-def parse_config(config: Union[str, os.PathLike, dict], mode: str = "train") -> Config:
+def parse_config(
+    config: Union[str, os.PathLike, Dict], mode: str = "train"
+) -> Union[Config, MDConfig, OptunaConfig]:
     """Load the training configuration from file or a dictionary.
 
     Parameters
@@ -38,11 +40,11 @@ def parse_config(config: Union[str, os.PathLike, dict], mode: str = "train") -> 
     return config
 
 
-def flatten(dictionary, parent_key="", separator="_"):
+def flatten(dictionary: Dict, parent_key: str = "", separator: str = "_") -> Dict:
     """https://stackoverflow.com/questions/6027558/
     flatten-nested-dictionaries-compressing-keys
     """
-    items = []
+    items: List[Tuple[str, Any]] = []
     for key, value in dictionary.items():
         new_key = parent_key + separator + key if parent_key else key
         if isinstance(value, MutableMapping):
@@ -53,47 +55,56 @@ def flatten(dictionary, parent_key="", separator="_"):
 
 
 def _unflatten_rec(
-    flat_dct: dict[str, Any],
-    nested_keys: dict[str, tuple[None | dict[str, ...]]],
+    flat_dct: Dict[str, Any],
+    nested_keys: Dict[str, Tuple[Union[None, Dict[str, Any]], ...]],
     parent_key: str = "",
     separator: str = "_",
-    dct: dict | None = None,
-    seen_params: list[str] | None = None,
-) -> tuple[dict[str, Any], list[str]]:
+    dct: Optional[Dict] = None,
+    seen_params: Optional[List[str]] = None,
+) -> Tuple[Dict[str, Any], List[str]]:
     if dct is None:
         dct = {}
     if seen_params is None:
         seen_params = []
     for param, value in flat_dct.items():
-        for key, nested_key in nested_keys.items():
-            if not param.startswith(key) and not param.startswith(
-                separator.join((parent_key, key))
-            ):
+        for key, nested_key_tuple in nested_keys.items():
+            # Check if param starts with the current key or its full path including parent_key
+            current_param_prefix = f"{parent_key}{separator}{key}" if parent_key else key
+            if not param.startswith(current_param_prefix):
                 continue
+
             if key not in dct:
                 dct[key] = {}
-            for val in nested_key:
-                if isinstance(val, MutableMapping):
+
+            # Iterate over the tuple, assuming there's only one nested_key dict if any
+            for nested_key in nested_key_tuple:
+                if isinstance(nested_key, MutableMapping):
                     dct[key], new_seen_params = _unflatten_rec(
-                        flat_dct, val, dct=dct[key], parent_key=key
+                        flat_dct,
+                        nested_key,
+                        dct=dct[key],
+                        parent_key=current_param_prefix,
+                        separator=separator,
+                        seen_params=seen_params,
                     )
-                    seen_params.extend(new_seen_params)
-                else:
+                    # Extend seen_params directly in the recursive call, no need to return from recursion explicitly
+                else:  # if nested_key is None or other non-mapping type
                     if param in seen_params:
                         continue
 
-                    new_param = param.lstrip(f"{parent_key}{separator}")
-                    new_param = new_param.lstrip(f"{key}{separator}")
-                    dct[key][new_param] = value
-                    seen_params.append(param)
+                    new_param = param.lstrip(f"{current_param_prefix}{separator}")
+                    # Ensure the new_param is not empty after stripping
+                    if new_param:
+                        dct[key][new_param] = value
+                        seen_params.append(param)
     return dct, seen_params
 
 
 def unflatten(
-    flat_dct: dict[str, Any],
-    nested_keys: dict[str, tuple[None | dict[str, ...]]],
+    flat_dct: Dict[str, Any],
+    nested_keys: Dict[str, Tuple[Union[None, Dict[str, Any]], ...]],
     separator: str = "_",
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     unflattened_dct, seen_params = _unflatten_rec(
         flat_dct, nested_keys, separator=separator
     )

@@ -1,3 +1,5 @@
+from typing import Callable, Dict
+
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
@@ -8,7 +10,7 @@ from apax.layers.readout import AtomisticReadout
 from apax.utils.math import fp64_sum
 
 
-def stress_times_vol(energy_fn, position: Array, box, **kwargs) -> Array:
+def stress_times_vol(energy_fn: Callable, position: Array, box: Array, **kwargs) -> Array:
     """Computes the internal stress of a system multiplied with the box volume.
     For training purposes.
 
@@ -35,7 +37,7 @@ def stress_times_vol(energy_fn, position: Array, box, **kwargs) -> Array:
     zero = 0.5 * (zero + zero.T)
     identity = jnp.eye(dim, dtype=position.dtype)
 
-    def U(eps):
+    def U(eps: Array) -> Array:
         return energy_fn(position, box=box, perturbation=(identity + eps), **kwargs)
 
     dUdV = jax.grad(U)
@@ -53,7 +55,7 @@ class PropertyHead(nn.Module):
     mode: str = "l0"
     apply_mask: bool = True
 
-    def setup(self):
+    def setup(self) -> None:
         n_species = 119
         scale_init = nn.initializers.constant(1.0)
         self.scale = self.param(
@@ -66,7 +68,15 @@ class PropertyHead(nn.Module):
             "shift_per_element", shift_init, (n_species, 1), jnp.float64
         )
 
-    def __call__(self, g, R, dr_vec, Z, idx, box):
+    def __call__(
+        self,
+        g: Array,
+        R: Array,
+        dr_vec: Array,
+        Z: Array,
+        idx: Array,
+        box: Array,
+    ) -> Dict[str, Array]:
         h = jax.vmap(self.readout)(g)
 
         is_ensemble = False

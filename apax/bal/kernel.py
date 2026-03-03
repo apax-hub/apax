@@ -8,7 +8,7 @@ class KernelMatrix:
     K_{ij} = \\sum_{k} g_{ik} g_{jk}
     """
 
-    def __init__(self, g: np.ndarray, n_train: int):
+    def __init__(self, g: np.ndarray, n_train: int) -> None:
         self.num_columns = g.shape[0]
         self.g = g
         self.diagonal = einops.einsum(g, g, "s feature, s feature -> s")

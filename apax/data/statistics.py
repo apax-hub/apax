@@ -1,5 +1,6 @@
 import dataclasses
 import logging
+from typing import Any, Dict, List
 
 import numpy as np
 
@@ -8,8 +9,8 @@ log = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class DatasetStats:
-    elemental_shift: np.array = None
-    elemental_scale: float = None
+    elemental_shift: np.ndarray
+    elemental_scale: np.ndarray
     n_species: int = 119
 
 
@@ -19,7 +20,9 @@ class PerElementRegressionShift:
     dtypes = [float]
 
     @staticmethod
-    def compute(inputs, labels, shift_options) -> np.ndarray:
+    def compute(
+        inputs: Dict[str, Any], labels: Dict[str, Any], shift_options: Dict[str, Any]
+    ) -> np.ndarray:
         log.info("Computing per element energy regression.")
 
         lambd = shift_options["energy_regularisation"]
@@ -62,7 +65,9 @@ class IsolatedAtomEnergyShift:
     dtypes = [dict[int, float]]
 
     @staticmethod
-    def compute(inputs, labels, shift_options):
+    def compute(
+        inputs: Dict[str, Any], labels: Dict[str, Any], shift_options: Dict[str, Any]
+    ) -> np.ndarray:
         shift_options = shift_options["E0s"]
         n_species = 119
         elemental_energies_shift = np.zeros(n_species)
@@ -78,7 +83,9 @@ class MeanEnergyShift:
     dtypes = []
 
     @staticmethod
-    def compute(inputs, labels, shift_options):
+    def compute(
+        inputs: Dict[str, Any], labels: Dict[str, Any], shift_options: Dict[str, Any]
+    ) -> float:
         energies = labels["energy"]
         system_sizes = inputs["n_atoms"]
 
@@ -98,7 +105,9 @@ class MeanEnergyRMSScale:
     dtypes = []
 
     @staticmethod
-    def compute(inputs, labels, scale_options):
+    def compute(
+        inputs: Dict[str, Any], labels: Dict[str, Any], scale_options: Dict[str, Any]
+    ) -> float:
         # log.info("Computing per element energy regression.")
         energies = labels["energy"]
         numbers = inputs["numbers"]
@@ -128,7 +137,9 @@ class PerElementForceRMSScale:
     dtypes = []
 
     @staticmethod
-    def compute(inputs, labels, scale_options):
+    def compute(
+        inputs: Dict[str, Any], labels: Dict[str, Any], scale_options: Dict[str, Any]
+    ) -> np.ndarray:
         n_species = 119
 
         forces = np.concatenate(labels["forces"], axis=0)
@@ -152,7 +163,9 @@ class GlobalCustomScale:
     dtypes = [float]
 
     @staticmethod
-    def compute(inputs, labels, scale_options):
+    def compute(
+        inputs: Dict[str, Any], labels: Dict[str, Any], scale_options: Dict[str, Any]
+    ) -> float:
         element_scale = scale_options["factor"]
         return element_scale
 
@@ -163,7 +176,9 @@ class PerElementCustomScale:
     dtypes = [dict[int, float]]
 
     @staticmethod
-    def compute(inputs, labels, scale_options):
+    def compute(
+        inputs: Dict[str, Any], labels: Dict[str, Any], scale_options: Dict[str, Any]
+    ) -> np.ndarray:
         n_species = 119
         element_scale = np.ones(n_species)
         for k, v in scale_options["factors"].items():
@@ -172,8 +187,12 @@ class PerElementCustomScale:
         return element_scale
 
 
-shift_method_list = [PerElementRegressionShift, IsolatedAtomEnergyShift, MeanEnergyShift]
-scale_method_list = [
+shift_method_list: List[Any] = [
+    PerElementRegressionShift,
+    IsolatedAtomEnergyShift,
+    MeanEnergyShift,
+]
+scale_method_list: List[Any] = [
     MeanEnergyRMSScale,
     PerElementForceRMSScale,
     GlobalCustomScale,
@@ -182,20 +201,25 @@ scale_method_list = [
 
 
 def compute_scale_shift_parameters(
-    inputs, labels, shift_method, scale_method, shift_options, scale_options
-):
+    inputs: Dict[str, Any],
+    labels: Dict[str, Any],
+    shift_method: str,
+    scale_method: str,
+    shift_options: Dict[str, Any],
+    scale_options: Dict[str, Any],
+) -> DatasetStats:
     shift_methods = {method.name: method for method in shift_method_list}
     scale_methods = {method.name: method for method in scale_method_list}
 
     if shift_method not in shift_methods.keys():
         raise KeyError(
             f"The shift method '{shift_method}' is not among the implemented methods."
-            f" Choose from {shift_method.keys()}"
+            f" Choose from {shift_methods.keys()}"
         )
     if scale_method not in scale_methods.keys():
         raise KeyError(
             f"The scale method '{scale_method}' is not among the implemented methods."
-            f" Choose from {scale_method.keys()}"
+            f" Choose from {scale_methods.keys()}"
         )
 
     shift_method = shift_methods[shift_method]

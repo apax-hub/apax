@@ -1,13 +1,15 @@
 import logging
 import time
 from functools import partial
-from typing import Any, Callable, Optional, Union
+from pathlib import Path
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import orbax.checkpoint as ocp
 from clu import metrics
+from flax.core.frozen_dict import FrozenDict
 from flax.training.train_state import TrainState
 from jax import tree_util
 from jax.experimental import mesh_utils
@@ -16,7 +18,9 @@ from jax.sharding import PartitionSpec as P
 from tqdm import trange
 
 from apax.data.input_pipeline import InMemoryDataset
+from apax.train.callbacks import CallbackCollection
 from apax.train.checkpoints import load_state
+from apax.train.loss import LossCollection
 from apax.train.parameters import EMAParameters
 
 log = logging.getLogger(__name__)
@@ -29,21 +33,21 @@ class EarlyStop(Exception):
 def fit(
     state: TrainState,
     train_ds: InMemoryDataset,
-    loss_fn,
+    loss_fn: LossCollection,
     Metrics: metrics.Collection,
-    callbacks: list,
+    callbacks: CallbackCollection,
     n_epochs: int,
-    ckpt_dir,
+    ckpt_dir: Path,
     ckpt_interval: int = 1,
     val_ds: Optional[InMemoryDataset] = None,
     patience: Optional[int] = None,
     patience_min_delta: float = 0.0,
     disable_pbar: bool = False,
     disable_batch_pbar: bool = True,
-    is_ensemble=False,
-    data_parallel=True,
+    is_ensemble: bool = False,
+    data_parallel: bool = True,
     ema_handler: Optional[EMAParameters] = None,
-):
+) -> None:
     """
     Trains the model using the provided training dataset.
 
@@ -116,7 +120,7 @@ def fit(
 
     best_loss = np.inf
     early_stopping_counter = 0
-    epoch_loss = {}
+    epoch_loss: Dict[str, float] = {}
     epoch_pbar = trange(
         start_epoch, n_epochs, desc="Epochs", ncols=100, disable=disable_pbar, leave=True
     )
@@ -168,7 +172,7 @@ def fit(
                 epoch_loss["train_loss"] /= train_steps_per_epoch
                 epoch_loss["train_loss"] = float(epoch_loss["train_loss"])
 
-                epoch_metrics = {
+                epoch_metrics: Dict[str, Any] = {
                     f"train_{key}": float(val)
                     for key, val in train_batch_metrics.compute().items()
                 }
@@ -250,7 +254,13 @@ def fit(
         val_ds.cleanup()
 
 
-def calc_loss(params, inputs, labels, loss_fn, model):
+def calc_loss(
+    params: FrozenDict,
+    inputs: Dict[str, jnp.ndarray],
+    labels: Dict[str, jnp.ndarray],
+    loss_fn: LossCollection,
+    model: Callable,
+) -> Tuple[float, Dict[str, jnp.ndarray]]:
     R, Z, idx, box, offsets = (
         inputs["positions"],
         inputs["numbers"],
@@ -267,7 +277,11 @@ def make_ensemble_update(update_fn: Callable) -> Callable:
     # vmap over train state
     v_update_fn = jax.vmap(update_fn, (0, None, None), (0, 0, 0))
 
-    def ensemble_update_fn(state, inputs, labels):
+    def ensemble_update_fn(
+        state: TrainState,
+        inputs: Dict[str, jnp.ndarray],
+        labels: Dict[str, jnp.ndarray],
+    ) -> Tuple[float, Dict[str, jnp.ndarray], TrainState]:
         loss, predictions, state = v_update_fn(state, inputs, labels)
 
         mean_predictions = tree_util.tree_map(lambda x: jnp.mean(x, axis=0), predictions)
@@ -282,7 +296,11 @@ def make_ensemble_eval(update_fn: Callable) -> Callable:
     # vmap over train state
     v_update_fn = jax.vmap(update_fn, (0, None, None), (0, 0))
 
-    def ensemble_eval_fn(state, inputs, labels):
+    def ensemble_eval_fn(
+        state: TrainState,
+        inputs: Dict[str, jnp.ndarray],
+        labels: Dict[str, jnp.ndarray],
+    ) -> Tuple[float, Dict[str, jnp.ndarray]]:
         loss, predictions = v_update_fn(state, inputs, labels)
 
         mean_predictions = tree_util.tree_map(lambda x: jnp.mean(x, axis=0), predictions)
@@ -293,9 +311,9 @@ def make_ensemble_eval(update_fn: Callable) -> Callable:
 
 
 def make_step_fns(
-    loss_fn: Callable,
+    loss_fn: LossCollection,
     Metrics: metrics.Collection,
-    model: Any,
+    model: Callable,
     is_ensemble: bool,
     return_predictions: bool = False,
 ) -> tuple[Callable, Callable]:
@@ -331,7 +349,11 @@ def make_step_fns(
     loss_calculator = partial(calc_loss, loss_fn=loss_fn, model=model)
     grad_fn = jax.value_and_grad(loss_calculator, 0, has_aux=True)
 
-    def update_step(state, inputs, labels):
+    def update_step(
+        state: TrainState,
+        inputs: Dict[str, jnp.ndarray],
+        labels: Dict[str, jnp.ndarray],
+    ) -> Tuple[float, Dict[str, jnp.ndarray], TrainState]:
         (loss, predictions), grads = grad_fn(state.params, inputs, labels)
         state = state.apply_gradients(grads=grads)
         return loss, predictions, state
@@ -344,7 +366,10 @@ def make_step_fns(
         eval_fn = loss_calculator
 
     @jax.jit
-    def train_step(carry, batch) -> tuple[tuple[TrainState, metrics.Collection], float]:
+    def train_step(
+        carry: tuple[TrainState, metrics.Collection],
+        batch: tuple[Dict[str, jnp.ndarray], Dict[str, jnp.ndarray]],
+    ) -> tuple[tuple[TrainState, metrics.Collection], float]:
         state, batch_metrics = carry
         inputs, labels = batch
         loss, predictions, state = update_fn(state, inputs, labels)
@@ -359,7 +384,9 @@ def make_step_fns(
 
     @jax.jit
     def val_step(
-        params, batch, batch_metrics
+        params: FrozenDict,
+        batch: Tuple[Dict[str, jnp.ndarray], Dict[str, jnp.ndarray]],
+        batch_metrics: metrics.Collection,
     ) -> Union[tuple[float, metrics.Collection], tuple[float, metrics.Collection, Any]]:
         inputs, labels = batch
         loss, predictions = eval_fn(params, inputs, labels)

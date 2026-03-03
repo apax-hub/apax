@@ -1,6 +1,6 @@
 import logging
 from dataclasses import field
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import flax.linen as nn
 import jax
@@ -31,11 +31,11 @@ class FeatureModel(nn.Module):
     representation: nn.Module = GaussianMomentDescriptor()
     readout: nn.Module = AtomisticReadout()
     should_average: bool = False
-    init_box: np.array = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
-    inference_disp_fn: Any = None
+    init_box: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
+    inference_disp_fn: Optional[Callable] = None
     mask_atoms: bool = True
 
-    def setup(self):
+    def setup(self) -> None:
         self.compute_distances = make_distance_fn(self.init_box, self.inference_disp_fn)
 
     def __call__(
@@ -43,10 +43,10 @@ class FeatureModel(nn.Module):
         R: Array,
         Z: Array,
         neighbor: Union[partition.NeighborList, Array],
-        box,
-        offsets,
-        perturbation=None,
-    ):
+        box: Array,
+        offsets: Array,
+        perturbation: Optional[Array] = None,
+    ) -> Array:
         dr_vec, idx = self.compute_distances(
             R,
             neighbor,
@@ -75,13 +75,13 @@ class EnergyModel(nn.Module):
     representation: nn.Module = GaussianMomentDescriptor()
     readout: nn.Module = AtomisticReadout()
     scale_shift: nn.Module = PerElementScaleShift()
-    property_heads: list[nn.Module] = field(default_factory=lambda: [])
-    corrections: list[EmpiricalEnergyTerm] = field(default_factory=lambda: [])
-    init_box: np.array = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
+    property_heads: List[nn.Module] = field(default_factory=list)
+    corrections: List[EmpiricalEnergyTerm] = field(default_factory=list)
+    init_box: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
     mask_atoms: bool = True
-    inference_disp_fn: Any = None
+    inference_disp_fn: Optional[Callable] = None
 
-    def setup(self):
+    def setup(self) -> None:
         self.compute_distances = make_distance_fn(self.init_box, self.inference_disp_fn)
 
     def __call__(
@@ -89,10 +89,10 @@ class EnergyModel(nn.Module):
         R: Array,
         Z: Array,
         neighbor: Union[partition.NeighborList, Array],
-        box,
-        offsets,
-        perturbation=None,
-    ):
+        box: Array,
+        offsets: Array,
+        perturbation: Optional[Array] = None,
+    ) -> Tuple[Array, Dict[str, Array]]:
         dr_vec, idx = self.compute_distances(
             R,
             neighbor,
@@ -148,9 +148,9 @@ class EnergyDerivativeModel(nn.Module):
         R: Array,
         Z: Array,
         neighbor: Union[partition.NeighborList, Array],
-        box,
-        offsets,
-    ):
+        box: Array,
+        offsets: Array,
+    ) -> Dict[str, Array]:
         ef_function = jax.value_and_grad(self.energy_model, has_aux=True)
         (energy, properties), neg_forces = ef_function(R, Z, neighbor, box, offsets)
         forces = -neg_forces
@@ -171,15 +171,15 @@ class EnergyDerivativeModel(nn.Module):
         return prediction
 
 
-def make_mean_energy_fn(energy_fn):
+def make_mean_energy_fn(energy_fn: Callable) -> Callable:
     def mean_energy_fn(
         R: Array,
         Z: Array,
         neighbor: Union[partition.NeighborList, Array],
-        box,
-        offsets,
-        perturbation=None,
-    ):
+        box: Array,
+        offsets: Array,
+        perturbation: Optional[Array] = None,
+    ) -> Array:
         e_ens, _ = energy_fn(R, Z, neighbor, box, offsets, perturbation)
         E_mean = jnp.mean(e_ens)
         return E_mean
@@ -187,8 +187,14 @@ def make_mean_energy_fn(energy_fn):
     return mean_energy_fn
 
 
-def make_member_chunk_jac(energy_model, start, end):
-    def energy_chunk_fn(R, Z, neighbor, box, offsets):
+def make_member_chunk_jac(energy_model: Callable, start: int, end: int) -> Callable:
+    def energy_chunk_fn(
+        R: Array,
+        Z: Array,
+        neighbor: Union[partition.NeighborList, Array],
+        box: Array,
+        offsets: Array,
+    ) -> Array:
         Ei = energy_model(R, Z, neighbor, box, offsets)[start:end]
         return Ei
 
@@ -211,9 +217,9 @@ class ShallowEnsembleModel(nn.Module):
         R: Array,
         Z: Array,
         neighbor: Union[partition.NeighborList, Array],
-        box,
-        offsets,
-    ):
+        box: Array,
+        offsets: Array,
+    ) -> Dict[str, Array]:
         energy_ens, properties = self.energy_model(R, Z, neighbor, box, offsets)
         # The two functions below drop the calculation of properties
         mean_energy_fn = make_mean_energy_fn(self.energy_model)
@@ -240,17 +246,17 @@ class ShallowEnsembleModel(nn.Module):
                         m = "the chunksize needs to be a factor of the number of ensemble members"
                         raise ValueError(m)
 
-                forces_ens = []
+                forces_ens_list = []
                 start = 0
                 for _ in range(n_ens // self.chunk_size):
                     end = start + self.chunk_size
                     jac_i_fn = make_member_chunk_jac(energy_fn, start, end)
                     force_i = -jac_i_fn(R, Z, neighbor, box, offsets)
-                    forces_ens.append(force_i)
+                    forces_ens_list.append(force_i)
                     start = end
 
                 n_atoms = R.shape[0]
-                forces_ens = jnp.array(forces_ens)
+                forces_ens = jnp.array(forces_ens_list)
                 forces_ens = np.reshape(forces_ens, (n_ens, n_atoms, 3))
 
             forces_mean = jnp.mean(forces_ens, axis=0)

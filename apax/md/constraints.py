@@ -1,6 +1,7 @@
-from typing import Callable, Literal, Union
+from typing import Callable, List, Literal, Tuple, Union
 
 import jax.numpy as jnp
+from jax import Array
 from pydantic import BaseModel, TypeAdapter
 
 from apax.md.sim_utils import System
@@ -15,20 +16,20 @@ class ConstraintBase(BaseModel):
     the constraint during simulations.
     """
 
-    def create(self, system) -> Callable:
+    def create(self, system: System) -> Callable:
         pass
 
 
 class FixAtoms(ConstraintBase, extra="forbid"):
     name: Literal["fixatoms"] = "fixatoms"
-    indices: list[int]
+    indices: List[int]
 
-    def create(self, system: System) -> Callable:
+    def create(self, system: System) -> Tuple[Callable, Array]:
         indices = jnp.array(self.indices, dtype=jnp.int64)
 
         ref_position = system.positions[indices]
 
-        def fn(state):
+        def fn(state: System) -> System:
             position = state.position
             position = position.at[indices].set(ref_position)
 
@@ -48,9 +49,9 @@ class FixAtoms(ConstraintBase, extra="forbid"):
 
 class FixCenterOfMass(ConstraintBase, extra="forbid"):
     name: Literal["fixcenterofmass"] = "fixcenterofmass"
-    position: Union[Literal["initial", "origin"], list[float]] = "initial"
+    position: Union[Literal["initial", "origin"], List[float]] = "initial"
 
-    def create(self, system: System) -> Callable:
+    def create(self, system: System) -> Tuple[Callable, List[int]]:
         if isinstance(self.position, str):
             if self.position.lower() == "initial":
                 ref_com = center_of_mass(system.positions, system.masses)
@@ -59,7 +60,7 @@ class FixCenterOfMass(ConstraintBase, extra="forbid"):
         else:
             ref_com = jnp.array(self.position)
 
-        def fn(state):
+        def fn(state: System) -> System:
             masses = state.mass[:, 0]
 
             position = state.position
@@ -100,9 +101,11 @@ class FixLayer(ConstraintBase, extra="forbid"):
     upper_limit: float
     lower_limit: float
 
-    def create(self, system) -> Callable:
+    def create(self, system: System) -> Callable:
         if jnp.any(system.box > 10e-4):
             cart_pos = system.positions @ system.box
+        else:
+            cart_pos = system.positions
 
         z_coordinates = cart_pos[:, 2]
 
@@ -112,7 +115,7 @@ class FixLayer(ConstraintBase, extra="forbid"):
 
         ref_position = system.positions[indices]
 
-        def fn(state):
+        def fn(state: System) -> System:
             position = state.position
             position = position.at[indices].set(ref_position)
 

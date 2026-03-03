@@ -1,15 +1,19 @@
 import logging
 from pathlib import Path
+from typing import List, Optional, Tuple, Union
 
 import jax.numpy as jnp
 import numpy as np
 import znh5md
+from ase import Atoms
 from ase.io import read
 
 log = logging.getLogger(__name__)
 
 
-def make_minimal_input():
+def make_minimal_input() -> Tuple[
+    jnp.ndarray, jnp.ndarray, jnp.ndarray, np.ndarray, np.ndarray
+]:
     R, Z, idx = (
         jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=jnp.float32),
         jnp.array([6, 8]),
@@ -20,7 +24,7 @@ def make_minimal_input():
     return R, Z, idx, box, offsets
 
 
-def load_data(data_path):
+def load_data(data_path: Union[str, Path]) -> List[Atoms]:
     """
 
     Parameters
@@ -49,7 +53,9 @@ def load_data(data_path):
     return atoms_list
 
 
-def split_idxs(atoms_list, n_train, n_valid):
+def split_idxs(
+    atoms_list: List[Atoms], n_train: int, n_valid: int
+) -> Tuple[np.ndarray, np.ndarray]:
     idxs = np.arange(len(atoms_list))
     np.random.shuffle(idxs)
     train_idxs = idxs[:n_train]
@@ -58,7 +64,9 @@ def split_idxs(atoms_list, n_train, n_valid):
     return train_idxs, val_idxs
 
 
-def split_atoms(atoms_list, train_idxs, val_idxs=None):
+def split_atoms(
+    atoms_list: List[Atoms], train_idxs: np.ndarray, val_idxs: Optional[np.ndarray] = None
+) -> Tuple[List[Atoms], List[Atoms]]:
     """
     Split the list of atoms into training and validation sets (validation is optional).
 
@@ -66,9 +74,9 @@ def split_atoms(atoms_list, train_idxs, val_idxs=None):
     ----------
     atoms_list : list[ase.Atoms]
         List of atoms.
-    train_idxs : list[int]
+    train_idxs : np.ndarray
         List of indices for the training set.
-    val_idxs : list[int], optional
+    val_idxs : np.ndarray, optional
         List of indices for the validation set.
 
     Returns

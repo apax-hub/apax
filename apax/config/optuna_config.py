@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Type
+from typing import TYPE_CHECKING, Any, Dict, Optional, Type, Union
 
 from pydantic import BaseModel, PositiveInt
 
@@ -79,7 +79,7 @@ class OptunaPrunerConfig(BaseModel, extra="forbid"):
 
     name: str
     interval: PositiveInt = 1
-    kwargs: dict[str, Any] = {}
+    kwargs: Dict[str, Any] = {}
 
 
 class OptunaSamplerConfig(BaseModel, extra="forbid"):
@@ -91,7 +91,7 @@ class OptunaSamplerConfig(BaseModel, extra="forbid"):
     """
 
     name: str = "AutoSampler"
-    kwargs: dict[str, Any] = {}
+    kwargs: Dict[str, Any] = {}
 
 
 class OptunaConfig(BaseModel, extra="forbid"):
@@ -128,11 +128,11 @@ class OptunaConfig(BaseModel, extra="forbid"):
     """
 
     n_trials: PositiveInt
-    search_space: dict[str, dict[str, Any]]
+    search_space: Dict[str, Dict[str, Any]]
     seed: int = 1
     monitor: str = "val_loss"
     study_name: str = "study"
-    study_log_file: str | Path = "study.log"
+    study_log_file: Union[str, Path] = "study.log"
     sampler_config: OptunaSamplerConfig = OptunaSamplerConfig()
     pruner_config: Optional[OptunaPrunerConfig] = None
 

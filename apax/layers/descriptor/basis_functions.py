@@ -1,9 +1,10 @@
-from typing import Any
+from typing import Any, Optional
 
 import einops
 import flax.linen as nn
 import jax.numpy as jnp
 import numpy as np
+from jax import Array
 
 from apax.layers.initializers import uniform_range
 from apax.utils.convert import str_to_dtype
@@ -15,7 +16,7 @@ class GaussianBasis(nn.Module):
     r_max: float = 6.0
     dtype: Any = jnp.float32
 
-    def setup(self):
+    def setup(self) -> None:
         dtype = str_to_dtype(self.dtype)
 
         self.betta = self.n_basis**2 / self.r_max**2
@@ -28,7 +29,7 @@ class GaussianBasis(nn.Module):
         shifts = einops.repeat(shifts, "n_basis -> 1 n_basis")
         self.shifts = jnp.asarray(shifts, dtype=dtype)
 
-    def __call__(self, dr):
+    def __call__(self, dr: Array) -> Array:
         dr = einops.repeat(dr, "neighbors -> neighbors 1")
         # 1 x n_basis, neighbors x 1 -> neighbors x n_basis
         distances = self.shifts - dr
@@ -49,11 +50,11 @@ class BesselBasis(nn.Module):
     r_max: float = 6.0
     dtype: Any = jnp.float32
 
-    def setup(self):
+    def setup(self) -> None:
         dtype = str_to_dtype(self.dtype)
         self.n = jnp.arange(self.n_basis, dtype=dtype)
 
-    def __call__(self, dr):
+    def __call__(self, dr: Array) -> Array:
         dr = einops.repeat(dr, "neighbors -> neighbors 1")
         a = (-1) ** self.n * (jnp.sqrt(2) * np.pi / (self.r_max ** (3 / 2)))
         b = (self.n + 1) * (self.n + 2) / jnp.sqrt((self.n + 1) ** 2 * (self.n + 2) ** 2)
@@ -67,12 +68,12 @@ class RadialFunction(nn.Module):
     n_radial: int = 5
     basis_fn: nn.Module = GaussianBasis()
     n_species: int = 119
-    emb_init: str = "uniform"
+    emb_init: Optional[str] = "uniform"
     use_embed_norm: bool = True
     one_sided_dist: bool = False
     dtype: Any = jnp.float32
 
-    def setup(self):
+    def setup(self) -> None:
         dtype = str_to_dtype(self.dtype)
         self.r_max = self.basis_fn.r_max
         self.embed_norm = jnp.array(1.0 / np.sqrt(self.basis_fn.n_basis), dtype=dtype)
@@ -104,7 +105,7 @@ class RadialFunction(nn.Module):
         else:
             self._n_radial = self.basis_fn.n_basis
 
-    def __call__(self, dr, Z_i, Z_j):
+    def __call__(self, dr: Array, Z_i: Array, Z_j: Array) -> Array:
         dtype = str_to_dtype(self.dtype)
         dr = dr.astype(dtype)
         # basis shape: neighbors x n_basis

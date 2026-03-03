@@ -1,8 +1,13 @@
+from typing import List, Optional
+
 import einops
 import jax
+from jax import Array
 
 
-def geometric_moments(radial_function, dn, idx_i, n_atoms=None):
+def geometric_moments(
+    radial_function: Array, dn: Array, idx_i: Array, n_atoms: Optional[int] = None
+) -> List[Array]:
     # dn shape: neighbors x 3
     # radial_function shape: n_neighbors x n_radial
 
