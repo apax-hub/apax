@@ -34,6 +34,7 @@ def create_dummy_data(num_samples=1000, num_atoms=10):
         atoms_list.append(atoms)
     return atoms_list
 
+
 def benchmark_legacy(atoms_list, batch_size, cutoff, num_epochs=10):
     start_init = time.time()
     ds = CachedInMemoryDataset(
@@ -55,6 +56,7 @@ def benchmark_legacy(atoms_list, batch_size, cutoff, num_epochs=10):
     ds.cleanup()
 
     return init_time, run_time, num_batches
+
 
 def benchmark_grain(atoms_list, batch_size, cutoff, num_epochs=10):
     start_init = time.time()
@@ -85,11 +87,11 @@ def benchmark_grain(atoms_list, batch_size, cutoff, num_epochs=10):
         padded_data,
         batch_size=batch_size,
         cutoff=cutoff,
-        max_nbrs=4000, # typical default
+        max_nbrs=4000,  # typical default
         num_epochs=num_epochs,
         shuffle=True,
-        num_workers=4, # Enable workers for better performance
-        worker_buffer_size=4, # Increase buffer
+        num_workers=4,  # Enable workers for better performance
+        worker_buffer_size=4,  # Increase buffer
     )
     # Wrap in prefetch_to_single_device
     prefetched_loader = prefetch_to_single_device(iter(loader), 2)
@@ -106,6 +108,7 @@ def benchmark_grain(atoms_list, batch_size, cutoff, num_epochs=10):
 
     return init_time, run_time, num_batches
 
+
 if __name__ == "__main__":
     num_samples = 500
     batch_size = 2
@@ -116,7 +119,9 @@ if __name__ == "__main__":
     atoms_list = create_dummy_data(num_samples=num_samples, num_atoms=num_atoms)
 
     print("\nBenchmarking Legacy (TensorFlow-based) Pipeline...")
-    legacy_init, legacy_run, legacy_batches = benchmark_legacy(atoms_list, batch_size, cutoff)
+    legacy_init, legacy_run, legacy_batches = benchmark_legacy(
+        atoms_list, batch_size, cutoff
+    )
     print(f"Initialization: {legacy_init:.4f}s")
     print(f"Execution (10 epoch): {legacy_run:.4f}s")
     print(f"Throughput: {num_samples * 10 / legacy_run:.2f} samples/s")

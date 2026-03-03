@@ -22,6 +22,7 @@ def create_dummy_atoms(num_samples=12, num_atoms=3):
         atoms_list.append(atoms)
     return atoms_list
 
+
 def test_apax_grain_dataloader():
     num_samples = 12
     batch_size = 4
@@ -45,6 +46,7 @@ def test_apax_grain_dataloader():
     assert "idx" in inputs
     assert "offsets" in inputs
 
+
 def test_apax_grain_dataloader_shuffle():
     num_samples = 12
     batch_size = 4
@@ -65,13 +67,25 @@ def test_apax_grain_dataloader_shuffle():
     expected_energies = np.array([a.calc.results["energy"] for a in atoms_list])
     assert not np.allclose(all_energies, expected_energies[:12])
 
+
 def test_apax_grain_dataloader_ragged():
     # Data with different number of atoms
     atoms_list = [
-        Atoms(numbers=[1, 1, 1], positions=np.random.rand(3, 3), cell=np.eye(3)*10, pbc=True),
-        Atoms(numbers=[1]*5, positions=np.random.rand(5, 3), cell=np.eye(3)*10, pbc=True),
-        Atoms(numbers=[1]*4, positions=np.random.rand(4, 3), cell=np.eye(3)*10, pbc=True),
-        Atoms(numbers=[1]*6, positions=np.random.rand(6, 3), cell=np.eye(3)*10, pbc=True),
+        Atoms(
+            numbers=[1, 1, 1],
+            positions=np.random.rand(3, 3),
+            cell=np.eye(3) * 10,
+            pbc=True,
+        ),
+        Atoms(
+            numbers=[1] * 5, positions=np.random.rand(5, 3), cell=np.eye(3) * 10, pbc=True
+        ),
+        Atoms(
+            numbers=[1] * 4, positions=np.random.rand(4, 3), cell=np.eye(3) * 10, pbc=True
+        ),
+        Atoms(
+            numbers=[1] * 6, positions=np.random.rand(6, 3), cell=np.eye(3) * 10, pbc=True
+        ),
     ]
     for a in atoms_list:
         a.calc = SinglePointCalculator(a, energy=0.0, forces=np.zeros((len(a), 3)))
@@ -92,6 +106,7 @@ def test_apax_grain_dataloader_ragged():
     shapes = sorted([b[0]["numbers"].shape[1] for b in batches])
     assert shapes == [4, 6]
 
+
 def test_soa_datasource():
     data = {
         "positions": np.random.rand(10, 3, 3),
@@ -106,6 +121,7 @@ def test_soa_datasource():
     assert isinstance(sample, dict)
     assert np.allclose(sample["positions"], data["positions"][0])
 
+
 def test_soa_datasource_slicing():
     data = {
         "energy": np.arange(10),
@@ -114,6 +130,7 @@ def test_soa_datasource_slicing():
     sliced = source[2:5]
     assert len(sliced["energy"]) == 3
     assert np.all(sliced["energy"] == np.array([2, 3, 4]))
+
 
 def test_nl_transform():
     sample = {

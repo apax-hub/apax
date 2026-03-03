@@ -14,6 +14,7 @@ class SoADataSource(grain.RandomAccessDataSource):
     A Grain DataSource that operates on a Structure of Arrays (SoA).
     Supports both pre-padded arrays and lists of ragged arrays.
     """
+
     def __init__(self, data: dict):
         self._data = data
         first_val = next(iter(data.values()))
@@ -27,10 +28,12 @@ class SoADataSource(grain.RandomAccessDataSource):
             return {k: v[index] for k, v in self._data.items()}
         return {k: v[index] for k, v in self._data.items()}
 
+
 class NeighborListTransform(grain.MapTransform):
     """
     A Grain MapTransform that computes the neighbor list for a sample and pads it.
     """
+
     def __init__(self, cutoff: float, max_nbrs: int = None):
         self.cutoff = cutoff
         self.max_nbrs = max_nbrs
@@ -43,21 +46,25 @@ class NeighborListTransform(grain.MapTransform):
         if self.max_nbrs:
             n_nbrs = idx.shape[1]
             if n_nbrs > self.max_nbrs:
-                idx = idx[:, :self.max_nbrs]
-                offsets = offsets[:self.max_nbrs]
+                idx = idx[:, : self.max_nbrs]
+                offsets = offsets[: self.max_nbrs]
             else:
                 zeros_to_add = self.max_nbrs - n_nbrs
-                idx = np.pad(idx, ((0, 0), (0, zeros_to_add)), "constant").astype(np.int32)
+                idx = np.pad(idx, ((0, 0), (0, zeros_to_add)), "constant").astype(
+                    np.int32
+                )
                 offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
 
         sample["idx"] = idx
         sample["offsets"] = offsets
         return sample
 
+
 class PaddingTransform(grain.MapTransform):
     """
     Pads positions, numbers, and forces to a fixed number of atoms.
     """
+
     def __init__(self, max_atoms: int):
         self.max_atoms = max_atoms
 
@@ -74,15 +81,18 @@ class PaddingTransform(grain.MapTransform):
         sample["n_atoms"] = n_atoms
         return sample
 
+
 class InputLabelSplitTransform(grain.MapTransform):
     """
     Splits the sample dictionary into (inputs, labels) tuples.
     """
+
     def map(self, sample: dict):
         input_keys = ["positions", "numbers", "box", "idx", "offsets", "n_atoms"]
         inputs = {k: sample[k] for k in input_keys if k in sample}
         labels = {k: v for k, v in sample.items() if k not in input_keys}
         return (inputs, labels)
+
 
 class ApaxGrainDataLoader:
     """
@@ -102,6 +112,7 @@ class ApaxGrainDataLoader:
         bucket_boundaries: List of atom counts defining bucket sizes for ragged data.
         max_nbrs: Maximum number of neighbors for padding. If None, it is computed from the data.
     """
+
     def __init__(
         self,
         atoms_list,
@@ -127,7 +138,9 @@ class ApaxGrainDataLoader:
 
         # Prepare raw data
         self._inputs = atoms_to_inputs(atoms_list, pos_unit)
-        self._labels = atoms_to_labels(atoms_list, pos_unit, energy_unit, additional_properties)
+        self._labels = atoms_to_labels(
+            atoms_list, pos_unit, energy_unit, additional_properties
+        )
         self.data = {**self._inputs, **self._labels}
         self.n_data = len(atoms_list)
         self.sample_atoms = atoms_list[0]
@@ -145,7 +158,7 @@ class ApaxGrainDataLoader:
 
     def init_input(self):
         """Returns first batch of inputs and labels to init the model."""
-        positions = self.sample_atoms.positions * unit_dict["Ang"] # default
+        positions = self.sample_atoms.positions * unit_dict["Ang"]  # default
         box = self.sample_atoms.cell.array * unit_dict["Ang"]
         idx, offsets = compute_nl(positions, box, self.cutoff)
         inputs = (
@@ -169,8 +182,15 @@ class ApaxGrainDataLoader:
             max_atoms = np.max([len(x) for x in self.data["numbers"]])
             m_nbrs = self.max_nbrs if self.max_nbrs else self._find_max_nbrs(self.data)
             loader = self._create_dataset(
-                self.data, self.batch_size, self.cutoff, max_atoms, m_nbrs,
-                self.n_epochs, shuffle, self.num_workers, self.worker_buffer_size
+                self.data,
+                self.batch_size,
+                self.cutoff,
+                max_atoms,
+                m_nbrs,
+                self.n_epochs,
+                shuffle,
+                self.num_workers,
+                self.worker_buffer_size,
             )
         else:
             buckets = self._partition_data(self.data, self.bucket_boundaries)
@@ -178,10 +198,19 @@ class ApaxGrainDataLoader:
             for _, b_data in buckets.items():
                 if len(b_data["numbers"]) >= self.batch_size:
                     b_max_atoms = np.max([len(x) for x in b_data["numbers"]])
-                    b_max_nbrs = self.max_nbrs if self.max_nbrs else self._find_max_nbrs(b_data)
+                    b_max_nbrs = (
+                        self.max_nbrs if self.max_nbrs else self._find_max_nbrs(b_data)
+                    )
                     ds = self._create_dataset(
-                        b_data, self.batch_size, self.cutoff, b_max_atoms, b_max_nbrs,
-                        self.n_epochs, shuffle, num_workers=0, worker_buffer_size=1
+                        b_data,
+                        self.batch_size,
+                        self.cutoff,
+                        b_max_atoms,
+                        b_max_nbrs,
+                        self.n_epochs,
+                        shuffle,
+                        num_workers=0,
+                        worker_buffer_size=1,
                     )
                     bucket_datasets.append(ds)
 
@@ -192,7 +221,7 @@ class ApaxGrainDataLoader:
                 loader = loader.mp_prefetch(
                     grain.MultiprocessingOptions(
                         num_workers=self.num_workers,
-                        per_worker_buffer_size=self.worker_buffer_size
+                        per_worker_buffer_size=self.worker_buffer_size,
                     )
                 )
 
@@ -213,7 +242,7 @@ class ApaxGrainDataLoader:
         return max_nbrs
 
     def _partition_data(self, data, boundaries):
-        boundaries = sorted(boundaries) + [float('inf')]
+        boundaries = sorted(boundaries) + [float("inf")]
         buckets = {b: {k: [] for k in data.keys()} for b in boundaries}
         for i in range(len(data["numbers"])):
             n = len(data["numbers"][i])
@@ -225,8 +254,16 @@ class ApaxGrainDataLoader:
         return {b: d for b, d in buckets.items() if len(d["numbers"]) > 0}
 
     def _create_dataset(
-        self, data, batch_size, cutoff, max_atoms, max_nbrs,
-        num_epochs, shuffle, num_workers, worker_buffer_size
+        self,
+        data,
+        batch_size,
+        cutoff,
+        max_atoms,
+        max_nbrs,
+        num_epochs,
+        shuffle,
+        num_workers,
+        worker_buffer_size,
     ):
         ds = grain.MapDataset.source(SoADataSource(data))
         if shuffle:
@@ -241,11 +278,13 @@ class ApaxGrainDataLoader:
         it_ds = ds.to_iter_dataset(
             grain.ReadOptions(
                 num_threads=max(1, num_workers),
-                prefetch_buffer_size=batch_size * worker_buffer_size
+                prefetch_buffer_size=batch_size * worker_buffer_size,
             )
         )
         it_ds = it_ds.batch(batch_size, drop_remainder=True)
-        return grain.experimental.ThreadPrefetchIterDataset(it_ds, prefetch_buffer_size=worker_buffer_size)
+        return grain.experimental.ThreadPrefetchIterDataset(
+            it_ds, prefetch_buffer_size=worker_buffer_size
+        )
 
     def cleanup(self):
         pass

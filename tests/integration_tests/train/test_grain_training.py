@@ -1,4 +1,3 @@
-
 import numpy as np
 import yaml
 from ase import Atoms
@@ -20,9 +19,11 @@ def create_dummy_data(tmp_path):
         atoms_list.append(atoms)
 
     from ase.io import write
+
     data_path = tmp_path / "data.extxyz"
     write(str(data_path), atoms_list)
     return data_path
+
 
 def test_grain_training_integration(tmp_path):
     data_path = create_dummy_data(tmp_path)
@@ -41,21 +42,15 @@ def test_grain_training_integration(tmp_path):
             "dataset": {
                 "processing": "grain",
                 "num_workers": 0,
-            }
+            },
         },
-        "model": {
-            "name": "gmnn",
-            "basis": {"name": "gaussian", "r_max": 3.0}
-        },
-        "loss": [
-            {"name": "energy", "weight": 1.0},
-            {"name": "forces", "weight": 10.0}
-        ],
+        "model": {"name": "gmnn", "basis": {"name": "gaussian", "r_max": 3.0}},
+        "loss": [{"name": "energy", "weight": 1.0}, {"name": "forces", "weight": 10.0}],
         "optimizer": {
             "name": "adam",
             "emb_lr": 0.01,
             "nn_lr": 0.01,
-        }
+        },
     }
 
     config_path = tmp_path / "config.yaml"
