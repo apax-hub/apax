@@ -38,7 +38,7 @@ class NeighborListTransform(grain.MapTransform):
         positions = sample["positions"]
         box = sample["box"]
         idx, offsets = compute_nl(positions, box, self.cutoff)
-        
+
         if self.max_nbrs:
             n_nbrs = idx.shape[1]
             if n_nbrs > self.max_nbrs:
@@ -48,7 +48,7 @@ class NeighborListTransform(grain.MapTransform):
                 zeros_to_add = self.max_nbrs - n_nbrs
                 idx = np.pad(idx, ((0, 0), (0, zeros_to_add)), "constant").astype(np.int32)
                 offsets = np.pad(offsets, ((0, zeros_to_add), (0, 0)), "constant")
-        
+
         sample["idx"] = idx
         sample["offsets"] = offsets
         return sample
@@ -63,13 +63,13 @@ class PaddingTransform(grain.MapTransform):
     def map(self, sample: dict):
         n_atoms = len(sample["numbers"])
         pad_width = self.max_atoms - n_atoms
-        
+
         if pad_width > 0:
             sample["positions"] = np.pad(sample["positions"], ((0, pad_width), (0, 0)))
             sample["numbers"] = np.pad(sample["numbers"], (0, pad_width)).astype(np.int32)
             if "forces" in sample:
                 sample["forces"] = np.pad(sample["forces"], ((0, pad_width), (0, 0)))
-        
+
         sample["n_atoms"] = n_atoms
         return sample
 
@@ -123,7 +123,7 @@ class ApaxGrainDataLoader:
         self.worker_buffer_size = worker_buffer_size
         self.bucket_boundaries = bucket_boundaries
         self.max_nbrs = max_nbrs
-        
+
         # Prepare raw data
         self._inputs = atoms_to_inputs(atoms_list, pos_unit)
         self._labels = atoms_to_labels(atoms_list, pos_unit, energy_unit, additional_properties)
@@ -168,7 +168,7 @@ class ApaxGrainDataLoader:
             max_atoms = np.max([len(x) for x in self.data["numbers"]])
             m_nbrs = self.max_nbrs if self.max_nbrs else self._find_max_nbrs(self.data)
             loader = self._create_dataset(
-                self.data, self.batch_size, self.cutoff, max_atoms, m_nbrs, 
+                self.data, self.batch_size, self.cutoff, max_atoms, m_nbrs,
                 self.n_epochs, shuffle, self.num_workers, self.worker_buffer_size
             )
         else:
@@ -183,14 +183,14 @@ class ApaxGrainDataLoader:
                         self.n_epochs, shuffle, num_workers=0, worker_buffer_size=1
                     )
                     bucket_datasets.append(ds)
-            
+
             loader = grain.experimental.InterleaveIterDataset(
                 bucket_datasets, cycle_length=len(bucket_datasets)
             )
             if self.num_workers > 0:
                 loader = loader.mp_prefetch(
                     grain.MultiprocessingOptions(
-                        num_workers=self.num_workers, 
+                        num_workers=self.num_workers,
                         per_worker_buffer_size=self.worker_buffer_size
                     )
                 )
@@ -199,12 +199,12 @@ class ApaxGrainDataLoader:
             data_sharding = NamedSharding(mesh, P("data"))
         else:
             data_sharding = None
-            
+
         return prefetch_to_single_device(iter(loader), 2, data_sharding)
 
     def _find_max_nbrs(self, data):
         max_nbrs = 0
-        # Use a small sample to find max_nbrs if data is large? 
+        # Use a small sample to find max_nbrs if data is large?
         # For now, consistent with legacy, we check all.
         for pos, box in zip(data["positions"], data["box"]):
             idx, _ = compute_nl(pos, box, self.cutoff)
@@ -232,11 +232,11 @@ class ApaxGrainDataLoader:
             ds = ds.shuffle(seed=42)
         if num_epochs > 1:
             ds = ds.repeat(num_epochs)
-        
+
         ds = ds.map(PaddingTransform(max_atoms))
         ds = ds.map(NeighborListTransform(cutoff, max_nbrs))
         ds = ds.map(InputLabelSplitTransform())
-        
+
         it_ds = ds.to_iter_dataset(
             grain.ReadOptions(
                 num_threads=max(1, num_workers),

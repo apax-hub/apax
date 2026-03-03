@@ -21,7 +21,7 @@ def test_apax_grain_dataloader():
     num_samples = 12
     batch_size = 4
     atoms_list = create_dummy_atoms(num_samples)
-    
+
     loader = ApaxGrainDataLoader(
         atoms_list,
         cutoff=2.0,
@@ -31,10 +31,10 @@ def test_apax_grain_dataloader():
         pre_shuffle=False,
         num_workers=0,
     )
-    
+
     batches = list(loader)
     assert len(batches) == num_samples // batch_size
-    
+
     inputs, labels = batches[0]
     assert labels["energy"].shape == (batch_size,)
     assert "idx" in inputs
@@ -44,7 +44,7 @@ def test_apax_grain_dataloader_shuffle():
     num_samples = 12
     batch_size = 4
     atoms_list = create_dummy_atoms(num_samples)
-    
+
     loader = ApaxGrainDataLoader(
         atoms_list,
         cutoff=2.0,
@@ -53,7 +53,7 @@ def test_apax_grain_dataloader_shuffle():
         max_nbrs=10,
         pre_shuffle=True,
     )
-    
+
     batches = list(loader.shuffle_and_batch())
     all_energies = np.concatenate([b[1]["energy"] for b in batches])
     # Very high probability that they are not in order
@@ -70,7 +70,7 @@ def test_apax_grain_dataloader_ragged():
     ]
     for a in atoms_list:
         a.calc = SinglePointCalculator(a, energy=0.0, forces=np.zeros((len(a), 3)))
-    
+
     loader = ApaxGrainDataLoader(
         atoms_list,
         bs=2,
@@ -79,10 +79,10 @@ def test_apax_grain_dataloader_ragged():
         bucket_boundaries=[4, 10],
         pre_shuffle=False,
     )
-    
+
     batches = list(loader)
     assert len(batches) == 2
-    
+
     # Check that one batch has max_atoms=4 and other has max_atoms=6
     shapes = sorted([b[0]["numbers"].shape[1] for b in batches])
     assert shapes == [4, 6]
@@ -93,10 +93,10 @@ def test_soa_datasource():
         "numbers": np.random.randint(1, 10, (10, 3)),
         "energy": np.random.rand(10),
     }
-    
+
     source = SoADataSource(data)
     assert len(source) == 10
-    
+
     sample = source[0]
     assert isinstance(sample, dict)
     assert np.allclose(sample["positions"], data["positions"][0])

@@ -17,7 +17,7 @@ def create_dummy_data(tmp_path):
         forces = np.random.rand(3, 3)
         atoms.calc = SinglePointCalculator(atoms, energy=energy, forces=forces)
         atoms_list.append(atoms)
-    
+
     from ase.io import write
     data_path = tmp_path / "data.extxyz"
     write(str(data_path), atoms_list)
@@ -25,7 +25,7 @@ def create_dummy_data(tmp_path):
 
 def test_grain_training_integration(tmp_path):
     data_path = create_dummy_data(tmp_path)
-    
+
     config = {
         "n_epochs": 2,
         "seed": 42,
@@ -56,14 +56,14 @@ def test_grain_training_integration(tmp_path):
             "nn_lr": 0.01,
         }
     }
-    
+
     config_path = tmp_path / "config.yaml"
     with open(config_path, "w") as f:
         yaml.dump(config, f)
-    
+
     # Run training
     run(config_path, log_level="info")
-    
+
     # Check if model was saved
     assert (tmp_path / "test_grain" / "best").exists()
     assert (tmp_path / "test_grain" / "latest").exists()
