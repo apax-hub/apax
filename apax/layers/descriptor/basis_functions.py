@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 import einops
 import flax.linen as nn
@@ -8,21 +8,63 @@ import numpy as np
 from apax.layers.initializers import uniform_range
 from apax.utils.convert import str_to_dtype
 
+# class GaussianBasis(nn.Module):
+#     n_basis: int = 7
+#     r_min: float = 0.5
+#     r_max: float = 6.0
+#     dtype: Any = jnp.float32
+#
+#     def setup(self):
+#         dtype = str_to_dtype(self.dtype)
+#
+#         self.betta = self.n_basis**2 / self.r_max**2
+#         self.rad_norm = (2.0 * self.betta / np.pi) ** 0.25
+#         shifts = self.r_min + (self.r_max - self.r_min) / self.n_basis * np.arange(
+#             self.n_basis
+#         )
+#
+#         # shape: 1 x n_basis
+#         shifts = einops.repeat(shifts, "n_basis -> 1 n_basis")
+#         self.shifts = jnp.asarray(shifts, dtype=dtype)
+#
+#     def __call__(self, dr):
+#         dr = einops.repeat(dr, "neighbors -> neighbors 1")
+#         # 1 x n_basis, neighbors x 1 -> neighbors x n_basis
+#         distances = self.shifts - dr
+#
+#         # shape: neighbors x n_basis
+#         basis = jnp.exp(-self.betta * (distances**2))
+#         basis = self.rad_norm * basis
+#
+#         return basis
+
 
 class GaussianBasis(nn.Module):
     n_basis: int = 7
     r_min: float = 0.5
     r_max: float = 6.0
     dtype: Any = jnp.float32
+    spacing: Literal["linear", "exponential"] = "linear"
 
     def setup(self):
         dtype = str_to_dtype(self.dtype)
 
-        self.betta = self.n_basis**2 / self.r_max**2
-        self.rad_norm = (2.0 * self.betta / np.pi) ** 0.25
-        shifts = self.r_min + (self.r_max - self.r_min) / self.n_basis * np.arange(
-            self.n_basis
-        )
+        if self.spacing == "linear":
+            self.betta = self.n_basis**2 / self.r_max**2
+            self.rad_norm = (2.0 * self.betta / np.pi) ** 0.25
+            shifts = self.r_min + (self.r_max - self.r_min) / self.n_basis * np.arange(
+                self.n_basis
+            )
+            self.dr_scaling_fn = lambda dr: dr
+        elif self.spacing == "exponential":
+            self.betta = (
+                2.0 / self.n_basis * (jnp.exp(-self.r_min) - jnp.exp(-self.r_max))
+            ) ** -2
+            self.rad_norm = 1.0
+            shifts = np.linspace(
+                np.exp(-self.r_max), np.exp(-self.r_min), num=self.n_basis, endpoint=True
+            )
+            self.dr_scaling_fn = lambda dr: jnp.exp(-dr)
 
         # shape: 1 x n_basis
         shifts = einops.repeat(shifts, "n_basis -> 1 n_basis")
@@ -31,7 +73,7 @@ class GaussianBasis(nn.Module):
     def __call__(self, dr):
         dr = einops.repeat(dr, "neighbors -> neighbors 1")
         # 1 x n_basis, neighbors x 1 -> neighbors x n_basis
-        distances = self.shifts - dr
+        distances = self.shifts - self.dr_scaling_fn(dr)
 
         # shape: neighbors x n_basis
         basis = jnp.exp(-self.betta * (distances**2))
@@ -61,6 +103,12 @@ class BesselBasis(nn.Module):
         s2 = jnp.sinc((self.n + 2) * dr / self.r_max)
         basis = a * b * (s1 + s2)
         return basis
+
+
+def cosine_cutoff(dr, dr_max: float):
+    dr_clipped = jnp.clip(dr, a_max=dr_max)
+    cos_cutoff = 0.5 * (jnp.cos(np.pi * dr_clipped / dr_max) + 1.0)
+    return cos_cutoff
 
 
 class RadialFunction(nn.Module):
@@ -126,8 +174,7 @@ class RadialFunction(nn.Module):
             )
 
         # shape: neighbors
-        dr_clipped = jnp.clip(dr, a_max=self.r_max)
-        cos_cutoff = 0.5 * (jnp.cos(np.pi * dr_clipped / self.r_max) + 1.0)
+        cos_cutoff = cosine_cutoff(dr, self.r_max)
         cutoff = einops.repeat(cos_cutoff, "neighbors -> neighbors 1")
 
         radial_function = radial_function * cutoff

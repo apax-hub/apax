@@ -68,7 +68,10 @@ def load_csv_metrics(path: Union[str, Path]) -> dict[str, list[float]]:
         reader = csv.reader(file)
 
         # Extract the headers (keys) from the first row
-        headers = next(reader)
+        try:
+            headers = next(reader)
+        except StopIteration:
+            raise RuntimeError(f"Could not load csv metrics from {path}, file is empty")
 
         # Initialize empty lists for each key
         for header in headers:

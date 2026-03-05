@@ -43,6 +43,7 @@ class ModelBuilder:
                 r_min=basis_config["r_min"],
                 r_max=basis_config["r_max"],
                 dtype=self.config["descriptor_dtype"],
+                spacing=basis_config["spacing"],
             )
         elif name == "bessel":
             basis_fn = BesselBasis(

@@ -21,12 +21,17 @@ class GaussianBasisConfig(BaseModel, extra="forbid"):
         Position of the first uncontracted basis function's mean.
     r_max : PositiveFloat, default = 6.0
         Cutoff radius of the descriptor.
+    spacing: Literal['linear', 'exponential'], default = 'linear'
+        Spacing of centers of Gaussians. `"exponential"` results in more basis
+        functions closer to `r_min`, and less at `r_max`.
+        See https://pubs.acs.org/doi/10.1021/acs.jctc.9b00181, Figure 2
     """
 
     name: Literal["gaussian"] = "gaussian"
     n_basis: PositiveInt = 7
     r_min: NonNegativeFloat = 0.5
     r_max: PositiveFloat = 6.0
+    spacing: Literal["linear", "exponential"] = "linear"
 
 
 class BesselBasisConfig(BaseModel, extra="forbid"):
