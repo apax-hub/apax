@@ -37,7 +37,7 @@ class GaussianBasis(nn.Module):
             self.dr_scaling_fn = lambda dr: jnp.exp(-dr)
         else:
             raise NotImplementedError(
-                f"spacing {spacing} has not been implemented. Available options are: ['linear', 'exponential']"
+                f"spacing {self.spacing} has not been implemented. Available options are: ['linear', 'exponential']"
             )
 
         # shape: 1 x n_basis
