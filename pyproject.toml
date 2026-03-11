@@ -117,3 +117,6 @@ filterwarnings = ["ignore::FutureWarning:jax.*scatter",]
 markers = [
     "slow: mark a test as slow and should only run explicitly"
 ]
+
+[project.entry-points.'zntrack.nodes']
+apax = 'apax.entrypoints:nodes'
