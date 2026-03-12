@@ -7,6 +7,11 @@ from typing import Literal, Union, get_args, get_origin
 
 from pydantic import BaseModel
 
+_TYPE_MAP = {
+    int: "integer", float: "number", str: "string", bool: "boolean",
+    dict: "object", list: "array", pathlib.Path: "string",
+}
+
 
 def _unwrap(annotation):
     """Strip Annotated wrapper."""
@@ -15,6 +20,10 @@ def _unwrap(annotation):
 
 def _is_model(cls):
     return isinstance(cls, type) and issubclass(cls, BaseModel)
+
+
+def _is_union(annotation):
+    return get_origin(annotation) is Union or isinstance(annotation, _types.UnionType)
 
 
 def _classify(annotation):
@@ -27,8 +36,7 @@ def _classify(annotation):
         if annotation is None:
             return [], True, False
 
-    is_union = get_origin(annotation) is Union or isinstance(annotation, _types.UnionType)
-    if is_union:
+    if _is_union(annotation):
         args = get_args(annotation)
         return [a for a in args if _is_model(a)], is_list, type(None) in args
     if _is_model(annotation):
@@ -56,9 +64,7 @@ def _type_str(annotation):
     if origin is Literal:
         vals = get_args(annotation)
         return repr(vals[0]) if len(vals) == 1 else "|".join(str(v) for v in vals)
-
-    is_union = origin is Union or isinstance(annotation, _types.UnionType)
-    if is_union:
+    if _is_union(annotation):
         args = get_args(annotation)
         has_none = type(None) in args
         members = [a for a in args if a is not type(None)]
@@ -68,14 +74,10 @@ def _type_str(annotation):
         if non_model:
             return "|".join(_type_str(m) for m in non_model)
 
-    _MAP = {
-        int: "integer", float: "number", str: "string", bool: "boolean",
-        dict: "object", list: "array", pathlib.Path: "string",
-    }
-    if annotation in _MAP:
-        return _MAP[annotation]
+    if annotation in _TYPE_MAP:
+        return _TYPE_MAP[annotation]
     if isinstance(annotation, type):
-        for base, name in _MAP.items():
+        for base, name in _TYPE_MAP.items():
             if issubclass(annotation, base):
                 return name
     return str(annotation)
