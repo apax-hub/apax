@@ -27,8 +27,14 @@ template_app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     help="Create configuration file templates.",
 )
+schema_app = typer.Typer(
+    pretty_exceptions_show_locals=False,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    help="Generate JSON schemata for train/md configs.",
+)
 app.add_typer(validate_app, name="validate")
 app.add_typer(template_app, name="template")
+app.add_typer(schema_app, name="schema")
 
 
 @app.command()
@@ -94,10 +100,110 @@ def docs():
     typer.launch("https://apax.readthedocs.io/en/latest/")
 
 
-@app.command()
-def schema():
+def _print_keywords_or_exit(schema, section):
+    """Print keywords using schema_navigation, exit on error."""
+    from apax.config.schema_navigation import print_keywords
+
+    defs = schema.get("$defs", {})
+    error = print_keywords(schema, section, defs)
+    if error:
+        console.print(error, style="red3")
+        raise typer.Exit(code=1)
+
+
+def _filter_schema_or_exit(schema, section):
+    """Filter schema using schema_navigation, exit on error."""
+    from apax.config.schema_navigation import filter_schema
+
+    node, error = filter_schema(schema, section)
+    if error:
+        console.print(error, style="red3")
+        raise typer.Exit(code=1)
+    return node
+
+
+@schema_app.command("train")
+def schema_train(
+    section: str = typer.Argument(
+        None,
+        help=(
+            "Dotted path to filter (e.g. 'model', 'model.gmnn',"
+            " 'model.gmnn.basis', 'optimizer'). Omit for the full schema."
+        ),
+    ),
+    keywords: bool = typer.Option(
+        False,
+        "--keywords",
+        help="Only list navigable subsection names at the given path.",
+    ),
+    flat: bool = typer.Option(
+        False,
+        "--flat",
+        help="List all parameters as a flat table with path, type, default, and description.",
+    ),
+):
     """
-    Generating JSON schemata for autocompletion of train/md inputs in VSCode.
+    Print the training config JSON schema to stdout.
+    """
+    from apax.config import Config
+
+    if flat:
+        from apax.config.flat_schema import print_flat
+
+        print_flat(Config)
+        return
+    schema = Config.model_json_schema()
+    if keywords:
+        _print_keywords_or_exit(schema, section)
+        return
+    if section:
+        schema = _filter_schema_or_exit(schema, section)
+    print(json.dumps(schema, indent=2))
+
+
+@schema_app.command("md")
+def schema_md(
+    section: str = typer.Argument(
+        None,
+        help=(
+            "Dotted path to filter (e.g. 'ensemble', 'ensemble.nvt',"
+            " 'constraints'). Omit for the full schema."
+        ),
+    ),
+    keywords: bool = typer.Option(
+        False,
+        "--keywords",
+        help="Only list navigable subsection names at the given path.",
+    ),
+    flat: bool = typer.Option(
+        False,
+        "--flat",
+        help="List all parameters as a flat table with path, type, default, and description.",
+    ),
+):
+    """
+    Print the MD config JSON schema to stdout.
+    """
+    from apax.config import MDConfig
+
+    if flat:
+        from apax.config.flat_schema import print_flat
+
+        print_flat(MDConfig)
+        return
+    schema = MDConfig.model_json_schema()
+    if keywords:
+        _print_keywords_or_exit(schema, section)
+        return
+    if section:
+        schema = _filter_schema_or_exit(schema, section)
+    print(json.dumps(schema, indent=2))
+
+
+@schema_app.command("vscode")
+def schema_vscode():
+    """
+    Generate JSON schema files under .vscode/ for YAML autocompletion.
     """
     console.print("Generating JSON schema")
     from apax.config import Config, MDConfig
@@ -156,10 +262,26 @@ def cleanup_error(e):
     return e_clean
 
 
+TEMPLATE_DATA_DEFAULTS = {
+    "directory": "/tmp/apax_validate",
+    "experiment": "placeholder",
+    "data_path": "/tmp/apax_validate/placeholder.extxyz",
+}
+
+
 @validate_app.command("train")
 def validate_train_config(
     config_path: Path = typer.Argument(
         ..., help="Configuration YAML file to be validated."
+    ),
+    template: bool = typer.Option(
+        False,
+        "--template",
+        help=(
+            "Validate as a zntrack/ipsuite template. Fills in dummy values for"
+            " directory, experiment, and data_path so configs that leave these"
+            " to be set at runtime can still be validated."
+        ),
     ),
 ):
     """
@@ -168,11 +290,18 @@ def validate_train_config(
     Parameters
     ----------
     config_path: Path to the training configuration file.
+    template: If True, fill in placeholder values for runtime fields.
     """
     from apax.config import Config
 
     with open(config_path, "r") as stream:
         user_config = yaml.safe_load(stream)
+
+    if template:
+        data = user_config.setdefault("data", {})
+        for key, default in TEMPLATE_DATA_DEFAULTS.items():
+            if key not in data or data[key] is None:
+                data[key] = default
 
     try:
         _ = Config.model_validate(user_config)
