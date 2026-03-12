@@ -1,13 +1,9 @@
-"""JSON schema navigation helpers for --keywords and section drill-down.
-
-These operate on the raw JSON schema dict produced by pydantic's
-model_json_schema(), resolving $ref pointers and walking dotted paths.
-"""
+"""JSON schema navigation for --keywords and section drill-down."""
 
 import json
 
 
-def resolve_ref(node, defs):
+def _resolve(node, defs):
     """Resolve a single $ref pointer."""
     if isinstance(node, dict) and "$ref" in node:
         ref_name = node["$ref"].split("/")[-1]
@@ -16,57 +12,44 @@ def resolve_ref(node, defs):
     return node
 
 
-def shallow_resolve(node, defs):
-    """Resolve $ref pointers one level deep (no recursion into children)."""
-    node = resolve_ref(node, defs)
+def _shallow_resolve(node, defs):
+    """Resolve $ref pointers one level deep."""
+    node = _resolve(node, defs)
     if not isinstance(node, dict):
         return node
-
     result = {}
     for k, v in node.items():
         if k == "properties" and isinstance(v, dict):
-            result[k] = {pk: resolve_ref(pv, defs) for pk, pv in v.items()}
+            result[k] = {pk: _resolve(pv, defs) for pk, pv in v.items()}
         elif k in ("oneOf", "anyOf") and isinstance(v, list):
-            result[k] = [resolve_ref(item, defs) for item in v]
+            result[k] = [_resolve(item, defs) for item in v]
         else:
-            result[k] = resolve_ref(v, defs) if isinstance(v, dict) else v
+            result[k] = _resolve(v, defs) if isinstance(v, dict) else v
     return result
 
 
-def find_variant(node, name, defs):
-    """Find a named variant in a oneOf/anyOf discriminated union."""
+def _iter_variants(node, defs):
+    """Yield (discriminator_name, resolved_node) for oneOf/anyOf variants."""
     for key in ("oneOf", "anyOf"):
-        variants = node.get(key, [])
-        for variant in variants:
-            resolved = resolve_ref(variant, defs)
-            title = resolved.get("title", "").lower().replace("config", "").replace("options", "")
-            variant_name_const = None
+        for variant in node.get(key, []):
+            resolved = _resolve(variant, defs)
+            vname = None
             for prop in resolved.get("properties", {}).values():
                 if "const" in prop:
-                    variant_name_const = prop["const"]
+                    vname = prop["const"]
                     break
-            if name.lower() in (
-                title.strip(),
-                (variant_name_const or "").lower(),
-                resolved.get("title", "").lower(),
-            ):
-                return resolved
-    return None
+            yield vname or resolved.get("title", ""), resolved
 
 
 def filter_schema(schema, section):
-    """Extract a section from the schema, supporting dotted paths like 'model.gmnn'.
-
-    Returns (resolved_node, None) on success, or (None, error_message) on failure.
-    """
+    """Walk dotted path, return (resolved_node, None) or (None, error)."""
     defs = schema.get("$defs", {})
     props = schema.get("properties", {})
-
     parts = section.split(".")
-    first = parts[0]
 
+    first = parts[0]
     if first in props:
-        node = resolve_ref(props[first], defs)
+        node = _resolve(props[first], defs)
     elif first in defs:
         node = defs[first]
     else:
@@ -74,66 +57,50 @@ def filter_schema(schema, section):
         return None, f"Section '{first}' not found. Available: {', '.join(available)}"
 
     for part in parts[1:]:
-        node = resolve_ref(node, defs)
+        node = _resolve(node, defs)
         node_props = node.get("properties", {})
         if part in node_props:
-            node = resolve_ref(node_props[part], defs)
+            node = _resolve(node_props[part], defs)
             continue
-        variant = find_variant(node, part, defs)
-        if variant is not None:
-            node = variant
+        # Try matching as a variant name
+        matched = None
+        for vname, resolved in _iter_variants(node, defs):
+            title = resolved.get("title", "").lower().replace("config", "").replace("options", "")
+            if part.lower() in (title.strip(), vname.lower(), resolved.get("title", "").lower()):
+                matched = resolved
+                break
+        if matched:
+            node = matched
             continue
-        available_parts = sorted(node_props.keys())
-        for key in ("oneOf", "anyOf"):
-            for v in node.get(key, []):
-                resolved = resolve_ref(v, defs)
-                t = resolved.get("title", "")
-                if t:
-                    available_parts.append(t)
+        available_parts = sorted(node_props.keys()) + [n for n, _ in _iter_variants(node, defs)]
         prefix = ".".join(parts[: parts.index(part)])
         return None, f"'{part}' not found in '{prefix}'. Available: {', '.join(sorted(available_parts))}"
 
-    return shallow_resolve(node, defs), None
+    return _shallow_resolve(node, defs), None
 
 
-def list_keywords(node, defs):
-    """List navigable keywords at the current schema node."""
-    node = resolve_ref(node, defs)
-    keywords = []
-    for name, prop in node.get("properties", {}).items():
-        resolved = resolve_ref(prop, defs)
-        desc = resolved.get("description", "")
-        short = desc.split("\n")[0][:80] if desc else ""
-        keywords.append((name, short))
-    for key in ("oneOf", "anyOf"):
-        for variant in node.get(key, []):
-            resolved = resolve_ref(variant, defs)
-            title = resolved.get("title", "")
-            variant_name = None
-            for prop in resolved.get("properties", {}).values():
-                if "const" in prop:
-                    variant_name = prop["const"]
-                    break
-            desc = resolved.get("description", "").split("\n")[0][:80]
-            keywords.append((variant_name or title, desc))
-    return keywords
-
-
-def print_keywords(schema, section, defs):
-    """Resolve path and print keywords at that level."""
+def print_keywords(schema, section):
+    """Print navigable keywords at the given path. Returns error string or None."""
+    defs = schema.get("$defs", {})
     if section:
         node, error = filter_schema(schema, section)
         if error:
             return error
     else:
-        node = schema
-    keywords = list_keywords(node, defs)
+        node = _resolve(schema, defs)
+
+    keywords = []
+    for name, prop in node.get("properties", {}).items():
+        resolved = _resolve(prop, defs)
+        desc = resolved.get("description", "")
+        keywords.append((name, desc.split("\n")[0][:80] if desc else ""))
+    for vname, resolved in _iter_variants(node, defs):
+        desc = resolved.get("description", "").split("\n")[0][:80]
+        keywords.append((vname, desc))
+
     if not keywords:
-        print(json.dumps(shallow_resolve(node, defs), indent=2))
+        print(json.dumps(_shallow_resolve(node, defs), indent=2))
         return None
     for name, desc in keywords:
-        if desc:
-            print(f"  {name:30s} {desc}")
-        else:
-            print(f"  {name}")
+        print(f"  {name:30s} {desc}" if desc else f"  {name}")
     return None

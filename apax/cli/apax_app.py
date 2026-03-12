@@ -100,26 +100,29 @@ def docs():
     typer.launch("https://apax.readthedocs.io/en/latest/")
 
 
-def _print_keywords_or_exit(schema, section):
-    """Print keywords using schema_navigation, exit on error."""
-    from apax.config.schema_navigation import print_keywords
+def _handle_schema(config_cls, section, keywords, flat):
+    """Shared logic for schema train/md commands."""
+    if flat:
+        from apax.config.flat_schema import print_flat
 
-    defs = schema.get("$defs", {})
-    error = print_keywords(schema, section, defs)
-    if error:
-        console.print(error, style="red3")
-        raise typer.Exit(code=1)
+        print_flat(config_cls)
+        return
+    from apax.config.schema_navigation import filter_schema, print_keywords
 
-
-def _filter_schema_or_exit(schema, section):
-    """Filter schema using schema_navigation, exit on error."""
-    from apax.config.schema_navigation import filter_schema
-
-    node, error = filter_schema(schema, section)
-    if error:
-        console.print(error, style="red3")
-        raise typer.Exit(code=1)
-    return node
+    schema = config_cls.model_json_schema()
+    if keywords:
+        error = print_keywords(schema, section)
+        if error:
+            console.print(error, style="red3")
+            raise typer.Exit(code=1)
+        return
+    if section:
+        node, error = filter_schema(schema, section)
+        if error:
+            console.print(error, style="red3")
+            raise typer.Exit(code=1)
+        schema = node
+    print(json.dumps(schema, indent=2))
 
 
 @schema_app.command("train")
@@ -132,33 +135,18 @@ def schema_train(
         ),
     ),
     keywords: bool = typer.Option(
-        False,
-        "--keywords",
+        False, "--keywords",
         help="Only list navigable subsection names at the given path.",
     ),
     flat: bool = typer.Option(
-        False,
-        "--flat",
+        False, "--flat",
         help="List all parameters as a flat table with path, type, default, and description.",
     ),
 ):
-    """
-    Print the training config JSON schema to stdout.
-    """
+    """Print the training config JSON schema to stdout."""
     from apax.config import Config
 
-    if flat:
-        from apax.config.flat_schema import print_flat
-
-        print_flat(Config)
-        return
-    schema = Config.model_json_schema()
-    if keywords:
-        _print_keywords_or_exit(schema, section)
-        return
-    if section:
-        schema = _filter_schema_or_exit(schema, section)
-    print(json.dumps(schema, indent=2))
+    _handle_schema(Config, section, keywords, flat)
 
 
 @schema_app.command("md")
@@ -171,33 +159,18 @@ def schema_md(
         ),
     ),
     keywords: bool = typer.Option(
-        False,
-        "--keywords",
+        False, "--keywords",
         help="Only list navigable subsection names at the given path.",
     ),
     flat: bool = typer.Option(
-        False,
-        "--flat",
+        False, "--flat",
         help="List all parameters as a flat table with path, type, default, and description.",
     ),
 ):
-    """
-    Print the MD config JSON schema to stdout.
-    """
+    """Print the MD config JSON schema to stdout."""
     from apax.config import MDConfig
 
-    if flat:
-        from apax.config.flat_schema import print_flat
-
-        print_flat(MDConfig)
-        return
-    schema = MDConfig.model_json_schema()
-    if keywords:
-        _print_keywords_or_exit(schema, section)
-        return
-    if section:
-        schema = _filter_schema_or_exit(schema, section)
-    print(json.dumps(schema, indent=2))
+    _handle_schema(MDConfig, section, keywords, flat)
 
 
 @schema_app.command("vscode")
