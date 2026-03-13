@@ -1,4 +1,3 @@
-import importlib.metadata
 import os
 import warnings
 
@@ -10,4 +9,4 @@ jax.config.update("jax_enable_x64", True)
 
 warnings.filterwarnings("ignore", message=".*os.fork()*")
 
-__version__ = importlib.metadata.version("apax")
+from apax._version import __version__, __version_tuple__  # noqa: F401
