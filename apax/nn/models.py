@@ -142,6 +142,7 @@ class EnergyDerivativeModel(nn.Module):
     # Alternatively, should this be a function transformation?
     energy_model: EnergyModel = EnergyModel()
     calc_stress: bool = False
+    calc_hessian: bool = False
 
     def __call__(
         self,
@@ -151,6 +152,7 @@ class EnergyDerivativeModel(nn.Module):
         box,
         offsets,
     ):
+        energy_only_model = make_energy_only_model(self.energy_model)
         ef_function = jax.value_and_grad(self.energy_model, has_aux=True)
         (energy, properties), neg_forces = ef_function(R, Z, neighbor, box, offsets)
         forces = -neg_forces
@@ -159,7 +161,7 @@ class EnergyDerivativeModel(nn.Module):
 
         if self.calc_stress:
             stress = stress_times_vol(
-                make_energy_only_model(self.energy_model),
+                energy_only_model,
                 R,
                 box,
                 Z=Z,
@@ -167,6 +169,10 @@ class EnergyDerivativeModel(nn.Module):
                 offsets=offsets,
             )
             prediction["stress"] = stress
+
+        if self.calc_hessian:
+            hessian = jax.hessian(energy_only_model)(R, Z, neighbor, box, offsets)
+            prediction["hessian"] = hessian
 
         return prediction
 
@@ -203,6 +209,7 @@ class ShallowEnsembleModel(nn.Module):
 
     energy_model: EnergyModel = EnergyModel()
     calc_stress: bool = False
+    calc_hessian: bool = False
     force_variance: bool = True
     chunk_size: Optional[int] = None
 
@@ -271,5 +278,9 @@ class ShallowEnsembleModel(nn.Module):
                 mean_energy_fn, R, box, Z=Z, neighbor=neighbor, offsets=offsets
             )
             prediction["stress"] = stress
+
+        if self.calc_hessian:
+            hessian = jax.hessian(mean_energy_fn)(R, Z, neighbor, box, offsets)
+            prediction["hessian"] = hessian
 
         return prediction
