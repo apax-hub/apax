@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import jax.scipy as jsc
 import numpy as np
 
-from apax.utils.math import normed_dotp, inv_and_det_3x3
+from apax.utils.math import inv_and_det_3x3, normed_dotp
 
 
 def weighted_squared_error(
