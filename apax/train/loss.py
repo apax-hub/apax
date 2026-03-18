@@ -197,7 +197,10 @@ def nll_3x3(label, prediction, name, parameters: dict = {}):
     diff = label - means
 
     deviations = ensemble - means[..., None]
-    K = deviations.shape[2]  # Number of members
+    # K = deviations.shape[2]  # Number of members
+    K = deviations.shape[-1]  # Number of ensemble members
+    if K < 2:
+        raise ValueError("nll_3x3 requires at least 2 ensemble members")
     Sigma = jnp.einsum("bijk,bilk->bijl", deviations, deviations) / (
         K - 1
     )  # Sample covariance matrix
