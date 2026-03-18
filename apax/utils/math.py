@@ -54,7 +54,8 @@ def inv_and_det_3x3(Sigma: Array) -> tuple[Array, Array]:
         + a02 * (a10 * a21 - a11 * a20)
     )
 
-    invDet = 1.0 / det
+    det_safe = jnp.maximum(jnp.abs(det), 1e-6) * jnp.sign(det)
+    invDet = 1.0 / det_safe
     inv00 = (a11 * a22 - a12 * a21) * invDet
     inv01 = (a02 * a21 - a01 * a22) * invDet
     inv02 = (a01 * a12 - a02 * a11) * invDet
@@ -63,7 +64,6 @@ def inv_and_det_3x3(Sigma: Array) -> tuple[Array, Array]:
     inv11 = (a00 * a22 - a02 * a20) * invDet
     inv12 = (a10 * a02 - a00 * a12) * invDet
 
-    inv12 = (a02 * a10 - a00 * a12) * invDet
     inv20 = (a10 * a21 - a11 * a20) * invDet  # Same as inv02 if symmetric
     inv21 = (a20 * a01 - a00 * a21) * invDet  # Same as inv12 if symmetric
     inv22 = (a00 * a11 - a01 * a10) * invDet
