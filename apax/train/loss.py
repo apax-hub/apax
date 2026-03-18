@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import jax.scipy as jsc
 import numpy as np
 
-from apax.utils.math import normed_dotp
+from apax.utils.math import normed_dotp, inv_and_det_3x3
 
 
 def weighted_squared_error(
@@ -146,47 +146,6 @@ def stress_tril(label, prediction, name, parameters: dict = {}):
     label_tril = label[:, idxs[0], idxs[1]]
     prediction_tril = prediction[:, idxs[0], idxs[1]]
     return (label_tril - prediction_tril) ** 2
-
-
-def inv_and_det_3x3(Sigma):
-    a00 = Sigma[..., 0, 0]
-    a01 = Sigma[..., 0, 1]
-    a02 = Sigma[..., 0, 2]
-    a10 = Sigma[..., 1, 0]  # Sym: a01
-    a11 = Sigma[..., 1, 1]
-    a12 = Sigma[..., 1, 2]
-    a20 = Sigma[..., 2, 0]  # Sym: a02
-    a21 = Sigma[..., 2, 1]  # Sym: a12
-    a22 = Sigma[..., 2, 2]
-
-    # 3. Analytical Determinant (Rule of Sarrus)
-    det = (
-        a00 * (a11 * a22 - a12 * a21)
-        - a01 * (a10 * a22 - a12 * a20)
-        + a02 * (a10 * a21 - a11 * a20)
-    )
-
-    invDet = 1.0 / det
-    inv00 = (a11 * a22 - a12 * a21) * invDet
-    inv01 = (a02 * a21 - a01 * a22) * invDet
-    inv02 = (a01 * a12 - a02 * a11) * invDet
-
-    inv10 = (a12 * a20 - a10 * a22) * invDet
-    inv11 = (a00 * a22 - a02 * a20) * invDet
-    inv12 = (a10 * a02 - a00 * a12) * invDet
-
-    inv12 = (a02 * a10 - a00 * a12) * invDet
-    inv20 = (a10 * a21 - a11 * a20) * invDet  # Same as inv02 if symmetric
-    inv21 = (a20 * a01 - a00 * a21) * invDet  # Same as inv12 if symmetric
-    inv22 = (a00 * a11 - a01 * a10) * invDet
-
-    # Reconstruct Inverse Matrix (N, 3, 3)
-    # Stack is faster than assignment
-    row0 = jnp.stack([inv00, inv01, inv02], axis=-1)
-    row1 = jnp.stack([inv10, inv11, inv12], axis=-1)
-    row2 = jnp.stack([inv20, inv21, inv22], axis=-1)
-    Sigma_inv = jnp.stack([row0, row1, row2], axis=-2)
-    return Sigma_inv, det
 
 
 def nll_3x3(label, prediction, name, parameters: dict = {}):
