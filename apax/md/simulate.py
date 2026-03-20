@@ -281,7 +281,9 @@ def run_sim(
 
     step = 0
 
-    options = ocp.CheckpointManagerOptions(max_to_keep=1, save_interval_steps=1)
+    options = ocp.CheckpointManagerOptions(
+        max_to_keep=1, save_interval_steps=1, cleanup_tmp_directories=True
+    )
     mngr = ocp.CheckpointManager(ckpt_dir.resolve(), options=options)
 
     ckpts_exist = mngr.latest_step() is not None
