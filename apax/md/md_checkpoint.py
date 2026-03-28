@@ -11,7 +11,8 @@ def load_md_state(state: t.Any, ckpt_dir: Path) -> tuple[t.Any, int]:
     try:
         log.info(f"loading MD state from {ckpt_dir}")
         target = {"state": state, "step": 0}
-        with ocp.CheckpointManager(ckpt_dir) as mngr:
+        options = ocp.CheckpointManagerOptions(cleanup_tmp_directories=True)
+        with ocp.CheckpointManager(ckpt_dir, options=options) as mngr:
             restored_ckpt = mngr.restore(step=None, args=ocp.args.StandardRestore(target))
     except FileNotFoundError:
         raise FileNotFoundError(
