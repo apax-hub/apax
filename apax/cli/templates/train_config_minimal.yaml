@@ -20,4 +20,4 @@ metrics:
 loss:
   - name: energy
   - name: forces
-    weight: 4.0
+    weight: 1.0
