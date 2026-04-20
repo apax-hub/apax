@@ -286,6 +286,11 @@ docs = [
 ipsuite = [
     { name = "ipsuite" },
 ]
+mace = [
+    { name = "cuequivariance" },
+    { name = "cuequivariance-jax" },
+    { name = "e3nn-jax" },
+]
 mlflow = [
     { name = "mlflow" },
 ]
@@ -317,7 +322,10 @@ lint = [
 requires-dist = [
     { name = "ase", specifier = ">=3.24.0" },
     { name = "clu", specifier = ">=0.0.12" },
+    { name = "cuequivariance", marker = "extra == 'mace'", specifier = ">=0.9.1" },
+    { name = "cuequivariance-jax", marker = "extra == 'mace'", specifier = ">=0.9.1" },
     { name = "docutils", marker = "extra == 'docs'", specifier = "<0.21" },
+    { name = "e3nn-jax", marker = "extra == 'mace'", specifier = ">=0.21.0" },
     { name = "e3x", specifier = ">=1.0.2" },
     { name = "einops", specifier = ">=0.8.0" },
     { name = "flax", specifier = ">=0.10.6" },
@@ -349,7 +357,7 @@ requires-dist = [
     { name = "vesin", specifier = ">=0.3.0" },
     { name = "znh5md", specifier = ">=0.4.8" },
 ]
-provides-extras = ["cuda", "docs", "ipsuite", "mlflow", "openmm", "optuna", "umap"]
+provides-extras = ["cuda", "docs", "ipsuite", "mace", "mlflow", "openmm", "optuna", "umap"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1075,6 +1083,37 @@ wheels = [
 ]
 
 [[package]]
+name = "cuequivariance"
+version = "0.9.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "networkx" },
+    { name = "numpy" },
+    { name = "opt-einsum" },
+    { name = "scipy" },
+    { name = "sympy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/04/33/d9bd6f1f70940fa657796db1ddb2efe5fffc9dc2cc415668970b95072161/cuequivariance-0.9.1.tar.gz", hash = "sha256:718936970beee9e3ea18a1aecdfb30b5915ab8abb9b2a81aeab004a82b3ea6f8", size = 238620, upload-time = "2026-03-16T17:25:35.185Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/70/7bfedcdd0223357930f5312c9ac5d6cc5fea88b73372c4087ffc3655a9e3/cuequivariance-0.9.1-py3-none-any.whl", hash = "sha256:9560813c90f2d530b9860a61a5e39e808a95a6345e9cc9768ea01e78de3a7c1e", size = 269242, upload-time = "2026-03-16T17:25:34.138Z" },
+]
+
+[[package]]
+name = "cuequivariance-jax"
+version = "0.9.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cuequivariance" },
+    { name = "einops" },
+    { name = "jax" },
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3f/d3/eee83f7cd0c248378cb7d0e0d55b69218efba05a8414e337a56c04018bef/cuequivariance_jax-0.9.1.tar.gz", hash = "sha256:75d237dbbaef40adc53e1cc40e301f3c0b86ff3fa0ef8749029af3571d4d1172", size = 229691, upload-time = "2026-03-16T17:25:38.118Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/2f/588112cfd0dc8de59cb2d0b3e3378312311e4babf9381e559767303093a7/cuequivariance_jax-0.9.1-py3-none-any.whl", hash = "sha256:91973a2f0643500f72117035286b03cb88e5ccffcc452feb27fda6997d8d1b1f", size = 228066, upload-time = "2026-03-16T17:25:36.89Z" },
+]
+
+[[package]]
 name = "cycler"
 version = "0.12.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1400,6 +1439,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/19/ef/da712c4d9c7d6cacac27d7b2779e6a97c3381ef2c963c33719d39113b6a3/dvc_task-0.40.2.tar.gz", hash = "sha256:909af541bf5fde83439da56c4c0ebac592af178a59b702708fadaacfd6e7b704", size = 36147, upload-time = "2024-10-08T12:47:31.915Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/64/bf/f23e8eff38556d479ab421f8b9ac9a9a0b44f8400098c934dce0607da1de/dvc_task-0.40.2-py3-none-any.whl", hash = "sha256:3891b94cf9d349072ee32ce47217b73530b1905e6dd5a1e378bd74afc8b4c030", size = 21392, upload-time = "2024-10-08T12:47:30.317Z" },
+]
+
+[[package]]
+name = "e3nn-jax"
+version = "0.21.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "attrs" },
+    { name = "jax" },
+    { name = "jaxlib" },
+    { name = "numpy" },
+    { name = "sympy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a4/3e/3ee7552fab6d071ab00738b9693cb138dd0144f627571d56a6ce6f344359/e3nn_jax-0.21.0.tar.gz", hash = "sha256:f912707bafaf7a9893f1d83ab2e319455e6fafaaa9da3b0c4e39de5c2accd934", size = 568023, upload-time = "2026-04-01T19:25:05.472Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2b/bd/21607f9ddd685c5dcb36f9a1d25c4a929b295154aa1bf0485df489133c0b/e3nn_jax-0.21.0-py3-none-any.whl", hash = "sha256:c1e69de4651d6e8a134c0a2b29285e71d58943717c3f37dc0e29dde8f5b39719", size = 172958, upload-time = "2026-04-01T19:25:03.818Z" },
 ]
 
 [[package]]

@@ -61,6 +61,11 @@ optuna = [
 openmm = [
     "openmm>=8.5.0b0",
 ]
+mace = [
+    "e3nn-jax>=0.21.0",
+    "cuequivariance-jax>=0.9.1",
+    "cuequivariance>=0.9.1",
+]
 
 [dependency-groups]
 dev = [
@@ -122,7 +127,8 @@ show_missing = true
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::FutureWarning:jax.*scatter",]
 markers = [
-    "slow: mark a test as slow and should only run explicitly"
+    "slow: mark a test as slow and should only run explicitly",
+    "mace_parity: requires torch + mace-torch; opt-in parity tests against upstream",
 ]
 
 [project.entry-points.'zntrack.nodes']
