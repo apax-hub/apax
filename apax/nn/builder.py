@@ -296,3 +296,27 @@ class So3kratesBuilder(ModelBuilder):
             dtype=self.config["descriptor_dtype"],
         )
         return descriptor
+
+
+class MaceBuilder(ModelBuilder):
+    def build_descriptor(
+        self,
+        apply_mask,
+    ):
+        from apax.layers.descriptor.mace import MaceRepresentation
+
+        descriptor = MaceRepresentation(
+            r_max=self.config["r_max"],
+            num_bessel=self.config["num_bessel"],
+            num_polynomial_cutoff=self.config["num_polynomial_cutoff"],
+            max_ell=self.config["max_ell"],
+            hidden_irreps=self.config["hidden_irreps"],
+            num_interactions=self.config["num_interactions"],
+            correlation=self.config["correlation"],
+            interaction_cls=self.config["interaction_cls"],
+            num_elements=self.n_species,
+            use_cueq=self.config["use_cueq"],
+            apply_mask=apply_mask,
+            dtype=self.config["descriptor_dtype"],
+        )
+        return descriptor
