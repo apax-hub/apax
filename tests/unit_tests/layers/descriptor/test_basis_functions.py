@@ -46,24 +46,26 @@ def test_radial_function():
 
 def test_polynomial_cutoff_zero_at_rmax():
     import jax.numpy as jnp
+
     from apax.layers.descriptor.basis_functions import PolynomialCutoff
 
     cutoff = PolynomialCutoff(p=5, r_max=5.0)
     r = jnp.array([0.0, 2.5, 4.999, 5.0, 5.1])
     f = cutoff(r)
     assert f.shape == r.shape
-    assert jnp.isclose(f[0], 1.0, atol=1e-5)           # value at 0 ≈ 1
-    assert f[3] == 0.0                                  # exactly 0 at r_max
-    assert f[4] == 0.0                                  # 0 beyond r_max
-    assert f[2] > 0.0                                   # positive just below
+    assert jnp.isclose(f[0], 1.0, atol=1e-5)  # value at 0 ≈ 1
+    assert f[3] == 0.0  # exactly 0 at r_max
+    assert f[4] == 0.0  # 0 beyond r_max
+    assert f[2] > 0.0  # positive just below
 
 
 def test_polynomial_cutoff_monotone_decreasing():
     import jax.numpy as jnp
+
     from apax.layers.descriptor.basis_functions import PolynomialCutoff
 
     cutoff = PolynomialCutoff(p=5, r_max=5.0)
     r = jnp.linspace(0.0, 5.0, 50)
     f = cutoff(r)
     diffs = jnp.diff(f)
-    assert (diffs <= 1e-6).all()                        # never increases
+    assert (diffs <= 1e-6).all()  # never increases

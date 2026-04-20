@@ -1,4 +1,5 @@
 """MaceBuilder wiring — verifies the builder produces a runnable EnergyModel."""
+
 import jax
 import jax.numpy as jnp
 import pytest
@@ -59,8 +60,7 @@ def test_mace_builder_get_builder_dispatch(mace_config_dict):
 
     # Only keep MaceModelConfig fields for this pydantic instantiation
     mace_only = {
-        k: v for k, v in mace_config_dict.items()
-        if k in MaceModelConfig.model_fields
+        k: v for k, v in mace_config_dict.items() if k in MaceModelConfig.model_fields
     }
     cfg = MaceModelConfig(**mace_only)
     assert cfg.get_builder() is MaceBuilder
@@ -76,18 +76,25 @@ def test_mace_builder_derivative_model_runs(mace_config_dict):
     R = jnp.zeros((n_atoms, 3))
     Z = jnp.array([1, 8, 1, 6], dtype=jnp.int32)
     idx = jnp.array(
-        [[0, 0, 0, 1, 1, 2, 2, 3, 3, 3],
-         [1, 2, 3, 0, 2, 0, 3, 0, 1, 2]],
+        [[0, 0, 0, 1, 1, 2, 2, 3, 3, 3], [1, 2, 3, 0, 2, 0, 3, 0, 1, 2]],
         dtype=jnp.int32,
     )
     # EnergyDerivativeModel.__call__ signature: (R, Z, neighbor, box, offsets)
     params = model.init(
         jax.random.PRNGKey(0),
-        R, Z, idx, jnp.zeros(3), jnp.zeros((idx.shape[1], 3)),
+        R,
+        Z,
+        idx,
+        jnp.zeros(3),
+        jnp.zeros((idx.shape[1], 3)),
     )
     out = model.apply(
         params,
-        R, Z, idx, jnp.zeros(3), jnp.zeros((idx.shape[1], 3)),
+        R,
+        Z,
+        idx,
+        jnp.zeros(3),
+        jnp.zeros((idx.shape[1], 3)),
     )
     # EnergyDerivativeModel returns a dict with energy, forces
     assert out is not None
