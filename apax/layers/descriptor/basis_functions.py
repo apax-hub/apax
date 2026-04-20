@@ -79,6 +79,40 @@ class BesselBasis(nn.Module):
         return basis
 
 
+class PolynomialCutoff(nn.Module):
+    """MACE-style polynomial envelope cutoff.
+
+    Implements the smooth cutoff function from Klicpera et al. 2020, used by MACE:
+
+        f(r) = 1 - ((p + 1)(p + 2) / 2) x^p
+                 + p(p + 2) x^(p+1)
+                 - (p(p + 1) / 2) x^(p+2)            for r <= r_max
+        f(r) = 0                                       for r >  r_max
+    with x = r / r_max.
+
+    Parameters
+    ----------
+    p : int, default 5
+        Polynomial order; controls smoothness at r_max.
+    r_max : float, default 5.0
+        Distance at which the cutoff becomes 0.
+    """
+
+    p: int = 5
+    r_max: float = 5.0
+
+    def __call__(self, r):
+        x = r / self.r_max
+        p = self.p
+        envelope = (
+            1.0
+            - ((p + 1.0) * (p + 2.0) / 2.0) * x**p
+            + p * (p + 2.0) * x ** (p + 1)
+            - (p * (p + 1.0) / 2.0) * x ** (p + 2)
+        )
+        return jnp.where(r < self.r_max, envelope, 0.0)
+
+
 def cosine_cutoff(dr, dr_max: float):
     dr_clipped = jnp.clip(dr, max=dr_max)
     cos_cutoff = 0.5 * (jnp.cos(np.pi * dr_clipped / dr_max) + 1.0)
