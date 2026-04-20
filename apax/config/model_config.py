@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import List, Literal, Optional, Union
 
 from pydantic import (
@@ -304,13 +303,11 @@ class So3kratesConfig(BaseModelConfig, extra="forbid"):
 
 class MaceModelConfig(BaseModelConfig, extra="forbid"):
     """
-    Configuration for a MACE descriptor.
-
-    See ``docs/superpowers/specs/2026-04-20-mace-foundation-model-integration-design.md``.
+    Configuration for a MACE model.
 
     Parameters
     ----------
-    r_max : float, default = 5.0
+    r_max : PositiveFloat, default = 5.0
         Interaction cutoff (Angstrom).
     num_bessel : PositiveInt, default = 8
         Number of Bessel radial basis functions.
@@ -324,17 +321,17 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
         Number of (interaction, product) layer pairs.
     correlation : PositiveInt, default = 3
         Symmetric-contraction correlation order.
-    interaction_cls : Literal[...], default = "RealAgnosticResidual"
+    interaction_cls : Literal, default = "RealAgnosticResidual"
         Which MACE interaction block variant to use.
     use_cueq : bool, default = False
         Dispatch to cuequivariance-jax kernels where available.
-    pretrained : str | Path | None, default = None
+    pretrained : Optional[str], default = None
         Path to an apax-native converted MACE directory, or a canonical
         short name resolved later. If set, the backbone is initialized
         from these weights during training.
     freeze_backbone : bool, default = False
         Freeze MACE backbone parameters during training.
-    unfreeze_backbone_epoch : int | None, default = None
+    unfreeze_backbone_epoch : Optional[int], default = None
         Optional epoch at which to unfreeze the backbone.
     """
 
@@ -356,7 +353,7 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
     use_cueq: bool = False
 
     # Foundation-model loading
-    pretrained: Optional[Union[str, Path]] = None
+    pretrained: Optional[str] = None
     freeze_backbone: bool = False
     unfreeze_backbone_epoch: Optional[int] = None
 
