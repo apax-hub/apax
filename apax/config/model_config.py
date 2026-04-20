@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List, Literal, Optional, Union
 
 from pydantic import (
@@ -301,4 +302,68 @@ class So3kratesConfig(BaseModelConfig, extra="forbid"):
         return So3kratesBuilder
 
 
-ModelConfig = Union[GMNNConfig, EquivMPConfig, So3kratesConfig]
+class MaceModelConfig(BaseModelConfig, extra="forbid"):
+    """
+    Configuration for a MACE descriptor.
+
+    See ``docs/superpowers/specs/2026-04-20-mace-foundation-model-integration-design.md``.
+
+    Parameters
+    ----------
+    r_max : float, default = 5.0
+        Interaction cutoff (Angstrom).
+    num_bessel : PositiveInt, default = 8
+        Number of Bessel radial basis functions.
+    num_polynomial_cutoff : PositiveInt, default = 5
+        Polynomial order of the envelope cutoff.
+    max_ell : PositiveInt, default = 3
+        Maximum spherical-harmonic degree.
+    hidden_irreps : str, default = "128x0e + 128x1o"
+        e3nn-jax irreps string for node features. Must include a 0e component.
+    num_interactions : PositiveInt, default = 2
+        Number of (interaction, product) layer pairs.
+    correlation : PositiveInt, default = 3
+        Symmetric-contraction correlation order.
+    interaction_cls : Literal[...], default = "RealAgnosticResidual"
+        Which MACE interaction block variant to use.
+    use_cueq : bool, default = False
+        Dispatch to cuequivariance-jax kernels where available.
+    pretrained : str | Path | None, default = None
+        Path to an apax-native converted MACE directory, or a canonical
+        short name resolved later. If set, the backbone is initialized
+        from these weights during training.
+    freeze_backbone : bool, default = False
+        Freeze MACE backbone parameters during training.
+    unfreeze_backbone_epoch : int | None, default = None
+        Optional epoch at which to unfreeze the backbone.
+    """
+
+    name: Literal["mace"] = "mace"
+
+    r_max: PositiveFloat = 5.0
+    num_bessel: PositiveInt = 8
+    num_polynomial_cutoff: PositiveInt = 5
+    max_ell: PositiveInt = 3
+    hidden_irreps: str = "128x0e + 128x1o"
+    num_interactions: PositiveInt = 2
+    correlation: PositiveInt = 3
+    interaction_cls: Literal[
+        "RealAgnostic",
+        "RealAgnosticResidual",
+        "RealAgnosticDensity",
+        "RealAgnosticDensityResidual",
+    ] = "RealAgnosticResidual"
+    use_cueq: bool = False
+
+    # Foundation-model loading
+    pretrained: Optional[Union[str, Path]] = None
+    freeze_backbone: bool = False
+    unfreeze_backbone_epoch: Optional[int] = None
+
+    def get_builder(self):
+        from apax.nn.builder import MaceBuilder
+
+        return MaceBuilder
+
+
+ModelConfig = Union[GMNNConfig, EquivMPConfig, So3kratesConfig, MaceModelConfig]
