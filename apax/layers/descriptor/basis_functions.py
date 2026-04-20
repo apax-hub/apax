@@ -94,12 +94,12 @@ class PolynomialCutoff(nn.Module):
     ----------
     p : int, default 5
         Polynomial order; controls smoothness at r_max.
-    r_max : float, default 5.0
+    r_max : float, default 6.0
         Distance at which the cutoff becomes 0.
     """
 
     p: int = 5
-    r_max: float = 5.0
+    r_max: float = 6.0
 
     def __call__(self, r):
         x = r / self.r_max
@@ -110,7 +110,7 @@ class PolynomialCutoff(nn.Module):
             + p * (p + 2.0) * x ** (p + 1)
             - (p * (p + 1.0) / 2.0) * x ** (p + 2)
         )
-        return jnp.where(r < self.r_max, envelope, 0.0)
+        return jnp.where(r <= self.r_max, envelope, 0.0)
 
 
 def cosine_cutoff(dr, dr_max: float):
