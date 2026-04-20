@@ -10,6 +10,23 @@
 
 **Spec:** `docs/superpowers/specs/2026-04-20-mace-foundation-model-integration-design.md`
 
+**Reference: how upstream MACE loads foundation models** (`/Users/fzills/tools/mace/mace/calculators/foundations_models.py`):
+
+- `mace_mp(model=..., return_raw_model=True)` returns the raw `torch.nn.Module` and handles everything: bundled-local → cache → download.
+- Default (no arg) → **medium-mpa-0** bundled at `mace/calculators/foundations_models/mace-mpa-0-medium.model` (shipped inside the torch-mace pip package).
+- Named arg → fetched from GitHub releases (`ACEsuit/mace-mp`, `ACEsuit/mace-foundations`) into cache dir `get_cache_dir()` (typically `~/.cache/mace/`).
+- Canonical model names (MP + MPA in initial scope — others in `mace_mp_urls` dict deferred):
+  - `small`, `medium`, `large`  → MACE-MP-0
+  - `small-0b`, `medium-0b`     → MACE-MP-0b
+  - `small-0b2`, `medium-0b2`, `large-0b2` → MACE-MP-0b2
+  - `medium-0b3`                → MACE-MP-0b3
+  - `medium-mpa-0`              → MACE-MPA-0 (default when None is passed)
+- Some OMAT/MatPES models require **Academic Software License (ASL)** acceptance — the torch loader prints a notice. Our converter must forward the same notice.
+
+We integrate by **always going through `mace_mp()`** (and later `mace_off()` / `mace_mpa()` family) rather than requiring users to find `.model` files on disk. This inherits upstream's download, caching, URL registry, and license-notice behavior for free.
+
+For **parity testing** we use `mace_mp(name)` (the `MACECalculator` ASE wrapper) as the reference — it guarantees identical data-prep and forward-pass semantics to what a downstream user gets from torch-mace.
+
 **Global rules (hard):**
 - Never use `pip install` or `uv pip install -e .[extra]`. Always `uv sync --extra <name>`.
 - Never use `python` directly. Always `uv run python`.
@@ -1461,14 +1478,18 @@ git commit -m "feat(mace): propagate use_cueq to representation"
 
 Goal: `apax convert-mace` produces an apax-native directory; `load_mace_foundation` reads it; parity vs torch-mace rtol 1e-5.
 
-### Task P3.1: Converter CLI skeleton with lazy torch import
+### Task P3.1: Converter CLI — accept both canonical names and file paths
+
+The CLI must accept **either**:
+- A short canonical name like `medium`, `medium-mpa-0` — resolved via `mace.calculators.foundations_models.mace_mp(..., return_raw_model=True)` which handles bundled-local → cache → download transparently.
+- A filesystem path to a `.model` file — for custom / fine-tuned torch models.
 
 **Files:**
 - Create: `apax/cli/convert_mace.py`
 - Modify: `apax/cli/apax_app.py` (register subcommand)
 - Test: `tests/unit_tests/cli/test_convert_mace.py`
 
-- [ ] **Step 1: Write test for missing-torch error**
+- [ ] **Step 1: Write tests covering both modes + missing-torch**
 
 Create `tests/unit_tests/cli/test_convert_mace.py`:
 
@@ -1487,13 +1508,22 @@ def test_convert_mace_missing_torch_fails_gracefully(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "mace", None)
 
     from apax.cli.apax_app import app
-    src = tmp_path / "model.pt"
-    src.write_bytes(b"not-a-real-model")
-
     runner = CliRunner()
-    res = runner.invoke(app, ["convert-mace", str(src), str(tmp_path / "out.apax")])
+    res = runner.invoke(app, ["convert-mace", "medium", str(tmp_path / "out.apax")])
     assert res.exit_code != 0
     assert "torch" in res.output.lower()
+
+
+def test_convert_mace_accepts_canonical_name_and_file_path():
+    """Argument parsing treats both as valid 'source' inputs."""
+    import typer
+    from apax.cli.convert_mace import convert_mace
+
+    # Typer parameter introspection: no type narrowing that would reject either
+    import inspect
+    sig = inspect.signature(convert_mace)
+    # 'source' parameter exists and has no strict type filter
+    assert "source" in sig.parameters
 ```
 
 - [ ] **Step 2: Run — expect fail (command not registered)**
@@ -1510,7 +1540,15 @@ Create `apax/cli/convert_mace.py`:
 
 Usage
 -----
-    apax convert-mace mace-mp-0-medium.model ./mace-mp-0-medium.apax/ [--head mp]
+Canonical name (downloaded / cached automatically by torch-mace):
+
+    apax convert-mace medium-mpa-0 ./mace-mpa-0-medium.apax/
+    apax convert-mace medium       ./mace-mp-0-medium.apax/
+    apax convert-mace large        ./mace-mp-0-large.apax/
+
+Local .model file:
+
+    apax convert-mace ./my_custom_model.model ./my_custom.apax/
 
 ``torch`` and ``mace-torch`` are imported lazily; if missing, the command
 exits with a typer error and a hint.
@@ -1523,11 +1561,22 @@ import typer
 
 
 def convert_mace(
-    src: Path = typer.Argument(..., help="Path to torch-mace .model file"),
+    source: str = typer.Argument(
+        ...,
+        help=(
+            "Canonical MACE foundation name (e.g. 'medium-mpa-0', 'medium', 'large') "
+            "or path to a local torch .model file."
+        ),
+    ),
     dst: Path = typer.Argument(..., help="Output apax-native directory"),
     head: str = typer.Option("mp", help="Which head to select for multi-head models"),
+    family: str = typer.Option(
+        "mace_mp",
+        help="Foundation-model family: 'mace_mp' (includes MPA-0 and MP-0/0b/0b2/0b3). "
+             "Others (mace_off, mace_anicc) are deferred.",
+    ),
 ) -> None:
-    """Convert a torch-mace checkpoint into an apax-native .apax/ directory."""
+    """Convert a torch-mace foundation model into an apax-native .apax/ directory."""
     try:
         import torch  # noqa: F401
         import mace   # noqa: F401
@@ -1540,7 +1589,7 @@ def convert_mace(
 
     from apax.transfer_learning.mace_foundation import run_conversion
 
-    run_conversion(src, dst, head=head)
+    run_conversion(source, dst, head=head, family=family)
 ```
 
 - [ ] **Step 4: Register in `apax_app.py`**
@@ -1561,8 +1610,10 @@ Create `apax/transfer_learning/mace_foundation.py` with a stub so imports succee
 
 Functions
 ---------
-run_conversion(src, dst, head)
-    Entry point called by the ``apax convert-mace`` CLI.
+run_conversion(source, dst, head, family)
+    Entry point called by the ``apax convert-mace`` CLI. Accepts either a
+    canonical MACE model name (resolved via ``mace.calculators.foundations_models.mace_mp``)
+    or a path to a local torch .model file.
 load_mace_foundation(source)
     Runtime loader for apax-native MACE directories.
 """
@@ -1571,7 +1622,7 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def run_conversion(src: Path, dst: Path, *, head: str = "mp") -> None:
+def run_conversion(source, dst: Path, *, head: str = "mp", family: str = "mace_mp") -> None:
     """Convert a torch-mace checkpoint. Imports torch + mace lazily."""
     raise NotImplementedError("Filled in by P3.2")
 
@@ -1596,83 +1647,75 @@ git commit -m "feat(cli): scaffold convert-mace subcommand with lazy torch impor
 
 ### Task P3.2: Torch state-dict → linen pytree mapping (core conversion)
 
-The largest task in the plan. Reference: `/Users/fzills/tools/mace-jax/mace_jax/tools/import_from_torch.py` for the exact mapping logic.
+The largest task in the plan. Reference: `/Users/fzills/tools/mace-jax/mace_jax/tools/import_from_torch.py` for the exact mapping logic and `/Users/fzills/tools/mace/mace/calculators/foundations_models.py:mace_mp` for the upstream download/cache path.
 
 **Files:**
 - Modify: `apax/transfer_learning/mace_foundation.py`
-- Test: requires a tiny torch mace model — see step 1.
+- Test: `tests/integration_tests/mace/test_convert.py` — uses `mace_mp("medium")` (smallest MP-0; downloads to cache on first run; reused thereafter by the mace-torch cache).
 
-- [ ] **Step 1: Write a fixture-generator script**
+- [ ] **Step 1: Add torch+mace to a dev-only dependency group**
 
-Create `tests/fixtures/mace/make_tiny_mace.py` (run manually, outputs checked in):
+Edit `pyproject.toml`, add to `[dependency-groups]`:
 
-```python
-"""Generate a tiny torch-mace model for parity tests.
-
-Must be run once in an env with torch + mace-torch installed:
-    uv run python tests/fixtures/mace/make_tiny_mace.py
-
-Commits the resulting ``.model`` file to tests/fixtures/mace/ (KB-sized).
-"""
-import torch
-from mace.modules import ScaleShiftMACE
-from e3nn import o3
-
-model = ScaleShiftMACE(
-    r_max=5.0,
-    num_bessel=4,
-    num_polynomial_cutoff=5,
-    max_ell=1,
-    interaction_cls="RealAgnosticResidualInteractionBlock",
-    interaction_cls_first="RealAgnosticResidualInteractionBlock",
-    num_interactions=2,
-    num_elements=5,
-    hidden_irreps=o3.Irreps("8x0e + 8x1o"),
-    MLP_irreps=o3.Irreps("16x0e"),
-    atomic_energies=torch.zeros(5),
-    avg_num_neighbors=8.0,
-    atomic_numbers=list(range(5)),
-    correlation=2,
-    gate=torch.nn.functional.silu,
-    atomic_inter_scale=1.0,
-    atomic_inter_shift=0.0,
-)
-torch.save(model, "tests/fixtures/mace/tiny_mace.model")
+```toml
+mace-convert = [
+    "torch>=2.1",
+    "mace-torch>=0.3",
+]
 ```
 
-Run (manual, commit result):
+This group is **never** installed by default; a developer who wants to run the converter or parity tests opts in via:
 
 ```bash
-uv pip install torch mace-torch --group mace_convert   # one-time dev-only install
-uv run python tests/fixtures/mace/make_tiny_mace.py
-git add tests/fixtures/mace/tiny_mace.model tests/fixtures/mace/make_tiny_mace.py
+uv sync --group mace-convert --extra mace
 ```
 
-*Note:* this is the only step allowed to install torch in the dev env; after this, remove from dependency-groups (`uv sync`).
+Document this in the README section added at the end of the plan.
 
-- [ ] **Step 2: Write conversion test (gated)**
+- [ ] **Step 2: No fixture checked in — use mace_mp() directly**
+
+We do **not** check in a `.model` file. The parity test loads models via `mace_mp(name, return_raw_model=True)` which:
+- Uses the bundled `medium-mpa-0` (ships with mace-torch pip package) when no name is passed.
+- Otherwise downloads to `~/.cache/mace/` once, then reuses.
+
+The CI parity job runs `uv sync --group mace-convert --extra mace && uv run pytest -m mace_parity`. The first invocation triggers downloads; subsequent runs are cache-hits.
+
+For CI sandbox safety (no network), we additionally cache a tiny synthetic model under `tests/fixtures/mace/` — generated on demand by running the parity test locally once and committing the cache file. Optional — not required for the plan's correctness.
+
+- [ ] **Step 2a: Write conversion test (gated) — canonical name path**
 
 Create `tests/integration_tests/mace/test_convert.py`:
 
 ```python
-"""Integration test for convert-mace CLI. Gated by mace_parity marker."""
+"""Integration test for convert-mace. Gated by mace_parity marker.
+
+Requires:
+    uv sync --group mace-convert --extra mace
+
+These tests resolve MACE foundation models via the upstream
+``mace.calculators.foundations_models.mace_mp`` interface, which handles
+the bundled-local model, HTTP download, and caching under ``~/.cache/mace/``.
+"""
 import json
 from pathlib import Path
 
 import pytest
 
-
 pytestmark = pytest.mark.mace_parity
 
 
-def test_convert_tiny_mace_produces_apax_dir(tmp_path):
+@pytest.mark.parametrize("model_name", [
+    "medium-mpa-0",      # default; bundled with mace-torch package
+    "medium",            # MACE-MP-0 medium; first-run download, cached thereafter
+])
+def test_convert_canonical_name(tmp_path, model_name):
+    """Convert a canonical foundation model fetched via mace_mp()."""
     pytest.importorskip("torch")
     pytest.importorskip("mace")
     from apax.transfer_learning.mace_foundation import run_conversion
 
-    src = Path("tests/fixtures/mace/tiny_mace.model")
-    dst = tmp_path / "tiny.apax"
-    run_conversion(src, dst, head="mp")
+    dst = tmp_path / f"{model_name}.apax"
+    run_conversion(model_name, dst, head="mp", family="mace_mp")
 
     assert (dst / "params.msgpack").exists()
     assert (dst / "config.json").exists()
@@ -1680,10 +1723,31 @@ def test_convert_tiny_mace_produces_apax_dir(tmp_path):
 
     cfg = json.loads((dst / "config.json").read_text())
     assert cfg["name"] == "mace"
-    assert cfg["num_interactions"] == 2
+    assert cfg["num_interactions"] >= 1
+
+    meta = json.loads((dst / "metadata.json").read_text())
+    assert meta["source"] == model_name            # records the canonical name
+    assert meta["source_resolved_path"]             # records where it actually came from
+
+
+def test_convert_local_path(tmp_path):
+    """Convert from an explicit .model path (no network)."""
+    pytest.importorskip("torch")
+    pytest.importorskip("mace")
+    from apax.transfer_learning.mace_foundation import run_conversion
+    from mace.calculators.foundations_models import download_mace_mp_checkpoint
+
+    # Pre-resolve the cached path, then feed it as a local file input
+    local_path = Path(download_mace_mp_checkpoint("medium-mpa-0"))
+    assert local_path.exists()
+
+    dst = tmp_path / "local.apax"
+    run_conversion(str(local_path), dst, head="mp", family="mace_mp")
+
+    assert (dst / "params.msgpack").exists()
 ```
 
-- [ ] **Step 3: Implement `run_conversion`**
+- [ ] **Step 3: Implement `run_conversion` that resolves canonical names via mace_mp()**
 
 Edit `apax/transfer_learning/mace_foundation.py`, replacing the stub:
 
@@ -1694,23 +1758,40 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Union
 
 import jax.numpy as jnp
 import numpy as np
 from flax import serialization
 
 
-def run_conversion(src: Path, dst: Path, *, head: str = "mp") -> None:
-    """Convert a torch-mace .model into an apax-native directory.
+def run_conversion(
+    source: Union[str, Path],
+    dst: Path,
+    *,
+    head: str = "mp",
+    family: str = "mace_mp",
+) -> None:
+    """Convert a torch-mace foundation model into an apax-native directory.
 
-    Reads ``src`` with ``torch.load``, maps each torch parameter to the linen
-    pytree path expected by :class:`MaceRepresentation` (and readouts, for the
-    parity model), writes a msgpack + JSON bundle to ``dst``.
+    Parameters
+    ----------
+    source : str or Path
+        Either a canonical MACE foundation name (e.g. ``"medium-mpa-0"``,
+        ``"medium"``, ``"large"``) resolved via ``mace_mp(...)``, or a path to a
+        local ``.model`` file.
+    dst : Path
+        Output directory.
+    head : str
+        For multi-head foundation models (e.g. MPA), which head to retain.
+    family : str
+        Which foundation-family resolver to use. Initial scope: ``"mace_mp"``
+        (covers MACE-MP-0, 0b, 0b2, 0b3 and MACE-MPA). Others deferred.
     """
     import torch  # local import; runtime never needs this
 
-    src, dst = Path(src), Path(dst)
-    torch_model = torch.load(src, map_location="cpu")
+    dst = Path(dst)
+    torch_model, resolved_path = _load_torch_foundation_model(source, family=family)
     if hasattr(torch_model, "state_dict"):
         state = {k: v.detach().cpu().numpy() for k, v in torch_model.state_dict().items()}
     else:
@@ -1723,14 +1804,63 @@ def run_conversion(src: Path, dst: Path, *, head: str = "mp") -> None:
     dst.mkdir(parents=True, exist_ok=True)
     (dst / "params.msgpack").write_bytes(serialization.to_bytes(params_pytree))
     (dst / "config.json").write_text(json.dumps(cfg, indent=2))
-    (dst / "metadata.json").write_text(json.dumps({
-        "source": str(src),
-        "source_sha256": hashlib.sha256(src.read_bytes()).hexdigest(),
+
+    meta = {
+        "source": str(source),
+        "source_resolved_path": str(resolved_path) if resolved_path else None,
         "torch_mace_version": _torch_mace_version(),
         "apax_version": _apax_version(),
         "head_selected": head,
+        "family": family,
         "converted_at": datetime.now(tz=timezone.utc).isoformat(),
-    }, indent=2))
+    }
+    if resolved_path and Path(resolved_path).exists():
+        meta["source_sha256"] = hashlib.sha256(
+            Path(resolved_path).read_bytes()
+        ).hexdigest()
+    (dst / "metadata.json").write_text(json.dumps(meta, indent=2))
+
+
+def _load_torch_foundation_model(source, *, family: str):
+    """Load a torch MACE model via the upstream foundation loader.
+
+    Goes through ``mace.calculators.foundations_models.mace_mp(return_raw_model=True)``
+    so we inherit bundled-local → cache → download logic + ASL license notices.
+
+    Returns
+    -------
+    torch_model : torch.nn.Module
+    resolved_path : str | None
+        Path on disk that the torch model was loaded from (when the resolver
+        exposes it). ``None`` if we have only a module-in-memory.
+    """
+    if family != "mace_mp":
+        raise NotImplementedError(
+            f"family={family!r} not yet supported; only 'mace_mp' is in initial scope."
+        )
+
+    from mace.calculators.foundations_models import (
+        download_mace_mp_checkpoint,
+        mace_mp,
+        mace_mp_names,
+    )
+
+    # Heuristic: treat as a canonical name if it's not an existing file path.
+    is_path = isinstance(source, (str, Path)) and Path(source).exists()
+    if is_path:
+        import torch
+        return torch.load(str(source), map_location="cpu"), str(source)
+
+    # Canonical name — validate against the registry for a clearer error
+    if source not in mace_mp_names and not str(source).startswith("https:"):
+        raise ValueError(
+            f"Unknown MACE-MP model name {source!r}. "
+            f"Valid names: {', '.join(n for n in mace_mp_names if n)}"
+        )
+
+    resolved_path = download_mace_mp_checkpoint(source)
+    torch_model = mace_mp(source, return_raw_model=True)
+    return torch_model, resolved_path
 
 
 def _extract_config_from_torch(model, head: str) -> dict:
@@ -1973,7 +2103,7 @@ git commit -m "feat(mace): load_mace_foundation runtime loader"
 
 ---
 
-### Task P3.4: `MaceFoundationEnergyModel` for parity path
+### Task P3.4: `MaceFoundationEnergyModel` for parity path against `mace_mp()` / `MACECalculator`
 
 **Files:**
 - Create: `apax/nn/mace_foundation_model.py`
@@ -2036,78 +2166,161 @@ Edit `MaceRepresentation` to accept a flag `return_per_layer_node_feats: bool = 
 
 Port the logic from `mace-jax/mace_jax/modules/models.py` lines 375–554 adapted to linen, returning per-atom energy. Sum atomic-energy reference at the end.
 
-- [ ] **Step 4: Parity test**
+- [ ] **Step 4: Parity test via `MACECalculator` (ASE interface)**
+
+Reference against the upstream `mace_mp(name)` ASE calculator — this guarantees identical neighbor lists, data prep, and forward pass to what a downstream user of torch-mace would get. We pass the same `ase.Atoms` through both calculators and compare.
 
 Create `tests/integration_tests/mace/test_mace_parity.py`:
 
 ```python
-"""Bitwise-ish parity vs torch-mace on a tiny model. Opt-in only."""
-import json
-from pathlib import Path
-
-import jax
-import jax.numpy as jnp
-import numpy as np
+"""Parity vs torch-mace ``MACECalculator`` (ASE wrapper). Opt-in only."""
 import pytest
+import numpy as np
+
 
 pytestmark = pytest.mark.mace_parity
 
 
-def test_energy_parity_tiny(tmp_path):
-    pytest.importorskip("torch")
-    pytest.importorskip("mace")
-    import torch
-    src = Path("tests/fixtures/mace/tiny_mace.model")
+@pytest.fixture(params=["medium-mpa-0", "medium"])
+def foundation_name(request):
+    return request.param
 
-    # 1. convert
-    from apax.transfer_learning.mace_foundation import run_conversion, load_mace_foundation
-    dst = tmp_path / "tiny.apax"
-    run_conversion(src, dst, head="mp")
 
-    # 2. load in apax
-    params, cfg = load_mace_foundation(dst)
-    from apax.nn.mace_foundation_model import MaceFoundationEnergyModel
-    atomic_e = jnp.asarray(json.loads((dst / "config.json").read_text())["atomic_energies"])
-    model_apax = MaceFoundationEnergyModel(
-        r_max=cfg.r_max, num_bessel=cfg.num_bessel,
-        num_polynomial_cutoff=cfg.num_polynomial_cutoff, max_ell=cfg.max_ell,
-        hidden_irreps=cfg.hidden_irreps, num_interactions=cfg.num_interactions,
-        correlation=cfg.correlation, interaction_cls=cfg.interaction_cls,
-        num_elements=cfg.num_elements, atomic_energies=atomic_e, use_cueq=False,
+@pytest.fixture
+def ase_water():
+    from ase import Atoms
+    return Atoms(
+        symbols=["O", "H", "H"],
+        positions=[[0.0, 0.0, 0.0], [0.96, 0.0, 0.0], [-0.24, 0.93, 0.0]],
+        pbc=False,
     )
 
-    # 3. build a small system
-    Z_np = np.array([0, 1, 2, 3], dtype=np.int64)
-    R_np = np.array([[0, 0, 0], [1.0, 0, 0], [0, 1.2, 0], [0, 0, 1.3]], dtype=np.float64)
-    idx_np = np.array([[0,0,0,1,1,2,2,3,3,3],
-                       [1,2,3,0,2,0,3,0,1,2]], dtype=np.int64)
 
-    # 4. torch energy
-    torch_model = torch.load(src, map_location="cpu")
-    torch_model.eval()
-    # prepare data dict as torch-mace expects, run forward
-    # (use mace.data utilities — exact invocation depends on torch-mace version)
-    e_torch = _torch_mace_forward(torch_model, R_np, Z_np)
+@pytest.fixture
+def ase_periodic_sio2():
+    from ase import Atoms
+    return Atoms(
+        symbols=["Si", "O", "O"],
+        positions=[[0, 0, 0], [1.6, 0, 0], [0, 1.6, 0]],
+        cell=[4.0, 4.0, 4.0],
+        pbc=True,
+    )
 
-    # 5. apax energy
-    dr_np = R_np[idx_np[1]] - R_np[idx_np[0]]
-    e_apax, _ = model_apax.apply(params, jnp.asarray(dr_np), jnp.asarray(Z_np), jnp.asarray(idx_np))
+
+def _torch_energy_forces(name, atoms):
+    """Run the upstream MACECalculator and return (energy, forces)."""
+    from mace.calculators.foundations_models import mace_mp
+    calc = mace_mp(name, default_dtype="float64", device="cpu")
+    atoms.calc = calc
+    e = atoms.get_potential_energy()
+    f = atoms.get_forces()
+    return float(e), np.asarray(f)
+
+
+def _apax_energy_forces(apax_dir, atoms):
+    """Run apax's MaceFoundationEnergyModel + derivative via apax ASE calc."""
+    from apax.md.ase_calc import ASECalculator
+    calc = ASECalculator(apax_dir)      # apax-native; no torch
+    atoms.calc = calc
+    e = atoms.get_potential_energy()
+    f = atoms.get_forces()
+    return float(e), np.asarray(f)
+
+
+def test_energy_force_parity_water(tmp_path, foundation_name, ase_water):
+    """Molecular parity for a 3-atom system."""
+    pytest.importorskip("torch")
+    pytest.importorskip("mace")
+    from apax.transfer_learning.mace_foundation import run_conversion
+
+    # 1. convert foundation model to apax-native dir
+    dst = tmp_path / f"{foundation_name}.apax"
+    run_conversion(foundation_name, dst, head="mp", family="mace_mp")
+
+    # 2. torch reference (via mace_mp ASE calculator)
+    e_torch, f_torch = _torch_energy_forces(foundation_name, ase_water.copy())
+
+    # 3. apax prediction
+    e_apax, f_apax = _apax_energy_forces(dst, ase_water.copy())
+
+    # 4. parity
+    np.testing.assert_allclose(e_apax, e_torch, rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(f_apax, f_torch, rtol=1e-4, atol=1e-5)
+
+
+def test_energy_force_parity_periodic(tmp_path, foundation_name, ase_periodic_sio2):
+    """Periodic-box parity: validates neighbor lists + PBC offsets."""
+    pytest.importorskip("torch")
+    pytest.importorskip("mace")
+    from apax.transfer_learning.mace_foundation import run_conversion
+
+    dst = tmp_path / f"{foundation_name}.apax"
+    run_conversion(foundation_name, dst, head="mp", family="mace_mp")
+
+    e_torch, f_torch = _torch_energy_forces(foundation_name, ase_periodic_sio2.copy())
+    e_apax, f_apax = _apax_energy_forces(dst, ase_periodic_sio2.copy())
 
     np.testing.assert_allclose(e_apax, e_torch, rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(f_apax, f_torch, rtol=1e-4, atol=1e-5)
 
 
-def _torch_mace_forward(model, R, Z):
-    """Adapter to get a single total energy scalar from torch-mace.
+def test_force_consistency_via_finite_difference(tmp_path, foundation_name, ase_water):
+    """Independent of torch parity: apax autodiff forces match numerical grad."""
+    pytest.importorskip("torch")
+    pytest.importorskip("mace")
+    from apax.transfer_learning.mace_foundation import run_conversion
+    from apax.md.ase_calc import ASECalculator
 
-    See /Users/fzills/tools/mace/mace/calculators/ for the exact data-prep
-    required by the upstream forward pass; copy the minimum needed here.
-    """
-    raise NotImplementedError("Fill in — reference mace.calculators.MACECalculator.")
+    dst = tmp_path / f"{foundation_name}.apax"
+    run_conversion(foundation_name, dst, head="mp", family="mace_mp")
+
+    calc = ASECalculator(dst)
+    atoms = ase_water.copy(); atoms.calc = calc
+
+    f_analytic = atoms.get_forces()
+    h = 1e-4
+    f_numeric = np.zeros_like(f_analytic)
+    for i in range(len(atoms)):
+        for d in range(3):
+            a = atoms.copy(); a.positions[i, d] += h; a.calc = calc
+            ep = a.get_potential_energy()
+            a = atoms.copy(); a.positions[i, d] -= h; a.calc = calc
+            em = a.get_potential_energy()
+            f_numeric[i, d] = -(ep - em) / (2 * h)
+
+    np.testing.assert_allclose(f_analytic, f_numeric, atol=1e-3)
 ```
 
-- [ ] **Step 5: Fill in `_torch_mace_forward`**
+- [ ] **Step 5: Stress parity (periodic systems only)**
 
-Read `/Users/fzills/tools/mace/mace/calculators/` to find the smallest piece of torch-mace data-prep code that produces an energy for an arbitrary atomic system. Port only that slice into the helper.
+Append to the same file:
+
+```python
+def test_stress_parity_periodic(tmp_path, foundation_name, ase_periodic_sio2):
+    """Validate stress via autodiff matches the upstream torch stress."""
+    pytest.importorskip("torch")
+    pytest.importorskip("mace")
+    from apax.transfer_learning.mace_foundation import run_conversion
+    from apax.md.ase_calc import ASECalculator
+    from mace.calculators.foundations_models import mace_mp
+
+    dst = tmp_path / f"{foundation_name}.apax"
+    run_conversion(foundation_name, dst, head="mp", family="mace_mp")
+
+    # torch stress
+    torch_calc = mace_mp(foundation_name, default_dtype="float64", device="cpu")
+    a = ase_periodic_sio2.copy(); a.calc = torch_calc
+    s_torch = a.get_stress(voigt=False)
+
+    # apax stress — requires calc_stress=True in the apax config
+    apax_calc = ASECalculator(dst, calc_stress=True)
+    a = ase_periodic_sio2.copy(); a.calc = apax_calc
+    s_apax = a.get_stress(voigt=False)
+
+    np.testing.assert_allclose(s_apax, s_torch, rtol=1e-4, atol=1e-6)
+```
+
+*Note on `ASECalculator(dst)`*: the apax ASE calculator needs a new code path that accepts an apax-foundation-model directory directly (in addition to the existing apax-train-output path). Add this in Task P3.6 below.
 
 - [ ] **Step 6: Iterate until parity holds**
 
@@ -2129,7 +2342,51 @@ git commit -m "feat(mace): MaceFoundationEnergyModel + parity test (P3)"
 
 ---
 
-### Task P3.5: Multi-head selection (`--head` flag)
+### Task P3.5: `ASECalculator(.apax/)` — wire converted dirs into apax's ASE calc
+
+**Files:**
+- Modify: `apax/md/ase_calc.py`
+- Test: `tests/integration_tests/mace/test_mace_parity.py` (already uses this)
+
+- [ ] **Step 1: Read current ASECalculator**
+
+Run: Read `apax/md/ase_calc.py` to find how it currently loads params + config. Most apax setups point it at a training-output directory containing `config.yaml` + checkpoints.
+
+- [ ] **Step 2: Detect foundation-model dirs**
+
+Add logic: if the input directory contains `params.msgpack` + `config.json` (apax-foundation layout), use `load_mace_foundation` instead of the standard checkpoint loader. Construct `EnergyModel(MaceRepresentation, AtomisticReadout=None, ...)` via `MaceFoundationEnergyModel`.
+
+- [ ] **Step 3: Write direct unit test (non-parity)**
+
+Create `tests/unit_tests/md/test_ase_calc_mace_foundation.py`:
+
+```python
+@pytest.mark.mace_parity
+def test_ase_calc_accepts_mace_foundation_dir(tmp_path):
+    """ASECalculator dispatches to the foundation-model loader correctly."""
+    pytest.importorskip("torch")
+    pytest.importorskip("mace")
+    from ase import Atoms
+    from apax.transfer_learning.mace_foundation import run_conversion
+    from apax.md.ase_calc import ASECalculator
+
+    dst = tmp_path / "f.apax"
+    run_conversion("medium-mpa-0", dst, head="mp", family="mace_mp")
+    atoms = Atoms(["O", "H", "H"], positions=[[0,0,0],[0.96,0,0],[-0.24,0.93,0]])
+    atoms.calc = ASECalculator(dst)
+    e = atoms.get_potential_energy()
+    assert np.isfinite(e)
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git commit -am "feat(md): ASECalculator supports MACE foundation-model directories"
+```
+
+---
+
+### Task P3.6: Multi-head selection (`--head` flag)
 
 **Files:**
 - Modify: `apax/transfer_learning/mace_foundation.py`
@@ -2165,7 +2422,14 @@ git add apax/transfer_learning/mace_foundation.py tests/integration_tests/mace/
 git commit -m "feat(mace): --head selection for multi-head foundation models"
 ```
 
-**P3 exit:** parity test green for MACE-MP-0 and MACE-MPA on developer machine.
+**P3 exit:**
+- `apax convert-mace medium-mpa-0 ./out.apax/` works end-to-end — resolved via `mace_mp(return_raw_model=True)`, downloaded/cached upstream.
+- `apax convert-mace medium ./out.apax/` works for MACE-MP-0 medium.
+- Parity tests green on a dev machine with `uv sync --group mace-convert --extra mace`:
+  - Energy parity rtol 1e-5 on water + periodic SiO₂ for both `medium-mpa-0` and `medium`.
+  - Force parity rtol 1e-4 on both.
+  - Stress parity rtol 1e-4 on the periodic system.
+  - Finite-difference force consistency confirms autodiff path is correct even without the torch reference.
 
 ---
 

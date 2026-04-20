@@ -21,7 +21,7 @@ The sibling projects exist on-disk for reference: `/Users/fzills/tools/mace` (to
 ### Goals
 
 - `apax[mace]` extra installs everything needed at runtime (e3nn-jax, cuequivariance-jax).
-- `apax convert-mace <src.model> <dst.apax/>` CLI converts torch-mace checkpoints into an apax-native directory; torch is imported lazily via try/except.
+- `apax convert-mace <source> <dst.apax/>` CLI where `<source>` is either a canonical MACE foundation name (`medium`, `medium-mpa-0`, …) resolved via upstream `mace.calculators.foundations_models.mace_mp(return_raw_model=True)` — which handles bundled-local → cache → download — or a local `.model` path. Torch is imported lazily via try/except.
 - `MaceRepresentation` is a Flax linen `nn.Module` matching apax's existing descriptor contract.
 - Parity with upstream torch-mace on energies (rtol 1e-5) and forces (rtol 1e-4) for MACE-MP-0 and MACE-MPA variants.
 - Shallow-ensemble fine-tuning with `freeze_backbone: true` works through a YAML toggle; no new training-loop code.
@@ -183,28 +183,37 @@ Loading is pure JAX — the runtime reads msgpack + JSON and merges the params i
 ### 4.2 Converter CLI
 
 ```python
-# apax/cli/convert.py
+# apax/cli/convert_mace.py
 @app.command("convert-mace")
-def convert_mace(src: Path, dst: Path):
+def convert_mace(
+    source: str,                  # canonical name OR .model path
+    dst: Path,
+    head: str = "mp",
+    family: str = "mace_mp",      # scope initial: mace_mp (covers MP-0/0b/0b2/0b3 + MPA)
+):
     try:
         import torch
         import mace
     except ImportError as e:
-        raise typer.Exit(
+        raise typer.BadParameter(
             "Converting MACE foundation models requires torch and mace-torch. "
-            f"Install them in your current env. Missing: {e.name}"
+            f"Missing: {e.name}"
         )
-    _convert(src, dst)
+    _convert(source, dst, head=head, family=family)
 ```
 
-Implementation:
+Upstream resolution path — `source` is treated as:
+- A canonical name (validated against `mace.calculators.foundations_models.mace_mp_names`), resolved via `mace_mp(source, return_raw_model=True)`. Upstream handles bundled `mace-mpa-0-medium.model` included in the `mace-torch` package → `~/.cache/mace/` → GitHub-releases download, in that order.
+- A path to a local `.model` file, loaded directly via `torch.load`.
 
-1. `torch.load(src)` → extract state dict + model config.
+Conversion steps:
+
+1. Load torch model (via `mace_mp` or `torch.load`).
 2. Validate `use_reduced_cg=True`, `group=O3_e3nn` (raise otherwise — we don't support the full-CG path initially).
 3. Walk torch state dict; for each parameter, map its name to the linen pytree path and convert dtype (fp64 for scale/shift/reference, fp32 for tensor-product weights by default).
 4. Extract the `normalize2mom` activation constant from torch's e3nn into a non-trainable param.
 5. Validate: after conversion, scan for any NaN leaves — raise listing the path of the first failure.
-6. Write `params.msgpack` via `flax.serialization.to_bytes`; write `config.json` and `metadata.json`.
+6. Write `params.msgpack` via `flax.serialization.to_bytes`; write `config.json` and `metadata.json` (records the canonical name, resolved on-disk path, sha256, torch-mace version, head selected).
 
 ### 4.3 `load_mace_foundation`
 
@@ -330,8 +339,10 @@ Target matrix: MACE-MP-0 small/medium at 64 and 512 atoms, MACE-MPA medium at 51
 
 Gated by `@pytest.mark.mace_parity`. Not run by default:
 
-- For a torch mace-mp-0 and mace-mpa model: convert, load, evaluate on known configs (isolated molecules and periodic boxes), compare energies and forces against torch reference.
-- Run on a workflow_dispatch CI job that installs `torch` and `mace-torch` on demand.
+- For `medium-mpa-0` (default MACE-MPA-0, bundled with mace-torch) and `medium` (MACE-MP-0 medium, downloaded on first run from ACEsuit/mace-mp GitHub releases): convert, load, evaluate on an isolated water molecule and a small periodic SiO₂ cell; compare energies, forces, and stresses against the upstream `MACECalculator` ASE wrapper (not just the raw torch module — the ASE wrapper is what downstream users see).
+- Additional autodiff-consistency test: apax forces match finite-difference ∇E on the same system within 1e-3. Independent of torch, so catches apax-side autodiff bugs even in environments without torch.
+- Dev-only dependency group `mace-convert` (adds `torch`, `mace-torch`); engineers opt-in via `uv sync --group mace-convert --extra mace`. The group is never installed by default.
+- CI: `workflow_dispatch` job installs the dev group, runs `uv run pytest -m mace_parity`. First invocation triggers upstream downloads into the runner cache; re-runs hit the cache.
 
 ### 7.3 CI matrix
 
@@ -390,5 +401,5 @@ All additive.
 None blocking this spec. Items deferred to implementation:
 
 - Exact torch-state-dict → linen-pytree parameter-path map (enumerated at P3 time, one key per file for maintainability).
-- Whether to ship pre-converted apax checkpoints on Hugging Face for MACE-MP and MACE-MPA, or leave conversion to users. Preferred: ship on HF for the main variants; keep the CLI as fallback and for custom / fine-tuned models.
+- Whether to ship pre-converted apax checkpoints on Hugging Face for MACE-MP and MACE-MPA, or leave conversion to users. Preferred: initial release asks users to run `apax convert-mace <name>` once (upstream handles the download/cache); we can add pre-converted HF artifacts as a follow-up for users who don't want to install torch even once.
 - Whether to add a `apax mace download <name>` command that fetches from HF — nice to have, deferred.
