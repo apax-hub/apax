@@ -78,7 +78,12 @@ class MaceRepresentation(nn.Module):
     def __call__(self, dr_vec, Z, idx):
         dtype = str_to_dtype(self.dtype)
         dr_vec = dr_vec.astype(dtype)
-        n_atoms = Z.shape[0]
+        # P0 skeleton: idx and apply_mask are part of the public contract (used by
+        # jax-md, readout, and masking infra) but are unused in this stub forward
+        # pass; real uses are introduced alongside the equivariant math in P1.
+        del idx  # suppress unused-var warning until the real forward pass lands
+        if self.apply_mask:
+            pass  # real masking is applied in P1
         # P0 skeleton: return a random-but-finite per-atom feature tensor
         # so the rest of apax (readout, scale/shift, train, MD) can be wired.
         # Replaced by real forward pass in P1.
@@ -96,18 +101,16 @@ class MaceRepresentation(nn.Module):
 def _scalar_feature_dim(irreps_str: str) -> int:
     """Parse irreps string and return the multiplicity of the 0e component.
 
-    Parameters
-    ----------
-    irreps_str : str
-        e3nn irreps string, e.g. ``"128x0e + 128x1o"``.
-
-    Returns
-    -------
-    int
-        Multiplicity of the ``0e`` irrep, or 0 if not found.
+    Raises
+    ------
+    ValueError
+        If ``irreps_str`` has no scalar (``x0e``) component.
     """
     for part in irreps_str.split("+"):
         part = part.strip()
         if part.endswith("x0e"):
             return int(part.split("x")[0])
-    return 0
+    raise ValueError(
+        f"hidden_irreps {irreps_str!r} has no 0e component; "
+        "MaceRepresentation requires at least one scalar channel."
+    )

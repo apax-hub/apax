@@ -3,6 +3,7 @@
 These tests use random weights and a skeleton forward pass; correctness
 against upstream MACE is validated in the parity tests (gated).
 """
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -19,8 +20,8 @@ def tiny_system():
     dr_vec = jnp.asarray(rng.normal(size=(n_neighbors, 3))).astype(jnp.float32)
     Z = jnp.asarray([1, 8, 1, 6], dtype=jnp.int32)
     idx = jnp.asarray(
-        [[0, 0, 1, 1, 2, 2, 3, 3],
-         [1, 2, 0, 3, 0, 3, 1, 2]], dtype=jnp.int32,
+        [[0, 0, 1, 1, 2, 2, 3, 3], [1, 2, 0, 3, 0, 3, 1, 2]],
+        dtype=jnp.int32,
     )
     return dr_vec, Z, idx, n_atoms
 
@@ -38,6 +39,8 @@ def test_mace_representation_contract(tiny_system):
     out = model.apply(params, dr_vec, Z, idx)
     assert out.ndim == 2
     assert out.shape[0] == n_atoms
+    # 16 scalar features × 2 interactions = 32-dim feature vector
+    assert out.shape[1] == 16 * 2
     assert out.dtype == jnp.float32
     assert jnp.isfinite(out).all()
 
@@ -49,3 +52,11 @@ def test_mace_representation_is_jittable(tiny_system):
     jitted = jax.jit(model.apply)
     out = jitted(params, dr_vec, Z, idx)
     assert out.shape[0] == n_atoms
+
+
+def test_mace_representation_rejects_no_scalar_irreps(tiny_system):
+    """hidden_irreps without a 0e component must raise a clear error."""
+    dr_vec, Z, idx, _ = tiny_system
+    model = MaceRepresentation(hidden_irreps="16x1o")
+    with pytest.raises(ValueError, match="0e component"):
+        model.init(jax.random.PRNGKey(0), dr_vec, Z, idx)
