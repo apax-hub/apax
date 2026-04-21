@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-04-20-mace-foundation-model-integration-design.md`
 
-**Progress (updated 2026-04-21):** Phase P0 complete. Phase P1 (native MACE forward pass) is next; P1.1 dispatch was interrupted and nothing is partial — tree is clean at `bc5a7f89`.
+**Progress (updated 2026-04-21):** Phases P0 and P1 complete. Phase P2 (cuequivariance dispatch for `use_cueq=True`) is next. P1 landed on `feat/mace-foundation-integration` through commit `a0c22c3a`; 19/19 descriptor + block + builder unit tests pass. Phase P1 summary: P1.1 edge features, P1.2 LinearNodeEmbedding, P1.3 InteractionBlock, P1.4 ProductBlock (ported mace-jax's symmetric-contraction adapter to linen since `cuex.SymmetricContraction` is absent in installed cuex 0.9.1), P1.5 real forward pass + InteractionBlock skip-Linear fix (`force_irreps_out=True`). Optional mace-jax random-weight parity test (P1.5 Step 3) deferred to P3.
 
 **Reference: how upstream MACE loads foundation models** (`/Users/fzills/tools/mace/mace/calculators/foundations_models.py`):
 
@@ -705,7 +705,7 @@ Goal: real MACE forward pass using e3nn-jax + cuequivariance-jax primitives. Par
 - Create: `apax/layers/descriptor/mace_blocks.py` (new module)
 - Test: `tests/unit_tests/layers/descriptor/test_mace_blocks.py`
 
-- [ ] **Step 1: Stub module**
+- [x] **Step 1: Stub module**
 
 Create `apax/layers/descriptor/mace_blocks.py`:
 
@@ -761,7 +761,7 @@ def assemble_edge_features(dr_vec, r_max, num_bessel, num_poly_cutoff, max_ell):
     return radial, sph
 ```
 
-- [ ] **Step 2: Write test**
+- [x] **Step 2: Write test**
 
 Create `tests/unit_tests/layers/descriptor/test_mace_blocks.py`:
 
@@ -788,12 +788,12 @@ def test_assemble_edge_features_cutoff_zeroes_far_edges():
     assert jnp.allclose(radial, 0.0, atol=1e-6)
 ```
 
-- [ ] **Step 3: Run — expect pass**
+- [x] **Step 3: Run — expect pass**
 
 Run: `uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py -v -k edge_features`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apax/layers/descriptor/mace_blocks.py tests/unit_tests/layers/descriptor/test_mace_blocks.py
@@ -808,7 +808,7 @@ git commit -m "feat(mace): edge-feature assembly (radial × cutoff, spherical ha
 - Modify: `apax/layers/descriptor/mace_blocks.py`
 - Test: `tests/unit_tests/layers/descriptor/test_mace_blocks.py`
 
-- [ ] **Step 1: Write test**
+- [x] **Step 1: Write test**
 
 Append to `test_mace_blocks.py`:
 
@@ -830,12 +830,12 @@ def test_linear_node_embedding_scalar_output():
     assert str(out.irreps) == "16x0e"
 ```
 
-- [ ] **Step 2: Run — expect fail**
+- [x] **Step 2: Run — expect fail**
 
 Run: `uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py::test_linear_node_embedding_scalar_output -v`
 Expected: ImportError.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `apax/layers/descriptor/mace_blocks.py`:
 
@@ -863,12 +863,12 @@ class LinearNodeEmbedding(nn.Module):
         return e3nn.IrrepsArray(irreps, feats)
 ```
 
-- [ ] **Step 4: Run — expect pass**
+- [x] **Step 4: Run — expect pass**
 
 Run: `uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py -v -k linear_node_embedding`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apax/layers/descriptor/mace_blocks.py tests/unit_tests/layers/descriptor/test_mace_blocks.py
@@ -885,7 +885,7 @@ Reference: `/Users/fzills/tools/mace-jax/mace_jax/modules/blocks.py`, class `Rea
 - Modify: `apax/layers/descriptor/mace_blocks.py`
 - Test: `tests/unit_tests/layers/descriptor/test_mace_blocks.py`
 
-- [ ] **Step 1: Read mace-jax reference**
+- [x] **Step 1: Read mace-jax reference**
 
 Run: Read `/Users/fzills/tools/mace-jax/mace_jax/modules/blocks.py` focusing on `RealAgnosticResidualInteractionBlock` and its `__call__`. Also read `wrapper_ops.py` to understand how `FullyConnectedTensorProduct` and `Linear` are used.
 
@@ -905,7 +905,7 @@ Summarize into a comment block in `mace_blocks.py`:
 # Output: new node_feats [n_atoms, irreps_out]
 ```
 
-- [ ] **Step 2: Write test against randomly initialized block**
+- [x] **Step 2: Write test against randomly initialized block**
 
 Append to `test_mace_blocks.py`:
 
@@ -935,12 +935,12 @@ def test_interaction_block_shape_and_finite():
     assert jnp.isfinite(out.array).all()
 ```
 
-- [ ] **Step 3: Run — expect import fail**
+- [x] **Step 3: Run — expect import fail**
 
 Run: `uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py -v -k interaction_block`
 Expected: ImportError.
 
-- [ ] **Step 4: Implement `InteractionBlock`**
+- [x] **Step 4: Implement `InteractionBlock`**
 
 Append to `mace_blocks.py`:
 
@@ -1009,12 +1009,12 @@ class InteractionBlock(nn.Module):
 - If `e3nn.scatter_sum` has a slightly different signature in the installed version, check `uv run python -c "import e3nn_jax as e; help(e.scatter_sum)"`. Alternative: use `e3nn.utils.scatter_sum` or manual `jax.ops.segment_sum(...)` on `.array` while wrapping back into `IrrepsArray`.
 - The `*` operator on `IrrepsArray × jnp.ndarray` must broadcast per-irrep; if it doesn't, use `tp.transform_by_weights(weights)` or loop by irrep.
 
-- [ ] **Step 5: Run — expect pass**
+- [x] **Step 5: Run — expect pass**
 
 Run: `uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py -v -k interaction_block`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apax/layers/descriptor/mace_blocks.py tests/unit_tests/layers/descriptor/test_mace_blocks.py
@@ -1029,13 +1029,13 @@ git commit -m "feat(mace): InteractionBlock (RealAgnosticResidual)"
 - Modify: `apax/layers/descriptor/mace_blocks.py`
 - Test: `tests/unit_tests/layers/descriptor/test_mace_blocks.py`
 
-- [ ] **Step 1: Read reference**
+- [x] **Step 1: Read reference**
 
 Run: Read `/Users/fzills/tools/mace-jax/mace_jax/adapters/cuequivariance/symmetric_contraction.py` (first 120 lines) to see exactly how cuequivariance's `symmetric_contraction` is invoked and what kwargs it expects.
 
 Summarize into a docstring on the block.
 
-- [ ] **Step 2: Write test**
+- [x] **Step 2: Write test**
 
 Append to `test_mace_blocks.py`:
 
@@ -1062,12 +1062,12 @@ def test_product_block_shape_and_finite():
     assert jnp.isfinite(out.array).all()
 ```
 
-- [ ] **Step 3: Run — expect fail**
+- [x] **Step 3: Run — expect fail**
 
 Run: `uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py -v -k product_block`
 Expected: ImportError.
 
-- [ ] **Step 4: Implement `ProductBlock`**
+- [x] **Step 4: Implement `ProductBlock`**
 
 Append to `mace_blocks.py`:
 
@@ -1121,12 +1121,12 @@ class ProductBlock(nn.Module):
 - If the module takes layout strings (`mul_ir` / `ir_mul`), pass `input_layout="mul_ir"` explicitly (matches e3nn default).
 - The parameter table lives inside `sc_layer`; ensure it's registered as a flax param. If cuex is not a flax Module natively, wrap the trainable tensor as a `self.param(...)` call and pass it into the functional cue API.
 
-- [ ] **Step 5: Run — expect pass**
+- [x] **Step 5: Run — expect pass**
 
 Run: `uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py -v -k product_block`
 Expected: PASS. Fix version/API mismatches as you go.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apax/layers/descriptor/mace_blocks.py tests/unit_tests/layers/descriptor/test_mace_blocks.py
@@ -1141,7 +1141,7 @@ git commit -m "feat(mace): ProductBlock (symmetric contraction via cuequivarianc
 - Modify: `apax/layers/descriptor/mace.py`
 - Test: `tests/unit_tests/layers/descriptor/test_mace_descriptor.py`
 
-- [ ] **Step 1: Replace skeleton forward with real pipeline**
+- [x] **Step 1: Replace skeleton forward with real pipeline**
 
 Edit `apax/layers/descriptor/mace.py`, replace the body of `__call__`:
 
@@ -1204,14 +1204,14 @@ def _scalar_irreps_only(irreps_str: str) -> str:
 
 Remove the obsolete `skeleton_w` param and `_scalar_feature_dim` helper.
 
-- [ ] **Step 2: Update existing descriptor tests to still pass**
+- [x] **Step 2: Update existing descriptor tests to still pass**
 
 Run: `uv run pytest tests/unit_tests/layers/descriptor/test_mace_descriptor.py -v`
 Expected: shape test passes; jit test passes.
 
 If shape changes (n_features will now be `n_interactions × scalar_mult`), update assertions to compute expected dim from irreps.
 
-- [ ] **Step 3: Write parity test against mace-jax random-weight output (optional if mace-jax importable)**
+- [ ] **Step 3: Write parity test against mace-jax random-weight output (optional if mace-jax importable)** — skipped; deferred to P3 parity phase
 
 Create `tests/unit_tests/layers/descriptor/test_mace_vs_macejax.py`:
 
@@ -1243,19 +1243,19 @@ def test_mace_representation_vs_macejax():
     assert out.shape == (6, 32)          # 16 scalars × 2 layers
 ```
 
-- [ ] **Step 4: Run, ensure smoke still passes**
+- [x] **Step 4: Run, ensure smoke still passes**
 
 Run: `uv run pytest tests/unit_tests/layers/descriptor/ tests/unit_tests/nn/test_mace_builder.py -v`
 Expected: all PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apax/layers/descriptor/mace.py tests/unit_tests/layers/descriptor/
 git commit -m "feat(mace): replace skeleton with native forward pass (P1)"
 ```
 
-**P1 exit criterion:** MaceRepresentation runs the real forward pass; all unit tests green.
+**P1 exit criterion met:** ✅ MaceRepresentation runs the real forward pass; 19/19 unit tests green (`tests/unit_tests/layers/descriptor/` + `tests/unit_tests/nn/test_mace_builder.py`). Landed on `feat/mace-foundation-integration` through commit `a0c22c3a` on 2026-04-21. Notable deviations from the plan's verbatim code: (a) P1.4's `cuex.SymmetricContraction` is replaced by a linen port of mace-jax's adapter (using `cuex.equivariant_polynomial` + a cached `cue_mace_symmetric_contraction` descriptor); (b) P1.5 inlines `_get_node_mask`/`_get_neighbor_mask` rather than importing from `so3krates` (which pulls in an unavailable `myrto` dep); (c) `InteractionBlock.skip_linear` uses `force_irreps_out=True` so the residual sum stays shape-consistent on the first layer.
 
 ---
 
