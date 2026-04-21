@@ -92,3 +92,25 @@ def test_interaction_block_shape_and_finite():
     out = block.apply(params, node_feats, edge_attrs, edge_feats, i, j)
     assert out.array.shape == (n_atoms, e3nn.Irreps(hidden).dim)
     assert jnp.isfinite(out.array).all()
+
+
+from apax.layers.descriptor.mace_blocks import ProductBlock
+
+
+def test_product_block_shape_and_finite():
+    n_atoms = 5
+    hidden = "16x0e + 16x1o"
+    node_feats = e3nn.IrrepsArray(
+        e3nn.Irreps(hidden),
+        jnp.asarray(np.random.default_rng(0).normal(size=(n_atoms, 64))),
+    )
+    Z = jnp.array([0, 1, 2, 3, 1], dtype=jnp.int32)
+    block = ProductBlock(
+        hidden_irreps=hidden,
+        correlation=3,
+        num_elements=10,
+    )
+    params = block.init(jax.random.PRNGKey(0), node_feats, Z)
+    out = block.apply(params, node_feats, Z)
+    assert out.array.shape == (n_atoms, e3nn.Irreps(hidden).dim)
+    assert jnp.isfinite(out.array).all()

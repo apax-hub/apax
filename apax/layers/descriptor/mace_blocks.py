@@ -16,9 +16,16 @@ are an optional acceleration when ``use_cueq=True`` and GPUs are present.
 
 from __future__ import annotations
 
+from functools import lru_cache
+
+import cuequivariance as cue
+import cuequivariance_jax as cuex
 import e3nn_jax as e3nn
 import jax
 import jax.numpy as jnp
+from cuequivariance.group_theory.experimental.mace.symmetric_contractions import (
+    symmetric_contraction as _cue_mace_symmetric_contraction,
+)
 from flax import linen as nn
 
 
@@ -168,3 +175,215 @@ class InteractionBlock(nn.Module):
         out = e3nn.flax.Linear(irreps_out, name="linear_down")(out)
         skip = e3nn.flax.Linear(irreps_out, name="skip_linear")(node_feats)
         return out + skip
+
+
+class ProductBlock(nn.Module):
+    """MACE product block: high-body-order symmetric contraction.
+
+    Wraps cuequivariance's MACE symmetric-contraction descriptor, evaluated
+    through :func:`cuequivariance_jax.equivariant_polynomial`. Produces node
+    features in the same irreps as its input, after per-element weighted
+    self-tensor-products up to ``correlation`` order.
+
+    Parameters
+    ----------
+    hidden_irreps : str
+        Irreps string for both input and output (MACE keeps them equal).
+        All entries must share a common multiplicity.
+    correlation : int
+        Maximum tensor-product order (MACE commonly uses 3).
+    num_elements : int
+        Number of chemical elements (per-species weight table row count).
+    use_cueq : bool
+        Reserved for P2 (CUDA kernel dispatch). For now, all paths go through
+        :func:`cuex.equivariant_polynomial` with ``method='naive'``.
+
+    Notes
+    -----
+    The descriptor built by
+    :func:`cuequivariance.group_theory.experimental.mace.symmetric_contractions.symmetric_contraction`
+    is static (does not depend on any traced values), so it is built lazily per
+    configuration via a module-level ``lru_cache``. Weight initialisation uses
+    ``normal(stddev=1.0)`` as a placeholder for the smoke test; parity with
+    torch-mace is deferred to P3.
+    """
+
+    hidden_irreps: str
+    correlation: int = 3
+    num_elements: int = 119
+    use_cueq: bool = False
+
+    @nn.compact
+    def __call__(self, node_feats, Z):
+        irreps_out_e3 = e3nn.Irreps(self.hidden_irreps)
+
+        muls = {mul for mul, _ in irreps_out_e3}
+        if len(muls) != 1:
+            raise ValueError(
+                "ProductBlock requires all irreps to share the same multiplicity; "
+                f"got multiplicities {muls} in {self.hidden_irreps!r}"
+            )
+        mul = next(iter(muls))
+
+        # Build the (static) descriptor. The cache keeps jit-recompilation cheap.
+        descriptor, _projection, weight_irreps, weight_numel = _get_symmetric_contraction_descriptor(
+            str(irreps_out_e3),
+            int(self.correlation),
+        )
+        weight_basis_dim = weight_numel // mul
+
+        array = node_feats.array
+        dtype = array.dtype
+        n_atoms = array.shape[0]
+        feature_dim = sum(ir.dim for _, ir in irreps_out_e3)
+        expected_total = mul * feature_dim
+        if array.shape[-1] != expected_total:
+            raise ValueError(
+                "ProductBlock expected a flat feature dim of "
+                f"{expected_total} (mul={mul} * feature_dim={feature_dim}); "
+                f"got {array.shape[-1]}"
+            )
+
+        # Reshape (n_atoms, mul*feature_dim) -> (n_atoms, mul, feature_dim) in mul_ir.
+        x_mul_ir = array.reshape(n_atoms, mul, feature_dim)
+
+        # Per-element weight table.
+        weight = self.param(
+            "weight",
+            nn.initializers.normal(stddev=1.0),
+            (self.num_elements, weight_basis_dim, mul),
+            dtype,
+        )
+        weight_flat = weight.reshape(self.num_elements, weight_numel)
+        selected = weight_flat[Z.astype(jnp.int32)]  # (n_atoms, weight_numel)
+        weight_rep = cuex.RepArray(weight_irreps, selected, cue.ir_mul)
+
+        # Wrap the node features as a RepArray in ir_mul layout.
+        irreps_in_cue = cue.Irreps(cue.O3, str(irreps_out_e3))
+        x_rep = _features_to_rep(x_mul_ir, irreps_in_cue, mul, dtype)
+
+        out_rep = cuex.equivariant_polynomial(
+            descriptor,
+            [weight_rep, x_rep],
+            math_dtype=dtype,
+            method="naive",
+        )
+
+        out_ir_mul = out_rep.change_layout(cue.ir_mul).array
+        out_mul_ir = _ir_mul_to_mul_ir(out_ir_mul, irreps_out_e3)
+        return e3nn.IrrepsArray(irreps_out_e3, out_mul_ir)
+
+
+# ---------------------------------------------------------------------------
+# Private helpers (ported from mace-jax's cuequivariance adapter utilities)
+# ---------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=64)
+def _get_symmetric_contraction_descriptor(hidden_irreps_str: str, correlation: int):
+    """Cache the MACE symmetric-contraction descriptor build.
+
+    Parameters
+    ----------
+    hidden_irreps_str : str
+        String form of the node irreps (input == output for MACE product blocks).
+    correlation : int
+        Maximum tensor-product order; degrees ``range(1, correlation + 1)``.
+
+    Returns
+    -------
+    descriptor : cuequivariance descriptor
+        The polynomial descriptor passed to
+        :func:`cuex.equivariant_polynomial`.
+    projection : object or None
+        The (optional) projection matrix for reduced-CG weights. Retained here
+        for future parity work; ``None`` is returned when the descriptor uses
+        reduced-CG directly.
+    weight_irreps : cue.Irreps
+        The cue irreps of the weight input.
+    weight_numel : int
+        Total size of the flattened weight vector per element.
+    """
+    irreps_cue = cue.Irreps(cue.O3, hidden_irreps_str)
+    degrees = tuple(range(1, correlation + 1))
+    descriptor, projection = _cue_mace_symmetric_contraction(
+        irreps_cue, irreps_cue, degrees
+    )
+    weight_irreps = descriptor.inputs[0].irreps
+    weight_numel = weight_irreps.dim
+    return descriptor, projection, weight_irreps, weight_numel
+
+
+def _features_to_rep(
+    x_mul_ir: jnp.ndarray,
+    irreps_cue: cue.Irreps,
+    mul: int,
+    dtype: jnp.dtype,
+) -> cuex.RepArray:
+    """Pack ``mul_ir`` features into a cuequivariance ``RepArray``.
+
+    Parameters
+    ----------
+    x_mul_ir : jnp.ndarray
+        Feature tensor of shape ``(batch, mul, feature_dim)`` in the e3nn
+        ``mul_ir`` layout.
+    irreps_cue : cue.Irreps
+        cue irreps of the input (full multiplicity).
+    mul : int
+        Common multiplicity shared by every irrep entry.
+    dtype : jnp.dtype
+        Desired dtype of the resulting ``RepArray``.
+
+    Returns
+    -------
+    cuex.RepArray
+        Features in ``ir_mul`` layout, segmented per irrep, ready to be passed
+        to :func:`cuex.equivariant_polynomial`.
+    """
+    base_irreps = irreps_cue.set_mul(1)
+    segments: list[jnp.ndarray] = []
+    offset = 0
+    for mul_ir in base_irreps:
+        width = mul_ir.ir.dim
+        seg = x_mul_ir[:, :, offset : offset + width]
+        # swap (..., mul, ir_dim) -> (..., ir_dim, mul)
+        segments.append(jnp.swapaxes(seg, -2, -1))
+        offset += width
+    return cuex.from_segments(
+        irreps_cue,
+        segments,
+        (x_mul_ir.shape[0], mul),
+        cue.ir_mul,
+        dtype=dtype,
+    )
+
+
+def _ir_mul_to_mul_ir(array: jnp.ndarray, irreps: e3nn.Irreps) -> jnp.ndarray:
+    """Reorder the last axis of ``array`` from ``ir_mul`` back to ``mul_ir``.
+
+    Parameters
+    ----------
+    array : jnp.ndarray
+        Array whose last axis equals ``irreps.dim`` in cue's ``ir_mul`` order.
+    irreps : e3nn.Irreps
+        Irreps describing the last axis.
+
+    Returns
+    -------
+    jnp.ndarray
+        Array of the same shape, last axis reordered to e3nn's ``mul_ir``.
+    """
+    if irreps.dim == 0:
+        return array
+    leading_shape = array.shape[:-1]
+    array = array.reshape(*leading_shape, irreps.dim)
+    segments: list[jnp.ndarray] = []
+    offset = 0
+    for mul, ir in irreps:
+        block = array[..., offset : offset + mul * ir.dim]
+        offset += mul * ir.dim
+        block = block.reshape(*leading_shape, ir.dim, mul)
+        block = jnp.swapaxes(block, -1, -2)  # -> (..., mul, ir_dim)
+        block = block.reshape(*leading_shape, mul * ir.dim)
+        segments.append(block)
+    return jnp.concatenate(segments, axis=-1) if segments else array
