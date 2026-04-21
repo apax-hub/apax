@@ -1,8 +1,6 @@
 """Converter CLI unit tests that don't require torch."""
 import sys
-from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
 
