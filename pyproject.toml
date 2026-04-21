@@ -79,6 +79,10 @@ dev = [
 lint = [
     "ruff>=0.9.1",
 ]
+mace-convert = [
+    "torch>=2.1",
+    "mace-torch>=0.3",
+]
 
 [project.scripts]
 apax = 'apax.cli.apax_app:app'
