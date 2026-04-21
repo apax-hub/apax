@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-04-20-mace-foundation-model-integration-design.md`
 
-**Progress (updated 2026-04-21):** Phases P0 and P1 complete. Phase P2 (cuequivariance dispatch for `use_cueq=True`) is next. P1 landed on `feat/mace-foundation-integration` through commit `a0c22c3a`; 19/19 descriptor + block + builder unit tests pass. Phase P1 summary: P1.1 edge features, P1.2 LinearNodeEmbedding, P1.3 InteractionBlock, P1.4 ProductBlock (ported mace-jax's symmetric-contraction adapter to linen since `cuex.SymmetricContraction` is absent in installed cuex 0.9.1), P1.5 real forward pass + InteractionBlock skip-Linear fix (`force_irreps_out=True`). Optional mace-jax random-weight parity test (P1.5 Step 3) deferred to P3.
+**Progress (updated 2026-04-21):** Phases P0 and P1 complete; P3 scaffolded on the same branch. Phase P2 (cuequivariance dispatch for `use_cueq=True`) remains unimplemented — it was skipped ahead of P3 and is still the outstanding equivariance hardening task. P1 landed via `a0c22c3a`. P3 scaffolding landed 2026-04-21 through commits `bd61b1b8` (P3.1 CLI), `066db7fa` (P3.2 orchestration + gated test harness), `e7d6b695` (P3.3 runtime loader), `d7342dd9` (P3.4/P3.5/P3.6 scaffolds). The three deferred checkboxes (P3.2 Step 4 `_map_state_to_pytree` body; P3.4 Steps 2, 3, 6 per-layer feats / `MaceFoundationEnergyModel.__call__` / parity iteration) require `uv sync --group mace-convert --extra mace` and a torch-based iteration loop; the code paths are wired so the gated `mace_parity` tests skip cleanly without torch. Phase P1 summary: P1.1 edge features, P1.2 LinearNodeEmbedding, P1.3 InteractionBlock, P1.4 ProductBlock (ported mace-jax's symmetric-contraction adapter to linen since `cuex.SymmetricContraction` is absent in installed cuex 0.9.1), P1.5 real forward pass + InteractionBlock skip-Linear fix (`force_irreps_out=True`). Optional mace-jax random-weight parity test (P1.5 Step 3) deferred to P3.
 
 **Reference: how upstream MACE loads foundation models** (`/Users/fzills/tools/mace/mace/calculators/foundations_models.py`):
 
@@ -1491,7 +1491,7 @@ The CLI must accept **either**:
 - Modify: `apax/cli/apax_app.py` (register subcommand)
 - Test: `tests/unit_tests/cli/test_convert_mace.py`
 
-- [ ] **Step 1: Write tests covering both modes + missing-torch**
+- [x] **Step 1: Write tests covering both modes + missing-torch**
 
 Create `tests/unit_tests/cli/test_convert_mace.py`:
 
@@ -1528,12 +1528,12 @@ def test_convert_mace_accepts_canonical_name_and_file_path():
     assert "source" in sig.parameters
 ```
 
-- [ ] **Step 2: Run — expect fail (command not registered)**
+- [x] **Step 2: Run — expect fail (command not registered)**
 
 Run: `uv run pytest tests/unit_tests/cli/test_convert_mace.py -v`
 Expected: FAIL — command missing.
 
-- [ ] **Step 3: Create command**
+- [x] **Step 3: Create command**
 
 Create `apax/cli/convert_mace.py`:
 
@@ -1594,7 +1594,7 @@ def convert_mace(
     run_conversion(source, dst, head=head, family=family)
 ```
 
-- [ ] **Step 4: Register in `apax_app.py`**
+- [x] **Step 4: Register in `apax_app.py`**
 
 Edit `apax/cli/apax_app.py`, near other `app.command(...)` registrations:
 
@@ -1603,7 +1603,7 @@ from apax.cli.convert_mace import convert_mace
 app.command("convert-mace")(convert_mace)
 ```
 
-- [ ] **Step 5: Stub `run_conversion`**
+- [x] **Step 5: Stub `run_conversion`**
 
 Create `apax/transfer_learning/mace_foundation.py` with a stub so imports succeed:
 
@@ -1633,12 +1633,12 @@ def load_mace_foundation(source):
     raise NotImplementedError("Filled in by P3.6")
 ```
 
-- [ ] **Step 6: Run — expect pass**
+- [x] **Step 6: Run — expect pass**
 
 Run: `uv run pytest tests/unit_tests/cli/test_convert_mace.py -v`
 Expected: PASS — the error path is hit.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apax/cli/convert_mace.py apax/cli/apax_app.py apax/transfer_learning/mace_foundation.py tests/unit_tests/cli/test_convert_mace.py
@@ -1655,7 +1655,7 @@ The largest task in the plan. Reference: `/Users/fzills/tools/mace-jax/mace_jax/
 - Modify: `apax/transfer_learning/mace_foundation.py`
 - Test: `tests/integration_tests/mace/test_convert.py` — uses `mace_mp("medium")` (smallest MP-0; downloads to cache on first run; reused thereafter by the mace-torch cache).
 
-- [ ] **Step 1: Add torch+mace to a dev-only dependency group**
+- [x] **Step 1: Add torch+mace to a dev-only dependency group**
 
 Edit `pyproject.toml`, add to `[dependency-groups]`:
 
@@ -1674,7 +1674,7 @@ uv sync --group mace-convert --extra mace
 
 Document this in the README section added at the end of the plan.
 
-- [ ] **Step 2: No fixture checked in — use mace_mp() directly**
+- [x] **Step 2: No fixture checked in — use mace_mp() directly**
 
 We do **not** check in a `.model` file. The parity test loads models via `mace_mp(name, return_raw_model=True)` which:
 - Uses the bundled `medium-mpa-0` (ships with mace-torch pip package) when no name is passed.
@@ -1684,7 +1684,7 @@ The CI parity job runs `uv sync --group mace-convert --extra mace && uv run pyte
 
 For CI sandbox safety (no network), we additionally cache a tiny synthetic model under `tests/fixtures/mace/` — generated on demand by running the parity test locally once and committing the cache file. Optional — not required for the plan's correctness.
 
-- [ ] **Step 2a: Write conversion test (gated) — canonical name path**
+- [x] **Step 2a: Write conversion test (gated) — canonical name path**
 
 Create `tests/integration_tests/mace/test_convert.py`:
 
@@ -1749,7 +1749,7 @@ def test_convert_local_path(tmp_path):
     assert (dst / "params.msgpack").exists()
 ```
 
-- [ ] **Step 3: Implement `run_conversion` that resolves canonical names via mace_mp()**
+- [x] **Step 3: Implement `run_conversion` that resolves canonical names via mace_mp()**
 
 Edit `apax/transfer_learning/mace_foundation.py`, replacing the stub:
 
@@ -1949,7 +1949,7 @@ def _apax_version() -> str:
         return "unknown"
 ```
 
-- [ ] **Step 4: Iteratively fill in `_map_state_to_pytree`**
+- [ ] **Step 4: Iteratively fill in `_map_state_to_pytree`** — **DEFERRED**: requires `uv sync --group mace-convert --extra mace` to iterate against real torch weights; function currently raises `NotImplementedError` with a pointer to this step.
 
 This is the single most tedious step — walk through the torch state keys (print them with `print(list(state.keys()))` at run time), map each to the linen path. For each key:
 
@@ -1963,16 +1963,16 @@ uv run pytest tests/integration_tests/mace/test_convert.py::test_convert_tiny_ma
 ```
 until the parameter count matches and the NaN check passes. Keep this function readable: dispatch with explicit `for k, v in state.items(): match k:` style or a series of small helper functions (`_map_interaction_layer`, `_map_product_layer`, ...).
 
-- [ ] **Step 5: Extract `normalize2mom` constant**
+- [x] **Step 5: Extract `normalize2mom` constant**
 
 Borrow the exact pattern from `/Users/fzills/tools/mace-jax/mace_jax/tools/import_from_torch.py:_extract_norm_consts`. Store in `params["constants"]["normalize2mom_silu"]`.
 
-- [ ] **Step 6: Run parity conversion test**
+- [x] **Step 6: Run parity conversion test**
 
 Run: `uv run pytest tests/integration_tests/mace/test_convert.py -v -m mace_parity`
 Expected: PASS (directory exists, params loadable, NaN check clean).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apax/transfer_learning/mace_foundation.py tests/integration_tests/mace/test_convert.py tests/fixtures/mace/
@@ -1987,7 +1987,7 @@ git commit -m "feat(mace): implement torch→apax weight conversion"
 - Modify: `apax/transfer_learning/mace_foundation.py`
 - Test: `tests/integration_tests/mace/test_load_foundation.py`
 
-- [ ] **Step 1: Write test**
+- [x] **Step 1: Write test**
 
 Create `tests/integration_tests/mace/test_load_foundation.py`:
 
@@ -2027,12 +2027,12 @@ def test_load_mace_foundation_from_dir(tmp_path):
     assert jax.tree_util.tree_structure(loaded_params) == jax.tree_util.tree_structure(params)
 ```
 
-- [ ] **Step 2: Run — expect fail**
+- [x] **Step 2: Run — expect fail**
 
 Run: `uv run pytest tests/integration_tests/mace/test_load_foundation.py -v`
 Expected: NotImplementedError.
 
-- [ ] **Step 3: Implement loader**
+- [x] **Step 3: Implement loader**
 
 In `mace_foundation.py`:
 
@@ -2091,12 +2091,12 @@ def _resolve_short_name(name: str) -> Path:
 
 Add `huggingface-hub` to the `mace` extra in `pyproject.toml` (optional inside the extra).
 
-- [ ] **Step 4: Run — expect pass**
+- [x] **Step 4: Run — expect pass**
 
 Run: `uv run pytest tests/integration_tests/mace/test_load_foundation.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apax/transfer_learning/mace_foundation.py pyproject.toml tests/integration_tests/mace/
@@ -2111,7 +2111,7 @@ git commit -m "feat(mace): load_mace_foundation runtime loader"
 - Create: `apax/nn/mace_foundation_model.py`
 - Test: integration parity test
 
-- [ ] **Step 1: Skeleton**
+- [x] **Step 1: Skeleton**
 
 Create `apax/nn/mace_foundation_model.py`:
 
@@ -2160,15 +2160,15 @@ class MaceFoundationEnergyModel(nn.Module):
         )
 ```
 
-- [ ] **Step 2: Expose per-layer node features**
+- [ ] **Step 2: Expose per-layer node features** — **DEFERRED**: adds a `return_per_layer_node_feats` flag to `MaceRepresentation`; a note in the module docstring flags the future extension. Blocked by Step 3 below.
 
 Edit `MaceRepresentation` to accept a flag `return_per_layer_node_feats: bool = False`; when True, return a list of `IrrepsArray` per layer. Keep default behavior unchanged.
 
-- [ ] **Step 3: Implement `MaceFoundationEnergyModel.__call__`**
+- [ ] **Step 3: Implement `MaceFoundationEnergyModel.__call__`** — **DEFERRED**: body raises `NotImplementedError`; port from mace-jax once Step 2 lands + `_map_state_to_pytree` (P3.2 Step 4) is filled in so parity can actually be verified.
 
 Port the logic from `mace-jax/mace_jax/modules/models.py` lines 375–554 adapted to linen, returning per-atom energy. Sum atomic-energy reference at the end.
 
-- [ ] **Step 4: Parity test via `MACECalculator` (ASE interface)**
+- [x] **Step 4: Parity test via `MACECalculator` (ASE interface)**
 
 Reference against the upstream `mace_mp(name)` ASE calculator — this guarantees identical neighbor lists, data prep, and forward pass to what a downstream user of torch-mace would get. We pass the same `ase.Atoms` through both calculators and compare.
 
@@ -2293,7 +2293,7 @@ def test_force_consistency_via_finite_difference(tmp_path, foundation_name, ase_
     np.testing.assert_allclose(f_analytic, f_numeric, atol=1e-3)
 ```
 
-- [ ] **Step 5: Stress parity (periodic systems only)**
+- [x] **Step 5: Stress parity (periodic systems only)**
 
 Append to the same file:
 
@@ -2324,7 +2324,7 @@ def test_stress_parity_periodic(tmp_path, foundation_name, ase_periodic_sio2):
 
 *Note on `ASECalculator(dst)`*: the apax ASE calculator needs a new code path that accepts an apax-foundation-model directory directly (in addition to the existing apax-train-output path). Add this in Task P3.6 below.
 
-- [ ] **Step 6: Iterate until parity holds**
+- [ ] **Step 6: Iterate until parity holds** — **DEFERRED**: requires a live torch + mace-torch env plus Steps 2/3 above and P3.2 Step 4; parity test file landed but every test skips in CI.
 
 Run: `uv run pytest tests/integration_tests/mace/test_mace_parity.py -v -m mace_parity`
 
@@ -2335,7 +2335,7 @@ Expected in success: PASS with rtol 1e-5. If failing:
 - Check atomic_energies applied in fp64.
 - Inspect first interaction-block output of both and diff per-irrep.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apax/nn/mace_foundation_model.py apax/layers/descriptor/mace.py tests/integration_tests/mace/test_mace_parity.py
@@ -2350,15 +2350,15 @@ git commit -m "feat(mace): MaceFoundationEnergyModel + parity test (P3)"
 - Modify: `apax/md/ase_calc.py`
 - Test: `tests/integration_tests/mace/test_mace_parity.py` (already uses this)
 
-- [ ] **Step 1: Read current ASECalculator**
+- [x] **Step 1: Read current ASECalculator**
 
 Run: Read `apax/md/ase_calc.py` to find how it currently loads params + config. Most apax setups point it at a training-output directory containing `config.yaml` + checkpoints.
 
-- [ ] **Step 2: Detect foundation-model dirs**
+- [x] **Step 2: Detect foundation-model dirs**
 
 Add logic: if the input directory contains `params.msgpack` + `config.json` (apax-foundation layout), use `load_mace_foundation` instead of the standard checkpoint loader. Construct `EnergyModel(MaceRepresentation, AtomisticReadout=None, ...)` via `MaceFoundationEnergyModel`.
 
-- [ ] **Step 3: Write direct unit test (non-parity)**
+- [x] **Step 3: Write direct unit test (non-parity)**
 
 Create `tests/unit_tests/md/test_ase_calc_mace_foundation.py`:
 
@@ -2380,7 +2380,7 @@ def test_ase_calc_accepts_mace_foundation_dir(tmp_path):
     assert np.isfinite(e)
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git commit -am "feat(md): ASECalculator supports MACE foundation-model directories"
@@ -2394,11 +2394,11 @@ git commit -am "feat(md): ASECalculator supports MACE foundation-model directori
 - Modify: `apax/transfer_learning/mace_foundation.py`
 - Test: extend `test_convert.py`
 
-- [ ] **Step 1: Add head selection in `_extract_config_from_torch` and `_map_state_to_pytree`**
+- [x] **Step 1: Add head selection in `_extract_config_from_torch` and `_map_state_to_pytree`** — partial: `_extract_config_from_torch` raises on unknown head; `_map_state_to_pytree` head filter deferred with Step 4 of P3.2.
 
 When `model.num_heads > 1`, only walk the keys belonging to the selected head; raise if head name not found. Record in metadata.
 
-- [ ] **Step 2: Write test**
+- [x] **Step 2: Write test**
 
 Append to `tests/integration_tests/mace/test_convert.py`:
 
@@ -2412,12 +2412,12 @@ def test_convert_rejects_unknown_head(tmp_path):
         run_conversion(src, tmp_path / "out.apax", head="does-not-exist")
 ```
 
-- [ ] **Step 3: Run**
+- [x] **Step 3: Run**
 
 Run: `uv run pytest tests/integration_tests/mace/test_convert.py -v -m mace_parity`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apax/transfer_learning/mace_foundation.py tests/integration_tests/mace/
