@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-04-20-mace-foundation-model-integration-design.md`
 
+**Progress (updated 2026-04-21):** Phase P0 complete. Phase P1 (native MACE forward pass) is next; P1.1 dispatch was interrupted and nothing is partial — tree is clean at `bc5a7f89`.
+
 **Reference: how upstream MACE loads foundation models** (`/Users/fzills/tools/mace/mace/calculators/foundations_models.py`):
 
 - `mace_mp(model=..., return_raw_model=True)` returns the raw `torch.nn.Module` and handles everything: bundled-local → cache → download.
@@ -80,11 +82,11 @@ Goal: get `apax train` to run with a MACE config that uses random features (no r
 **Files:**
 - Modify: `pyproject.toml`
 
-- [ ] **Step 1: Read current pyproject**
+- [x] **Step 1: Read current pyproject**
 
 Run: Read `pyproject.toml`, confirm shape of `[project.optional-dependencies]` block.
 
-- [ ] **Step 2: Add `mace` extra**
+- [x] **Step 2: Add `mace` extra**
 
 Edit `pyproject.toml`, add under `[project.optional-dependencies]`:
 
@@ -96,7 +98,7 @@ mace = [
 ]
 ```
 
-- [ ] **Step 3: Add `mace_parity` marker**
+- [x] **Step 3: Add `mace_parity` marker**
 
 Edit `pyproject.toml` under `[tool.pytest.ini_options]`, extend `markers`:
 
@@ -107,7 +109,7 @@ markers = [
 ]
 ```
 
-- [ ] **Step 4: Sync and verify**
+- [x] **Step 4: Sync and verify**
 
 Run: `uv sync --extra mace`
 Expected: resolves and installs e3nn-jax, cuequivariance-jax, cuequivariance. No errors.
@@ -115,7 +117,7 @@ Expected: resolves and installs e3nn-jax, cuequivariance-jax, cuequivariance. No
 Run: `uv run python -c "import e3nn_jax, cuequivariance_jax, cuequivariance; print('ok')"`
 Expected output: `ok`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add pyproject.toml uv.lock
@@ -130,11 +132,11 @@ git commit -m "build: add mace optional extra (e3nn-jax, cuequivariance-jax)"
 - Modify: `apax/layers/descriptor/basis_functions.py`
 - Test: `tests/unit_tests/layers/descriptor/test_basis_functions.py`
 
-- [ ] **Step 1: Read existing file**
+- [x] **Step 1: Read existing file**
 
 Run: Read `apax/layers/descriptor/basis_functions.py` to understand conventions (BesselBasis / GaussianBasis as reference).
 
-- [ ] **Step 2: Write failing test**
+- [x] **Step 2: Write failing test**
 
 Edit `tests/unit_tests/layers/descriptor/test_basis_functions.py`, append:
 
@@ -164,12 +166,12 @@ def test_polynomial_cutoff_monotone_decreasing():
     assert (diffs <= 1e-6).all()                        # never increases
 ```
 
-- [ ] **Step 3: Run test — expect fail**
+- [x] **Step 3: Run test — expect fail**
 
 Run: `uv run pytest tests/unit_tests/layers/descriptor/test_basis_functions.py::test_polynomial_cutoff_zero_at_rmax -v`
 Expected: ImportError — `PolynomialCutoff` not defined.
 
-- [ ] **Step 4: Implement `PolynomialCutoff`**
+- [x] **Step 4: Implement `PolynomialCutoff`**
 
 Append to `apax/layers/descriptor/basis_functions.py`:
 
@@ -210,12 +212,12 @@ class PolynomialCutoff(nn.Module):
 
 Confirm `nn` and `jnp` are already imported in that file; add if missing.
 
-- [ ] **Step 5: Run test — expect pass**
+- [x] **Step 5: Run test — expect pass**
 
 Run: `uv run pytest tests/unit_tests/layers/descriptor/test_basis_functions.py -v -k polynomial_cutoff`
 Expected: both tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apax/layers/descriptor/basis_functions.py tests/unit_tests/layers/descriptor/test_basis_functions.py
@@ -232,7 +234,7 @@ Proves the descriptor contract and lets downstream plumbing be tested before the
 - Create: `apax/layers/descriptor/mace.py`
 - Test: `tests/unit_tests/layers/descriptor/test_mace_descriptor.py`
 
-- [ ] **Step 1: Write failing contract test**
+- [x] **Step 1: Write failing contract test**
 
 Create `tests/unit_tests/layers/descriptor/test_mace_descriptor.py`:
 
@@ -290,12 +292,12 @@ def test_mace_representation_is_jittable(tiny_system):
     assert out.shape[0] == n_atoms
 ```
 
-- [ ] **Step 2: Run — expect import fail**
+- [x] **Step 2: Run — expect import fail**
 
 Run: `uv run pytest tests/unit_tests/layers/descriptor/test_mace_descriptor.py -v`
 Expected: ModuleNotFoundError — `apax.layers.descriptor.mace` does not exist.
 
-- [ ] **Step 3: Create skeleton module**
+- [x] **Step 3: Create skeleton module**
 
 Create `apax/layers/descriptor/mace.py`:
 
@@ -404,12 +406,12 @@ def _scalar_feature_dim(irreps_str: str) -> int:
     return 0
 ```
 
-- [ ] **Step 4: Run — expect pass**
+- [x] **Step 4: Run — expect pass**
 
 Run: `uv run pytest tests/unit_tests/layers/descriptor/test_mace_descriptor.py -v`
 Expected: both tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apax/layers/descriptor/mace.py tests/unit_tests/layers/descriptor/test_mace_descriptor.py
@@ -423,11 +425,11 @@ git commit -m "feat(layers): add MaceRepresentation skeleton (P0)"
 **Files:**
 - Modify: `apax/config/model_config.py`
 
-- [ ] **Step 1: Read existing file to find the discriminated-union pattern**
+- [x] **Step 1: Read existing file to find the discriminated-union pattern**
 
 Run: Read `apax/config/model_config.py`, locate existing `BaseModelConfig`, `GMNNConfig`, and the `Union[...]` type alias used for `model`.
 
-- [ ] **Step 2: Add `MaceModelConfig`**
+- [x] **Step 2: Add `MaceModelConfig`**
 
 Append to `apax/config/model_config.py` (before the `Union[...]` alias):
 
@@ -462,11 +464,11 @@ class MaceModelConfig(BaseModelConfig):
 
 Ensure `Path` and `Literal` are imported at top of file.
 
-- [ ] **Step 3: Add `MaceModelConfig` to discriminated union**
+- [x] **Step 3: Add `MaceModelConfig` to discriminated union**
 
 Locate the existing alias (likely `ModelConfig = Annotated[Union[GMNNConfig, ...], Field(discriminator="name")]`) and add `MaceModelConfig`.
 
-- [ ] **Step 4: Validate import**
+- [x] **Step 4: Validate import**
 
 Run: `uv run python -c "from apax.config.model_config import MaceModelConfig; print(MaceModelConfig().name)"`
 Expected output: `mace`
@@ -474,7 +476,7 @@ Expected output: `mace`
 Run: `uv run apax schema`
 Expected: succeeds; `.vscode/train_schema.json` contains `"mace"` as a discriminator value.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apax/config/model_config.py
@@ -489,7 +491,7 @@ git commit -m "feat(config): add MaceModelConfig to model discriminated union"
 - Modify: `apax/nn/builder.py`
 - Test: `tests/unit_tests/nn/test_mace_builder.py`
 
-- [ ] **Step 1: Write failing builder test**
+- [x] **Step 1: Write failing builder test**
 
 Create `tests/unit_tests/nn/test_mace_builder.py`:
 
@@ -559,12 +561,12 @@ def test_mace_builder_build_derivative_model_runs(mace_config_dict):
     assert jnp.isfinite(energy).all()
 ```
 
-- [ ] **Step 2: Run — expect import fail**
+- [x] **Step 2: Run — expect import fail**
 
 Run: `uv run pytest tests/unit_tests/nn/test_mace_builder.py -v`
 Expected: ImportError — `MaceBuilder` not defined.
 
-- [ ] **Step 3: Append `MaceBuilder`**
+- [x] **Step 3: Append `MaceBuilder`**
 
 Edit `apax/nn/builder.py`, find existing pattern of `So3kratesBuilder`, append at end of file:
 
@@ -596,7 +598,7 @@ class MaceBuilder(ModelBuilder):
         )
 ```
 
-- [ ] **Step 4: Wire builder selection**
+- [x] **Step 4: Wire builder selection**
 
 Find where the builder is selected based on `config.name` (likely in `apax/nn/builder.py` or `apax/train/run.py`). Add a branch:
 
@@ -607,12 +609,12 @@ elif model_name == "mace":
 
 If using a dict/mapping, register `"mace": MaceBuilder` there.
 
-- [ ] **Step 5: Run — expect pass**
+- [x] **Step 5: Run — expect pass**
 
 Run: `uv run pytest tests/unit_tests/nn/test_mace_builder.py -v`
 Expected: both tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apax/nn/builder.py tests/unit_tests/nn/test_mace_builder.py
@@ -627,7 +629,7 @@ git commit -m "feat(nn): add MaceBuilder (P0 plumbing)"
 - Create: `tests/integration_tests/mace/__init__.py`
 - Create: `tests/integration_tests/mace/test_mace_smoke.py`
 
-- [ ] **Step 1: Write smoke test**
+- [x] **Step 1: Write smoke test**
 
 Create `tests/integration_tests/mace/test_mace_smoke.py`:
 
@@ -673,23 +675,23 @@ def test_apax_train_with_mace_config(tmp_path, fake_dataset_h5):
 
 *Note:* the exact fixture name (`fake_dataset_h5`) depends on the existing `tests/integration_tests/conftest.py`. Before running, inspect that file and use its minimal dataset fixture; if none exists, use the simplest pattern from `tests/integration_tests/cli/test_app.py`.
 
-- [ ] **Step 2: Run — may need fixture adjustment**
+- [x] **Step 2: Run — may need fixture adjustment**
 
 Run: `uv run pytest tests/integration_tests/mace/test_mace_smoke.py -v -m slow`
 Expected: Either PASS or fail with a clear config schema issue. If schema fails, dump the validation error and fix fields (likely missing required fields from `BaseModelConfig`).
 
-- [ ] **Step 3: Fix config fields as needed, re-run**
+- [x] **Step 3: Fix config fields as needed, re-run**
 
 Iterate until smoke test PASSES.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/integration_tests/mace/
 git commit -m "test: add MACE train smoke test (P0 skeleton)"
 ```
 
-**P0 exit criterion met:** `uv sync --extra mace` works; `apax train` runs with a MACE YAML config using the random-features skeleton.
+**P0 exit criterion met:** ✅ `uv sync --extra mace` works; `apax train` runs with a MACE YAML config using the random-features skeleton. Phase P0 landed on `feat/mace-foundation-integration` through commit `bc5a7f89` (2026-04-20). 9 commits including two review-fix rounds; 50 unit tests pass; 1-epoch MACE smoke train completes in ~14s on MD22.
 
 ---
 
