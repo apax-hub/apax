@@ -82,7 +82,11 @@ lint = [
 mace-convert = [
     "torch>=2.1",
     "mace-torch>=0.3",
+    "mace-jax",
 ]
+
+[tool.uv.sources]
+mace-jax = { path = "/Users/fzills/tools/mace-jax", editable = true }
 
 [project.scripts]
 apax = 'apax.cli.apax_app:app'
