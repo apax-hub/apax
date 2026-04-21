@@ -171,9 +171,15 @@ class InteractionBlock(nn.Module):
         # 5. Scatter-sum into receivers
         out = e3nn.scatter_sum(weighted, dst=receivers, output_size=node_feats.shape[0])
 
-        # 6. Post-mix and residual
+        # 6. Post-mix and residual.
+        # force_irreps_out=True on skip_linear zero-pads channels unreachable
+        # from node_feats.irreps (e.g. the first layer has scalar-only input
+        # so 1o/2e channels can't arise via a pure Linear), keeping the sum
+        # with the tensor-product path shape-consistent across layers.
         out = e3nn.flax.Linear(irreps_out, name="linear_down")(out)
-        skip = e3nn.flax.Linear(irreps_out, name="skip_linear")(node_feats)
+        skip = e3nn.flax.Linear(
+            irreps_out, name="skip_linear", force_irreps_out=True
+        )(node_feats)
         return out + skip
 
 

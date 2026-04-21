@@ -8,9 +8,8 @@ Matches the apax descriptor contract exactly:
 ``__call__(dr_vec, Z, idx) -> (n_atoms, n_features)``.
 
 The heavy equivariant math lives in :mod:`apax.layers.descriptor.mace_blocks`
-and is added progressively over P1–P2. This module starts as a typed skeleton
-that returns random-but-finite scalar features so the rest of apax (builder,
-config, readout wiring) can be validated end-to-end first.
+and is composed here into the full MACE pipeline:
+``LinearNodeEmbedding -> N x (InteractionBlock -> ProductBlock) -> concat scalars``.
 """
 
 from __future__ import annotations
@@ -76,41 +75,110 @@ class MaceRepresentation(nn.Module):
 
     @nn.compact
     def __call__(self, dr_vec, Z, idx):
+        from apax.layers.descriptor.mace_blocks import (
+            InteractionBlock,
+            LinearNodeEmbedding,
+            ProductBlock,
+            assemble_edge_features,
+        )
+
         dtype = str_to_dtype(self.dtype)
         dr_vec = dr_vec.astype(dtype)
-        # P0 skeleton: idx and apply_mask are part of the public contract (used by
-        # jax-md, readout, and masking infra) but are unused in this stub forward
-        # pass; real uses are introduced alongside the equivariant math in P1.
-        del idx  # suppress unused-var warning until the real forward pass lands
-        if self.apply_mask:
-            pass  # real masking is applied in P1
-        # P0 skeleton: return a random-but-finite per-atom feature tensor
-        # so the rest of apax (readout, scale/shift, train, MD) can be wired.
-        # Replaced by real forward pass in P1.
-        n_scalar = _scalar_feature_dim(self.hidden_irreps) * self.num_interactions
-        w = self.param(
-            "skeleton_w",
-            nn.initializers.normal(stddev=0.01),
-            (self.num_elements, n_scalar),
-            dtype,
+        i, j = idx[0], idx[1]
+
+        pair_mask = _get_neighbor_mask(idx) if self.apply_mask else 1.0
+        node_mask = _get_node_mask(Z) if self.apply_mask else 1.0
+
+        radial, sph = assemble_edge_features(
+            dr_vec,
+            self.r_max,
+            self.num_bessel,
+            self.num_polynomial_cutoff,
+            self.max_ell,
         )
-        features = w[Z]
+        if self.apply_mask:
+            radial = radial * pair_mask[..., None]
+
+        # Initial node features: scalars only
+        scalar_init = _scalar_irreps_only(self.hidden_irreps)
+        node_feats = LinearNodeEmbedding(
+            num_elements=self.num_elements,
+            irreps_out=scalar_init,
+        )(Z)
+
+        per_layer_scalars = []
+        for _ in range(self.num_interactions):
+            node_feats = InteractionBlock(
+                irreps_out=self.hidden_irreps,
+                interaction_cls=self.interaction_cls,
+            )(node_feats, sph, radial, i, j)
+            node_feats = ProductBlock(
+                hidden_irreps=self.hidden_irreps,
+                correlation=self.correlation,
+                num_elements=self.num_elements,
+                use_cueq=self.use_cueq,
+            )(node_feats, Z)
+            per_layer_scalars.append(node_feats.filter(keep="0e").array)
+
+        features = jnp.concatenate(per_layer_scalars, axis=-1)
+        if self.apply_mask:
+            features = features * node_mask[..., None]
+        features = features.astype(dtype)
         return features
 
 
-def _scalar_feature_dim(irreps_str: str) -> int:
-    """Parse irreps string and return the multiplicity of the 0e component.
+def _get_node_mask(Z):
+    """Return an int16 mask of real (non-padding) atoms.
+
+    Parameters
+    ----------
+    Z : Array
+        Atomic-number vector; zeros mark padding atoms.
+
+    Returns
+    -------
+    Array
+        1 where ``Z != 0``, else 0, as ``int16``.
+    """
+    return (Z != 0).astype(jnp.int16)
+
+
+def _get_neighbor_mask(idx):
+    """Return an int16 mask of real (non-self-pair) neighbor edges.
+
+    Parameters
+    ----------
+    idx : Array, shape (2, n_edges)
+        Edge index array with rows ``(receivers, senders)``.
+
+    Returns
+    -------
+    Array
+        1 where ``idx[0] != idx[1]``, else 0, as ``int16``.
+    """
+    return ((idx[0] - idx[1]) != 0).astype(jnp.int16)
+
+
+def _scalar_irreps_only(irreps_str: str) -> str:
+    """Return the 0e subset of an irreps string.
+
+    Parameters
+    ----------
+    irreps_str : str
+        Full irreps string, e.g. ``"128x0e + 128x1o"``.
+
+    Returns
+    -------
+    str
+        Only the ``0e`` component(s), e.g. ``"128x0e"``.
 
     Raises
     ------
     ValueError
-        If ``irreps_str`` has no scalar (``x0e``) component.
+        If no ``0e`` component is present.
     """
-    for part in irreps_str.split("+"):
-        part = part.strip()
-        if part.endswith("x0e"):
-            return int(part.split("x")[0])
-    raise ValueError(
-        f"hidden_irreps {irreps_str!r} has no 0e component; "
-        "MaceRepresentation requires at least one scalar channel."
-    )
+    parts = [p.strip() for p in irreps_str.split("+")]
+    scalar = [p for p in parts if p.endswith("x0e")]
+    if not scalar:
+        raise ValueError(f"No 0e component in irreps {irreps_str!r}")
+    return " + ".join(scalar)
