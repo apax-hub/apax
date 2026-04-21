@@ -128,20 +128,48 @@ class InteractionBlock(nn.Module):
     ----------
     irreps_out : str
         Target irreps for node features after this block.
+    target_irreps : str or None
+        Target irreps used for the inner ``linear`` (post-TP). If ``None`` this
+        equals ``irreps_out``. Foundation parity requires ``target_irreps`` to
+        be the full irreps emitted by the tensor product (e.g.
+        ``"128x0e+128x1o+128x2e+128x3o"``), independent of the final
+        ``hidden_irreps`` which is scalar-only.
     interaction_cls : str
         Which interaction variant; for now only RealAgnosticResidual is
         implemented. Other variants raise NotImplementedError.
     radial_mlp : tuple[int, ...]
         Hidden layer widths for the radial MLP that gates tensor-product
         channels. Defaults to ``(64, 64, 64)``.
+    foundation_mode : bool
+        If True, mirrors torch-mace foundation semantics:
+        - skip connection becomes per-element
+          ``FullyConnectedTensorProduct(node_feats_irreps, one_hot(Z), hidden_irreps)``;
+          ``num_elements`` and ``hidden_irreps_final`` must be provided.
+        - post-conv ``linear`` output is divided by ``avg_num_neighbors``.
+        - radial MLP has no activation on the output layer.
+        If False, behaviour is unchanged (existing training codepath).
+    num_elements : int
+        Number of chemical species for the per-element skip. Required when
+        ``foundation_mode=True``.
+    hidden_irreps_final : str or None
+        Irreps of the skip-connection output in foundation mode (e.g.
+        ``"128x0e"`` for small MP-0). Not used if ``foundation_mode=False``.
+    avg_num_neighbors : float
+        Normalisation factor; post-conv message is divided by this. Only used
+        when ``foundation_mode=True``.
     """
 
     irreps_out: str
+    target_irreps: str | None = None
     interaction_cls: str = "RealAgnosticResidual"
     radial_mlp: tuple = (64, 64, 64)
+    foundation_mode: bool = False
+    num_elements: int = 0
+    hidden_irreps_final: str | None = None
+    avg_num_neighbors: float = 1.0
 
     @nn.compact
-    def __call__(self, node_feats, edge_attrs, edge_feats, receivers, senders):
+    def __call__(self, node_feats, edge_attrs, edge_feats, receivers, senders, Z=None):
         if self.interaction_cls != "RealAgnosticResidual":
             raise NotImplementedError(
                 f"Interaction variant {self.interaction_cls!r} not yet implemented; "
@@ -149,6 +177,10 @@ class InteractionBlock(nn.Module):
             )
         irreps_in = node_feats.irreps
         irreps_out = e3nn.Irreps(self.irreps_out)
+        target_irreps = (
+            e3nn.Irreps(self.target_irreps) if self.target_irreps is not None
+            else irreps_out
+        )
 
         # 1. Linear pre-mix
         x = e3nn.flax.Linear(irreps_in, name="linear_up")(node_feats)
@@ -157,14 +189,17 @@ class InteractionBlock(nn.Module):
         x_j = x[senders]
 
         # 3. Tensor product with edge spherical harmonics
-        #    Output irreps = full tensor-square subset reachable in irreps_out
-        tp = e3nn.tensor_product(x_j, edge_attrs, filter_ir_out=irreps_out)
+        #    Output irreps = full tensor-square subset reachable in target_irreps
+        tp = e3nn.tensor_product(x_j, edge_attrs, filter_ir_out=target_irreps)
 
         # 4. Radial MLP producing a scalar per TP path per edge
         n_paths = tp.irreps.num_irreps
         mlp_widths = (*self.radial_mlp, n_paths)
+        mlp_kwargs = {}
+        if self.foundation_mode:
+            mlp_kwargs["output_activation"] = False
         weights = e3nn.flax.MultiLayerPerceptron(
-            list(mlp_widths), act=jax.nn.silu, name="radial_mlp"
+            list(mlp_widths), act=jax.nn.silu, name="radial_mlp", **mlp_kwargs
         )(edge_feats)
         weighted = tp * weights                                 # broadcast-safe
 
@@ -172,15 +207,116 @@ class InteractionBlock(nn.Module):
         out = e3nn.scatter_sum(weighted, dst=receivers, output_size=node_feats.shape[0])
 
         # 6. Post-mix and residual.
-        # force_irreps_out=True on skip_linear zero-pads channels unreachable
-        # from node_feats.irreps (e.g. the first layer has scalar-only input
-        # so 1o/2e channels can't arise via a pure Linear), keeping the sum
-        # with the tensor-product path shape-consistent across layers.
-        out = e3nn.flax.Linear(irreps_out, name="linear_down")(out)
-        skip = e3nn.flax.Linear(
-            irreps_out, name="skip_linear", force_irreps_out=True
-        )(node_feats)
+        out = e3nn.flax.Linear(target_irreps, name="linear_down")(out)
+        if self.foundation_mode:
+            out = out / self.avg_num_neighbors
+
+        if self.foundation_mode:
+            if self.num_elements <= 0 or self.hidden_irreps_final is None or Z is None:
+                raise ValueError(
+                    "foundation_mode=True requires num_elements>0, "
+                    "hidden_irreps_final, and a Z argument."
+                )
+            skip = PerElementSkipTP(
+                num_elements=self.num_elements,
+                hidden_irreps=self.hidden_irreps_final,
+                name="skip_tp",
+            )(node_feats, Z)
+            # Expand skip to target_irreps layout by zero-padding non-scalar channels
+            skip = _pad_to_irreps(skip, target_irreps)
+        else:
+            # Backward-compatible per-irrep linear skip with zero-padded extras.
+            skip = e3nn.flax.Linear(
+                target_irreps, name="skip_linear", force_irreps_out=True
+            )(node_feats)
+
         return out + skip
+
+
+def _pad_to_irreps(src, target_irreps):
+    """Expand a scalar-only IrrepsArray to ``target_irreps`` with zero padding.
+
+    Parameters
+    ----------
+    src : e3nn.IrrepsArray
+        Scalar-only input, irreps ``"Mx0e"``.
+    target_irreps : e3nn.Irreps
+        Target irreps, must start with ``Mx0e`` (same multiplicity) and contain
+        additional non-scalar entries to be zero-padded.
+
+    Returns
+    -------
+    e3nn.IrrepsArray
+        Array with irreps ``target_irreps``; scalar block copied from ``src``,
+        non-scalar blocks filled with zeros.
+    """
+    target_irreps = e3nn.Irreps(target_irreps)
+    # Pad: concatenate zeros for the non-0e part.
+    n_leading = src.array.shape[:-1]
+    total_dim = target_irreps.dim
+    src_dim = src.array.shape[-1]
+    if total_dim == src_dim:
+        return e3nn.IrrepsArray(target_irreps, src.array)
+    pad = jnp.zeros((*n_leading, total_dim - src_dim), dtype=src.array.dtype)
+    arr = jnp.concatenate([src.array, pad], axis=-1)
+    return e3nn.IrrepsArray(target_irreps, arr)
+
+
+class PerElementSkipTP(nn.Module):
+    """Per-element skip connection mirroring torch-mace's ``skip_tp``.
+
+    Implements ``FullyConnectedTensorProduct((M_in x 0e), (E x 0e), (M_out x 0e))``
+    where the second argument is a one-hot over chemical species ``Z``. This is
+    equivalent to gathering a per-element linear weight matrix of shape
+    ``(num_elements, M_in, M_out)`` and applying it to the scalar-only node
+    features. The e3nn path weight ``1/sqrt(M_in * num_elements)`` is baked
+    into the forward pass so that torch weights can be copied verbatim.
+
+    Parameters
+    ----------
+    num_elements : int
+        Number of chemical species (must match the torch model's
+        ``atomic_numbers`` table length).
+    hidden_irreps : str
+        Output irreps, e.g. ``"128x0e"``.
+    """
+
+    num_elements: int
+    hidden_irreps: str
+
+    @nn.compact
+    def __call__(self, node_feats, Z):
+        in_irreps = node_feats.irreps
+        out_irreps = e3nn.Irreps(self.hidden_irreps)
+
+        if not all(ir.l == 0 for _, ir in in_irreps):
+            raise NotImplementedError(
+                "PerElementSkipTP currently supports scalar-only node features "
+                f"(got irreps={in_irreps})."
+            )
+        if not all(ir.l == 0 for _, ir in out_irreps):
+            raise NotImplementedError(
+                "PerElementSkipTP currently supports scalar-only output "
+                f"(got {self.hidden_irreps!r})."
+            )
+
+        in_mul = sum(mul for mul, ir in in_irreps if ir.l == 0)
+        out_mul = sum(mul for mul, ir in out_irreps if ir.l == 0)
+        dtype = node_feats.array.dtype
+
+        path_weight = 1.0 / jnp.sqrt(
+            jnp.asarray(in_mul * self.num_elements, dtype=dtype)
+        )
+        weight = self.param(
+            "weight",
+            nn.initializers.normal(stddev=1.0),
+            (self.num_elements, in_mul, out_mul),
+            dtype,
+        )
+        w_selected = weight[Z.astype(jnp.int32)]          # (n_atoms, in_mul, out_mul)
+        x = node_feats.array                              # (n_atoms, in_mul)
+        y = jnp.einsum("ni,nij->nj", x, w_selected) * path_weight
+        return e3nn.IrrepsArray(out_irreps, y)
 
 
 class LinearReadoutBlock(nn.Module):
@@ -273,18 +409,26 @@ class ProductBlock(nn.Module):
 
     Wraps cuequivariance's MACE symmetric-contraction descriptor, evaluated
     through :func:`cuequivariance_jax.equivariant_polynomial`. Produces node
-    features in the same irreps as its input, after per-element weighted
-    self-tensor-products up to ``correlation`` order.
+    features after per-element weighted self-tensor-products up to
+    ``correlation`` order. Optionally followed by an ``e3nn.flax.Linear`` post
+    map (``post_linear=True``) to mirror torch-mace's ``EquivariantProductBasisBlock``.
 
     Parameters
     ----------
     hidden_irreps : str
-        Irreps string for both input and output (MACE keeps them equal).
-        All entries must share a common multiplicity.
+        Output (target) irreps string. For the small MP-0 model this is
+        ``"128x0e"``. All entries must share a common multiplicity.
+    input_irreps : str or None
+        Input irreps for the symmetric contraction. When ``None`` (default) this
+        equals ``hidden_irreps``; the foundation-model path uses different
+        input/output irreps (e.g. ``"128x0e+128x1o+128x2e+128x3o"`` → ``"128x0e"``).
     correlation : int
         Maximum tensor-product order (MACE commonly uses 3).
     num_elements : int
         Number of chemical elements (per-species weight table row count).
+    post_linear : bool
+        If True, apply an ``e3nn.flax.Linear(hidden_irreps → hidden_irreps)`` after
+        the symmetric contraction (matches torch-mace foundation layout).
     use_cueq : bool
         Reserved for P2 (CUDA kernel dispatch). For now, all paths go through
         :func:`cuex.equivariant_polynomial` with ``method='naive'``.
@@ -295,13 +439,15 @@ class ProductBlock(nn.Module):
     :func:`cuequivariance.group_theory.experimental.mace.symmetric_contractions.symmetric_contraction`
     is static (does not depend on any traced values), so it is built lazily per
     configuration via a module-level ``lru_cache``. Weight initialisation uses
-    ``normal(stddev=1.0)`` as a placeholder for the smoke test; parity with
-    torch-mace is deferred to P3.
+    ``normal(stddev=1.0)`` as a placeholder; parity with torch-mace is achieved
+    by the state-dict mapper in :mod:`apax.transfer_learning.mace_foundation`.
     """
 
     hidden_irreps: str
+    input_irreps: str | None = None
     correlation: int = 3
     num_elements: int = 119
+    post_linear: bool = False
     use_cueq: bool = False
 
     @nn.compact
@@ -312,17 +458,24 @@ class ProductBlock(nn.Module):
                 "not yet implemented."
             )
         irreps_out_e3 = e3nn.Irreps(self.hidden_irreps)
+        irreps_in_e3 = (
+            e3nn.Irreps(self.input_irreps)
+            if self.input_irreps is not None
+            else irreps_out_e3
+        )
 
-        muls = {mul for mul, _ in irreps_out_e3}
-        if len(muls) != 1:
+        out_muls = {mul for mul, _ in irreps_out_e3}
+        in_muls = {mul for mul, _ in irreps_in_e3}
+        if len(out_muls | in_muls) != 1:
             raise ValueError(
-                "ProductBlock requires all irreps to share the same multiplicity; "
-                f"got multiplicities {muls} in {self.hidden_irreps!r}"
+                "ProductBlock requires all input/output irreps to share the same multiplicity; "
+                f"got input {irreps_in_e3!r} output {irreps_out_e3!r}"
             )
-        mul = next(iter(muls))
+        mul = next(iter(out_muls | in_muls))
 
         # Build the (static) descriptor. The cache keeps jit-recompilation cheap.
         descriptor, weight_irreps, weight_numel = _get_symmetric_contraction_descriptor(
+            str(irreps_in_e3),
             str(irreps_out_e3),
             int(self.correlation),
         )
@@ -331,17 +484,17 @@ class ProductBlock(nn.Module):
         array = node_feats.array
         dtype = array.dtype
         n_atoms = array.shape[0]
-        feature_dim = sum(ir.dim for _, ir in irreps_out_e3)
-        expected_total = mul * feature_dim
+        feature_dim_in = sum(ir.dim for _, ir in irreps_in_e3)
+        expected_total = mul * feature_dim_in
         if array.shape[-1] != expected_total:
             raise ValueError(
                 "ProductBlock expected a flat feature dim of "
-                f"{expected_total} (mul={mul} * feature_dim={feature_dim}); "
+                f"{expected_total} (mul={mul} * feature_dim_in={feature_dim_in}); "
                 f"got {array.shape[-1]}"
             )
 
         # Reshape (n_atoms, mul*feature_dim) -> (n_atoms, mul, feature_dim) in mul_ir.
-        x_mul_ir = array.reshape(n_atoms, mul, feature_dim)
+        x_mul_ir = array.reshape(n_atoms, mul, feature_dim_in)
 
         # Per-element weight table.
         weight = self.param(
@@ -355,7 +508,7 @@ class ProductBlock(nn.Module):
         weight_rep = cuex.RepArray(weight_irreps, selected, cue.ir_mul)
 
         # Wrap the node features as a RepArray in ir_mul layout.
-        irreps_in_cue = cue.Irreps(cue.O3, str(irreps_out_e3))
+        irreps_in_cue = cue.Irreps(cue.O3, str(irreps_in_e3))
         x_rep = _features_to_rep(x_mul_ir, irreps_in_cue, mul, dtype)
 
         out_rep = cuex.equivariant_polynomial(
@@ -367,7 +520,10 @@ class ProductBlock(nn.Module):
 
         out_ir_mul = out_rep.change_layout(cue.ir_mul).array
         out_mul_ir = _ir_mul_to_mul_ir(out_ir_mul, irreps_out_e3)
-        return e3nn.IrrepsArray(irreps_out_e3, out_mul_ir)
+        out = e3nn.IrrepsArray(irreps_out_e3, out_mul_ir)
+        if self.post_linear:
+            out = e3nn.flax.Linear(irreps_out_e3, name="linear")(out)
+        return out
 
 
 # ---------------------------------------------------------------------------
@@ -376,13 +532,17 @@ class ProductBlock(nn.Module):
 
 
 @lru_cache(maxsize=64)
-def _get_symmetric_contraction_descriptor(hidden_irreps_str: str, correlation: int):
+def _get_symmetric_contraction_descriptor(
+    input_irreps_str: str, output_irreps_str: str, correlation: int,
+):
     """Cache the MACE symmetric-contraction descriptor build.
 
     Parameters
     ----------
-    hidden_irreps_str : str
-        String form of the node irreps (input == output for MACE product blocks).
+    input_irreps_str : str
+        String form of the node-feature irreps (input to the contraction).
+    output_irreps_str : str
+        String form of the target irreps (output of the contraction).
     correlation : int
         Maximum tensor-product order; degrees ``range(1, correlation + 1)``.
 
@@ -399,14 +559,15 @@ def _get_symmetric_contraction_descriptor(hidden_irreps_str: str, correlation: i
     Notes
     -----
     The underlying cuequivariance helper also returns a projection matrix used
-    only by the ``use_reduced_cg=False`` path. That path is deferred to P3; the
-    projection is discarded here and the cache signature kept minimal. When P3
-    adds support, extend this function's return to include it.
+    only by the ``use_reduced_cg=False`` path. That path is deferred to a
+    future milestone; the projection is discarded here and the cache
+    signature kept minimal.
     """
-    irreps_cue = cue.Irreps(cue.O3, hidden_irreps_str)
+    irreps_in_cue = cue.Irreps(cue.O3, input_irreps_str)
+    irreps_out_cue = cue.Irreps(cue.O3, output_irreps_str)
     degrees = tuple(range(1, correlation + 1))
     descriptor, _projection = _cue_mace_symmetric_contraction(
-        irreps_cue, irreps_cue, degrees
+        irreps_in_cue, irreps_out_cue, degrees
     )
     weight_irreps = descriptor.inputs[0].irreps
     weight_numel = weight_irreps.dim
