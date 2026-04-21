@@ -66,3 +66,33 @@ def test_convert_rejects_unknown_head(tmp_path):
 
     with pytest.raises(ValueError, match="head"):
         run_conversion("medium-mpa-0", tmp_path / "out.apax", head="does-not-exist")
+
+
+def test_extract_config_from_torch_small():
+    """Verify config extraction matches the known ``small`` MP-0 hyperparameters."""
+    pytest.importorskip("torch")
+    pytest.importorskip("mace")
+    from mace.calculators.foundations_models import mace_mp
+
+    from apax.transfer_learning.mace_foundation import _extract_config_from_torch
+
+    m = mace_mp("small", return_raw_model=True, default_dtype="float64", device="cpu")
+    cfg = _extract_config_from_torch(m, head="default")
+
+    assert cfg["name"] == "mace"
+    assert cfg["r_max"] == 6.0
+    assert cfg["num_bessel"] == 10
+    assert cfg["num_polynomial_cutoff"] == 5
+    assert cfg["max_ell"] == 3
+    assert cfg["hidden_irreps"] == "128x0e"
+    assert cfg["num_interactions"] == 2
+    assert cfg["correlation"] == 3
+    assert cfg["interaction_cls"] == "RealAgnosticResidual"
+    assert cfg["num_elements"] == 89
+    assert cfg["has_zbl"] is False
+    assert len(cfg["atomic_numbers"]) == 89
+    assert len(cfg["atomic_energies"]) == 89
+    assert isinstance(cfg["scale"], float)
+    assert isinstance(cfg["shift"], float)
+    # No ``selected_head`` key should be set for single-head models.
+    assert "selected_head" not in cfg

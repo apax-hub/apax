@@ -129,44 +129,107 @@ def _load_torch_foundation_model(source, *, family: str):
     return torch_model, resolved_path
 
 
-def _extract_config_from_torch(model, head: str) -> dict:
-    """Return a dict that matches MaceModelConfig schema.
+_INTERACTION_CLS_MAP = {
+    "RealAgnosticInteractionBlock": "RealAgnostic",
+    "RealAgnosticResidualInteractionBlock": "RealAgnosticResidual",
+    "RealAgnosticDensityInteractionBlock": "RealAgnosticDensity",
+    "RealAgnosticDensityResidualInteractionBlock": "RealAgnosticDensityResidual",
+}
 
-    Reads hyperparameters off the torch module (r_max, hidden_irreps, etc.).
-    Multi-head selection: if model.heads > 1, pick the named head and drop others.
+
+def _extract_config_from_torch(model, head: str) -> dict:
+    """Return a dict that matches :class:`MaceModelConfig` schema.
+
+    Reads hyperparameters off a torch ``ScaleShiftMACE`` foundation-model instance.
+    For foundation models, many of the hyperparameters are not exposed as
+    attributes on the top-level module; they must be discovered by walking the
+    submodule tree.
 
     Parameters
     ----------
     model : torch.nn.Module
-        The loaded MACE torch model.
+        The loaded MACE torch model (typically a ``ScaleShiftMACE``).
     head : str
-        Which head to select for multi-head models.
+        Which head to select for multi-head models. Ignored when the model
+        only has a single head.
 
     Returns
     -------
     dict
-        Configuration dictionary compatible with ``MaceModelConfig``.
+        Configuration dictionary compatible with ``MaceModelConfig`` plus a few
+        extra fields used by the parameter mapper and the full-energy model:
+
+        - ``atomic_energies`` : list[float] of shape ``(num_elements,)``
+        - ``atomic_numbers``  : list[int]   of shape ``(num_elements,)``
+        - ``scale``, ``shift`` : floats for :class:`ScaleShiftBlock`
+        - ``has_zbl`` : whether the source model carries a pair-repulsion tail
+        - ``selected_head`` : present only for multi-head foundation models
     """
+    # Interaction variant
+    iface_cls = type(model.interactions[0]).__name__
+    interaction_cls = _INTERACTION_CLS_MAP.get(iface_cls)
+    if interaction_cls is None:
+        raise ValueError(
+            f"Unrecognised torch-mace interaction block {iface_cls!r}; "
+            f"known: {sorted(_INTERACTION_CLS_MAP)}"
+        )
+
+    # Max spherical harmonic degree: the SH block's output irreps lists all
+    # degrees 0..ell_max in order.
+    max_ell = int(max(ir.l for _, ir in model.spherical_harmonics.irreps_out))
+
+    # hidden_irreps: the irreps of the final product linear output. For the
+    # small MP-0 model this is "128x0e".
+    hidden_irreps = str(model.products[0].linear.irreps_out)
+
+    # Correlation: stored on the first contraction.
+    correlation = int(model.products[0].symmetric_contractions.contractions[0].correlation)
+
+    # num_elements: number of 0e channels in the node_embedding input (which is
+    # one-hot over the model's ``atomic_numbers`` table).
+    num_elements = int(model.node_embedding.linear.irreps_in.num_irreps)
+
+    # Bessel basis size & cutoff polynomial order.
+    num_bessel = int(model.radial_embedding.bessel_fn.bessel_weights.shape[0])
+    num_polynomial_cutoff = int(model.radial_embedding.cutoff_fn.p)
+
+    atomic_energies = (
+        model.atomic_energies_fn.atomic_energies.detach().cpu().numpy().tolist()
+    )
+    atomic_numbers = model.atomic_numbers.detach().cpu().numpy().tolist()
+
+    scale = float(model.scale_shift.scale)
+    shift = float(model.scale_shift.shift)
+
+    # ZBL / pair repulsion
+    has_zbl = (
+        "pair_repulsion_fn" in dict(model.named_children())
+        and model.pair_repulsion_fn is not None
+    )
+
     cfg = {
         "name": "mace",
         "r_max": float(model.r_max),
-        "num_bessel": int(getattr(model, "num_bessel", 8)),
-        "num_polynomial_cutoff": int(getattr(model, "num_polynomial_cutoff", 5)),
-        "max_ell": int(getattr(model, "max_ell", 3)),
-        "hidden_irreps": str(model.hidden_irreps),
+        "num_bessel": num_bessel,
+        "num_polynomial_cutoff": num_polynomial_cutoff,
+        "max_ell": max_ell,
+        "hidden_irreps": hidden_irreps,
         "num_interactions": int(model.num_interactions),
-        "correlation": int(getattr(model, "correlation", 3)),
-        "interaction_cls": "RealAgnosticResidual",
-        "num_elements": int(model.num_elements),
+        "correlation": correlation,
+        "interaction_cls": interaction_cls,
+        "num_elements": num_elements,
+        "atomic_energies": atomic_energies,
+        "atomic_numbers": atomic_numbers,
+        "scale": scale,
+        "shift": shift,
+        "has_zbl": has_zbl,
     }
-    # atomic_energies are per-element reference E0, kept in a separate array
-    cfg["atomic_energies"] = (
-        model.atomic_energies_fn.atomic_energies.detach().cpu().numpy().tolist()
-    )
-    num_heads = getattr(model, "num_heads", 1)
-    if num_heads > 1:
-        head_names = list(getattr(model, "head_names", []))
-        if head_names and head not in head_names:
+
+    # Multi-head models (MPA): expose ``heads`` as a list of str.
+    heads = getattr(model, "heads", None)
+    if heads is not None and len(heads) > 1:
+        head_names = list(heads)
+        if head not in head_names:
             raise ValueError(
                 f"head={head!r} not in available heads {head_names}. "
                 f"Pass --head <name> from that list."
