@@ -114,3 +114,41 @@ def test_product_block_shape_and_finite():
     out = block.apply(params, node_feats, Z)
     assert out.array.shape == (n_atoms, e3nn.Irreps(hidden).dim)
     assert jnp.isfinite(out.array).all()
+
+
+def test_product_block_weight_param_shape():
+    """Pin the weight param shape — the P3 torch→linen converter targets this."""
+    hidden = "16x0e + 16x1o"
+    num_elements = 10
+    correlation = 3
+    node_feats = e3nn.IrrepsArray(
+        e3nn.Irreps(hidden),
+        jnp.asarray(np.random.default_rng(0).normal(size=(3, 64))),
+    )
+    Z = jnp.array([0, 1, 2], dtype=jnp.int32)
+    block = ProductBlock(
+        hidden_irreps=hidden, correlation=correlation, num_elements=num_elements,
+    )
+    params = block.init(jax.random.PRNGKey(0), node_feats, Z)
+    weight = params["params"]["weight"]
+    # (num_elements, weight_basis_dim, mul) — mul=16 from "16x0e + 16x1o"
+    assert weight.shape[0] == num_elements
+    assert weight.shape[2] == 16
+    # weight_basis_dim depends on correlation and irreps; just check rank + positivity
+    assert weight.ndim == 3 and weight.shape[1] > 0
+
+
+def test_product_block_z_changes_output():
+    """Changing Z must change the output — guards against Z-gather being a silent no-op."""
+    hidden = "16x0e + 16x1o"
+    node_feats = e3nn.IrrepsArray(
+        e3nn.Irreps(hidden),
+        jnp.asarray(np.random.default_rng(0).normal(size=(4, 64))),
+    )
+    block = ProductBlock(hidden_irreps=hidden, correlation=3, num_elements=10)
+    Z_a = jnp.array([0, 1, 2, 3], dtype=jnp.int32)
+    Z_b = jnp.array([5, 6, 7, 8], dtype=jnp.int32)
+    params = block.init(jax.random.PRNGKey(0), node_feats, Z_a)
+    out_a = block.apply(params, node_feats, Z_a)
+    out_b = block.apply(params, node_feats, Z_b)
+    assert not jnp.allclose(out_a.array, out_b.array)

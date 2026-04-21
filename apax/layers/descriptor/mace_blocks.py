@@ -215,6 +215,11 @@ class ProductBlock(nn.Module):
 
     @nn.compact
     def __call__(self, node_feats, Z):
+        if self.use_cueq:
+            raise NotImplementedError(
+                "use_cueq=True is reserved for P2 (cuequivariance CUDA dispatch); "
+                "not yet implemented."
+            )
         irreps_out_e3 = e3nn.Irreps(self.hidden_irreps)
 
         muls = {mul for mul, _ in irreps_out_e3}
@@ -226,7 +231,7 @@ class ProductBlock(nn.Module):
         mul = next(iter(muls))
 
         # Build the (static) descriptor. The cache keeps jit-recompilation cheap.
-        descriptor, _projection, weight_irreps, weight_numel = _get_symmetric_contraction_descriptor(
+        descriptor, weight_irreps, weight_numel = _get_symmetric_contraction_descriptor(
             str(irreps_out_e3),
             int(self.correlation),
         )
@@ -295,23 +300,26 @@ def _get_symmetric_contraction_descriptor(hidden_irreps_str: str, correlation: i
     descriptor : cuequivariance descriptor
         The polynomial descriptor passed to
         :func:`cuex.equivariant_polynomial`.
-    projection : object or None
-        The (optional) projection matrix for reduced-CG weights. Retained here
-        for future parity work; ``None`` is returned when the descriptor uses
-        reduced-CG directly.
     weight_irreps : cue.Irreps
         The cue irreps of the weight input.
     weight_numel : int
         Total size of the flattened weight vector per element.
+
+    Notes
+    -----
+    The underlying cuequivariance helper also returns a projection matrix used
+    only by the ``use_reduced_cg=False`` path. That path is deferred to P3; the
+    projection is discarded here and the cache signature kept minimal. When P3
+    adds support, extend this function's return to include it.
     """
     irreps_cue = cue.Irreps(cue.O3, hidden_irreps_str)
     degrees = tuple(range(1, correlation + 1))
-    descriptor, projection = _cue_mace_symmetric_contraction(
+    descriptor, _projection = _cue_mace_symmetric_contraction(
         irreps_cue, irreps_cue, degrees
     )
     weight_irreps = descriptor.inputs[0].irreps
     weight_numel = weight_irreps.dim
-    return descriptor, projection, weight_irreps, weight_numel
+    return descriptor, weight_irreps, weight_numel
 
 
 def _features_to_rep(
