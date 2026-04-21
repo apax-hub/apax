@@ -24,6 +24,34 @@ from apax.train.checkpoints import (
 from apax.utils.jax_md_reduced import partition, space
 
 
+def _is_mace_foundation_dir(path) -> bool:
+    """Return True if ``path`` looks like a converted MACE foundation directory.
+
+    A valid foundation directory is produced by
+    :func:`apax.transfer_learning.mace_foundation.run_conversion` and contains
+    exactly ``config.json``, ``params.msgpack``, and ``metadata.json``.
+
+    Parameters
+    ----------
+    path : path-like or list
+        Candidate path.  Lists/tuples (ensemble dirs) always return ``False``.
+
+    Returns
+    -------
+    bool
+        ``True`` when all three marker files are present inside ``path``.
+    """
+    if isinstance(path, (list, tuple)):
+        return False
+    p = Path(path)
+    return (
+        p.is_dir()
+        and (p / "config.json").is_file()
+        and (p / "params.msgpack").is_file()
+        and (p / "metadata.json").is_file()
+    )
+
+
 def maybe_vmap(apply, params):
     n_models = check_for_ensemble(params)
 
@@ -151,6 +179,15 @@ class ASECalculator(Calculator):
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
         self.transformations = transformations
+
+        if _is_mace_foundation_dir(model_dir):
+            raise NotImplementedError(
+                "Direct ASECalculator instantiation from a MACE foundation-model "
+                "directory requires the full MaceFoundationEnergyModel wiring "
+                "(plan P3.4 Step 3). Until then, fine-tune the foundation model "
+                "via the standard training config with `pretrained: <path>` set "
+                "in `MaceModelConfig`."
+            )
 
         self.model_config, self.params = restore_parameters(model_dir)
 

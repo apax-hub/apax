@@ -163,7 +163,14 @@ def _extract_config_from_torch(model, head: str) -> dict:
     cfg["atomic_energies"] = (
         model.atomic_energies_fn.atomic_energies.detach().cpu().numpy().tolist()
     )
-    if getattr(model, "num_heads", 1) > 1:
+    num_heads = getattr(model, "num_heads", 1)
+    if num_heads > 1:
+        head_names = list(getattr(model, "head_names", []))
+        if head_names and head not in head_names:
+            raise ValueError(
+                f"head={head!r} not in available heads {head_names}. "
+                f"Pass --head <name> from that list."
+            )
         cfg["selected_head"] = head
     return cfg
 

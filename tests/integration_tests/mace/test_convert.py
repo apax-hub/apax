@@ -56,3 +56,13 @@ def test_convert_local_path(tmp_path):
     run_conversion(str(local_path), dst, head="mp", family="mace_mp")
 
     assert (dst / "params.msgpack").exists()
+
+
+def test_convert_rejects_unknown_head(tmp_path):
+    """Reject unknown --head before any mapping happens."""
+    pytest.importorskip("torch")
+    pytest.importorskip("mace")
+    from apax.transfer_learning.mace_foundation import run_conversion
+
+    with pytest.raises(ValueError, match="head"):
+        run_conversion("medium-mpa-0", tmp_path / "out.apax", head="does-not-exist")

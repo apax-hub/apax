@@ -58,6 +58,13 @@ class MaceRepresentation(nn.Module):
         If True, zero out masked atoms in the output.
     dtype : Any
         Floating-point dtype for features.
+
+    Notes
+    -----
+    Future extension: a ``return_per_layer_node_feats`` flag will expose
+    per-layer ``IrrepsArray`` outputs for
+    :class:`apax.nn.mace_foundation_model.MaceFoundationEnergyModel`; see
+    plan P3.4 Step 2.
     """
 
     r_max: float = 5.0
