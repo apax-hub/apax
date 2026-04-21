@@ -183,6 +183,91 @@ class InteractionBlock(nn.Module):
         return out + skip
 
 
+class LinearReadoutBlock(nn.Module):
+    """Scalar linear readout.
+
+    Mirrors torch-mace's :class:`LinearReadoutBlock`: a single
+    ``e3nn.flax.Linear`` projecting node features down to ``1x0e``. Returns a
+    per-atom scalar (shape ``(n_atoms,)``).
+
+    Parameters
+    ----------
+    irreps_in : str
+        e3nn irreps string for the input node features (typically scalar-only,
+        e.g. ``"128x0e"``, for the foundation models).
+    """
+
+    irreps_in: str
+
+    @nn.compact
+    def __call__(self, node_feats):
+        out = e3nn.flax.Linear("1x0e", name="linear")(node_feats)
+        return out.array.squeeze(-1)
+
+
+class NonLinearReadoutBlock(nn.Module):
+    """Non-linear (MLP) scalar readout.
+
+    Mirrors torch-mace's :class:`NonLinearReadoutBlock`:
+    ``linear_1 -> silu -> linear_2``. The hidden layer is scalar-only for the
+    foundation models considered here (``MLP_irreps = "16x0e"``). The hidden
+    activation is the *normalised* SiLU (``silu(x) * normalize2mom(silu).cst``)
+    that torch-e3nn bakes into ``nn.Activation`` — we must reproduce this
+    factor for bit-for-bit parity.
+
+    Parameters
+    ----------
+    irreps_in : str
+        e3nn irreps string for the input node features.
+    MLP_irreps : str
+        Hidden-layer irreps (scalar-only).
+    silu_normalization : float
+        Multiplicative constant applied after SiLU to match torch-e3nn's
+        ``normalize2mom`` wrapper. Default is the exact numerical value
+        ``1.6791767923989418`` used by torch-e3nn for ``torch.nn.functional.silu``.
+    """
+
+    irreps_in: str
+    MLP_irreps: str = "16x0e"
+    silu_normalization: float = 1.6791767923989418
+
+    @nn.compact
+    def __call__(self, node_feats):
+        irreps_hidden = e3nn.Irreps(self.MLP_irreps)
+        if not all(ir.l == 0 and ir.p == 1 for _, ir in irreps_hidden):
+            raise NotImplementedError(
+                "NonLinearReadoutBlock only supports scalar hidden irreps "
+                f"(got {self.MLP_irreps!r})."
+            )
+        h = e3nn.flax.Linear(self.MLP_irreps, name="linear_1")(node_feats)
+        h_act = jax.nn.silu(h.array) * self.silu_normalization
+        h = e3nn.IrrepsArray(h.irreps, h_act)
+        out = e3nn.flax.Linear("1x0e", name="linear_2")(h)
+        return out.array.squeeze(-1)
+
+
+class ScaleShift(nn.Module):
+    """Per-atom affine ``scale * x + shift``.
+
+    Mirrors torch-mace's :class:`ScaleShiftBlock`. Both parameters are scalars
+    (single head); the multi-head case is out of scope for the small MP-0
+    parity milestone.
+    """
+
+    scale_init: float = 1.0
+    shift_init: float = 0.0
+
+    @nn.compact
+    def __call__(self, x):
+        scale = self.param(
+            "scale", lambda rng: jnp.array(self.scale_init, dtype=x.dtype)
+        )
+        shift = self.param(
+            "shift", lambda rng: jnp.array(self.shift_init, dtype=x.dtype)
+        )
+        return scale * x + shift
+
+
 class ProductBlock(nn.Module):
     """MACE product block: high-body-order symmetric contraction.
 

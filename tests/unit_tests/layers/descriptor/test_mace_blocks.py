@@ -152,3 +152,44 @@ def test_product_block_z_changes_output():
     out_a = block.apply(params, node_feats, Z_a)
     out_b = block.apply(params, node_feats, Z_b)
     assert not jnp.allclose(out_a.array, out_b.array)
+
+
+from apax.layers.descriptor.mace_blocks import (
+    LinearReadoutBlock,
+    NonLinearReadoutBlock,
+    ScaleShift,
+)
+
+
+def test_linear_readout_block_scalar_output():
+    n_atoms = 4
+    node_feats = e3nn.IrrepsArray(
+        e3nn.Irreps("16x0e"),
+        jnp.asarray(np.random.default_rng(0).normal(size=(n_atoms, 16))),
+    )
+    block = LinearReadoutBlock(irreps_in="16x0e")
+    params = block.init(jax.random.PRNGKey(0), node_feats)
+    e = block.apply(params, node_feats)
+    assert e.shape == (n_atoms,)
+    assert jnp.isfinite(e).all()
+
+
+def test_nonlinear_readout_block_scalar_output():
+    n_atoms = 4
+    node_feats = e3nn.IrrepsArray(
+        e3nn.Irreps("32x0e"),
+        jnp.asarray(np.random.default_rng(0).normal(size=(n_atoms, 32))),
+    )
+    block = NonLinearReadoutBlock(irreps_in="32x0e", MLP_irreps="16x0e")
+    params = block.init(jax.random.PRNGKey(0), node_feats)
+    e = block.apply(params, node_feats)
+    assert e.shape == (n_atoms,)
+    assert jnp.isfinite(e).all()
+
+
+def test_scale_shift_block_affine():
+    x = jnp.array([1.0, 2.0, 3.0])
+    block = ScaleShift(scale_init=2.0, shift_init=-1.0)
+    params = block.init(jax.random.PRNGKey(0), x)
+    y = block.apply(params, x)
+    assert jnp.allclose(y, jnp.array([1.0, 3.0, 5.0]))
