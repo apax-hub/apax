@@ -4,6 +4,7 @@ Blocks tested here use random weights; parity against upstream torch-mace is
 validated elsewhere under @pytest.mark.mace_parity.
 """
 
+import e3nn_jax as e3nn
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -66,3 +67,28 @@ def test_linear_node_embedding_scalar_output():
     # IrrepsArray output; scalar-only irreps means (n_atoms, 16)
     assert out.array.shape == (n_atoms, 16)
     assert str(out.irreps) == "16x0e"
+
+
+from apax.layers.descriptor.mace_blocks import InteractionBlock
+
+
+def test_interaction_block_shape_and_finite():
+    n_atoms, n_edges = 5, 12
+    hidden = "16x0e + 16x1o"
+    sph_irreps = "1x0e + 1x1o + 1x2e"  # max_ell=2
+
+    node_feats = e3nn.IrrepsArray(
+        e3nn.Irreps(hidden),
+        jnp.asarray(np.random.default_rng(0).normal(size=(n_atoms, 64))),
+    )
+    sph_array = jnp.asarray(np.random.default_rng(1).normal(size=(n_edges, 9)))
+    edge_attrs = e3nn.IrrepsArray(e3nn.Irreps(sph_irreps), sph_array)
+    edge_feats = jnp.asarray(np.random.default_rng(2).normal(size=(n_edges, 8)))
+    i = jnp.asarray(np.random.default_rng(3).integers(0, n_atoms, size=n_edges))
+    j = jnp.asarray(np.random.default_rng(4).integers(0, n_atoms, size=n_edges))
+
+    block = InteractionBlock(irreps_out=hidden, interaction_cls="RealAgnosticResidual")
+    params = block.init(jax.random.PRNGKey(0), node_feats, edge_attrs, edge_feats, i, j)
+    out = block.apply(params, node_feats, edge_attrs, edge_feats, i, j)
+    assert out.array.shape == (n_atoms, e3nn.Irreps(hidden).dim)
+    assert jnp.isfinite(out.array).all()

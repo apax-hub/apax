@@ -97,3 +97,74 @@ class LinearNodeEmbedding(nn.Module):
         )
         feats = one_hot @ w  # (n, irreps.dim)
         return e3nn.IrrepsArray(irreps, feats)
+
+
+# InteractionBlock (RealAgnosticResidual) — port notes
+# Inputs:  node_feats [n_atoms, irreps_in], edge_attrs (sph) [n_edges, Ylm],
+#          edge_feats (radial) [n_edges, n_bessel], i (receivers), j (senders), pair_mask
+# Layout:
+#   1. source_linear:    node_feats[j] -> irreps_in (e3nn Linear)
+#   2. conv_tp:          source @ edge_attrs via FullyConnectedTensorProduct
+#                        with per-edge MLP weights from radial features
+#   3. scatter_sum:      aggregate messages into receiver index i
+#   4. target_linear:    aggregated -> irreps_out (e3nn Linear)
+#   5. residual:         output + skip connection from original node_feats
+# Output: new node_feats [n_atoms, irreps_out]
+class InteractionBlock(nn.Module):
+    """MACE interaction + residual.
+
+    RealAgnosticResidual variant: one tensor product between node features and
+    edge (spherical-harmonic) attributes, weighted by a radial MLP, aggregated
+    into receivers via scatter-sum, plus a skip connection.
+
+    Parameters
+    ----------
+    irreps_out : str
+        Target irreps for node features after this block.
+    interaction_cls : str
+        Which interaction variant; for now only RealAgnosticResidual is
+        implemented. Other variants raise NotImplementedError.
+    radial_mlp : tuple[int, ...]
+        Hidden layer widths for the radial MLP that gates tensor-product
+        channels. Defaults to ``(64, 64, 64)``.
+    """
+
+    irreps_out: str
+    interaction_cls: str = "RealAgnosticResidual"
+    radial_mlp: tuple = (64, 64, 64)
+
+    @nn.compact
+    def __call__(self, node_feats, edge_attrs, edge_feats, receivers, senders):
+        if self.interaction_cls != "RealAgnosticResidual":
+            raise NotImplementedError(
+                f"Interaction variant {self.interaction_cls!r} not yet implemented; "
+                "only 'RealAgnosticResidual' is supported at this phase."
+            )
+        irreps_in = node_feats.irreps
+        irreps_out = e3nn.Irreps(self.irreps_out)
+
+        # 1. Linear pre-mix
+        x = e3nn.flax.Linear(irreps_in, name="linear_up")(node_feats)
+
+        # 2. Gather source node features at senders
+        x_j = x[senders]
+
+        # 3. Tensor product with edge spherical harmonics
+        #    Output irreps = full tensor-square subset reachable in irreps_out
+        tp = e3nn.tensor_product(x_j, edge_attrs, filter_ir_out=irreps_out)
+
+        # 4. Radial MLP producing a scalar per TP path per edge
+        n_paths = tp.irreps.num_irreps
+        mlp_widths = (*self.radial_mlp, n_paths)
+        weights = e3nn.flax.MultiLayerPerceptron(
+            list(mlp_widths), act=jax.nn.silu, name="radial_mlp"
+        )(edge_feats)
+        weighted = tp * weights                                 # broadcast-safe
+
+        # 5. Scatter-sum into receivers
+        out = e3nn.scatter_sum(weighted, dst=receivers, output_size=node_feats.shape[0])
+
+        # 6. Post-mix and residual
+        out = e3nn.flax.Linear(irreps_out, name="linear_down")(out)
+        skip = e3nn.flax.Linear(irreps_out, name="skip_linear")(node_feats)
+        return out + skip
