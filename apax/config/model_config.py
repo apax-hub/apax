@@ -325,6 +325,10 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
         Which MACE interaction block variant to use.
     use_cueq : bool, default = False
         Dispatch to cuequivariance-jax kernels where available.
+    num_elements : Optional[PositiveInt], default = None
+        Size of the element embedding table. When ``None`` the builder infers
+        this from the dataset species count. Foundation-model directories
+        store the value explicitly in ``config.json``.
     pretrained : Optional[str], default = None
         Path to an apax-native converted MACE directory, or a canonical
         short name resolved later. If set, the backbone is initialized
@@ -351,6 +355,7 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
         "RealAgnosticDensityResidual",
     ] = "RealAgnosticResidual"
     use_cueq: bool = False
+    num_elements: Optional[PositiveInt] = None
 
     # Foundation-model loading
     pretrained: Optional[str] = None
