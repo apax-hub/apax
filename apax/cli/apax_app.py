@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from rich.console import Console
 
 from apax.cli import templates
+from apax.cli.convert_mace import convert_mace
 
 console = Console(highlight=False)
 
@@ -28,6 +29,7 @@ template_app = typer.Typer(
 )
 app.add_typer(validate_app, name="validate")
 app.add_typer(template_app, name="template")
+app.command("convert-mace")(convert_mace)
 
 
 @app.command()
