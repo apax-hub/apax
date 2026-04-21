@@ -4,6 +4,7 @@ Blocks tested here use random weights; parity against upstream torch-mace is
 validated elsewhere under @pytest.mark.mace_parity.
 """
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 
@@ -49,3 +50,19 @@ def test_assemble_edge_features_dtype_preserved():
     )
     assert radial.dtype == jnp.float64
     assert sph.array.dtype == jnp.float64
+
+
+from apax.layers.descriptor.mace_blocks import LinearNodeEmbedding
+
+
+def test_linear_node_embedding_scalar_output():
+    n_atoms = 5
+    num_elements = 10
+    hidden_irreps = "16x0e"
+    Z = jnp.array([0, 3, 5, 0, 9], dtype=jnp.int32)
+    emb = LinearNodeEmbedding(num_elements=num_elements, irreps_out=hidden_irreps)
+    params = emb.init(jax.random.PRNGKey(0), Z)
+    out = emb.apply(params, Z)
+    # IrrepsArray output; scalar-only irreps means (n_atoms, 16)
+    assert out.array.shape == (n_atoms, 16)
+    assert str(out.irreps) == "16x0e"

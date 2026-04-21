@@ -17,7 +17,9 @@ are an optional acceleration when ``use_cueq=True`` and GPUs are present.
 from __future__ import annotations
 
 import e3nn_jax as e3nn
+import jax
 import jax.numpy as jnp
+from flax import linen as nn
 
 
 def assemble_edge_features(dr_vec, r_max, num_bessel, num_poly_cutoff, max_ell):
@@ -71,3 +73,27 @@ def assemble_edge_features(dr_vec, r_max, num_bessel, num_poly_cutoff, max_ell):
         normalization="component",
     )
     return radial, sph
+
+
+class LinearNodeEmbedding(nn.Module):
+    """One-hot element embedding followed by an irreps-linear.
+
+    Produces node features in ``irreps_out``. Initial features are pure
+    scalars (parity even), so ``irreps_out`` must contain only ``0e`` components.
+    """
+
+    num_elements: int
+    irreps_out: str  # must be scalar irreps (e.g. "128x0e")
+
+    @nn.compact
+    def __call__(self, Z):
+        irreps = e3nn.Irreps(self.irreps_out).filter("0e")
+        one_hot = jax.nn.one_hot(Z, self.num_elements)  # (n, E)
+        # Linear projection E -> irreps.dim, wrapped as IrrepsArray
+        w = self.param(
+            "weight",
+            nn.initializers.normal(stddev=1.0 / jnp.sqrt(self.num_elements)),
+            (self.num_elements, irreps.dim),
+        )
+        feats = one_hot @ w  # (n, irreps.dim)
+        return e3nn.IrrepsArray(irreps, feats)
