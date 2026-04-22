@@ -320,66 +320,85 @@ class PerElementSkipTP(nn.Module):
 
 
 class LinearReadoutBlock(nn.Module):
-    """Scalar linear readout.
+    """Single-atom linear readout: IrrepsArray -> (n_out,).
 
     Mirrors torch-mace's :class:`LinearReadoutBlock`: a single
-    ``e3nn.flax.Linear`` projecting node features down to ``1x0e``. Returns a
-    per-atom scalar (shape ``(n_atoms,)``).
+    ``e3nn.flax.Linear`` projecting per-atom node features down to
+    ``n_out x 0e``. Designed to be vmapped over atoms inside
+    :class:`~apax.layers.descriptor.mace.MaceReadout`.
 
     Parameters
     ----------
-    irreps_in : str
-        e3nn irreps string for the input node features (typically scalar-only,
-        e.g. ``"128x0e"``, for the foundation models).
+    n_out : int
+        Number of scalar output channels. ``1`` (default) gives a single
+        per-atom energy; values ``>1`` support shallow ensembles.
     """
 
-    irreps_in: str
+    n_out: int = 1
 
     @nn.compact
-    def __call__(self, node_feats):
-        out = e3nn.flax.Linear("1x0e", name="linear")(node_feats)
-        return out.array.squeeze(-1)
+    def __call__(self, feat):
+        """Apply linear readout to a single-atom feature vector.
+
+        Parameters
+        ----------
+        feat : e3nn.IrrepsArray
+            Per-atom node features (no batch dimension).
+
+        Returns
+        -------
+        jnp.ndarray, shape (n_out,)
+            Scalar output for this atom.
+        """
+        out = e3nn.flax.Linear(f"{self.n_out}x0e", name="linear")(feat)
+        return out.array
 
 
 class NonLinearReadoutBlock(nn.Module):
-    """Non-linear (MLP) scalar readout.
+    """Single-atom non-linear readout: Linear -> SiLU -> Linear -> (n_out,).
 
     Mirrors torch-mace's :class:`NonLinearReadoutBlock`:
     ``linear_1 -> silu -> linear_2``. The hidden layer is scalar-only for the
-    foundation models considered here (``MLP_irreps = "16x0e"``). The hidden
-    activation is the *normalised* SiLU (``silu(x) * normalize2mom(silu).cst``)
-    that torch-e3nn bakes into ``nn.Activation`` — we must reproduce this
-    factor for bit-for-bit parity.
+    foundation models considered here (``MLP_irreps = "16x0e"``). Designed to
+    be vmapped over atoms inside
+    :class:`~apax.layers.descriptor.mace.MaceReadout`.
 
     Parameters
     ----------
-    irreps_in : str
-        e3nn irreps string for the input node features.
     MLP_irreps : str
-        Hidden-layer irreps (scalar-only).
-    silu_normalization : float
-        Multiplicative constant applied after SiLU to match torch-e3nn's
-        ``normalize2mom`` wrapper. Default is the exact numerical value
-        ``1.6791767923989418`` used by torch-e3nn for ``torch.nn.functional.silu``.
+        Hidden-layer irreps (scalar-only), e.g. ``"16x0e"``.
+    n_out : int
+        Number of scalar output channels. ``1`` (default) gives a single
+        per-atom energy; values ``>1`` support shallow ensembles.
     """
 
-    irreps_in: str
     MLP_irreps: str = "16x0e"
-    silu_normalization: float = 1.6791767923989418
+    n_out: int = 1
 
     @nn.compact
-    def __call__(self, node_feats):
+    def __call__(self, feat):
+        """Apply non-linear readout to a single-atom feature vector.
+
+        Parameters
+        ----------
+        feat : e3nn.IrrepsArray
+            Per-atom node features (no batch dimension).
+
+        Returns
+        -------
+        jnp.ndarray, shape (n_out,)
+            Scalar output for this atom.
+        """
         irreps_hidden = e3nn.Irreps(self.MLP_irreps)
         if not all(ir.l == 0 and ir.p == 1 for _, ir in irreps_hidden):
             raise NotImplementedError(
                 "NonLinearReadoutBlock only supports scalar hidden irreps "
                 f"(got {self.MLP_irreps!r})."
             )
-        h = e3nn.flax.Linear(self.MLP_irreps, name="linear_1")(node_feats)
-        h_act = jax.nn.silu(h.array) * self.silu_normalization
-        h = e3nn.IrrepsArray(h.irreps, h_act)
-        out = e3nn.flax.Linear("1x0e", name="linear_2")(h)
-        return out.array.squeeze(-1)
+        x = e3nn.flax.Linear(self.MLP_irreps, name="linear_1")(feat)
+        x = e3nn.IrrepsArray(x.irreps, jax.nn.silu(x.array))
+        out = e3nn.flax.Linear(f"{self.n_out}x0e", name="linear_2")(x)
+        return out.array
 
 
 class ScaleShift(nn.Module):

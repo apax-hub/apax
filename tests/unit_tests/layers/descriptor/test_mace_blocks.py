@@ -163,27 +163,29 @@ from apax.layers.descriptor.mace_blocks import (
 
 def test_linear_readout_block_scalar_output():
     n_atoms = 4
-    node_feats = e3nn.IrrepsArray(
-        e3nn.Irreps("16x0e"),
+    single_feat = e3nn.IrrepsArray("16x0e", jnp.ones((16,)))
+    block = LinearReadoutBlock(n_out=1)
+    params = block.init(jax.random.PRNGKey(0), single_feat)
+    batched_feats = e3nn.IrrepsArray(
+        "16x0e",
         jnp.asarray(np.random.default_rng(0).normal(size=(n_atoms, 16))),
     )
-    block = LinearReadoutBlock(irreps_in="16x0e")
-    params = block.init(jax.random.PRNGKey(0), node_feats)
-    e = block.apply(params, node_feats)
-    assert e.shape == (n_atoms,)
+    e = jax.vmap(lambda x: block.apply(params, x))(batched_feats)
+    assert e.shape == (n_atoms, 1)
     assert jnp.isfinite(e).all()
 
 
 def test_nonlinear_readout_block_scalar_output():
     n_atoms = 4
-    node_feats = e3nn.IrrepsArray(
-        e3nn.Irreps("32x0e"),
+    single_feat = e3nn.IrrepsArray("32x0e", jnp.ones((32,)))
+    block = NonLinearReadoutBlock(MLP_irreps="16x0e", n_out=1)
+    params = block.init(jax.random.PRNGKey(0), single_feat)
+    batched_feats = e3nn.IrrepsArray(
+        "32x0e",
         jnp.asarray(np.random.default_rng(0).normal(size=(n_atoms, 32))),
     )
-    block = NonLinearReadoutBlock(irreps_in="32x0e", MLP_irreps="16x0e")
-    params = block.init(jax.random.PRNGKey(0), node_feats)
-    e = block.apply(params, node_feats)
-    assert e.shape == (n_atoms,)
+    e = jax.vmap(lambda x: block.apply(params, x))(batched_feats)
+    assert e.shape == (n_atoms, 1)
     assert jnp.isfinite(e).all()
 
 
@@ -193,3 +195,40 @@ def test_scale_shift_block_affine():
     params = block.init(jax.random.PRNGKey(0), x)
     y = block.apply(params, x)
     assert jnp.allclose(y, jnp.array([1.0, 3.0, 5.0]))
+
+
+def test_linear_readout_block_scalar_out():
+    """LinearReadoutBlock returns (1,) on a single-atom input."""
+    block = LinearReadoutBlock(n_out=1)
+    feat = e3nn.IrrepsArray("16x0e", jnp.ones((16,)))
+    params = block.init(jax.random.PRNGKey(0), feat)
+    out = block.apply(params, feat)
+    assert out.shape == (1,)
+
+
+def test_linear_readout_block_ensemble_out():
+    """LinearReadoutBlock returns (n_out,) when n_out>1 (shallow ensemble)."""
+    block = LinearReadoutBlock(n_out=4)
+    feat = e3nn.IrrepsArray("16x0e", jnp.ones((16,)))
+    params = block.init(jax.random.PRNGKey(0), feat)
+    out = block.apply(params, feat)
+    assert out.shape == (4,)
+
+
+def test_nonlinear_readout_block_scalar_out():
+    """NonLinearReadoutBlock returns (1,) with a SiLU-gated hidden."""
+    block = NonLinearReadoutBlock(MLP_irreps="8x0e", n_out=1)
+    feat = e3nn.IrrepsArray("16x0e", jnp.ones((16,)))
+    params = block.init(jax.random.PRNGKey(0), feat)
+    out = block.apply(params, feat)
+    assert out.shape == (1,)
+
+
+def test_nonlinear_readout_block_vmap_over_atoms():
+    """vmap over atoms produces (n_atoms, 1) without breaking the per-atom contract."""
+    block = NonLinearReadoutBlock(MLP_irreps="8x0e", n_out=1)
+    single = e3nn.IrrepsArray("16x0e", jnp.ones((16,)))
+    params = block.init(jax.random.PRNGKey(0), single)
+    feats_batched = e3nn.IrrepsArray("16x0e", jnp.ones((5, 16)))
+    out = jax.vmap(lambda x: block.apply(params, x))(feats_batched)
+    assert out.shape == (5, 1)
