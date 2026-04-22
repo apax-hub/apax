@@ -61,10 +61,10 @@ class MaceRepresentation(nn.Module):
 
     Notes
     -----
-    Future extension: a ``return_per_layer_node_feats`` flag will expose
-    per-layer ``IrrepsArray`` outputs for
-    :class:`apax.nn.mace_foundation_model.MaceFoundationEnergyModel`; see
-    plan P3.4 Step 2.
+    Output is the concatenation of per-layer scalar (``0e``) features. The
+    per-layer layout is relied upon by :class:`apax.layers.readout.MaceReadout`
+    to reproduce the foundation MACE forward pass via per-layer linear /
+    non-linear heads.
     """
 
     r_max: float = 5.0
