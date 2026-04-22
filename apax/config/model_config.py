@@ -325,6 +325,10 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
         Which MACE interaction block variant to use.
     use_cueq : bool, default = False
         Dispatch to cuequivariance-jax kernels where available.
+    readout_kind : Literal["mace", "standard"], default = "mace"
+        Variant of the readout block to use.
+    MLP_irreps : str, default = "16x0e"
+        e3nn-jax irreps string for the readout MLP.
     """
 
     name: Literal["mace"] = "mace"
@@ -343,6 +347,8 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
         "RealAgnosticDensityResidual",
     ] = "RealAgnosticResidual"
     use_cueq: bool = False
+    readout_kind: Literal["mace", "standard"] = "mace"
+    MLP_irreps: str = "16x0e"
 
     def get_builder(self):
         from apax.nn.builder import MaceBuilder
