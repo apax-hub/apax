@@ -23,9 +23,6 @@ def mace_config_dict():
         "correlation": 2,
         "interaction_cls": "RealAgnosticResidual",
         "use_cueq": False,
-        "pretrained": None,
-        "freeze_backbone": False,
-        "unfreeze_backbone_epoch": None,
         # BaseModelConfig fields
         "descriptor_dtype": "fp32",
         "readout_dtype": "fp32",

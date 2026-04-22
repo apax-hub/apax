@@ -325,18 +325,6 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
         Which MACE interaction block variant to use.
     use_cueq : bool, default = False
         Dispatch to cuequivariance-jax kernels where available.
-    num_elements : Optional[PositiveInt], default = None
-        Size of the element embedding table. When ``None`` the builder infers
-        this from the dataset species count. Foundation-model directories
-        store the value explicitly in ``config.json``.
-    pretrained : Optional[str], default = None
-        Path to an apax-native converted MACE directory, or a canonical
-        short name resolved later. If set, the backbone is initialized
-        from these weights during training.
-    freeze_backbone : bool, default = False
-        Freeze MACE backbone parameters during training.
-    unfreeze_backbone_epoch : Optional[int], default = None
-        Optional epoch at which to unfreeze the backbone.
     """
 
     name: Literal["mace"] = "mace"
@@ -355,12 +343,6 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
         "RealAgnosticDensityResidual",
     ] = "RealAgnosticResidual"
     use_cueq: bool = False
-    num_elements: Optional[PositiveInt] = None
-
-    # Foundation-model loading
-    pretrained: Optional[str] = None
-    freeze_backbone: bool = False
-    unfreeze_backbone_epoch: Optional[int] = None
 
     def get_builder(self):
         from apax.nn.builder import MaceBuilder
