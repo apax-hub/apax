@@ -1,10 +1,9 @@
-"""MACE foundation model loading and conversion utilities.
+"""MACE foundation model conversion utilities.
 
-Notes
------
-``torch`` and ``mace-torch`` are **never** imported at module scope.  All torch
-usage is confined to helper functions so that the rest of apax can be imported
-in environments where torch is absent.
+``run_conversion`` is called by the ``apax convert-mace`` CLI; everything
+else in this module is an internal helper for the torch→apax weight map
+and config extraction. Loading a converted model is
+``apax.train.checkpoints.restore_parameters`` — the standard apax path.
 """
 from __future__ import annotations
 

@@ -62,9 +62,9 @@ class MaceRepresentation(nn.Module):
     Notes
     -----
     Output is the concatenation of per-layer scalar (``0e``) features. The
-    per-layer layout is relied upon by :class:`apax.layers.readout.MaceReadout`
-    to reproduce the foundation MACE forward pass via per-layer linear /
-    non-linear heads.
+    per-layer layout is relied upon by the planned ``MaceReadout`` layer
+    (see plan P3.3) to reproduce the foundation MACE forward pass via
+    per-layer linear / non-linear heads.
     """
 
     r_max: float = 5.0
