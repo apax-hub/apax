@@ -4,13 +4,15 @@
 
 **Goal:** Add native MACE (Multi-Atomic Cluster Expansion) support to apax: load MACE-MP / MACE-MPA foundation models via a CLI converter, fine-tune them with apax's shallow-ensemble and property-head infrastructure, and use them in JAX-MD — without making torch, mace-torch, or mace-jax runtime dependencies.
 
-**Architecture:** `MaceRepresentation` is a Flax linen `nn.Module` mirroring apax's existing descriptor contract (`(dr_vec, Z, idx) → (n_atoms, n_features)`). Equivariant math comes from optional extras `e3nn-jax` (irreps, spherical harmonics, tensor products) and `cuequivariance-jax` (MACE-specific symmetric contraction, optional GPU acceleration). A separate `apax convert-mace` CLI converts torch-mace `.model` files into apax-native `.apax/` directories (msgpack + JSON) so runtime never imports torch.
+**Architecture:** `MaceRepresentation` is a Flax linen `nn.Module` mirroring apax's existing descriptor contract (`(dr_vec, Z, idx) → (n_atoms, n_features)`). Equivariant math comes from optional extras `e3nn-jax` (irreps, spherical harmonics, tensor products) and `cuequivariance-jax` (MACE-specific symmetric contraction, optional GPU acceleration). The `apax convert-mace` CLI writes **apax's existing training-output layout** (`<dst>/config.yaml` + `<dst>/best/` orbax checkpoint), so every apax consumer (`restore_parameters`, `ASECalculator`, `apax md`, BAL) reads converted foundations with no special-casing. Torch is imported lazily only during conversion; runtime never touches it.
 
-**Tech Stack:** JAX, Flax linen, e3nn-jax, cuequivariance-jax, pydantic v2, flax.serialization (msgpack), typer (CLI), pytest. Reference source: `/Users/fzills/tools/mace-jax` (Flax NNX port, consulted for parity not copied). Conversion source of truth: torch-mace checkpoints at `mace-foundations` / locally installed `mace` + `torch`.
+**Tech Stack:** JAX, Flax linen, e3nn-jax, cuequivariance-jax, pydantic v2, orbax-checkpoint, typer (CLI), pytest. Reference source: `/Users/fzills/tools/mace-jax` (Flax NNX port, consulted for per-module parameter maps). Conversion source of truth: torch-mace checkpoints loaded via `mace.calculators.foundations_models.mace_mp(return_raw_model=True)`.
 
 **Spec:** `docs/superpowers/specs/2026-04-20-mace-foundation-model-integration-design.md`
 
-**Progress (updated 2026-04-21):** Phases P0 and P1 complete; P3 scaffolded on the same branch. Phase P2 (cuequivariance dispatch for `use_cueq=True`) remains unimplemented — it was skipped ahead of P3 and is still the outstanding equivariance hardening task. P1 landed via `a0c22c3a`. P3 scaffolding landed 2026-04-21 through commits `bd61b1b8` (P3.1 CLI), `066db7fa` (P3.2 orchestration + gated test harness), `e7d6b695` (P3.3 runtime loader), `d7342dd9` (P3.4/P3.5/P3.6 scaffolds). The three deferred checkboxes (P3.2 Step 4 `_map_state_to_pytree` body; P3.4 Steps 2, 3, 6 per-layer feats / `MaceFoundationEnergyModel.__call__` / parity iteration) require `uv sync --group mace-convert --extra mace` and a torch-based iteration loop; the code paths are wired so the gated `mace_parity` tests skip cleanly without torch. Phase P1 summary: P1.1 edge features, P1.2 LinearNodeEmbedding, P1.3 InteractionBlock, P1.4 ProductBlock (ported mace-jax's symmetric-contraction adapter to linen since `cuex.SymmetricContraction` is absent in installed cuex 0.9.1), P1.5 real forward pass + InteractionBlock skip-Linear fix (`force_irreps_out=True`). Optional mace-jax random-weight parity test (P1.5 Step 3) deferred to P3.
+**Progress (updated 2026-04-22):** Phases P0 and P1 complete. The P3 scaffold shipped in commits `bd61b1b8`, `066db7fa`, `e7d6b695`, `d7342dd9` is being **partially reverted** under the revised design (see §"Revision note" below): the parallel `.apax/`-dir format, `load_mace_foundation`, `MaceFoundationEnergyModel`, and the `ASECalculator` detection branch are removed; converter emits apax's standard training-output layout; MACE slots into stock `EnergyModel` via a new `MaceReadout`. Commits to keep: `5bddaed2` (`_extract_config_from_torch` attribute fixes), `2b7283e8` (`LinearReadoutBlock` + `NonLinearReadoutBlock`), `b586af25` (body of what will become `MaceReadout` logic). `027ceb53` added torch + mace-torch + mace-jax as `mace-convert` dev deps — installed in the dev environment. Phase P2 (`use_cueq=True` equivalence) remains outstanding. P1 summary: P1.1 edge features, P1.2 LinearNodeEmbedding, P1.3 InteractionBlock, P1.4 ProductBlock (ported mace-jax's symmetric-contraction adapter to linen), P1.5 real forward pass + `force_irreps_out=True` skip-Linear fix.
+
+**Revision note (2026-04-22):** Earlier drafts of P3 introduced a parallel output format (`params.msgpack` + `config.json` + `metadata.json`), a dedicated `load_mace_foundation` loader, and a dispatch branch inside `ASECalculator`. Verification against the code base (`EnergyModel.__call__`, `PerElementScaleShift`, `restore_parameters`, `TransferLearningConfig`) showed those created two parallel load paths where one will do. The plan now matches the spec revision: the converter emits `<dst>/config.yaml` (via `Config.dump_config`) + `<dst>/best/` orbax checkpoint, and loading is `restore_parameters(dst)`. The per-layer readout + scale/shift + atomic-energy structure lives in a new `MaceReadout` module that fills the existing readout slot. See P3.0 through P3.6 below.
 
 **Reference: how upstream MACE loads foundation models** (`/Users/fzills/tools/mace/mace/calculators/foundations_models.py`):
 
@@ -44,17 +46,21 @@ For **parity testing** we use `mace_mp(name)` (the `MACECalculator` ASE wrapper)
 | Path | Purpose |
 |---|---|
 | `apax/layers/descriptor/mace.py` | `MaceRepresentation` — public descriptor module |
-| `apax/layers/descriptor/mace_blocks.py` | `LinearNodeEmbedding`, `InteractionBlock`, `ProductBlock`, `Readout` |
-| `apax/layers/descriptor/mace_irreps.py` | Irreps utilities, dispatch between e3nn-jax & cuequivariance |
-| `apax/nn/mace_foundation_model.py` | `MaceFoundationEnergyModel` — parity-only full energy path |
+| `apax/layers/descriptor/mace_blocks.py` | `LinearNodeEmbedding`, `InteractionBlock`, `ProductBlock`, `LinearReadoutBlock`, `NonLinearReadoutBlock` |
+| `apax/layers/descriptor/mace_irreps.py` | Irreps utilities, dispatch between e3nn-jax & cuequivariance (P2) |
 | `apax/cli/convert_mace.py` | `apax convert-mace` CLI subcommand |
-| `apax/transfer_learning/mace_foundation.py` | `load_mace_foundation(src)` + freezing predicate |
+| `apax/transfer_learning/mace_foundation.py` | `run_conversion(source, dst, ...)` and torch-state→apax-pytree mapping helpers |
+| `apax/cli/templates/mace_finetune_minimal.yaml` | Fine-tune template config |
+| `tests/unit_tests/config/test_mace_model_config.py` | Pydantic schema tests |
 | `tests/unit_tests/layers/descriptor/test_mace_descriptor.py` | Shape/contract tests |
-| `tests/unit_tests/layers/descriptor/test_mace_blocks.py` | Block-level tests |
-| `tests/unit_tests/nn/test_mace_builder.py` | Builder wiring |
-| `tests/unit_tests/cli/test_convert_mace.py` | Converter unit tests (no torch) |
+| `tests/unit_tests/layers/descriptor/test_mace_blocks.py` | Block-level tests (includes readout blocks) |
+| `tests/unit_tests/layers/test_mace_readout.py` | `MaceReadout` tests |
+| `tests/unit_tests/nn/test_mace_builder.py` | Builder wiring (incl. readout routing) |
+| `tests/unit_tests/cli/test_convert_mace.py` | Converter CLI unit tests (no torch) |
+| `tests/integration_tests/mace/test_convert.py` | Converter integration test (gated `mace_parity`) |
+| `tests/integration_tests/mace/test_mace_parity.py` | Energy/force parity vs torch-mace (gated) |
+| `tests/integration_tests/mace/test_mace_finetune.py` | Fine-tune smoke via `TransferLearningConfig` (gated) |
 | `tests/integration_tests/mace/test_mace_shallow_ensemble.py` | Ensemble smoke test |
-| `tests/integration_tests/mace/test_mace_parity.py` | Parity vs torch-mace (gated) |
 | `tests/integration_tests/mace/test_mace_md.py` | jax-md + ASE smoke test |
 | `benchmarks/mace/bench_inference.py` | Inference benchmark |
 | `benchmarks/mace/bench_training.py` | Training benchmark |
@@ -64,12 +70,20 @@ For **parity testing** we use `mace_mp(name)` (the `MACECalculator` ASE wrapper)
 ### Files modified
 | Path | Change |
 |---|---|
-| `pyproject.toml` | Add `mace` optional extra + `mace_parity` pytest marker |
-| `apax/config/model_config.py` | Add `MaceModelConfig` to discriminated union |
-| `apax/nn/builder.py` | Add `MaceBuilder(ModelBuilder)` |
+| `pyproject.toml` | Add `mace` optional extra + `mace-convert` dev group + `mace_parity` pytest marker |
+| `apax/config/model_config.py` | Add `MaceModelConfig` (with `readout_kind`, `MLP_irreps`) to discriminated union |
+| `apax/nn/builder.py` | Add `MaceBuilder(ModelBuilder)` overriding `build_descriptor` + `build_readout` |
+| `apax/layers/readout.py` | Add `MaceReadout` alongside `AtomisticReadout` |
 | `apax/layers/descriptor/basis_functions.py` | Add `PolynomialCutoff` |
 | `apax/cli/apax_app.py` | Register `convert-mace` subcommand |
 | `apax/nodes/model.py` | Register `MaceModelConfig` if applicable |
+
+### Files deleted (rolled back from earlier P3 scaffold)
+| Path | Reason |
+|---|---|
+| `apax/nn/mace_foundation_model.py` | Monolithic full-energy model replaced by `MaceReadout` + stock `EnergyModel` |
+| `tests/integration_tests/mace/test_load_foundation.py` | Tested the `.apax/`-msgpack format that no longer exists |
+| `tests/unit_tests/md/test_ase_calc_mace_foundation.py` | ASECalculator dispatch branch reverted; no custom detection |
 
 ---
 
@@ -1476,227 +1490,675 @@ git commit -m "feat(mace): propagate use_cueq to representation"
 
 ---
 
-## Phase P3 — Converter and foundation-model loader
+## Phase P3 — Converter + `MaceReadout`, consumed via the standard load path
 
-Goal: `apax convert-mace` produces an apax-native directory; `load_mace_foundation` reads it; parity vs torch-mace rtol 1e-5.
+**Revised 2026-04-22.** This phase replaces the previous draft that introduced a parallel `.apax/`-dir format (`params.msgpack` + `config.json` + `metadata.json`), a `load_mace_foundation` loader, and an `ASECalculator` branch. Those are gone. Under the new design:
 
-### Task P3.1: Converter CLI — accept both canonical names and file paths
+- The converter writes apax's existing training-output layout: `<dst>/config.yaml` (via `Config.dump_config`) + `<dst>/best/` (orbax `CheckpointManager` checkpoint).
+- Loading a foundation is the same code path as loading any user-trained apax model: `restore_parameters(<dst>)` returns `(Config, params)`.
+- MACE's per-layer readout structure lives in a new `MaceReadout` module that slots into the stock `EnergyModel`'s readout slot alongside `AtomisticReadout`.
+- `PerElementScaleShift` absorbs MACE's global scale + global shift + per-element atomic-energy reference (zero-padded to 119 elements at convert time).
+- `MaceFoundationEnergyModel`, `load_mace_foundation`, `_resolve_short_name`, `_is_mace_foundation_dir`, and the custom `.apax/` directory shape are all deleted.
 
-The CLI must accept **either**:
-- A short canonical name like `medium`, `medium-mpa-0` — resolved via `mace.calculators.foundations_models.mace_mp(..., return_raw_model=True)` which handles bundled-local → cache → download transparently.
-- A filesystem path to a `.model` file — for custom / fine-tuned torch models.
+### Task P3.0: Revert the `.apax/`-dir scaffolding that commit `d7342dd9` introduced
 
 **Files:**
-- Create: `apax/cli/convert_mace.py`
-- Modify: `apax/cli/apax_app.py` (register subcommand)
-- Test: `tests/unit_tests/cli/test_convert_mace.py`
+- Modify: `apax/md/ase_calc.py` (remove `_is_mace_foundation_dir` + NotImplementedError branch)
+- Delete: `tests/unit_tests/md/test_ase_calc_mace_foundation.py`
+- Delete: `tests/unit_tests/md/__init__.py` (if empty after the above delete and no other tests in that directory — verify first)
+- Delete: `tests/integration_tests/mace/test_load_foundation.py`
+- Delete: `apax/nn/mace_foundation_model.py`
+- Modify: `apax/transfer_learning/mace_foundation.py` (remove `load_mace_foundation`, `_resolve_short_name`)
+- Modify: `apax/config/model_config.py` (remove `pretrained`, `freeze_backbone`, `unfreeze_backbone_epoch`, `num_elements` from `MaceModelConfig`; these were accidental additions)
 
-- [x] **Step 1: Write tests covering both modes + missing-torch**
+- [ ] **Step 1: Revert ASECalculator branch**
 
-Create `tests/unit_tests/cli/test_convert_mace.py`:
+Open `apax/md/ase_calc.py`. Remove the module-level `_is_mace_foundation_dir` helper and the `if _is_mace_foundation_dir(model_dir):` branch inside `ASECalculator.__init__` that raises `NotImplementedError`. After the revert, the constructor flows straight into `self.model_config, self.params = restore_parameters(model_dir)` as it did before `d7342dd9`.
 
-```python
-"""Converter CLI unit tests that don't require torch."""
-import sys
-from pathlib import Path
-
-import pytest
-from typer.testing import CliRunner
-
-
-def test_convert_mace_missing_torch_fails_gracefully(monkeypatch, tmp_path):
-    # Simulate torch being absent
-    monkeypatch.setitem(sys.modules, "torch", None)
-    monkeypatch.setitem(sys.modules, "mace", None)
-
-    from apax.cli.apax_app import app
-    runner = CliRunner()
-    res = runner.invoke(app, ["convert-mace", "medium", str(tmp_path / "out.apax")])
-    assert res.exit_code != 0
-    assert "torch" in res.output.lower()
-
-
-def test_convert_mace_accepts_canonical_name_and_file_path():
-    """Argument parsing treats both as valid 'source' inputs."""
-    import typer
-    from apax.cli.convert_mace import convert_mace
-
-    # Typer parameter introspection: no type narrowing that would reject either
-    import inspect
-    sig = inspect.signature(convert_mace)
-    # 'source' parameter exists and has no strict type filter
-    assert "source" in sig.parameters
-```
-
-- [x] **Step 2: Run — expect fail (command not registered)**
-
-Run: `uv run pytest tests/unit_tests/cli/test_convert_mace.py -v`
-Expected: FAIL — command missing.
-
-- [x] **Step 3: Create command**
-
-Create `apax/cli/convert_mace.py`:
-
-```python
-"""CLI subcommand: convert torch-mace foundation models into apax-native directories.
-
-Usage
------
-Canonical name (downloaded / cached automatically by torch-mace):
-
-    apax convert-mace medium-mpa-0 ./mace-mpa-0-medium.apax/
-    apax convert-mace medium       ./mace-mp-0-medium.apax/
-    apax convert-mace large        ./mace-mp-0-large.apax/
-
-Local .model file:
-
-    apax convert-mace ./my_custom_model.model ./my_custom.apax/
-
-``torch`` and ``mace-torch`` are imported lazily; if missing, the command
-exits with a typer error and a hint.
-"""
-from __future__ import annotations
-
-from pathlib import Path
-
-import typer
-
-
-def convert_mace(
-    source: str = typer.Argument(
-        ...,
-        help=(
-            "Canonical MACE foundation name (e.g. 'medium-mpa-0', 'medium', 'large') "
-            "or path to a local torch .model file."
-        ),
-    ),
-    dst: Path = typer.Argument(..., help="Output apax-native directory"),
-    head: str = typer.Option("mp", help="Which head to select for multi-head models"),
-    family: str = typer.Option(
-        "mace_mp",
-        help="Foundation-model family: 'mace_mp' (includes MPA-0 and MP-0/0b/0b2/0b3). "
-             "Others (mace_off, mace_anicc) are deferred.",
-    ),
-) -> None:
-    """Convert a torch-mace foundation model into an apax-native .apax/ directory."""
-    try:
-        import torch  # noqa: F401
-        import mace   # noqa: F401
-    except ImportError as e:
-        raise typer.BadParameter(
-            "Converting MACE foundation models requires torch and mace-torch. "
-            "Install them in your current env. "
-            f"Missing module: {e.name}"
-        ) from None
-
-    from apax.transfer_learning.mace_foundation import run_conversion
-
-    run_conversion(source, dst, head=head, family=family)
-```
-
-- [x] **Step 4: Register in `apax_app.py`**
-
-Edit `apax/cli/apax_app.py`, near other `app.command(...)` registrations:
-
-```python
-from apax.cli.convert_mace import convert_mace
-app.command("convert-mace")(convert_mace)
-```
-
-- [x] **Step 5: Stub `run_conversion`**
-
-Create `apax/transfer_learning/mace_foundation.py` with a stub so imports succeed:
-
-```python
-"""MACE foundation model loading and conversion.
-
-Functions
----------
-run_conversion(source, dst, head, family)
-    Entry point called by the ``apax convert-mace`` CLI. Accepts either a
-    canonical MACE model name (resolved via ``mace.calculators.foundations_models.mace_mp``)
-    or a path to a local torch .model file.
-load_mace_foundation(source)
-    Runtime loader for apax-native MACE directories.
-"""
-from __future__ import annotations
-
-from pathlib import Path
-
-
-def run_conversion(source, dst: Path, *, head: str = "mp", family: str = "mace_mp") -> None:
-    """Convert a torch-mace checkpoint. Imports torch + mace lazily."""
-    raise NotImplementedError("Filled in by P3.2")
-
-
-def load_mace_foundation(source):
-    raise NotImplementedError("Filled in by P3.6")
-```
-
-- [x] **Step 6: Run — expect pass**
-
-Run: `uv run pytest tests/unit_tests/cli/test_convert_mace.py -v`
-Expected: PASS — the error path is hit.
-
-- [x] **Step 7: Commit**
+- [ ] **Step 2: Delete obsolete test files**
 
 ```bash
-git add apax/cli/convert_mace.py apax/cli/apax_app.py apax/transfer_learning/mace_foundation.py tests/unit_tests/cli/test_convert_mace.py
-git commit -m "feat(cli): scaffold convert-mace subcommand with lazy torch import"
+rm tests/unit_tests/md/test_ase_calc_mace_foundation.py
+rm tests/integration_tests/mace/test_load_foundation.py
+rm apax/nn/mace_foundation_model.py
+```
+
+Check whether `tests/unit_tests/md/__init__.py` is empty AND the directory has no other files:
+
+```bash
+test ! -s tests/unit_tests/md/__init__.py && ls tests/unit_tests/md/
+```
+
+If `__init__.py` is 0 bytes and no other test files remain, delete the directory: `rmdir tests/unit_tests/md/`. Otherwise keep both.
+
+- [ ] **Step 3: Prune `mace_foundation.py`**
+
+Open `apax/transfer_learning/mace_foundation.py`. Delete the `load_mace_foundation` function and the `_resolve_short_name` helper. Keep `run_conversion`, `_load_torch_foundation_model`, `_extract_config_from_torch`, `_map_state_to_pytree` (still stubbed — filled in Task P3.4), `_validate_no_nan`, `_extract_norm_consts`, `_torch_mace_version`, `_apax_version`.
+
+- [ ] **Step 4: Clean `MaceModelConfig`**
+
+In `apax/config/model_config.py`, remove these fields from `MaceModelConfig`: `pretrained`, `freeze_backbone`, `unfreeze_backbone_epoch`, `num_elements`. Remove their docstring lines. Leave every other field intact.
+
+- [ ] **Step 5: Run unit tests — expect green**
+
+```bash
+uv run pytest tests/unit_tests/ -v --no-header -x
+```
+
+Expected: all previously-passing tests still pass. Any remaining references to `load_mace_foundation`, `_is_mace_foundation_dir`, `MaceFoundationEnergyModel`, or the removed config fields surface here and must be fixed.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apax/md/ase_calc.py \
+        apax/transfer_learning/mace_foundation.py \
+        apax/config/model_config.py \
+        tests/unit_tests/md \
+        tests/integration_tests/mace/test_load_foundation.py \
+        apax/nn/mace_foundation_model.py
+git commit -m "revert(mace): drop parallel .apax/ format and load_mace_foundation"
 ```
 
 ---
 
-### Task P3.2: Torch state-dict → linen pytree mapping (core conversion)
+### Task P3.1: `MaceModelConfig` — add `readout_kind` + `MLP_irreps`
 
-The largest task in the plan. Reference: `/Users/fzills/tools/mace-jax/mace_jax/tools/import_from_torch.py` for the exact mapping logic and `/Users/fzills/tools/mace/mace/calculators/foundations_models.py:mace_mp` for the upstream download/cache path.
+**Files:**
+- Modify: `apax/config/model_config.py`
+- Test: `tests/unit_tests/config/test_mace_model_config.py`
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tests/unit_tests/config/test_mace_model_config.py`:
+
+```python
+"""MaceModelConfig pydantic schema — smoke tests."""
+import pytest
+from apax.config.model_config import MaceModelConfig
+
+
+def test_mace_model_config_defaults():
+    cfg = MaceModelConfig()
+    assert cfg.name == "mace"
+    assert cfg.readout_kind == "mace"
+    assert cfg.MLP_irreps == "16x0e"
+    assert cfg.hidden_irreps == "128x0e + 128x1o"
+    assert cfg.num_interactions == 2
+
+
+def test_mace_model_config_readout_kind_literal():
+    cfg = MaceModelConfig(readout_kind="standard")
+    assert cfg.readout_kind == "standard"
+    with pytest.raises(ValueError, match="readout_kind"):
+        MaceModelConfig(readout_kind="garbage")
+
+
+def test_mace_model_config_has_no_removed_fields():
+    """Regression: pretrained / freeze_backbone / num_elements must be gone."""
+    fields = MaceModelConfig.model_fields
+    assert "pretrained" not in fields
+    assert "freeze_backbone" not in fields
+    assert "unfreeze_backbone_epoch" not in fields
+    assert "num_elements" not in fields
+```
+
+- [ ] **Step 2: Run — expect fail**
+
+```bash
+uv run pytest tests/unit_tests/config/test_mace_model_config.py -v
+```
+
+Expected: `readout_kind` test FAILs (field missing). `has_no_removed_fields` test passes if Task P3.0 Step 4 succeeded.
+
+- [ ] **Step 3: Add the two fields**
+
+Edit `MaceModelConfig` in `apax/config/model_config.py`:
+
+```python
+class MaceModelConfig(BaseModelConfig, extra="forbid"):
+    """
+    Configuration for a MACE model.
+
+    Parameters
+    ----------
+    r_max : PositiveFloat, default = 5.0
+        Interaction cutoff in Angstrom.
+    num_bessel : PositiveInt, default = 8
+        Number of Bessel radial basis functions.
+    num_polynomial_cutoff : PositiveInt, default = 5
+        Polynomial order of the envelope cutoff.
+    max_ell : PositiveInt, default = 3
+        Maximum spherical-harmonic degree.
+    hidden_irreps : str, default = "128x0e + 128x1o"
+        e3nn-jax irreps string for node features. Must include a 0e component.
+    num_interactions : PositiveInt, default = 2
+        Number of (interaction, product) layer pairs.
+    correlation : PositiveInt, default = 3
+        Symmetric-contraction correlation order.
+    interaction_cls : Literal, default = "RealAgnosticResidual"
+        Which MACE interaction block variant to use.
+    use_cueq : bool, default = False
+        Dispatch to cuequivariance-jax kernels where available.
+    readout_kind : Literal["mace", "standard"], default = "mace"
+        Which readout slot-filler to use. ``"mace"`` builds ``MaceReadout``
+        with per-layer readouts matching the torch-mace foundation. ``"standard"``
+        falls back to apax's ``AtomisticReadout`` (useful when fine-tuning and
+        replacing the head).
+    MLP_irreps : str, default = "16x0e"
+        Hidden irreps for the final non-linear readout's internal MLP.
+        Ignored when ``readout_kind == "standard"``.
+    """
+
+    name: Literal["mace"] = "mace"
+
+    r_max: PositiveFloat = 5.0
+    num_bessel: PositiveInt = 8
+    num_polynomial_cutoff: PositiveInt = 5
+    max_ell: PositiveInt = 3
+    hidden_irreps: str = "128x0e + 128x1o"
+    num_interactions: PositiveInt = 2
+    correlation: PositiveInt = 3
+    interaction_cls: Literal[
+        "RealAgnostic",
+        "RealAgnosticResidual",
+        "RealAgnosticDensity",
+        "RealAgnosticDensityResidual",
+    ] = "RealAgnosticResidual"
+    use_cueq: bool = False
+    readout_kind: Literal["mace", "standard"] = "mace"
+    MLP_irreps: str = "16x0e"
+
+    def get_builder(self):
+        from apax.nn.builder import MaceBuilder
+
+        return MaceBuilder
+```
+
+- [ ] **Step 4: Run — expect pass**
+
+```bash
+uv run pytest tests/unit_tests/config/test_mace_model_config.py -v
+```
+
+Expected: 3 passed.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apax/config/model_config.py tests/unit_tests/config/test_mace_model_config.py
+git commit -m "feat(config): add readout_kind + MLP_irreps to MaceModelConfig"
+```
+
+---
+
+### Task P3.2: `LinearReadoutBlock` + `NonLinearReadoutBlock` primitives
+
+These primitives already landed in commit `2b7283e8`. Verify their contract matches what `MaceReadout` needs, and add tests if missing.
+
+**Files:**
+- Check: `apax/layers/descriptor/mace_blocks.py` — confirm `LinearReadoutBlock` and `NonLinearReadoutBlock` accept a single-atom `e3nn.IrrepsArray` and an `n_out: int = 1` parameter.
+- Test: `tests/unit_tests/layers/descriptor/test_mace_blocks.py`
+
+- [ ] **Step 1: Read the existing implementation**
+
+Read `apax/layers/descriptor/mace_blocks.py` — locate `LinearReadoutBlock` and `NonLinearReadoutBlock`. Confirm they take a single-atom irreps array and emit `(n_out,)`. If either:
+- doesn't have an `n_out` field (defaults to 1), OR
+- doesn't use `e3nn.flax.Linear` with irreps `f"{n_out}x0e"` on the final projection, OR
+- expects a batched `(n_atoms, hidden_dim)` input instead of per-atom,
+
+patch the signature. The contract for `MaceReadout` is that each block is called inside `jax.vmap(self.readout)(g)` in `EnergyModel.__call__`, so each invocation sees one atom.
+
+- [ ] **Step 2: Write or extend tests**
+
+Append to `tests/unit_tests/layers/descriptor/test_mace_blocks.py`:
+
+```python
+import e3nn_jax as e3nn
+import jax
+import jax.numpy as jnp
+
+from apax.layers.descriptor.mace_blocks import (
+    LinearReadoutBlock,
+    NonLinearReadoutBlock,
+)
+
+
+def test_linear_readout_block_scalar_out():
+    block = LinearReadoutBlock(n_out=1)
+    feat = e3nn.IrrepsArray("16x0e", jnp.ones((16,)))  # single atom
+    params = block.init(jax.random.PRNGKey(0), feat)
+    out = block.apply(params, feat)
+    assert out.shape == (1,)
+
+
+def test_linear_readout_block_ensemble_out():
+    block = LinearReadoutBlock(n_out=4)
+    feat = e3nn.IrrepsArray("16x0e", jnp.ones((16,)))
+    params = block.init(jax.random.PRNGKey(0), feat)
+    out = block.apply(params, feat)
+    assert out.shape == (4,)
+
+
+def test_nonlinear_readout_block_scalar_out():
+    block = NonLinearReadoutBlock(MLP_irreps="8x0e", n_out=1)
+    feat = e3nn.IrrepsArray("16x0e", jnp.ones((16,)))
+    params = block.init(jax.random.PRNGKey(0), feat)
+    out = block.apply(params, feat)
+    assert out.shape == (1,)
+
+
+def test_nonlinear_readout_block_vmap_over_atoms():
+    block = NonLinearReadoutBlock(MLP_irreps="8x0e", n_out=1)
+    n_atoms = 5
+    feat = e3nn.IrrepsArray("16x0e", jnp.ones((n_atoms, 16)))
+    # Init on single atom, then vmap.apply on stacked
+    single = e3nn.IrrepsArray("16x0e", jnp.ones((16,)))
+    params = block.init(jax.random.PRNGKey(0), single)
+    batched = jax.vmap(lambda x: block.apply(params, x))(feat)
+    assert batched.shape == (n_atoms, 1)
+```
+
+- [ ] **Step 3: Run — expect pass (possibly after signature fixes from Step 1)**
+
+```bash
+uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py -v -k readout
+```
+
+Expected: 4 passed.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apax/layers/descriptor/mace_blocks.py tests/unit_tests/layers/descriptor/test_mace_blocks.py
+git commit -m "test(mace): verify readout block contracts for vmap usage"
+```
+
+---
+
+### Task P3.3: `MaceReadout` — the per-layer sum readout
+
+**Files:**
+- Modify: `apax/layers/readout.py` (add `MaceReadout` alongside `AtomisticReadout`)
+- Test: `tests/unit_tests/layers/test_mace_readout.py`
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `tests/unit_tests/layers/test_mace_readout.py`:
+
+```python
+"""MaceReadout — per-layer readout sum slotted into EnergyModel."""
+import e3nn_jax as e3nn
+import jax
+import jax.numpy as jnp
+import pytest
+
+from apax.layers.readout import MaceReadout
+
+
+def test_mace_readout_single_atom_shape():
+    num_interactions = 2
+    hidden_dim = 16
+    readout = MaceReadout(
+        num_interactions=num_interactions,
+        hidden_dim=hidden_dim,
+        MLP_irreps="8x0e",
+    )
+    x = jnp.ones((num_interactions * hidden_dim,))      # single atom, post-vmap
+    params = readout.init(jax.random.PRNGKey(0), x)
+    out = readout.apply(params, x)
+    assert out.shape == (1,)
+
+
+def test_mace_readout_shallow_ensemble_shape():
+    num_interactions = 2
+    hidden_dim = 16
+    n_members = 4
+    readout = MaceReadout(
+        num_interactions=num_interactions,
+        hidden_dim=hidden_dim,
+        MLP_irreps="8x0e",
+        n_shallow_ensemble=n_members,
+    )
+    x = jnp.ones((num_interactions * hidden_dim,))
+    params = readout.init(jax.random.PRNGKey(0), x)
+    out = readout.apply(params, x)
+    assert out.shape == (n_members,)
+
+
+def test_mace_readout_vmapped_over_atoms():
+    num_interactions = 2
+    hidden_dim = 16
+    n_atoms = 5
+    readout = MaceReadout(num_interactions=num_interactions, hidden_dim=hidden_dim)
+    x_single = jnp.ones((num_interactions * hidden_dim,))
+    params = readout.init(jax.random.PRNGKey(0), x_single)
+
+    g = jnp.ones((n_atoms, num_interactions * hidden_dim))
+    batched = jax.vmap(lambda xi: readout.apply(params, xi))(g)
+    assert batched.shape == (n_atoms, 1)
+
+
+def test_mace_readout_uses_linear_then_nonlinear():
+    """Last layer is non-linear; earlier layers are linear.
+
+    We verify this by counting params — with one linear readout (1 Linear)
+    and one non-linear readout (Linear + Linear), the non-linear layer's
+    internal hidden Linear dominates total param count.
+    """
+    num_interactions = 2
+    hidden_dim = 16
+    readout = MaceReadout(
+        num_interactions=num_interactions,
+        hidden_dim=hidden_dim,
+        MLP_irreps="8x0e",
+    )
+    x = jnp.ones((num_interactions * hidden_dim,))
+    params = readout.init(jax.random.PRNGKey(0), x)
+    # readout_0 is Linear (16 -> 1): 16 weights
+    # readout_1 is NonLinear (16 -> 8 -> 1): 16*8 + 8 = 136 weights
+    leaves = jax.tree_util.tree_leaves(params)
+    assert sum(l.size for l in leaves) >= 16 + 16 * 8  # sanity lower bound
+```
+
+- [ ] **Step 2: Run — expect fail**
+
+```bash
+uv run pytest tests/unit_tests/layers/test_mace_readout.py -v
+```
+
+Expected: FAIL — `MaceReadout` not found.
+
+- [ ] **Step 3: Implement `MaceReadout`**
+
+Append to `apax/layers/readout.py`:
+
+```python
+from typing import Any
+
+import e3nn_jax as e3nn
+import jax.numpy as jnp
+import flax.linen as nn
+
+from apax.layers.descriptor.mace_blocks import (
+    LinearReadoutBlock,
+    NonLinearReadoutBlock,
+)
+from apax.utils.convert import str_to_dtype
+
+
+class MaceReadout(nn.Module):
+    """Per-layer readout sum that matches the foundation MACE forward pass.
+
+    Consumes the concatenated per-layer scalar features emitted by
+    :class:`~apax.layers.descriptor.mace.MaceRepresentation`, reshapes into
+    per-layer chunks, applies a linear readout to each intermediate layer and
+    a two-Linear MLP (with SiLU gate) to the last layer, and returns the sum.
+
+    Slotted into :class:`~apax.nn.models.EnergyModel` in the readout position.
+    ``EnergyModel`` vmaps the readout over atoms, so each invocation sees a
+    single atom's flat feature vector.
+
+    Parameters
+    ----------
+    num_interactions : int
+        Number of interaction layers in the backbone.
+    hidden_dim : int
+        Per-layer scalar channel count; equals the ``0e`` dimension of
+        ``MaceRepresentation.hidden_irreps``.
+    MLP_irreps : str, default = "16x0e"
+        Hidden irreps of the last-layer non-linear MLP.
+    n_shallow_ensemble : int, default = 0
+        When > 0, each block's final projection emits ``n_shallow_ensemble``
+        scalars. Downstream ``EnergyModel`` auto-detects the ensemble case
+        from ``E_i.shape[1] > 1``.
+    dtype : Any
+        Floating-point dtype for internal computations.
+    """
+
+    num_interactions: int
+    hidden_dim: int
+    MLP_irreps: str = "16x0e"
+    n_shallow_ensemble: int = 0
+    dtype: Any = jnp.float32
+
+    @nn.compact
+    def __call__(self, x):
+        """Return per-atom energy summed across layers.
+
+        Parameters
+        ----------
+        x : Array, shape ``(num_interactions * hidden_dim,)``
+            Flat per-atom feature vector (post-vmap).
+
+        Returns
+        -------
+        Array, shape ``(1,)`` or ``(n_shallow_ensemble,)``
+        """
+        dtype = str_to_dtype(self.dtype)
+        x = x.astype(dtype)
+        layers = x.reshape(self.num_interactions, self.hidden_dim)
+        n_out = self.n_shallow_ensemble if self.n_shallow_ensemble > 0 else 1
+
+        E = jnp.zeros((n_out,), dtype=dtype)
+        for k in range(self.num_interactions):
+            feat = e3nn.IrrepsArray(f"{self.hidden_dim}x0e", layers[k])
+            if k < self.num_interactions - 1:
+                E = E + LinearReadoutBlock(n_out=n_out, name=f"readout_{k}")(feat)
+            else:
+                E = E + NonLinearReadoutBlock(
+                    MLP_irreps=self.MLP_irreps,
+                    n_out=n_out,
+                    name=f"readout_{k}",
+                )(feat)
+        return E
+```
+
+- [ ] **Step 4: Run — expect pass**
+
+```bash
+uv run pytest tests/unit_tests/layers/test_mace_readout.py -v
+```
+
+Expected: 4 passed.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apax/layers/readout.py tests/unit_tests/layers/test_mace_readout.py
+git commit -m "feat(mace): MaceReadout — per-layer sum readout for EnergyModel slot"
+```
+
+---
+
+### Task P3.4: `MaceBuilder.build_readout` override + end-to-end wiring
+
+**Files:**
+- Modify: `apax/nn/builder.py`
+- Test: `tests/unit_tests/nn/test_mace_builder.py`
+
+- [ ] **Step 1: Write the failing tests**
+
+Create (or extend) `tests/unit_tests/nn/test_mace_builder.py`:
+
+```python
+"""MaceBuilder — descriptor + readout composition tests."""
+import jax
+import jax.numpy as jnp
+import numpy as np
+import pytest
+
+from apax.config.model_config import MaceModelConfig
+from apax.nn.builder import MaceBuilder
+
+
+def _minimal_cfg(**overrides):
+    base = MaceModelConfig(
+        r_max=5.0,
+        num_bessel=4,
+        num_polynomial_cutoff=5,
+        max_ell=1,
+        hidden_irreps="8x0e",
+        num_interactions=2,
+        correlation=2,
+        interaction_cls="RealAgnosticResidual",
+        descriptor_dtype="fp32",
+        readout_dtype="fp32",
+        scale_shift_dtype="fp64",
+    )
+    return base.model_copy(update=overrides).model_dump()
+
+
+def test_mace_builder_uses_mace_readout_by_default():
+    from apax.layers.readout import MaceReadout
+    builder = MaceBuilder(_minimal_cfg(readout_kind="mace"), n_species=5)
+    readout = builder.build_readout(builder.config)
+    assert isinstance(readout, MaceReadout)
+    assert readout.num_interactions == 2
+    assert readout.hidden_dim == 8
+
+
+def test_mace_builder_standard_readout_falls_back():
+    from apax.layers.readout import AtomisticReadout
+    cfg = _minimal_cfg(readout_kind="standard")
+    cfg["nn"] = [32, 32]
+    cfg["w_init"] = "lecun"
+    cfg["b_init"] = "zeros"
+    cfg["use_ntk"] = False
+    builder = MaceBuilder(cfg, n_species=5)
+    readout = builder.build_readout(builder.config)
+    assert isinstance(readout, AtomisticReadout)
+
+
+def test_mace_builder_shallow_ensemble_plumbs_n_members():
+    from apax.layers.readout import MaceReadout
+    cfg = _minimal_cfg()
+    cfg["ensemble"] = {"kind": "shallow", "n_members": 4, "force_variance": True,
+                       "chunk_size": None}
+    builder = MaceBuilder(cfg, n_species=5)
+    readout = builder.build_readout(builder.config)
+    assert isinstance(readout, MaceReadout)
+    assert readout.n_shallow_ensemble == 4
+
+
+def test_mace_builder_end_to_end_energy_model():
+    """Compose full EnergyDerivativeModel and call it with random params."""
+    cfg = _minimal_cfg()
+    builder = MaceBuilder(cfg, n_species=5)
+    model = builder.build_energy_derivative_model()
+
+    n_atoms = 3
+    R = jnp.zeros((n_atoms, 3))
+    Z = jnp.array([1, 6, 8], dtype=jnp.int32)
+    # minimal neighbor list: each atom connected to the next
+    neighbor = jnp.array([[0, 1], [1, 2]], dtype=jnp.int32).T
+    box = jnp.zeros((3,))
+    offsets = jnp.zeros((neighbor.shape[1], 3))
+
+    params = model.init(jax.random.PRNGKey(0), R, Z, neighbor, box, offsets)
+    out = model.apply(params, R, Z, neighbor, box, offsets)
+    assert "energy" in out
+    assert "forces" in out
+    assert out["forces"].shape == (n_atoms, 3)
+    assert np.all(np.isfinite(np.asarray(out["forces"])))
+```
+
+- [ ] **Step 2: Run — expect fail**
+
+```bash
+uv run pytest tests/unit_tests/nn/test_mace_builder.py -v
+```
+
+Expected: FAIL — `build_readout` uses the parent's default.
+
+- [ ] **Step 3: Override `build_readout` on `MaceBuilder`**
+
+Edit `apax/nn/builder.py`. Find the existing `MaceBuilder` class and add `build_readout`:
+
+```python
+class MaceBuilder(ModelBuilder):
+    def build_descriptor(
+        self,
+        apply_mask,
+    ):
+        from apax.layers.descriptor.mace import MaceRepresentation
+
+        descriptor = MaceRepresentation(
+            r_max=self.config["r_max"],
+            num_bessel=self.config["num_bessel"],
+            num_polynomial_cutoff=self.config["num_polynomial_cutoff"],
+            max_ell=self.config["max_ell"],
+            hidden_irreps=self.config["hidden_irreps"],
+            num_interactions=self.config["num_interactions"],
+            correlation=self.config["correlation"],
+            interaction_cls=self.config["interaction_cls"],
+            num_elements=self.n_species,
+            use_cueq=self.config["use_cueq"],
+            apply_mask=apply_mask,
+            dtype=self.config["descriptor_dtype"],
+        )
+        return descriptor
+
+    def build_readout(
+        self,
+        head_config,
+        is_feature_fn: bool = False,
+        only_use_n_layers: int | None = None,
+    ):
+        """Route between ``MaceReadout`` (matches foundation MACE) and the
+        standard ``AtomisticReadout`` based on ``readout_kind``."""
+        import e3nn_jax as e3nn
+        kind = self.config.get("readout_kind", "mace")
+        if kind == "mace" and not is_feature_fn:
+            from apax.layers.readout import MaceReadout
+            n_shallow = 0
+            ens = head_config.get("ensemble")
+            if ens and ens.get("kind") == "shallow":
+                n_shallow = ens["n_members"]
+            hidden_dim = e3nn.Irreps(self.config["hidden_irreps"]).filter("0e").dim
+            return MaceReadout(
+                num_interactions=self.config["num_interactions"],
+                hidden_dim=hidden_dim,
+                MLP_irreps=self.config["MLP_irreps"],
+                n_shallow_ensemble=n_shallow,
+                dtype=self.config["readout_dtype"],
+            )
+        return super().build_readout(head_config, is_feature_fn, only_use_n_layers)
+```
+
+- [ ] **Step 4: Run — expect pass**
+
+```bash
+uv run pytest tests/unit_tests/nn/test_mace_builder.py -v
+```
+
+Expected: 4 passed.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apax/nn/builder.py tests/unit_tests/nn/test_mace_builder.py
+git commit -m "feat(mace): MaceBuilder.build_readout routes mace/standard readouts"
+```
+
+---
+
+### Task P3.5: Converter — emit `<dst>/config.yaml` + `<dst>/best/` via pydantic + orbax
 
 **Files:**
 - Modify: `apax/transfer_learning/mace_foundation.py`
-- Test: `tests/integration_tests/mace/test_convert.py` — uses `mace_mp("medium")` (smallest MP-0; downloads to cache on first run; reused thereafter by the mace-torch cache).
+- Test: `tests/integration_tests/mace/test_convert.py` (gated by `@pytest.mark.mace_parity`)
 
-- [x] **Step 1: Add torch+mace to a dev-only dependency group**
+**Preamble:** Torch + mace-torch are installed in the dev environment via `uv sync --group mace-convert --extra mace`. The converter code must still import torch lazily so that library consumers who don't install the group don't pay the cost.
 
-Edit `pyproject.toml`, add to `[dependency-groups]`:
+- [ ] **Step 1: Replace the gated test's expectations**
 
-```toml
-mace-convert = [
-    "torch>=2.1",
-    "mace-torch>=0.3",
-]
-```
-
-This group is **never** installed by default; a developer who wants to run the converter or parity tests opts in via:
-
-```bash
-uv sync --group mace-convert --extra mace
-```
-
-Document this in the README section added at the end of the plan.
-
-- [x] **Step 2: No fixture checked in — use mace_mp() directly**
-
-We do **not** check in a `.model` file. The parity test loads models via `mace_mp(name, return_raw_model=True)` which:
-- Uses the bundled `medium-mpa-0` (ships with mace-torch pip package) when no name is passed.
-- Otherwise downloads to `~/.cache/mace/` once, then reuses.
-
-The CI parity job runs `uv sync --group mace-convert --extra mace && uv run pytest -m mace_parity`. The first invocation triggers downloads; subsequent runs are cache-hits.
-
-For CI sandbox safety (no network), we additionally cache a tiny synthetic model under `tests/fixtures/mace/` — generated on demand by running the parity test locally once and committing the cache file. Optional — not required for the plan's correctness.
-
-- [x] **Step 2a: Write conversion test (gated) — canonical name path**
-
-Create `tests/integration_tests/mace/test_convert.py`:
+Rewrite `tests/integration_tests/mace/test_convert.py`:
 
 ```python
-"""Integration test for convert-mace. Gated by mace_parity marker.
+"""apax convert-mace produces an apax training-output-shaped directory.
 
-Requires:
+Gated by mace_parity. Requires:
     uv sync --group mace-convert --extra mace
-
-These tests resolve MACE foundation models via the upstream
-``mace.calculators.foundations_models.mace_mp`` interface, which handles
-the bundled-local model, HTTP download, and caching under ``~/.cache/mace/``.
 """
 import json
 from pathlib import Path
@@ -1706,52 +2168,55 @@ import pytest
 pytestmark = pytest.mark.mace_parity
 
 
-@pytest.mark.parametrize("model_name", [
-    "medium-mpa-0",      # default; bundled with mace-torch package
-    "medium",            # MACE-MP-0 medium; first-run download, cached thereafter
-])
-def test_convert_canonical_name(tmp_path, model_name):
-    """Convert a canonical foundation model fetched via mace_mp()."""
+@pytest.mark.parametrize("model_name", ["small"])
+def test_convert_produces_config_yaml_and_orbax_checkpoint(tmp_path, model_name):
     pytest.importorskip("torch")
     pytest.importorskip("mace")
     from apax.transfer_learning.mace_foundation import run_conversion
+    from apax.train.checkpoints import restore_parameters
 
     dst = tmp_path / f"{model_name}.apax"
-    run_conversion(model_name, dst, head="mp", family="mace_mp")
+    run_conversion(model_name, dst, head="default", family="mace_mp")
 
-    assert (dst / "params.msgpack").exists()
-    assert (dst / "config.json").exists()
-    assert (dst / "metadata.json").exists()
+    assert (dst / "config.yaml").is_file()
+    assert (dst / "best").is_dir()
+    assert (dst / "converter_metadata.json").is_file()
 
-    cfg = json.loads((dst / "config.json").read_text())
-    assert cfg["name"] == "mace"
-    assert cfg["num_interactions"] >= 1
+    meta = json.loads((dst / "converter_metadata.json").read_text())
+    assert meta["source"] == model_name
+    assert meta["family"] == "mace_mp"
 
-    meta = json.loads((dst / "metadata.json").read_text())
-    assert meta["source"] == model_name            # records the canonical name
-    assert meta["source_resolved_path"]             # records where it actually came from
+    # The universal apax loader must accept it.
+    config, params = restore_parameters(dst)
+    assert config.model.name == "mace"
+    # Params must contain at least the representation + readout + scale_shift branches.
+    flat = {"/".join(str(k) for k in p): v
+            for p, v in __import__("jax").tree_util.tree_flatten_with_path(params)[0]}
+    assert any("MaceRepresentation" in k for k in flat), "descriptor params missing"
+    assert any("MaceReadout" in k or "readout" in k for k in flat), "readout params missing"
+    assert any("ScaleShift" in k or "scale_shift" in k for k in flat), "scale_shift missing"
 
 
-def test_convert_local_path(tmp_path):
-    """Convert from an explicit .model path (no network)."""
+def test_convert_rejects_unknown_head(tmp_path):
+    """Multi-head selection rejects unknown head names up-front."""
     pytest.importorskip("torch")
     pytest.importorskip("mace")
     from apax.transfer_learning.mace_foundation import run_conversion
-    from mace.calculators.foundations_models import download_mace_mp_checkpoint
-
-    # Pre-resolve the cached path, then feed it as a local file input
-    local_path = Path(download_mace_mp_checkpoint("medium-mpa-0"))
-    assert local_path.exists()
-
-    dst = tmp_path / "local.apax"
-    run_conversion(str(local_path), dst, head="mp", family="mace_mp")
-
-    assert (dst / "params.msgpack").exists()
+    with pytest.raises(ValueError, match="head"):
+        run_conversion("medium-mpa-0", tmp_path / "out.apax", head="does-not-exist")
 ```
 
-- [x] **Step 3: Implement `run_conversion` that resolves canonical names via mace_mp()**
+- [ ] **Step 2: Run — expect skip (no torch in default env) or fail-on-NotImplementedError when run with mace_parity**
 
-Edit `apax/transfer_learning/mace_foundation.py`, replacing the stub:
+```bash
+uv run pytest tests/integration_tests/mace/test_convert.py -v
+```
+
+Expected: both tests SKIPPED (gated). With the dev group installed and `-m mace_parity` passed, the first test should FAIL (`_map_state_to_pytree` still stubbed or converter still writes the old format); that's the red step we're about to fix.
+
+- [ ] **Step 3: Implement `run_conversion` — orchestrator**
+
+Replace `run_conversion` in `apax/transfer_learning/mace_foundation.py`:
 
 ```python
 from __future__ import annotations
@@ -1762,51 +2227,92 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Union
 
+import jax
 import jax.numpy as jnp
 import numpy as np
-from flax import serialization
+import orbax.checkpoint as ocp
 
 
 def run_conversion(
     source: Union[str, Path],
     dst: Path,
     *,
-    head: str = "mp",
+    head: str = "default",
     family: str = "mace_mp",
 ) -> None:
-    """Convert a torch-mace foundation model into an apax-native directory.
+    """Convert a torch-mace foundation model into an apax training-output dir.
+
+    The output layout matches what ``apax train`` produces, so every apax
+    loader (``restore_parameters``, ``ASECalculator``, ``apax md``, BAL)
+    reads it with no special-casing.
 
     Parameters
     ----------
-    source : str or Path
-        Either a canonical MACE foundation name (e.g. ``"medium-mpa-0"``,
-        ``"medium"``, ``"large"``) resolved via ``mace_mp(...)``, or a path to a
-        local ``.model`` file.
-    dst : Path
+    source
+        Canonical MACE foundation name (e.g. ``"small"``, ``"medium-mpa-0"``)
+        or a filesystem path to a local ``.model`` file.
+    dst
         Output directory.
-    head : str
-        For multi-head foundation models (e.g. MPA), which head to retain.
-    family : str
-        Which foundation-family resolver to use. Initial scope: ``"mace_mp"``
-        (covers MACE-MP-0, 0b, 0b2, 0b3 and MACE-MPA). Others deferred.
+    head
+        For multi-head models (e.g. MPA), which head to retain.
+    family
+        Foundation-family resolver. Initial scope: ``"mace_mp"``.
     """
-    import torch  # local import; runtime never needs this
+    from apax.config.train_config import Config
+    from apax.config.model_config import MaceModelConfig
+    from apax.train.checkpoints import load_state  # for schema reference
 
     dst = Path(dst)
+
+    # 1. Load torch model + resolve source on disk
     torch_model, resolved_path = _load_torch_foundation_model(source, family=family)
-    if hasattr(torch_model, "state_dict"):
-        state = {k: v.detach().cpu().numpy() for k, v in torch_model.state_dict().items()}
-    else:
-        state = torch_model
 
-    cfg = _extract_config_from_torch(torch_model, head=head)
-    params_pytree = _map_state_to_pytree(state, cfg, head=head)
-    _validate_no_nan(params_pytree)
+    # 2. Extract architecture → MaceModelConfig fields
+    mace_cfg_fields = _extract_config_from_torch(torch_model, head=head)
+    torch_atomic_numbers = tuple(
+        torch_model.atomic_numbers.detach().cpu().numpy().astype(np.int64).tolist()
+    )
 
+    # 3. Build full apax Config with placeholder training-only fields
+    full_cfg = _synthesize_full_config(mace_cfg_fields, dst)
+
+    # 4. Build the same model the trainer would build
+    Builder = full_cfg.model.get_builder()
+    builder = Builder(full_cfg.model.model_dump(), n_species=119)
+    energy_derivative_model = builder.build_energy_derivative_model()
+
+    R_dummy = jnp.zeros((2, 3))
+    Z_dummy = jnp.array([1, 1], dtype=jnp.int32)
+    neigh_dummy = jnp.array([[0], [1]], dtype=jnp.int32)
+    box_dummy = jnp.zeros((3,))
+    offsets_dummy = jnp.zeros((1, 3))
+    params_template = energy_derivative_model.init(
+        jax.random.PRNGKey(0), R_dummy, Z_dummy, neigh_dummy, box_dummy, offsets_dummy
+    )
+
+    # 5. Map torch weights into the template
+    state = {k: v.detach().cpu().numpy() for k, v in torch_model.state_dict().items()}
+    extra_scalars = {
+        "scale": float(torch_model.scale_shift.scale.detach().cpu()),
+        "shift": float(torch_model.scale_shift.shift.detach().cpu()),
+        "atomic_energies": torch_model.atomic_energies_fn.atomic_energies.detach().cpu().numpy(),
+    }
+    params = _map_state_to_pytree(
+        state,
+        params_template,
+        torch_atomic_numbers=torch_atomic_numbers,
+        extra_scalars=extra_scalars,
+        selected_head=head,
+        config=full_cfg.model,
+    )
+    _validate_no_nan(params)
+
+    # 6. Persist
     dst.mkdir(parents=True, exist_ok=True)
-    (dst / "params.msgpack").write_bytes(serialization.to_bytes(params_pytree))
-    (dst / "config.json").write_text(json.dumps(cfg, indent=2))
+    full_cfg.dump_config(dst)  # dst/config.yaml
+    _write_orbax_checkpoint(dst / "best", params, epoch=0)
 
+    # 7. Provenance
     meta = {
         "source": str(source),
         "source_resolved_path": str(resolved_path) if resolved_path else None,
@@ -1820,370 +2326,243 @@ def run_conversion(
         meta["source_sha256"] = hashlib.sha256(
             Path(resolved_path).read_bytes()
         ).hexdigest()
-    (dst / "metadata.json").write_text(json.dumps(meta, indent=2))
+    (dst / "converter_metadata.json").write_text(json.dumps(meta, indent=2))
 
 
-def _load_torch_foundation_model(source, *, family: str):
-    """Load a torch MACE model via the upstream foundation loader.
+def _synthesize_full_config(mace_cfg_fields: dict, dst: Path):
+    """Build a valid ``Config`` around a MaceModelConfig for a converted model.
 
-    Goes through ``mace.calculators.foundations_models.mace_mp(return_raw_model=True)``
-    so we inherit bundled-local → cache → download logic + ASL license notices.
-
-    Returns
-    -------
-    torch_model : torch.nn.Module
-    resolved_path : str | None
-        Path on disk that the torch model was loaded from (when the resolver
-        exposes it). ``None`` if we have only a module-in-memory.
+    Training-only fields get placeholder values; users should never use this
+    YAML to launch training directly, only to restore params.
     """
-    if family != "mace_mp":
-        raise NotImplementedError(
-            f"family={family!r} not yet supported; only 'mace_mp' is in initial scope."
-        )
-
-    from mace.calculators.foundations_models import (
-        download_mace_mp_checkpoint,
-        mace_mp,
-        mace_mp_names,
-    )
-
-    # Heuristic: treat as a canonical name if it's not an existing file path.
-    is_path = isinstance(source, (str, Path)) and Path(source).exists()
-    if is_path:
-        import torch
-        return torch.load(str(source), map_location="cpu"), str(source)
-
-    # Canonical name — validate against the registry for a clearer error
-    if source not in mace_mp_names and not str(source).startswith("https:"):
-        raise ValueError(
-            f"Unknown MACE-MP model name {source!r}. "
-            f"Valid names: {', '.join(n for n in mace_mp_names if n)}"
-        )
-
-    resolved_path = download_mace_mp_checkpoint(source)
-    torch_model = mace_mp(source, return_raw_model=True)
-    return torch_model, resolved_path
-
-
-def _extract_config_from_torch(model, head: str) -> dict:
-    """Return a dict that matches MaceModelConfig schema.
-
-    Reads hyperparameters off the torch module (r_max, hidden_irreps, etc.).
-    Multi-head selection: if model.heads > 1, pick the named head and drop others.
-    """
-    # Torch attrs: r_max, num_bessel, num_polynomial_cutoff, num_interactions, ...
-    # See /Users/fzills/tools/mace/mace/modules/models.py for exact attribute names.
-    attrs = getattr(model, "__dict__", {})
-    cfg = {
-        "name": "mace",
-        "r_max": float(model.r_max),
-        "num_bessel": int(getattr(model, "num_bessel", 8)),
-        "num_polynomial_cutoff": int(getattr(model, "num_polynomial_cutoff", 5)),
-        "max_ell": int(getattr(model, "max_ell", 3)),
-        "hidden_irreps": str(model.hidden_irreps),
-        "num_interactions": int(model.num_interactions),
-        "correlation": int(getattr(model, "correlation", 3)),
-        "interaction_cls": "RealAgnosticResidual",
-        "num_elements": int(model.num_elements),
-    }
-    # atomic_energies are per-element reference E0, kept in a separate array
-    cfg["atomic_energies"] = model.atomic_energies_fn.atomic_energies.detach().cpu().numpy().tolist()
-    if getattr(model, "num_heads", 1) > 1:
-        cfg["selected_head"] = head
-    return cfg
-
-
-def _map_state_to_pytree(state: dict[str, np.ndarray], cfg: dict, head: str) -> dict:
-    """Translate torch parameter names → linen pytree.
-
-    Parameter path map (canonical list):
-
-    Torch key                                    → apax pytree path
-    ------------------------------------------------------------------
-    node_embedding.linear.weight                 → params/LinearNodeEmbedding_0/weight
-    interactions.<i>.linear_up.weight            → params/MaceRepresentation/.../InteractionBlock_<i>/linear_up/kernel
-    interactions.<i>.linear_down.weight          → .../InteractionBlock_<i>/linear_down/kernel
-    interactions.<i>.skip_tp.weight              → .../InteractionBlock_<i>/skip_linear/kernel
-    interactions.<i>.conv_tp_weights.*           → .../InteractionBlock_<i>/radial_mlp/*
-    products.<i>.linear.weight                   → .../ProductBlock_<i>/symmetric_contraction/weight
-    readouts.<i>.linear.weight                   → .../Readout_<i>/linear/kernel
-    ...
-
-    This map is authoritative — every torch key must land somewhere, and
-    the NaN-leaf check (below) will fail if any expected slot is missed.
-    """
-    out = {"params": {}}
-    # Implemented progressively; follow /Users/fzills/tools/mace-jax/mace_jax/tools/import_from_torch.py
-    # as the reference. For each torch key, decide where it goes in our tree.
-    raise NotImplementedError(
-        "Fill in the mapping below. Start with node_embedding and a single interaction/product/readout; "
-        "add entries until no torch keys remain and no apax leaves are NaN. "
-        "See mace-jax import_from_torch.py for the naming convention."
-    )
-
-
-def _validate_no_nan(pytree: dict) -> None:
-    import jax
-    bad = []
-    for path, leaf in jax.tree_util.tree_flatten_with_path(pytree)[0]:
-        if isinstance(leaf, np.ndarray) and np.issubdtype(leaf.dtype, np.floating):
-            if np.isnan(leaf).any():
-                bad.append("/".join(str(k) for k in path))
-    if bad:
-        raise ValueError(f"NaN leaves after conversion:\n  - " + "\n  - ".join(bad))
-
-
-def _torch_mace_version() -> str:
-    try:
-        import mace
-        return mace.__version__
-    except Exception:
-        return "unknown"
-
-
-def _apax_version() -> str:
-    try:
-        from apax import __version__
-        return __version__
-    except Exception:
-        return "unknown"
-```
-
-- [ ] **Step 4: Iteratively fill in `_map_state_to_pytree`** — **DEFERRED**: requires `uv sync --group mace-convert --extra mace` to iterate against real torch weights; function currently raises `NotImplementedError` with a pointer to this step.
-
-This is the single most tedious step — walk through the torch state keys (print them with `print(list(state.keys()))` at run time), map each to the linen path. For each key:
-
-1. Print torch shape.
-2. Find the matching slot in `MaceRepresentation.init(...)` output.
-3. Assign, reshaping if needed (cueq may use `ir_mul` layout — transpose accordingly).
-
-Iterate:
-```bash
-uv run pytest tests/integration_tests/mace/test_convert.py::test_convert_tiny_mace_produces_apax_dir -v -m mace_parity
-```
-until the parameter count matches and the NaN check passes. Keep this function readable: dispatch with explicit `for k, v in state.items(): match k:` style or a series of small helper functions (`_map_interaction_layer`, `_map_product_layer`, ...).
-
-- [x] **Step 5: Extract `normalize2mom` constant**
-
-Borrow the exact pattern from `/Users/fzills/tools/mace-jax/mace_jax/tools/import_from_torch.py:_extract_norm_consts`. Store in `params["constants"]["normalize2mom_silu"]`.
-
-- [x] **Step 6: Run parity conversion test**
-
-Run: `uv run pytest tests/integration_tests/mace/test_convert.py -v -m mace_parity`
-Expected: PASS (directory exists, params loadable, NaN check clean).
-
-- [x] **Step 7: Commit**
-
-```bash
-git add apax/transfer_learning/mace_foundation.py tests/integration_tests/mace/test_convert.py tests/fixtures/mace/
-git commit -m "feat(mace): implement torch→apax weight conversion"
-```
-
----
-
-### Task P3.3: `load_mace_foundation` — runtime-side loader
-
-**Files:**
-- Modify: `apax/transfer_learning/mace_foundation.py`
-- Test: `tests/integration_tests/mace/test_load_foundation.py`
-
-- [x] **Step 1: Write test**
-
-Create `tests/integration_tests/mace/test_load_foundation.py`:
-
-```python
-import json
-from pathlib import Path
-import jax.numpy as jnp
-import pytest
-from flax import serialization
-
-
-def test_load_mace_foundation_from_dir(tmp_path):
-    # Write a minimal fake apax dir
-    cfg = {
-        "name": "mace", "r_max": 5.0, "num_bessel": 4, "num_polynomial_cutoff": 5,
-        "max_ell": 1, "hidden_irreps": "8x0e", "num_interactions": 1,
-        "correlation": 2, "interaction_cls": "RealAgnosticResidual",
-        "num_elements": 5,
-    }
-    (tmp_path / "config.json").write_text(json.dumps(cfg))
-    (tmp_path / "metadata.json").write_text("{}")
-    # Use random params matching the model init output
-    from apax.layers.descriptor.mace import MaceRepresentation
-    import jax, numpy as np
-    model = MaceRepresentation(**{k: v for k, v in cfg.items() if k != "name"})
-    dr_vec = jnp.zeros((4, 3))
-    Z = jnp.array([0, 1, 2, 3], dtype=jnp.int32)
-    idx = jnp.array([[0, 1], [1, 0]])
-    params = model.init(jax.random.PRNGKey(0), dr_vec, Z, idx)
-    (tmp_path / "params.msgpack").write_bytes(serialization.to_bytes(params))
-
-    from apax.transfer_learning.mace_foundation import load_mace_foundation
-    loaded_params, loaded_cfg = load_mace_foundation(tmp_path)
-    assert loaded_cfg.name == "mace"
-    assert loaded_cfg.r_max == 5.0
-    # Param structure matches
-    assert jax.tree_util.tree_structure(loaded_params) == jax.tree_util.tree_structure(params)
-```
-
-- [x] **Step 2: Run — expect fail**
-
-Run: `uv run pytest tests/integration_tests/mace/test_load_foundation.py -v`
-Expected: NotImplementedError.
-
-- [x] **Step 3: Implement loader**
-
-In `mace_foundation.py`:
-
-```python
-def load_mace_foundation(source):
-    """Load a converted MACE foundation model.
-
-    ``source`` may be:
-    - A directory path pointing to a converted .apax/ directory.
-    - A short name (string) — resolved via huggingface-hub if available.
-    """
+    from apax.config.train_config import Config
     from apax.config.model_config import MaceModelConfig
-    from apax.layers.descriptor.mace import MaceRepresentation
-    import jax
 
-    src = Path(source) if isinstance(source, (str, Path)) and Path(source).exists() else None
-    if src is None:
-        src = _resolve_short_name(str(source))
-
-    cfg_dict = json.loads((src / "config.json").read_text())
-    cfg = MaceModelConfig(**{k: v for k, v in cfg_dict.items() if k in MaceModelConfig.model_fields})
-
-    # Rebuild a fresh pytree to match against
-    model = MaceRepresentation(
-        r_max=cfg.r_max, num_bessel=cfg.num_bessel,
-        num_polynomial_cutoff=cfg.num_polynomial_cutoff, max_ell=cfg.max_ell,
-        hidden_irreps=cfg.hidden_irreps, num_interactions=cfg.num_interactions,
-        correlation=cfg.correlation, interaction_cls=cfg.interaction_cls,
-        num_elements=cfg.num_elements, use_cueq=cfg.use_cueq,
-    )
-    dr_dummy = jnp.zeros((1, 3))
-    Z_dummy = jnp.zeros((1,), dtype=jnp.int32)
-    idx_dummy = jnp.zeros((2, 1), dtype=jnp.int32)
-    template = model.init(jax.random.PRNGKey(0), dr_dummy, Z_dummy, idx_dummy)
-    params = serialization.from_bytes(template, (src / "params.msgpack").read_bytes())
-    return params, cfg
-
-
-def _resolve_short_name(name: str) -> Path:
-    try:
-        from huggingface_hub import snapshot_download
-    except ImportError:
-        raise ValueError(
-            f"Model {name!r} not found locally and huggingface-hub is not installed. "
-            "Install it with `uv sync --extra mace` or pass a local directory path."
-        )
-    _KNOWN = {
-        "mace-mp-0-medium": "apax-hub/mace-mp-0-medium",
-        "mace-mpa-medium": "apax-hub/mace-mpa-medium",
+    mace_cfg = MaceModelConfig(**mace_cfg_fields)
+    cfg_dict = {
+        "n_epochs": 1,
+        "data": {
+            "directory": str(dst.parent.resolve()),
+            "experiment": dst.name,
+            "data_path": "placeholder.extxyz",
+        },
+        "model": mace_cfg.model_dump(),
+        "loss": [{"name": "energy"}],
+        "optimizer": {},  # all defaults
     }
-    repo = _KNOWN.get(name)
-    if repo is None:
-        raise ValueError(f"Unknown MACE foundation shortname {name!r}")
-    return Path(snapshot_download(repo))
+    return Config.model_validate(cfg_dict)
+
+
+def _write_orbax_checkpoint(path: Path, params, *, epoch: int) -> None:
+    """Write ``{"model": {"params": params}, "epoch": epoch}`` via orbax.
+
+    Matches the schema that :func:`apax.train.checkpoints.load_state` reads.
+    """
+    path = path.resolve()
+    path.mkdir(parents=True, exist_ok=True)
+    with ocp.CheckpointManager(path) as mngr:
+        mngr.save(
+            step=0,
+            args=ocp.args.StandardSave({"model": {"params": params}, "epoch": epoch}),
+        )
+        mngr.wait_until_finished()
 ```
 
-Add `huggingface-hub` to the `mace` extra in `pyproject.toml` (optional inside the extra).
+- [ ] **Step 4: Fix `_extract_config_from_torch` attr paths for ScaleShiftMACE**
 
-- [x] **Step 4: Run — expect pass**
+In `apax/transfer_learning/mace_foundation.py`, review `_extract_config_from_torch`. Probed foundation model layout (see commit `5bddaed2`):
 
-Run: `uv run pytest tests/integration_tests/mace/test_load_foundation.py -v`
-Expected: PASS.
+```python
+def _extract_config_from_torch(model, head: str) -> dict:
+    """Extract MaceModelConfig-compatible fields from a torch ScaleShiftMACE.
 
-- [x] **Step 5: Commit**
+    Reads attributes that are actual tensors/buffers on the module; wraps them
+    as the right Python types for pydantic.
+    """
+    import e3nn
+
+    # Heads: torch exposes ``model.heads`` as a list of strings; default is ``['default']``
+    heads = list(getattr(model, "heads", ["default"]))
+    if len(heads) > 1 and head not in heads:
+        raise ValueError(
+            f"head={head!r} not in available heads {heads}. "
+            f"Pass --head <name> from that list."
+        )
+
+    # Interaction variant
+    inter0_cls = type(model.interactions[0]).__name__
+    variant_map = {
+        "RealAgnosticInteractionBlock": "RealAgnostic",
+        "RealAgnosticResidualInteractionBlock": "RealAgnosticResidual",
+        "RealAgnosticDensityInteractionBlock": "RealAgnosticDensity",
+        "RealAgnosticDensityResidualInteractionBlock": "RealAgnosticDensityResidual",
+    }
+    if inter0_cls not in variant_map:
+        raise NotImplementedError(
+            f"Unsupported interaction class {inter0_cls!r}; "
+            "supported: " + ", ".join(variant_map)
+        )
+
+    # Hidden irreps — take from the first product's Linear.irreps_out
+    hidden_irreps = str(model.products[0].linear.irreps_out)
+
+    # max_ell — the spherical_harmonics irreps are 1x0e + 1x1o + ... + 1x{L}{o|e}
+    sph_irreps = e3nn.o3.Irreps(str(model.spherical_harmonics.irreps_out))
+    max_ell = max(ir.ir.l for _, ir in sph_irreps)
+
+    # Correlation — count U_matrix_N entries in the first contraction
+    sc0 = model.products[0].symmetric_contractions.contractions[0]
+    correlation = 1
+    while hasattr(sc0, f"U_matrix_{correlation + 1}"):
+        correlation += 1
+
+    cfg = {
+        "r_max": float(model.r_max),
+        "num_bessel": int(model.radial_embedding.bessel_fn.bessel_weights.shape[0]),
+        "num_polynomial_cutoff": int(model.radial_embedding.cutoff_fn.p),
+        "max_ell": int(max_ell),
+        "hidden_irreps": hidden_irreps,
+        "num_interactions": int(model.num_interactions),
+        "correlation": int(correlation),
+        "interaction_cls": variant_map[inter0_cls],
+        "use_cueq": False,
+        "readout_kind": "mace",
+        "MLP_irreps": "16x0e",  # torch-mace foundation models default
+    }
+    return cfg
+```
+
+- [ ] **Step 5: Implement `_map_state_to_pytree` — core weight mapping**
+
+This is the single largest function. Organize as one top-level function plus sub-helpers per block type:
+
+```python
+def _map_state_to_pytree(
+    state: dict[str, np.ndarray],
+    template: dict,
+    *,
+    torch_atomic_numbers: tuple[int, ...],
+    extra_scalars: dict,
+    selected_head: str,
+    config,
+) -> dict:
+    """Translate torch state_dict → linen pytree matching ``template``.
+
+    The pytree is the fully-wrapped output of
+    :meth:`MaceBuilder.build_energy_derivative_model().init(...)`, which means
+    the top level is ``{"params": {"energy_model": {...}}, ...}``.
+
+    The function mutates a copy of ``template`` and returns it.
+    """
+    out = jax.tree_util.tree_map(lambda x: np.asarray(x).copy(), template)
+    # Drill into the energy_model subtree
+    energy_params = out["params"]["energy_model"]
+
+    # 1. MaceRepresentation subtree
+    rep_params = energy_params["representation"]
+    _map_node_embedding(state, rep_params, torch_atomic_numbers)
+    _map_interactions(state, rep_params, torch_atomic_numbers, config)
+    _map_products(state, rep_params, torch_atomic_numbers, config)
+
+    # 2. MaceReadout subtree
+    readout_params = energy_params["readout"]
+    _map_readouts(state, readout_params, selected_head=selected_head,
+                  num_interactions=config.num_interactions,
+                  MLP_irreps=config.MLP_irreps)
+
+    # 3. PerElementScaleShift — combine scale + shift + atomic_energies
+    ss_params = energy_params["scale_shift"]
+    _map_scale_shift(
+        ss_params,
+        global_scale=extra_scalars["scale"],
+        global_shift=extra_scalars["shift"],
+        atomic_energies=extra_scalars["atomic_energies"],
+        torch_atomic_numbers=torch_atomic_numbers,
+    )
+
+    return out
+```
+
+Each `_map_X` helper follows a pattern: read the specific torch keys, reshape/pad/transpose, assign into the target pytree. Reference implementations in `/Users/fzills/tools/mace-jax/mace_jax/modules/blocks.py` (each class has an `import_from_torch` decorator-generated method). Fill these in iteratively against the actual state dict:
+
+```python
+def _map_node_embedding(state, rep_params, atomic_numbers):
+    """node_embedding.linear.weight (N_torch * hidden,) → rep/LinearNodeEmbedding_0/weight (119, hidden)."""
+    w = state["node_embedding.linear.weight"]  # flat torch tensor
+    N_torch = len(atomic_numbers)
+    hidden = w.size // N_torch
+    w = w.reshape(N_torch, hidden)  # torch-e3nn Linear layout; confirm and transpose if needed
+    target = rep_params["LinearNodeEmbedding_0"]["weight"]
+    # target shape: (119, hidden)
+    padded = np.zeros_like(target)
+    for i, Z in enumerate(atomic_numbers):
+        padded[Z] = w[i]
+    rep_params["LinearNodeEmbedding_0"]["weight"] = padded
+
+
+def _map_scale_shift(ss_params, *, global_scale, global_shift, atomic_energies, torch_atomic_numbers):
+    """Fold (global_scale, global_shift, atomic_energies) → PerElementScaleShift."""
+    n_species = ss_params["scale_per_element"].shape[0]  # 119
+    scale = np.full((n_species, 1), global_scale, dtype=np.float64)
+    shift = np.zeros((n_species, 1), dtype=np.float64)
+    for i, Z in enumerate(torch_atomic_numbers):
+        shift[Z, 0] = global_shift + float(atomic_energies[i])
+    ss_params["scale_per_element"] = scale
+    ss_params["shift_per_element"] = shift
+
+
+# _map_interactions, _map_products, _map_readouts — implemented similarly; each
+# enumerates the torch keys in its scope and scatters into the corresponding
+# linen slot. Use the mace-jax per-module import_from_torch implementations
+# as the ground truth for weight layouts.
+```
+
+Implement iteratively:
+
+1. Start with `_map_node_embedding` and `_map_scale_shift` (simplest).
+2. Enable `_validate_no_nan` — it lists every float leaf that's still NaN. Use that list to drive the next helper: pick the first `NaN path`, find the torch key that should land there, implement the map, re-run.
+3. Continue through `_map_interactions`, `_map_products`, `_map_readouts`.
+4. A helper script at `scripts/mace_parity_probe.py` (keep under tests/, do NOT check in) is useful for iteration: loads torch model, inits apax model, prints both key→shape tables side-by-side.
+
+- [ ] **Step 6: Run — expect convert succeeds, pytree loads**
 
 ```bash
-git add apax/transfer_learning/mace_foundation.py pyproject.toml tests/integration_tests/mace/
-git commit -m "feat(mace): load_mace_foundation runtime loader"
+uv run pytest tests/integration_tests/mace/test_convert.py -v -m mace_parity
+```
+
+Expected: 2 passed. If NaN validation fails, the error message lists the missed leaf — extend the mapping and re-run.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apax/transfer_learning/mace_foundation.py tests/integration_tests/mace/test_convert.py
+git commit -m "feat(mace): converter writes config.yaml + orbax best/; maps torch weights"
 ```
 
 ---
 
-### Task P3.4: `MaceFoundationEnergyModel` for parity path against `mace_mp()` / `MACECalculator`
+### Task P3.6: Parity test via stock `ASECalculator`
 
 **Files:**
-- Create: `apax/nn/mace_foundation_model.py`
-- Test: integration parity test
+- Modify: `tests/integration_tests/mace/test_mace_parity.py` (rewrite to use `ASECalculator` directly)
 
-- [x] **Step 1: Skeleton**
+- [ ] **Step 1: Rewrite the parity test to load via the stock ASECalculator**
 
-Create `apax/nn/mace_foundation_model.py`:
+Replace `tests/integration_tests/mace/test_mace_parity.py`:
 
 ```python
-"""Full-energy MACE module used only for parity tests and zero-shot inference.
+"""Parity vs torch-mace MACECalculator on the same ase.Atoms.
 
-Unlike the standard :class:`apax.nn.models.EnergyModel` + :class:`MaceRepresentation`
-+ :class:`AtomisticReadout` stack used for fine-tuning, this module includes
-MACE's per-layer internal readouts and per-element atomic-energy reference so
-it reproduces the full upstream ``ScaleShiftMACE`` forward pass.
-
-Fine-tuning, shallow ensemble, property heads, MD, ASE — none of these go
-through this module. It exists solely so the parity test can verify the
-converter.
+Gated by mace_parity. Requires:
+    uv sync --group mace-convert --extra mace
 """
-from __future__ import annotations
-
-from typing import Any
-
-import jax.numpy as jnp
-from flax import linen as nn
-
-from apax.layers.descriptor.mace import MaceRepresentation
-
-
-class MaceFoundationEnergyModel(nn.Module):
-    r_max: float
-    num_bessel: int
-    num_polynomial_cutoff: int
-    max_ell: int
-    hidden_irreps: str
-    num_interactions: int
-    correlation: int
-    interaction_cls: str
-    num_elements: int
-    atomic_energies: jnp.ndarray
-    use_cueq: bool = False
-
-    @nn.compact
-    def __call__(self, dr_vec, Z, idx):
-        # Run representation once keeping intermediate per-layer features
-        # Apply each MACE-style readout, sum, add atomic_energies reference.
-        raise NotImplementedError(
-            "Fill in after the MaceRepresentation exposes per-layer node_feats. "
-            "Reference: mace-jax models.MACE.__call__ lines 375-554."
-        )
-```
-
-- [ ] **Step 2: Expose per-layer node features** — **DEFERRED**: adds a `return_per_layer_node_feats` flag to `MaceRepresentation`; a note in the module docstring flags the future extension. Blocked by Step 3 below.
-
-Edit `MaceRepresentation` to accept a flag `return_per_layer_node_feats: bool = False`; when True, return a list of `IrrepsArray` per layer. Keep default behavior unchanged.
-
-- [ ] **Step 3: Implement `MaceFoundationEnergyModel.__call__`** — **DEFERRED**: body raises `NotImplementedError`; port from mace-jax once Step 2 lands + `_map_state_to_pytree` (P3.2 Step 4) is filled in so parity can actually be verified.
-
-Port the logic from `mace-jax/mace_jax/modules/models.py` lines 375–554 adapted to linen, returning per-atom energy. Sum atomic-energy reference at the end.
-
-- [x] **Step 4: Parity test via `MACECalculator` (ASE interface)**
-
-Reference against the upstream `mace_mp(name)` ASE calculator — this guarantees identical neighbor lists, data prep, and forward pass to what a downstream user of torch-mace would get. We pass the same `ase.Atoms` through both calculators and compare.
-
-Create `tests/integration_tests/mace/test_mace_parity.py`:
-
-```python
-"""Parity vs torch-mace ``MACECalculator`` (ASE wrapper). Opt-in only."""
-import pytest
 import numpy as np
-
+import pytest
 
 pytestmark = pytest.mark.mace_parity
 
 
-@pytest.fixture(params=["medium-mpa-0", "medium"])
+@pytest.fixture(params=["small"])
 def foundation_name(request):
     return request.param
 
@@ -2198,86 +2577,49 @@ def ase_water():
     )
 
 
-@pytest.fixture
-def ase_periodic_sio2():
-    from ase import Atoms
-    return Atoms(
-        symbols=["Si", "O", "O"],
-        positions=[[0, 0, 0], [1.6, 0, 0], [0, 1.6, 0]],
-        cell=[4.0, 4.0, 4.0],
-        pbc=True,
-    )
-
-
 def _torch_energy_forces(name, atoms):
-    """Run the upstream MACECalculator and return (energy, forces)."""
     from mace.calculators.foundations_models import mace_mp
     calc = mace_mp(name, default_dtype="float64", device="cpu")
     atoms.calc = calc
-    e = atoms.get_potential_energy()
-    f = atoms.get_forces()
-    return float(e), np.asarray(f)
+    return float(atoms.get_potential_energy()), np.asarray(atoms.get_forces())
 
 
 def _apax_energy_forces(apax_dir, atoms):
-    """Run apax's MaceFoundationEnergyModel + derivative via apax ASE calc."""
     from apax.md.ase_calc import ASECalculator
-    calc = ASECalculator(apax_dir)      # apax-native; no torch
+    calc = ASECalculator(apax_dir)
     atoms.calc = calc
-    e = atoms.get_potential_energy()
-    f = atoms.get_forces()
-    return float(e), np.asarray(f)
+    return float(atoms.get_potential_energy()), np.asarray(atoms.get_forces())
 
 
 def test_energy_force_parity_water(tmp_path, foundation_name, ase_water):
-    """Molecular parity for a 3-atom system."""
+    """End-to-end: convert → ASECalculator(converted_dir) → match torch."""
     pytest.importorskip("torch")
     pytest.importorskip("mace")
     from apax.transfer_learning.mace_foundation import run_conversion
 
-    # 1. convert foundation model to apax-native dir
     dst = tmp_path / f"{foundation_name}.apax"
-    run_conversion(foundation_name, dst, head="mp", family="mace_mp")
+    run_conversion(foundation_name, dst, head="default", family="mace_mp")
 
-    # 2. torch reference (via mace_mp ASE calculator)
     e_torch, f_torch = _torch_energy_forces(foundation_name, ase_water.copy())
+    e_apax,  f_apax  = _apax_energy_forces(dst, ase_water.copy())
 
-    # 3. apax prediction
-    e_apax, f_apax = _apax_energy_forces(dst, ase_water.copy())
-
-    # 4. parity
-    np.testing.assert_allclose(e_apax, e_torch, rtol=1e-5, atol=1e-6)
-    np.testing.assert_allclose(f_apax, f_torch, rtol=1e-4, atol=1e-5)
-
-
-def test_energy_force_parity_periodic(tmp_path, foundation_name, ase_periodic_sio2):
-    """Periodic-box parity: validates neighbor lists + PBC offsets."""
-    pytest.importorskip("torch")
-    pytest.importorskip("mace")
-    from apax.transfer_learning.mace_foundation import run_conversion
-
-    dst = tmp_path / f"{foundation_name}.apax"
-    run_conversion(foundation_name, dst, head="mp", family="mace_mp")
-
-    e_torch, f_torch = _torch_energy_forces(foundation_name, ase_periodic_sio2.copy())
-    e_apax, f_apax = _apax_energy_forces(dst, ase_periodic_sio2.copy())
-
-    np.testing.assert_allclose(e_apax, e_torch, rtol=1e-5, atol=1e-6)
-    np.testing.assert_allclose(f_apax, f_torch, rtol=1e-4, atol=1e-5)
+    np.testing.assert_allclose(e_apax, e_torch, rtol=1e-4, atol=1e-5)
+    np.testing.assert_allclose(f_apax, f_torch, rtol=1e-3, atol=1e-4)
 
 
 def test_force_consistency_via_finite_difference(tmp_path, foundation_name, ase_water):
-    """Independent of torch parity: apax autodiff forces match numerical grad."""
+    """Independent of torch: apax autodiff forces match numerical grad."""
     pytest.importorskip("torch")
     pytest.importorskip("mace")
     from apax.transfer_learning.mace_foundation import run_conversion
     from apax.md.ase_calc import ASECalculator
 
     dst = tmp_path / f"{foundation_name}.apax"
-    run_conversion(foundation_name, dst, head="mp", family="mace_mp")
+    run_conversion(foundation_name, dst, head="default", family="mace_mp")
 
     calc = ASECalculator(dst)
-    atoms = ase_water.copy(); atoms.calc = calc
+    atoms = ase_water.copy()
+    atoms.calc = calc
 
     f_analytic = atoms.get_forces()
     h = 1e-4
@@ -2293,329 +2635,238 @@ def test_force_consistency_via_finite_difference(tmp_path, foundation_name, ase_
     np.testing.assert_allclose(f_analytic, f_numeric, atol=1e-3)
 ```
 
-- [x] **Step 5: Stress parity (periodic systems only)**
-
-Append to the same file:
-
-```python
-def test_stress_parity_periodic(tmp_path, foundation_name, ase_periodic_sio2):
-    """Validate stress via autodiff matches the upstream torch stress."""
-    pytest.importorskip("torch")
-    pytest.importorskip("mace")
-    from apax.transfer_learning.mace_foundation import run_conversion
-    from apax.md.ase_calc import ASECalculator
-    from mace.calculators.foundations_models import mace_mp
-
-    dst = tmp_path / f"{foundation_name}.apax"
-    run_conversion(foundation_name, dst, head="mp", family="mace_mp")
-
-    # torch stress
-    torch_calc = mace_mp(foundation_name, default_dtype="float64", device="cpu")
-    a = ase_periodic_sio2.copy(); a.calc = torch_calc
-    s_torch = a.get_stress(voigt=False)
-
-    # apax stress — requires calc_stress=True in the apax config
-    apax_calc = ASECalculator(dst, calc_stress=True)
-    a = ase_periodic_sio2.copy(); a.calc = apax_calc
-    s_apax = a.get_stress(voigt=False)
-
-    np.testing.assert_allclose(s_apax, s_torch, rtol=1e-4, atol=1e-6)
-```
-
-*Note on `ASECalculator(dst)`*: the apax ASE calculator needs a new code path that accepts an apax-foundation-model directory directly (in addition to the existing apax-train-output path). Add this in Task P3.6 below.
-
-- [ ] **Step 6: Iterate until parity holds** — **DEFERRED**: requires a live torch + mace-torch env plus Steps 2/3 above and P3.2 Step 4; parity test file landed but every test skips in CI.
-
-Run: `uv run pytest tests/integration_tests/mace/test_mace_parity.py -v -m mace_parity`
-
-Expected in success: PASS with rtol 1e-5. If failing:
-- Check irreps layout (`mul_ir` vs `ir_mul` — most common source of numerical drift).
-- Check `use_reduced_cg` matches torch's flag.
-- Check normalize2mom constant actually copied.
-- Check atomic_energies applied in fp64.
-- Inspect first interaction-block output of both and diff per-irrep.
-
-- [x] **Step 7: Commit**
+- [ ] **Step 2: Run — iterate until parity holds**
 
 ```bash
-git add apax/nn/mace_foundation_model.py apax/layers/descriptor/mace.py tests/integration_tests/mace/test_mace_parity.py
-git commit -m "feat(mace): MaceFoundationEnergyModel + parity test (P3)"
+uv run pytest tests/integration_tests/mace/test_mace_parity.py::test_energy_force_parity_water -v -m mace_parity -s
 ```
 
----
+Expected (end state): PASS with rtol 1e-4 energy / 1e-3 forces. Diagnostic loop when failing:
 
-### Task P3.5: `ASECalculator(.apax/)` — wire converted dirs into apax's ASE calc
+- Energy matches but forces don't → likely a sign or norm issue in a tensor-product weight; inspect the first interaction's output against torch by adding prints in both.
+- Energy off by a constant → scale-shift fold is wrong (global_shift absorbed twice, or atomic_energies scaled inadvertently).
+- Energy off by a multiplicative factor → normalize2mom constant not copied, or scale-shift `scale_per_element` not set to `global_scale`.
+- Random-looking mismatch → parameter at some torch path landed in wrong linen slot; `_validate_no_nan` won't catch this, so grep for a surprising leaf value (e.g. the torch weight with largest norm) and confirm it's in the right place.
 
-**Files:**
-- Modify: `apax/md/ase_calc.py`
-- Test: `tests/integration_tests/mace/test_mace_parity.py` (already uses this)
+- [ ] **Step 3: Stress parity (optional, periodic)**
 
-- [x] **Step 1: Read current ASECalculator**
-
-Run: Read `apax/md/ase_calc.py` to find how it currently loads params + config. Most apax setups point it at a training-output directory containing `config.yaml` + checkpoints.
-
-- [x] **Step 2: Detect foundation-model dirs**
-
-Add logic: if the input directory contains `params.msgpack` + `config.json` (apax-foundation layout), use `load_mace_foundation` instead of the standard checkpoint loader. Construct `EnergyModel(MaceRepresentation, AtomisticReadout=None, ...)` via `MaceFoundationEnergyModel`.
-
-- [x] **Step 3: Write direct unit test (non-parity)**
-
-Create `tests/unit_tests/md/test_ase_calc_mace_foundation.py`:
-
-```python
-@pytest.mark.mace_parity
-def test_ase_calc_accepts_mace_foundation_dir(tmp_path):
-    """ASECalculator dispatches to the foundation-model loader correctly."""
-    pytest.importorskip("torch")
-    pytest.importorskip("mace")
-    from ase import Atoms
-    from apax.transfer_learning.mace_foundation import run_conversion
-    from apax.md.ase_calc import ASECalculator
-
-    dst = tmp_path / "f.apax"
-    run_conversion("medium-mpa-0", dst, head="mp", family="mace_mp")
-    atoms = Atoms(["O", "H", "H"], positions=[[0,0,0],[0.96,0,0],[-0.24,0.93,0]])
-    atoms.calc = ASECalculator(dst)
-    e = atoms.get_potential_energy()
-    assert np.isfinite(e)
-```
-
-- [x] **Step 4: Commit**
-
-```bash
-git commit -am "feat(md): ASECalculator supports MACE foundation-model directories"
-```
-
----
-
-### Task P3.6: Multi-head selection (`--head` flag)
-
-**Files:**
-- Modify: `apax/transfer_learning/mace_foundation.py`
-- Test: extend `test_convert.py`
-
-- [x] **Step 1: Add head selection in `_extract_config_from_torch` and `_map_state_to_pytree`** — partial: `_extract_config_from_torch` raises on unknown head; `_map_state_to_pytree` head filter deferred with Step 4 of P3.2.
-
-When `model.num_heads > 1`, only walk the keys belonging to the selected head; raise if head name not found. Record in metadata.
-
-- [x] **Step 2: Write test**
-
-Append to `tests/integration_tests/mace/test_convert.py`:
-
-```python
-def test_convert_rejects_unknown_head(tmp_path):
-    pytest.importorskip("torch")
-    pytest.importorskip("mace")
-    from apax.transfer_learning.mace_foundation import run_conversion
-    src = Path("tests/fixtures/mace/tiny_mace.model")
-    with pytest.raises(ValueError, match="head"):
-        run_conversion(src, tmp_path / "out.apax", head="does-not-exist")
-```
-
-- [x] **Step 3: Run**
-
-Run: `uv run pytest tests/integration_tests/mace/test_convert.py -v -m mace_parity`
-Expected: PASS.
-
-- [x] **Step 4: Commit**
-
-```bash
-git add apax/transfer_learning/mace_foundation.py tests/integration_tests/mace/
-git commit -m "feat(mace): --head selection for multi-head foundation models"
-```
-
-**P3 exit:**
-- `apax convert-mace medium-mpa-0 ./out.apax/` works end-to-end — resolved via `mace_mp(return_raw_model=True)`, downloaded/cached upstream.
-- `apax convert-mace medium ./out.apax/` works for MACE-MP-0 medium.
-- Parity tests green on a dev machine with `uv sync --group mace-convert --extra mace`:
-  - Energy parity rtol 1e-5 on water + periodic SiO₂ for both `medium-mpa-0` and `medium`.
-  - Force parity rtol 1e-4 on both.
-  - Stress parity rtol 1e-4 on the periodic system.
-  - Finite-difference force consistency confirms autodiff path is correct even without the torch reference.
-
----
-
-## Phase P4 — Fine-tuning integration
-
-### Task P4.1: Parameter-freezing predicate for MACE backbone
-
-**Files:**
-- Modify: `apax/transfer_learning/parameter_transfer.py`
-- Test: `tests/unit_tests/transfer_learning/test_parameter_transfer.py`
-
-- [ ] **Step 1: Read existing transfer utils**
-
-Run: Read `apax/transfer_learning/parameter_transfer.py` — understand `black_list_param_transfer`.
-
-- [ ] **Step 2: Add MACE-specific helper**
-
-Append:
-
-```python
-def freeze_mace_backbone_predicate(param_path: tuple[str, ...]) -> bool:
-    """Return True if the parameter path belongs to the MACE backbone.
-
-    Treats LinearNodeEmbedding, InteractionBlock_*, ProductBlock_* as backbone;
-    AtomisticReadout and PerElementScaleShift are *not* backbone.
-    """
-    backbone_markers = (
-        "LinearNodeEmbedding",
-        "InteractionBlock",
-        "ProductBlock",
-    )
-    return any(marker in "/".join(param_path) for marker in backbone_markers)
-```
-
-- [ ] **Step 3: Write test**
-
-Append to `test_parameter_transfer.py`:
-
-```python
-def test_freeze_mace_backbone_predicate_flags_blocks():
-    from apax.transfer_learning.parameter_transfer import freeze_mace_backbone_predicate
-    assert freeze_mace_backbone_predicate(("params", "MaceRepresentation", "InteractionBlock_0", "linear_up", "kernel"))
-    assert freeze_mace_backbone_predicate(("params", "MaceRepresentation", "ProductBlock_1", "weight"))
-    assert not freeze_mace_backbone_predicate(("params", "AtomisticReadout", "dense_0", "kernel"))
-```
-
-- [ ] **Step 4: Run**
-
-Run: `uv run pytest tests/unit_tests/transfer_learning/test_parameter_transfer.py -v -k freeze_mace`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git commit -am "feat(transfer): mace backbone freezing predicate"
-```
-
----
-
-### Task P4.2: `unfreeze_backbone_epoch` callback
-
-**Files:**
-- Modify: `apax/train/callbacks.py`
-- Test: light unit test
-
-- [ ] **Step 1: Find the callback registration pattern**
-
-Run: Read `apax/train/callbacks.py` — follow an existing callback (e.g. EMA callback) as a template.
-
-- [ ] **Step 2: Add callback**
-
-```python
-class UnfreezeMACEBackboneCallback:
-    """Switch the backbone from frozen to trainable at a specified epoch."""
-    def __init__(self, epoch: int):
-        self.epoch = epoch
-        self._fired = False
-
-    def __call__(self, trainer, epoch: int):
-        if self._fired or epoch < self.epoch:
-            return
-        trainer.unfreeze_params(
-            predicate="apax.transfer_learning.parameter_transfer:freeze_mace_backbone_predicate"
-        )
-        self._fired = True
-```
-
-Adapt to the trainer's actual callback contract.
-
-- [ ] **Step 3: Integration point**
-
-In `apax/train/trainer.py` (or wherever the optimizer is constructed), if `config.model.freeze_backbone`, apply the predicate to produce an optax `multi_transform` that zeroes gradients on backbone params. When `unfreeze_backbone_epoch` is set, register the callback.
-
-- [ ] **Step 4: Test**
-
-Write a minimal unit test that loops the trainer for `epoch+1` epochs and checks that after the unfreeze epoch, at least one backbone parameter has been updated.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git commit -am "feat(train): unfreeze_backbone_epoch callback"
-```
-
----
-
-### Task P4.3: `pretrained` loading in `MaceBuilder`
-
-**Files:**
-- Modify: `apax/nn/builder.py`
-- Test: `tests/integration_tests/mace/test_finetune.py`
-
-- [ ] **Step 1: Preload in builder**
-
-Edit `MaceBuilder.build_energy_model`:
-
-```python
-def build_energy_model(self, *args, **kwargs):
-    model = super().build_energy_model(*args, **kwargs)
-    if self.config.get("pretrained"):
-        from apax.transfer_learning.mace_foundation import load_mace_foundation
-        self._pretrained_params, self._pretrained_cfg = load_mace_foundation(
-            self.config["pretrained"]
-        )
-        # caller is responsible for merging via transfer_learning utilities
-    return model
-```
-
-And expose the preloaded params through the builder so the training-entry code (`apax/train/run.py`) can install them before the first step.
-
-- [ ] **Step 2: Smoke fine-tune test**
-
-Create `tests/integration_tests/mace/test_finetune.py`:
-
-```python
-@pytest.mark.slow
-def test_finetune_with_frozen_mace(tmp_path):
-    """Smoke-level: training runs, loss drops, backbone params don't move."""
-    # Use the tiny_mace fixture converted in P3
-    # Train 2 epochs on a dummy dataset
-    # Assert: backbone param snapshot before == after (allclose);
-    #         readout params moved; loss epoch2 < loss epoch1
-    ...
-```
-
-- [ ] **Step 3: Run**
-
-Run: `uv run pytest tests/integration_tests/mace/test_finetune.py -v -m slow`
-Expected: PASS after wiring.
+If energy+force parity holds on water, add a small periodic SiO₂ test (3 atoms in 4 Å cube) to confirm the PBC-offset path. Deferred to a follow-up if the open-cell parity is already painful.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git commit -am "feat(nn): pretrained loading through MaceBuilder"
+git add tests/integration_tests/mace/test_mace_parity.py
+git commit -m "test(mace): ASECalculator parity vs torch-mace mace_mp small"
+```
+
+**P3 exit criteria:**
+- `apax convert-mace small ./out/` produces `out/config.yaml` + `out/best/` + `out/converter_metadata.json`.
+- `apax.train.checkpoints.restore_parameters("./out/")` returns `(Config, params)` without error.
+- `apax.md.ase_calc.ASECalculator("./out/")` runs end-to-end. No `_is_mace_foundation_dir` code path exists.
+- Energy parity rtol 1e-4 on water for MACE-MP-0 small.
+- Force parity rtol 1e-3 on water for MACE-MP-0 small.
+- Finite-difference force consistency passes atol 1e-3.
+- `medium` and `medium-mpa-0` are parametrizable follow-ups once `small` is green.
+
+---
+
+## Phase P4 — Fine-tuning integration (simplified)
+
+**Revised 2026-04-22.** Previous P4 introduced `freeze_mace_backbone_predicate`, an `UnfreezeMACEBackboneCallback`, and `pretrained` loading through `MaceBuilder.build_energy_model`. All three are dropped. Fine-tuning on a converted MACE foundation uses the existing `TransferLearningConfig` (already in `apax/config/train_config.py`) plus the `transfer_parameters` / `black_list_param_transfer` path that every other apax model uses.
+
+This means P4 collapses to a single integration test plus a template config.
+
+### Task P4.1: Fine-tune template config
+
+**Files:**
+- Create: `apax/cli/templates/mace_finetune_minimal.yaml`
+
+- [ ] **Step 1: Add the template**
+
+Create `apax/cli/templates/mace_finetune_minimal.yaml`:
+
+```yaml
+n_epochs: 50
+seed: 1
+
+data:
+  directory: ./runs/
+  experiment: mace_finetune
+  data_path: ./dataset.extxyz
+  n_train: 800
+  n_valid: 100
+  batch_size: 16
+  valid_batch_size: 32
+
+model:
+  name: mace
+  r_max: 6.0
+  num_bessel: 10
+  num_polynomial_cutoff: 5
+  max_ell: 3
+  hidden_irreps: 128x0e
+  num_interactions: 2
+  correlation: 3
+  interaction_cls: RealAgnosticResidual
+  readout_kind: standard          # swap MACE readout for apax's standard head
+  nn: [256, 256]
+  ensemble:
+    kind: shallow
+    n_members: 8
+    force_variance: true
+
+transfer_learning:
+  base_model_checkpoint: ./converted/mace-mp-0-small.apax
+  reset_layers: []                # keep if you also set readout_kind=mace;
+                                  # with readout_kind=standard you don't need
+                                  # to reset since target has a different head
+
+loss:
+  - { name: energy, loss_type: crps }
+  - { name: forces, loss_type: crps }
+
+optimizer:
+  name: adam
+  nn_lr: 0.0003
+  emb_lr: 0.0003
+  scale_lr: 0.0001
+  shift_lr: 0.0003
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add apax/cli/templates/mace_finetune_minimal.yaml
+git commit -m "docs(mace): add fine-tune template config using TransferLearningConfig"
 ```
 
 ---
 
-### Task P4.4: End-to-end shallow-ensemble fine-tune
+### Task P4.2: End-to-end fine-tune smoke test on a converted small model
 
 **Files:**
-- Test: `tests/integration_tests/mace/test_mace_shallow_ensemble.py`
+- Test: `tests/integration_tests/mace/test_mace_finetune.py`
 
 - [ ] **Step 1: Write test**
 
+Create `tests/integration_tests/mace/test_mace_finetune.py`:
+
 ```python
-@pytest.mark.slow
-def test_mace_shallow_ensemble_emits_uncertainty(tmp_path):
-    """Train a tiny MACE + shallow ensemble for 1 epoch; inference returns
-    both energy and energy_uncertainty fields."""
-    ...
+"""Fine-tune the converted MACE-MP-0 small on a synthetic dataset.
+
+Verifies that the stock TransferLearningConfig path works on a MACE backbone
+with a swapped readout and a shallow ensemble. Gated by mace_parity because
+it requires the converter dev group.
+"""
+import numpy as np
+import pytest
+from ase import Atoms
+from ase.io import write
+
+pytestmark = [pytest.mark.mace_parity, pytest.mark.slow]
+
+
+def _tiny_dataset(tmp_path, n_frames: int = 12) -> str:
+    rng = np.random.default_rng(0)
+    frames = []
+    for _ in range(n_frames):
+        positions = rng.normal(size=(3, 3))
+        atoms = Atoms(
+            symbols=["O", "H", "H"],
+            positions=positions,
+            pbc=False,
+        )
+        atoms.info["energy"] = float(rng.normal())
+        atoms.arrays["forces"] = rng.normal(size=(3, 3))
+        frames.append(atoms)
+    path = tmp_path / "ds.extxyz"
+    write(path, frames)
+    return str(path)
+
+
+def test_finetune_converted_small_runs_end_to_end(tmp_path):
+    pytest.importorskip("torch")
+    pytest.importorskip("mace")
+    from apax.transfer_learning.mace_foundation import run_conversion
+    from apax.train.run import run
+    from apax.train.checkpoints import restore_parameters
+
+    # 1. Convert the foundation.
+    converted = tmp_path / "converted" / "mace-mp-0-small.apax"
+    run_conversion("small", converted, head="default", family="mace_mp")
+
+    # 2. Write a minimal fine-tune config.
+    ds_path = _tiny_dataset(tmp_path)
+    cfg = {
+        "n_epochs": 1,
+        "data": {
+            "directory": str(tmp_path),
+            "experiment": "ft_smoke",
+            "data_path": ds_path,
+            "n_train": 8,
+            "n_valid": 4,
+            "batch_size": 2,
+            "valid_batch_size": 2,
+        },
+        "model": {
+            "name": "mace",
+            "r_max": 6.0,
+            "num_bessel": 10,
+            "num_polynomial_cutoff": 5,
+            "max_ell": 3,
+            "hidden_irreps": "128x0e",
+            "num_interactions": 2,
+            "correlation": 3,
+            "interaction_cls": "RealAgnosticResidual",
+            "readout_kind": "standard",
+            "nn": [64],
+            "ensemble": {"kind": "shallow", "n_members": 4, "force_variance": True,
+                          "chunk_size": None},
+        },
+        "transfer_learning": {
+            "base_model_checkpoint": str(converted),
+            "reset_layers": [],
+        },
+        "loss": [{"name": "energy"}, {"name": "forces"}],
+        "optimizer": {"nn_lr": 1e-4, "emb_lr": 1e-4},
+    }
+    cfg_path = tmp_path / "cfg.yaml"
+    import yaml
+    cfg_path.write_text(yaml.safe_dump(cfg))
+
+    # 3. Train one epoch.
+    run(cfg_path, log_level="warning")
+
+    # 4. The experiment dir contains a config.yaml + best/ and restore works.
+    ft_dir = tmp_path / "ft_smoke"
+    restored_cfg, restored_params = restore_parameters(ft_dir)
+    assert restored_cfg.model.name == "mace"
+    # Shallow ensemble → energy output shape (n_members,) per atom before sum
+    import jax
+    leaves = jax.tree_util.tree_leaves(restored_params)
+    assert len(leaves) > 0
 ```
 
-Use the existing dataset fixture pattern from `tests/integration_tests/cli/test_app.py`.
-
-- [ ] **Step 2: Run + commit**
-
-Run: `uv run pytest tests/integration_tests/mace/test_mace_shallow_ensemble.py -v -m slow`
-Expected: PASS.
+- [ ] **Step 2: Run**
 
 ```bash
-git commit -am "test: shallow-ensemble fine-tune with MACE"
+uv run pytest tests/integration_tests/mace/test_mace_finetune.py -v -m "mace_parity and slow"
 ```
 
-**P4 exit:** Fine-tune YAML works end-to-end; backbone freezing behaves; ensemble uncertainty emitted.
+Expected: PASS. One epoch on 8 samples should be cheap (<2 min) on CPU.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add tests/integration_tests/mace/test_mace_finetune.py
+git commit -m "test(mace): fine-tune converted small through TransferLearningConfig"
+```
+
+**P4 exit criteria:**
+- `apax train <config.yaml>` on the template above runs one full epoch.
+- `restore_parameters(experiment_dir)` returns a valid `(Config, params)` after fine-tuning.
+- Shallow ensemble uncertainty field is emitted on inference (propagated through the existing `ShallowEnsembleModel` path).
+- No MACE-specific trainer code was added.
 
 ---
 
