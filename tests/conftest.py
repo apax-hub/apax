@@ -105,6 +105,17 @@ def example_dataset(num_data: int) -> Atoms:
 
 
 @pytest.fixture()
+def water_atoms() -> Atoms:
+    positions = np.array(
+        [[0.0, 0.0, 0.0], [0.0, 0.7, 0.5], [0.0, -0.7, 0.5]], dtype=np.float64
+    )
+    atomic_numbers = np.array([8, 1, 1])
+    box = np.array([0.0, 0.0, 0.0], dtype=np.float64)
+    atoms = Atoms(atomic_numbers, positions, cell=box)
+    return atoms
+
+
+@pytest.fixture()
 def get_tmp_path(tmp_path_factory):
     test_path = tmp_path_factory.mktemp("apax_tests")
     return test_path

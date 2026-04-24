@@ -15,7 +15,7 @@ from apax.md.ase_calc import ASECalculator
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
 
-def test_ase_hessian(get_tmp_path):
+def test_ase_hessian(get_tmp_path, water_atoms):
     model_config_path = TEST_PATH / "config.yaml"
 
     with open(model_config_path.as_posix(), "r") as stream:
@@ -26,14 +26,7 @@ def test_ase_hessian(get_tmp_path):
     os.makedirs(model_config.data.model_version_path)
     model_config.dump_config(model_config.data.model_version_path)
 
-    # Simple water molecule for vibrations
-    # roughly equilibrium geometry for a dummy model
-    positions = np.array(
-        [[0.0, 0.0, 0.0], [0.0, 0.7, 0.5], [0.0, -0.7, 0.5]], dtype=np.float64
-    )
-    atomic_numbers = np.array([8, 1, 1])
-    box = np.array([0.0, 0.0, 0.0], dtype=np.float64)
-    atoms = Atoms(atomic_numbers, positions, cell=box)
+    atoms = water_atoms
 
     # Initialize model and save checkpoint
     n_species = 119
@@ -44,8 +37,8 @@ def test_ase_hessian(get_tmp_path):
     rng_key = jax.random.PRNGKey(model_config.seed)
 
     # Minimal input for init
-    R = jnp.asarray(positions, dtype=jnp.float64)
-    Z = jnp.asarray(atomic_numbers)
+    R = jnp.asarray(atoms.positions, dtype=jnp.float64)
+    Z = jnp.asarray(atoms.numbers)
     idx = jnp.array([[1, 2, 0, 2, 0, 1], [0, 0, 1, 1, 2, 2]])
     offsets = jnp.zeros((6, 3), dtype=jnp.float64)
     box_jax = jnp.zeros((3, 3), dtype=jnp.float64)
