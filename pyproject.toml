@@ -1,6 +1,6 @@
 [project]
 name = "apax"
-version = "0.13.1"
+dynamic = ["version"]
 description = "Atomistic Learned Potential Package in JAX"
 keywords=["machine-learning", "interatomic potentials", "molecular-dynamics"]
 readme = "README.md"
@@ -85,8 +85,15 @@ Discord = "https://discord.gg/7ncfwhsnm4"
 Documentation = "https://apax.readthedocs.io/"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.0"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "apax/_version.py"
 
 [tool.hatch.build.targets.wheel]
 artifacts = [
@@ -117,3 +124,6 @@ filterwarnings = ["ignore::FutureWarning:jax.*scatter",]
 markers = [
     "slow: mark a test as slow and should only run explicitly"
 ]
+
+[project.entry-points.'zntrack.nodes']
+apax = 'apax.entrypoints:nodes'

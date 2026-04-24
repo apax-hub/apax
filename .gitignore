@@ -161,3 +161,6 @@ md_config.yaml
 *.npz
 
 /models
+
+# hatch-vcs generated version file
+apax/_version.py
