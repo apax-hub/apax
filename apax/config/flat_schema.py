@@ -8,8 +8,13 @@ from typing import Literal, Union, get_args, get_origin
 from pydantic import BaseModel
 
 _TYPE_MAP = {
-    int: "integer", float: "number", str: "string", bool: "boolean",
-    dict: "object", list: "array", pathlib.Path: "string",
+    int: "integer",
+    float: "number",
+    str: "string",
+    bool: "boolean",
+    dict: "object",
+    list: "array",
+    pathlib.Path: "string",
 }
 
 
@@ -103,7 +108,9 @@ def _shared_base(variants):
     """Most specific common BaseModel ancestor (excluding BaseModel and variants themselves)."""
     if len(variants) < 2:
         return None
-    mros = [[b for b in v.__mro__ if _is_model(b) and b is not BaseModel] for v in variants]
+    mros = [
+        [b for b in v.__mro__ if _is_model(b) and b is not BaseModel] for v in variants
+    ]
     common = set(mros[0]).intersection(*mros[1:]) - set(variants)
     return min(common, key=lambda c: mros[0].index(c)) if common else None
 
@@ -145,7 +152,9 @@ def _flatten(cls, prefix="", _seen=None, exclude=frozenset()):
                     rows.extend(_flatten(base, base_path, _seen.copy()))
                 for m in models:
                     vname = _variant_name(m) or m.__name__
-                    rows.extend(_flatten(m, f"{base_path}.{vname}", _seen.copy(), exclude=shared))
+                    rows.extend(
+                        _flatten(m, f"{base_path}.{vname}", _seen.copy(), exclude=shared)
+                    )
             else:
                 rows.extend(_flatten(models[0], base_path, _seen.copy()))
         else:

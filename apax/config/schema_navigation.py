@@ -65,16 +65,30 @@ def filter_schema(schema, section):
         # Try matching as a variant name
         matched = None
         for vname, resolved in _iter_variants(node, defs):
-            title = resolved.get("title", "").lower().replace("config", "").replace("options", "")
-            if part.lower() in (title.strip(), vname.lower(), resolved.get("title", "").lower()):
+            title = (
+                resolved.get("title", "")
+                .lower()
+                .replace("config", "")
+                .replace("options", "")
+            )
+            if part.lower() in (
+                title.strip(),
+                vname.lower(),
+                resolved.get("title", "").lower(),
+            ):
                 matched = resolved
                 break
         if matched:
             node = matched
             continue
-        available_parts = sorted(node_props.keys()) + [n for n, _ in _iter_variants(node, defs)]
+        available_parts = sorted(node_props.keys()) + [
+            n for n, _ in _iter_variants(node, defs)
+        ]
         prefix = ".".join(parts[: parts.index(part)])
-        return None, f"'{part}' not found in '{prefix}'. Available: {', '.join(sorted(available_parts))}"
+        return (
+            None,
+            f"'{part}' not found in '{prefix}'. Available: {', '.join(sorted(available_parts))}",
+        )
 
     return _shallow_resolve(node, defs), None
 

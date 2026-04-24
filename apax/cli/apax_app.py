@@ -20,7 +20,9 @@ _TYPER_OPTS = {
 app = typer.Typer(**_TYPER_OPTS)
 validate_app = typer.Typer(**_TYPER_OPTS, help="Validate training or MD config files.")
 template_app = typer.Typer(**_TYPER_OPTS, help="Create configuration file templates.")
-schema_app = typer.Typer(**_TYPER_OPTS, help="Generate JSON schemata for train/md configs.")
+schema_app = typer.Typer(
+    **_TYPER_OPTS, help="Generate JSON schemata for train/md configs."
+)
 app.add_typer(validate_app, name="validate")
 app.add_typer(template_app, name="template")
 app.add_typer(schema_app, name="schema")
@@ -125,11 +127,13 @@ def schema_train(
         ),
     ),
     keywords: bool = typer.Option(
-        False, "--keywords",
+        False,
+        "--keywords",
         help="Only list navigable subsection names at the given path.",
     ),
     flat: bool = typer.Option(
-        False, "--flat",
+        False,
+        "--flat",
         help="List all parameters as a flat table with path, type, default, and description.",
     ),
 ):
@@ -149,11 +153,13 @@ def schema_md(
         ),
     ),
     keywords: bool = typer.Option(
-        False, "--keywords",
+        False,
+        "--keywords",
         help="Only list navigable subsection names at the given path.",
     ),
     flat: bool = typer.Option(
-        False, "--flat",
+        False,
+        "--flat",
         help="List all parameters as a flat table with path, type, default, and description.",
     ),
 ):
