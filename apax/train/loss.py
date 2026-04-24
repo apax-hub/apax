@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import jax.scipy as jsc
 import numpy as np
 
-from apax.utils.math import normed_dotp
+from apax.utils.math import inv_and_det_3x3, normed_dotp
 
 
 def weighted_squared_error(
@@ -148,6 +148,40 @@ def stress_tril(label, prediction, name, parameters: dict = {}):
     return (label_tril - prediction_tril) ** 2
 
 
+def nll_3x3(label, prediction, name, parameters: dict = {}):
+    label = label[name]
+    means = prediction[name]
+    ensemble = prediction[name + "_ensemble"]
+
+    diff = label - means
+
+    deviations = ensemble - means[..., None]
+    # K = deviations.shape[2]  # Number of members
+    K = deviations.shape[-1]  # Number of ensemble members
+    if K < 2:
+        raise ValueError("nll_3x3 requires at least 2 ensemble members")
+    Sigma = jnp.einsum("bijk,bilk->bijl", deviations, deviations) / (
+        K - 1
+    )  # Sample covariance matrix
+
+    Sigma = Sigma + jnp.eye(3)[None, None, ...] * 1e-5
+
+    Sigma_inv, det = inv_and_det_3x3(Sigma)
+
+    det = jnp.maximum(det, 1e-12)
+    log_det = jnp.log(det)
+
+    # diff.T @ Sigma_inv @ diff
+    # Einsum: (N, 3) * (N, 3, 3) * (N, 3) -> (N,)
+    # z = Sigma_inv @ diff
+    z = jnp.einsum("...ij, ...j -> ...i", Sigma_inv, diff)
+    mahalanobis = jnp.sum(diff * z, axis=-1)
+
+    nll = 0.5 * (mahalanobis + log_det)
+
+    return nll
+
+
 loss_functions = {
     "mse": weighted_squared_error,
     "huber": weighted_huber_loss,
@@ -157,6 +191,7 @@ loss_functions = {
     "tril": stress_tril,
     "crps": crps_loss,
     "nll": nll_loss,
+    "nll_3x3": nll_3x3,
 }
 
 

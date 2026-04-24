@@ -4,7 +4,7 @@ Nodes
 .. automodule:: apax.nodes.model
     :members:
 
-.. automodule:: apax.nodes.hyper_optimization
+.. automodule:: apax.nodes.hyper_optimize
     :members:
 
 .. automodule:: apax.nodes.analysis

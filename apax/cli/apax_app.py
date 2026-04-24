@@ -1,4 +1,3 @@
-import importlib.metadata
 import importlib.resources as pkg_resources
 import json
 import sys
@@ -338,7 +337,9 @@ def template_md_config():
 def version_callback(value: bool) -> None:
     """Get the installed apax version."""
     if value:
-        console.print(f"apax {importlib.metadata.version('apax')}")
+        from apax import __version__
+
+        console.print(f"apax {__version__}")
         raise typer.Exit()
 
 
