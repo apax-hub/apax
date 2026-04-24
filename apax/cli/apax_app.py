@@ -12,10 +12,10 @@ from apax.cli import templates
 
 console = Console(highlight=False)
 
-_TYPER_OPTS = dict(
-    pretty_exceptions_show_locals=False,
-    context_settings={"help_option_names": ["-h", "--help"]},
-)
+_TYPER_OPTS = {
+    "pretty_exceptions_show_locals": False,
+    "context_settings": {"help_option_names": ["-h", "--help"]},
+}
 
 app = typer.Typer(**_TYPER_OPTS)
 validate_app = typer.Typer(**_TYPER_OPTS, help="Validate training or MD config files.")
