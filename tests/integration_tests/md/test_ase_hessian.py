@@ -6,7 +6,6 @@ import jax.numpy as jnp
 import numpy as np
 import orbax.checkpoint as ocp
 import yaml
-from ase import Atoms
 from ase.vibrations import Vibrations
 
 from apax.config import Config

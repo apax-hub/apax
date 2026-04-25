@@ -79,7 +79,7 @@ loss:
   atoms_exponent: 1
 - name: forces
   loss_type: mse
-  weight: 4.0
+  weight: 1.0
   atoms_exponent: 1
 # - name: hessian
 #   loss_type: mw_hessian # Mass-weighted Hessian loss (recommended)

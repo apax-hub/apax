@@ -12,22 +12,20 @@ from apax.cli import templates
 
 console = Console(highlight=False)
 
-app = typer.Typer(
-    context_settings={"help_option_names": ["-h", "--help"]},
-    pretty_exceptions_show_locals=False,
-)
-validate_app = typer.Typer(
-    pretty_exceptions_show_locals=False,
-    context_settings={"help_option_names": ["-h", "--help"]},
-    help="Validate training or MD config files.",
-)
-template_app = typer.Typer(
-    pretty_exceptions_show_locals=False,
-    context_settings={"help_option_names": ["-h", "--help"]},
-    help="Create configuration file templates.",
+_TYPER_OPTS = {
+    "pretty_exceptions_show_locals": False,
+    "context_settings": {"help_option_names": ["-h", "--help"]},
+}
+
+app = typer.Typer(**_TYPER_OPTS)
+validate_app = typer.Typer(**_TYPER_OPTS, help="Validate training or MD config files.")
+template_app = typer.Typer(**_TYPER_OPTS, help="Create configuration file templates.")
+schema_app = typer.Typer(
+    **_TYPER_OPTS, help="Generate JSON schemata for train/md configs."
 )
 app.add_typer(validate_app, name="validate")
 app.add_typer(template_app, name="template")
+app.add_typer(schema_app, name="schema")
 
 
 @app.command()
@@ -86,18 +84,94 @@ def eval(
 
 @app.command()
 def docs():
-    """
-    Opens the documentation website in your browser.
-    """
+    """Opens the documentation website in your browser."""
     console.print("Opening apax's docs at https://apax.readthedocs.io/en/latest/")
     typer.launch("https://apax.readthedocs.io/en/latest/")
 
 
-@app.command()
-def schema():
-    """
-    Generating JSON schemata for autocompletion of train/md inputs in VSCode.
-    """
+# --- Schema commands ---
+
+
+def _handle_schema(config_cls, section, keywords, flat):
+    """Shared logic for schema train/md commands."""
+    if flat:
+        from apax.config.flat_schema import print_flat
+
+        print_flat(config_cls)
+        return
+    from apax.config.schema_navigation import filter_schema, print_keywords
+
+    schema = config_cls.model_json_schema()
+    if keywords:
+        error = print_keywords(schema, section)
+        if error:
+            console.print(error, style="red3")
+            raise typer.Exit(code=1)
+        return
+    if section:
+        node, error = filter_schema(schema, section)
+        if error:
+            console.print(error, style="red3")
+            raise typer.Exit(code=1)
+        schema = node
+    print(json.dumps(schema, indent=2))
+
+
+@schema_app.command("train")
+def schema_train(
+    section: str = typer.Argument(
+        None,
+        help=(
+            "Dotted path to filter (e.g. 'model', 'model.gmnn',"
+            " 'model.gmnn.basis', 'optimizer'). Omit for the full schema."
+        ),
+    ),
+    keywords: bool = typer.Option(
+        False,
+        "--keywords",
+        help="Only list navigable subsection names at the given path.",
+    ),
+    flat: bool = typer.Option(
+        False,
+        "--flat",
+        help="List all parameters as a flat table with path, type, default, and description.",
+    ),
+):
+    """Print the training config JSON schema to stdout."""
+    from apax.config import Config
+
+    _handle_schema(Config, section, keywords, flat)
+
+
+@schema_app.command("md")
+def schema_md(
+    section: str = typer.Argument(
+        None,
+        help=(
+            "Dotted path to filter (e.g. 'ensemble', 'ensemble.nvt',"
+            " 'constraints'). Omit for the full schema."
+        ),
+    ),
+    keywords: bool = typer.Option(
+        False,
+        "--keywords",
+        help="Only list navigable subsection names at the given path.",
+    ),
+    flat: bool = typer.Option(
+        False,
+        "--flat",
+        help="List all parameters as a flat table with path, type, default, and description.",
+    ),
+):
+    """Print the MD config JSON schema to stdout."""
+    from apax.config import MDConfig
+
+    _handle_schema(MDConfig, section, keywords, flat)
+
+
+@schema_app.command("vscode")
+def schema_vscode():
+    """Generate JSON schema files under .vscode/ for YAML autocompletion."""
     console.print("Generating JSON schema")
     from apax.config import Config, MDConfig
 
@@ -105,54 +179,53 @@ def schema():
     vscode_path.mkdir(exist_ok=True)
 
     settings_path = vscode_path / "settings.json"
+    settings = json.loads(settings_path.read_text()) if settings_path.is_file() else {}
+    settings.setdefault("yaml.schemas", {})
 
-    if not settings_path.is_file():
-        with settings_path.open("w") as f:
-            json.dump({"yaml.schemas": {}}, f, indent=2)
+    for name, cls, globs in [
+        ("apaxtrain", Config, ["train*.yaml"]),
+        ("apaxmd", MDConfig, ["md*.yaml"]),
+    ]:
+        schema_path = vscode_path / f"{name}.schema.json"
+        settings["yaml.schemas"][schema_path.resolve().as_posix()] = globs
+        schema_path.write_text(json.dumps(cls.model_json_schema(), indent=2))
 
-    with settings_path.open("r") as f:
-        settings = json.load(f)
-
-    if "yaml.schemas" not in settings.keys():
-        settings["yaml.schemas"] = {}
-
-    train_schema = (vscode_path / "apaxtrain.schema.json").resolve().as_posix()
-    md_schema = (vscode_path / "apaxmd.schema.json").resolve().as_posix()
-
-    schemas = {train_schema: ["train*.yaml"], md_schema: ["md*.yaml"]}
-    settings["yaml.schemas"].update(schemas)
-
-    with settings_path.open("w") as f:
-        json.dump(settings, f, indent=2)
-
-    train_schema = Config.model_json_schema()
-    md_schema = MDConfig.model_json_schema()
-    with (vscode_path / "apaxtrain.schema.json").open("w") as f:
-        json.dump(train_schema, f, indent=2)
-
-    with (vscode_path / "apaxmd.schema.json").open("w") as f:
-        json.dump(md_schema, f, indent=2)
+    settings_path.write_text(json.dumps(settings, indent=2))
 
 
-def format_error(error):
-    input_type = type(error["input"]).__name__
-    loc = ".".join(error["loc"])
-    error_msg = error["msg"]
-    msg = f"{loc}\n  {error_msg}\n  input_type: {input_type}"
-    if type(error["input"]) not in [dict, list]:
-        field_input = error["input"]
-        msg += f"\n  input: {field_input}"
-    msg += "\n"
-    return msg
+# --- Validation commands ---
 
 
-def cleanup_error(e):
-    e_clean = []
+def _format_errors(e):
+    """Format pydantic ValidationError into readable lines."""
+    parts = []
     for error in e.errors():
-        error.pop("url")
-        e_clean.append(format_error(error))
-    e_clean = "".join(e_clean)
-    return e_clean
+        loc = ".".join(str(x) for x in error["loc"])
+        msg = f"{loc}\n  {error['msg']}\n  input_type: {type(error['input']).__name__}"
+        if type(error["input"]) not in (dict, list):
+            msg += f"\n  input: {error['input']}"
+        parts.append(msg + "\n")
+    return "".join(parts)
+
+
+def _validate_config(config_cls, config_path, user_config, label):
+    """Validate a config dict and print result."""
+    try:
+        config_cls.model_validate(user_config)
+    except ValidationError as e:
+        print(f"{e.error_count()} validation errors for config")
+        print(_format_errors(e))
+        console.print("Configuration Invalid!", style="red3")
+        raise typer.Exit(code=1)
+    console.print("Success!", style="green3")
+    console.print(f"{config_path} is a valid {label} config.")
+
+
+_TEMPLATE_DATA_DEFAULTS = {
+    "directory": "/tmp/apax_validate",
+    "experiment": "placeholder",
+    "data_path": "/tmp/apax_validate/placeholder.extxyz",
+}
 
 
 @validate_app.command("train")
@@ -160,29 +233,29 @@ def validate_train_config(
     config_path: Path = typer.Argument(
         ..., help="Configuration YAML file to be validated."
     ),
+    template: bool = typer.Option(
+        False,
+        "--template",
+        help=(
+            "Validate as a zntrack/ipsuite template. Fills in dummy values for"
+            " directory, experiment, and data_path so configs that leave these"
+            " to be set at runtime can still be validated."
+        ),
+    ),
 ):
-    """
-    Validates a training configuration file.
-
-    Parameters
-    ----------
-    config_path: Path to the training configuration file.
-    """
+    """Validates a training configuration file."""
     from apax.config import Config
 
     with open(config_path, "r") as stream:
         user_config = yaml.safe_load(stream)
 
-    try:
-        _ = Config.model_validate(user_config)
-    except ValidationError as e:
-        print(f"{e.error_count()} validation errors for config")
-        print(cleanup_error(e))
-        console.print("Configuration Invalid!", style="red3")
-        raise typer.Exit(code=1)
-    else:
-        console.print("Success!", style="green3")
-        console.print(f"{config_path} is a valid training config.")
+    if template:
+        data = user_config.setdefault("data", {})
+        for key, default in _TEMPLATE_DATA_DEFAULTS.items():
+            if key not in data or data[key] is None:
+                data[key] = default
+
+    _validate_config(Config, config_path, user_config, "training")
 
 
 @validate_app.command("md")
@@ -191,27 +264,16 @@ def validate_md_config(
         ..., help="Configuration YAML file to be validated."
     ),
 ):
-    """
-    Validates a molecular dynamics configuration file.
-
-    Parameters
-    ----------
-    config_path: Path to the molecular dynamics configuration file.
-    """
+    """Validates a molecular dynamics configuration file."""
     from apax.config import MDConfig
 
     with open(config_path, "r") as stream:
         user_config = yaml.safe_load(stream)
 
-    try:
-        _ = MDConfig.model_validate(user_config)
-    except ValidationError as e:
-        print(e)
-        console.print("Configuration Invalid!", style="red3")
-        raise typer.Exit(code=1)
-    else:
-        console.print("Success!", style="green3")
-        console.print(f"{config_path} is a valid MD config.")
+    _validate_config(MDConfig, config_path, user_config, "MD")
+
+
+# --- Other commands ---
 
 
 @app.command("visualize")
@@ -228,10 +290,6 @@ def visualize_model(
     Visualize a model based on a configuration file.
     A CO molecule is taken as sample input (influences number of atoms,
     number of species is set to 10).
-
-    Parameters
-    ----------
-    config_path: Path to the training configuration file.
     """
     import jax
 
@@ -255,47 +313,31 @@ def visualize_model(
     print(model.tabulate(jax.random.PRNGKey(0), R, Z, idx, box, offsets))
 
 
+def _write_template(template_file, config_path):
+    """Write a template file, exiting if one already exists."""
+    if Path(config_path).is_file():
+        console.print("There is already a config file in the working directory.")
+        sys.exit(1)
+    content = pkg_resources.read_text(templates, template_file)
+    with open(config_path, "w") as f:
+        f.write(content)
+
+
 @template_app.command("train")
 def template_train_config(
     full: bool = typer.Option(False, help="Use all input options."),
 ):
-    """
-    Creates a training input template in the current working directory.
-    """
+    """Creates a training input template in the current working directory."""
     if full:
-        template_file = "train_config_full.yaml"
-        config_path = "config_full.yaml"
+        _write_template("train_config_full.yaml", "config_full.yaml")
     else:
-        template_file = "train_config_minimal.yaml"
-        config_path = "config.yaml"
-
-    template_content = pkg_resources.read_text(templates, template_file)
-
-    if Path(config_path).is_file():
-        console.print("There is already a config file in the working directory.")
-        sys.exit(1)
-    else:
-        with open(config_path, "w") as config:
-            config.write(template_content)
+        _write_template("train_config_minimal.yaml", "config.yaml")
 
 
 @template_app.command("md")
 def template_md_config():
-    """
-    Creates a training input template in the current working directory.
-    """
-
-    template_file = "md_config_minimal.yaml"
-    config_path = "md_config.yaml"
-
-    template_content = pkg_resources.read_text(templates, template_file)
-
-    if Path(config_path).is_file():
-        console.print("There is already a config file in the working directory.")
-        sys.exit(1)
-    else:
-        with open(config_path, "w") as config:
-            config.write(template_content)
+    """Creates an MD input template in the current working directory."""
+    _write_template("md_config_minimal.yaml", "md_config.yaml")
 
 
 def version_callback(value: bool) -> None:
@@ -313,5 +355,4 @@ def main(
         None, "--version", "-V", callback=version_callback, is_eager=True
     ),
 ):
-    # Taken from https://github.com/zincware/dask4dvc/blob/main/dask4dvc/cli/main.py
     _ = version
