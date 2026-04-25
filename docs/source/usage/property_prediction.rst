@@ -38,6 +38,54 @@ Note that to use the analytical Hessian for vibrational analysis, you should use
     vib = VibrationsData.from_2d(atoms, hessian)
     freqs = vib.get_frequencies()
 
+Training with Hessians
+----------------------
+
+While apax models can predict Hessians without being trained on them (either via AD or finite differences), explicitely including them in the training can significantly improve the accuracy of vibrational frequencies and local curvature.
+
+Datasets
+^^^^^^^^
+
+The most straightforward way to work with Hessians in apax is to include them in an H5MD dataset under the ´´hessian´´ key.
+If you are preparing such a dataset, the shapes of the Hessian should be (N, 3, N, 3).
+Apax handles the masking of Hessian elements in differently sized systems automatically.
+
+
+Best Practices
+^^^^^^^^^^^^^^
+
+Due to the high cost of second order derivatives and the magnitude imbalance of Hessian elements compared to forces, we recommend the following workflow:
+
+1.  **EF Pretraining**: Train a base model on energies and forces (EF) until convergence.
+2.  **EFH Fine-tuning**: Fine-tune the pretrained model with the Hessian loss (EFH) enabled.
+3.  **Mass-Weighted Loss**: Use the ``mw_hessian`` loss type. By dividing Hessian elements by :math:`\sqrt{m_i m_j}`, the loss becomes physically more representative of vibrational modes and helps balance the optimization.
+4.  **Low Weight**: Use a low weight for the Hessian loss (e.g., ``0.01`` or ``0.005``). High Hessian weights can destabilize force accuracy due to the large scale of second-derivative elements.
+5.  **Model Capacity**: Training on second derivatives increases the complexity of the loss landscape. Consider increasing ``n_radial`` or the neural network width if the model struggles to balance forces and Hessians.
+
+This is a relatively basic implementation of Hessian training.
+More involved setups could include projecting out rigid body degrees of freedom and accelerated training via Hessian vector product matching.
+Feel free to reach out if you feel like your work would benefit from these additions.
+
+
+Example Configuration
+^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: yaml
+
+    model:
+      calc_hessian: True
+
+    loss:
+      - name: energy
+      - name: forces
+        weight: 4.0
+      - name: hessian
+        loss_type: mw_hessian
+        weight: 0.01
+
+    transfer_learning:
+      base_model_checkpoint: path/to/ef_model
+
 Disabling Expensive Properties
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

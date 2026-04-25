@@ -11,7 +11,7 @@ from jax import Array
 from apax.layers.descriptor.gaussian_moment_descriptor import GaussianMomentDescriptor
 from apax.layers.distances import make_distance_fn
 from apax.layers.empirical import EmpiricalEnergyTerm
-from apax.layers.masking import mask_by_atom
+from apax.layers.masking import mask_by_atom, mask_hessian
 from apax.layers.properties import stress_times_vol
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
@@ -172,7 +172,7 @@ class EnergyDerivativeModel(nn.Module):
 
         if self.calc_hessian:
             hessian = jax.hessian(energy_only_model)(R, Z, neighbor, box, offsets)
-            prediction["hessian"] = hessian
+            prediction["hessian"] = mask_hessian(hessian, Z)
 
         return prediction
 
@@ -281,6 +281,8 @@ class ShallowEnsembleModel(nn.Module):
 
         if self.calc_hessian:
             hessian = jax.hessian(mean_energy_fn)(R, Z, neighbor, box, offsets)
-            prediction["hessian"] = hessian
+            n_atoms = R.shape[0]
+            hessian = hessian.reshape(3 * n_atoms, 3 * n_atoms)
+            prediction["hessian"] = mask_hessian(hessian, Z)
 
         return prediction

@@ -169,9 +169,15 @@ class InMemoryDataset:
 
         for prop in self.additional_properties:
             name, shape = prop
-            if shape[0] == "natoms":
-                pad_shape = [(0, zeros_to_add)] + [(0, 0)] * (len(shape) - 1)
-                labels[name] = np.pad(labels[name], pad_shape, "constant")
+            pad_width = []
+            for s in shape:
+                if s == "natoms":
+                    pad_width.append((0, zeros_to_add))
+                else:
+                    pad_width.append((0, 0))
+
+            if any(p[1] > 0 for p in pad_width):
+                labels[name] = np.pad(labels[name], pad_width, "constant")
 
         inputs = {k: tf.constant(v) for k, v in inputs.items()}
         labels = {k: tf.constant(v) for k, v in labels.items()}
@@ -218,10 +224,11 @@ class InMemoryDataset:
 
         for prop in self.additional_properties:
             name, shape = prop
-            if shape[0] == "natoms":
-                shape[0] = self.max_atoms
+            actual_shape = [
+                self.max_atoms if s == "natoms" else s for s in shape
+            ]
 
-            sig = tf.TensorSpec(tuple(shape), dtype=tf.float64, name=name)
+            sig = tf.TensorSpec(tuple(actual_shape), dtype=tf.float64, name=name)
             label_signature[name] = sig
         signature = (input_signature, label_signature)
         return signature

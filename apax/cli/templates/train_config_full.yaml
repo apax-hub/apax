@@ -60,6 +60,9 @@ model:
   nn: [256, 256]
 
   calc_stress: false
+  # Set calc_hessian: true to enable Hessian prediction during training
+  # This is required if a hessian loss or metric is used.
+  calc_hessian: false
 
   w_init: lecun
   b_init: zeros
@@ -78,6 +81,9 @@ loss:
   loss_type: mse
   weight: 4.0
   atoms_exponent: 1
+# - name: hessian
+#   loss_type: mw_hessian # Mass-weighted Hessian loss (recommended)
+#   weight: 0.01 # Low weight recommended to avoid destabilizing forces
 
 metrics:
 - name: energy
@@ -87,6 +93,9 @@ metrics:
   reductions:
   - mae
   - mse
+# - name: hessian
+#   reductions:
+#   - mae
 
 optimizer:
   name: adam
