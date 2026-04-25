@@ -281,8 +281,6 @@ class ShallowEnsembleModel(nn.Module):
 
         if self.calc_hessian:
             hessian = jax.hessian(mean_energy_fn)(R, Z, neighbor, box, offsets)
-            n_atoms = R.shape[0]
-            hessian = hessian.reshape(3 * n_atoms, 3 * n_atoms)
             prediction["hessian"] = mask_hessian(hessian, Z)
 
         return prediction
