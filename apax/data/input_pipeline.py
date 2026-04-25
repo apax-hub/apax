@@ -224,9 +224,7 @@ class InMemoryDataset:
 
         for prop in self.additional_properties:
             name, shape = prop
-            actual_shape = [
-                self.max_atoms if s == "natoms" else s for s in shape
-            ]
+            actual_shape = [self.max_atoms if s == "natoms" else s for s in shape]
 
             sig = tf.TensorSpec(tuple(actual_shape), dtype=tf.float64, name=name)
             label_signature[name] = sig
