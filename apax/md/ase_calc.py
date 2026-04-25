@@ -37,7 +37,14 @@ def maybe_vmap(apply, params):
 
 
 def build_energy_neighbor_fns(
-    atoms: ase.Atoms, config: Config, params, dr_threshold: float, neigbor_from_jax: bool
+    atoms: ase.Atoms,
+    config: Config,
+    params,
+    dr_threshold: float,
+    neigbor_from_jax: bool,
+    calc_stress: bool | None = None,
+    calc_hessian: bool | None = None,
+    force_variance: bool | None = None,
 ):
     r_max = config.model.basis.r_max
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64)
@@ -66,11 +73,37 @@ def build_energy_neighbor_fns(
     builder = Builder(config.model.model_dump(), n_species=n_species)
 
     model = builder.build_energy_derivative_model(
-        apply_mask=True, init_box=np.array(box), inference_disp_fn=displacement_fn
+        apply_mask=True,
+        init_box=np.array(box),
+        inference_disp_fn=displacement_fn,
+        calc_stress=calc_stress,
+        calc_hessian=calc_hessian,
+        force_variance=force_variance,
     )
 
     energy_fn = maybe_vmap(model.apply, params)
     return energy_fn, neighbor_fn
+
+
+def build_hessian_neighbor_fns(
+    atoms: ase.Atoms,
+    config: Config,
+    params,
+    dr_threshold: float,
+    neigbor_from_jax: bool,
+    calc_stress: bool | None = None,
+    force_variance: bool | None = None,
+):
+    return build_energy_neighbor_fns(
+        atoms,
+        config,
+        params,
+        dr_threshold,
+        neigbor_from_jax,
+        calc_stress=calc_stress,
+        calc_hessian=True,
+        force_variance=force_variance,
+    )
 
 
 def make_ensemble(model):
@@ -83,9 +116,9 @@ def make_ensemble(model):
             ensemble["forces_ensemble"] = jnp.transpose(
                 ensemble["forces_ensemble"], (1, 2, 0)
             )
-        if "forces_ensemble" in ensemble.keys():
+        if "stress_ensemble" in ensemble.keys():
             ensemble["stress_ensemble"] = jnp.transpose(
-                ensemble["forces_ensemble"], (1, 2, 0)
+                ensemble["stress_ensemble"], (1, 2, 0)
             )
         results.update(uncertainty)
         results.update(ensemble)
@@ -112,9 +145,33 @@ class ASECalculator(Calculator):
     """
     ASE Calculator for apax models.
     Always implements energy and force predictions.
-    Stress predictions and corresponding uncertainties are added to
-    `implemented_properties` based on whether the stress flag is set
-    in the model config and whether a model ensemble is loaded.
+    Additional properties like stress, Hessian, and uncertainties can be enabled
+    dynamically, independent of the training configuration.
+
+    **Property Prediction Control:**
+
+    The calculator can be configured to compute additional properties during
+    initialization. This is useful for predicting properties that were not
+    part of the training loss (e.g., computing Hessians for vibrational analysis
+    with a model trained only on energies and forces) or for disabling expensive
+    computations during high-throughput inference or MD simulations.
+
+    *   `calc_stress`: Set to `True` to enable stress tensor prediction.
+    *   `calc_hessian`: Set to `True` to enable Hessian matrix prediction.
+        Defaults to `False` to avoid expensive computations even if enabled during training.
+    *   `force_variance`: For shallow ensembles, determines whether to compute
+        force uncertainties.
+
+    Example:
+        Predict Hessians with a model not configured for it during training:
+
+        >>> calc = ASECalculator(model_dir, calc_hessian=True)
+        >>> atoms.calc = calc
+        >>> hessian = calc.get_hessian(atoms)
+
+        Disable stress calculation even if enabled in the training config:
+
+        >>> calc = ASECalculator(model_dir, calc_stress=False)
 
     """
 
@@ -129,6 +186,9 @@ class ASECalculator(Calculator):
         dr_threshold: float = 0.5,
         transformations: list[Callable] = [],
         padding_factor: float = 1.5,
+        calc_stress: bool | None = None,
+        calc_hessian: bool = False,
+        force_variance: bool | None = None,
         **kwargs,
     ):
         """
@@ -147,12 +207,25 @@ class ASECalculator(Calculator):
             Multiple of the fallback vesin's amount of neighbors.
             This NL will be padded to `len(neighbors) * padding_factor`
             on NL initialization.
+        calc_stress:
+            Whether to calculate the stress tensor.
+            Overrides the model config if provided.
+        calc_hessian:
+            Whether to calculate the Hessian matrix.
+            Defaults to False.
+        force_variance:
+            Whether to calculate the force variance (for shallow ensembles).
+            Overrides the model config if provided.
         """
         Calculator.__init__(self, **kwargs)
         self.dr_threshold = dr_threshold
         self.transformations = transformations
 
         self.model_config, self.params = restore_parameters(model_dir)
+
+        self.calc_stress = calc_stress
+        self.calc_hessian = calc_hessian
+        self.force_variance = force_variance
 
         for head in self.model_config.model.property_heads:
             self.implemented_properties.append(head.name)
@@ -164,10 +237,23 @@ class ASECalculator(Calculator):
         self._update_implemented_properties()
 
         self.step = None
+        self.hessian_step = None
         self.neighbor_fn = None
         self.neighbors = None
         self.offsets = None
         self.model = None
+
+    def _wrap_model(self, model):
+        if self.n_models > 1:
+            model = make_ensemble(model)
+
+        if "stress" in self.implemented_properties:
+            model = ProcessStress().apply(model)
+
+        for transformation in self.transformations:
+            model = transformation.apply(model)
+
+        return model
 
     def _update_implemented_properties(self):
         """
@@ -177,7 +263,14 @@ class ASECalculator(Calculator):
         """
         props = {"energy", "forces"}
 
-        if self.model_config.model.calc_stress:
+        if self.calc_hessian:
+            props.add("hessian")
+
+        calc_stress = self.calc_stress
+        if calc_stress is None:
+            calc_stress = self.model_config.model.calc_stress
+
+        if calc_stress:
             props.add("stress")
 
         for head in self.model_config.model.property_heads:
@@ -194,7 +287,12 @@ class ASECalculator(Calculator):
             elif ensemble_config.kind == "shallow":
                 # For a shallow ensemble, only energy and potentially forces are ensembled
                 ensembled_props.add("energy")
-                if ensemble_config.force_variance:
+
+                force_variance = self.force_variance
+                if force_variance is None:
+                    force_variance = ensemble_config.force_variance
+
+                if force_variance:
                     ensembled_props.add("forces")
 
             for p in ensembled_props:
@@ -223,16 +321,12 @@ class ASECalculator(Calculator):
             self.params,
             self.dr_threshold,
             self.neigbor_from_jax,
+            calc_stress=self.calc_stress,
+            calc_hessian=self.calc_hessian,
+            force_variance=self.force_variance,
         )
 
-        if self.n_models > 1:
-            model = make_ensemble(model)
-
-        if "stress" in self.implemented_properties:
-            model = ProcessStress().apply(model)
-
-        for transformation in self.transformations:
-            model = transformation.apply(model)
+        model = self._wrap_model(model)
 
         self.model = model
         self.step = get_step_fn(
@@ -241,6 +335,8 @@ class ASECalculator(Calculator):
             bool(np.any(atoms.cell.array > 1e-6)),
             self.neigbor_from_jax,
         )
+        self.hessian_step = None
+
         self.neighbor_fn = neighbor_fn
 
         if self.neigbor_from_jax:
@@ -262,6 +358,24 @@ class ASECalculator(Calculator):
                 quantities="i",
             )
             self.padded_length = int(len(idxs_i) * self.padding_factor)
+
+    def _initialize_hessian(self, atoms):
+        hessian_model, _ = build_hessian_neighbor_fns(
+            atoms,
+            self.model_config,
+            self.params,
+            self.dr_threshold,
+            self.neigbor_from_jax,
+            calc_stress=self.calc_stress,
+            force_variance=self.force_variance,
+        )
+        hessian_model = self._wrap_model(hessian_model)
+        self.hessian_step = get_step_fn(
+            hessian_model,
+            jnp.asarray(atoms.numbers),
+            bool(np.any(atoms.cell.array > 1e-6)),
+            self.neigbor_from_jax,
+        )
 
     def get_descriptors(
         self,
@@ -366,9 +480,6 @@ class ASECalculator(Calculator):
         elif "numbers" in system_changes:
             self.initialize(atoms)
 
-            if self.neigbor_from_jax:
-                self.neighbors = self.neighbor_fn.allocate(positions)
-
         elif "cell" in system_changes:
             neigbor_from_jax = neighbor_calculable_with_jax(box, self.r_max)
             if self.neigbor_from_jax != neigbor_from_jax:
@@ -383,14 +494,35 @@ class ASECalculator(Calculator):
                 self.initialize(atoms)
                 results, self.neighbors = self.step(positions, self.neighbors, box)
 
+            if "hessian" in properties and "hessian" not in results:
+                if self.hessian_step is None:
+                    self._initialize_hessian(atoms)
+                hessian_results, _ = self.hessian_step(positions, self.neighbors, box)
+                results["hessian"] = hessian_results["hessian"]
+
         else:
             self.set_neighbours_and_offsets(atoms, box)
             positions = np.array(space.transform(np.linalg.inv(box), atoms.positions))
 
             results = self.step(positions, self.neighbors, box, self.offsets)
+            if "hessian" in properties and "hessian" not in results:
+                if self.hessian_step is None:
+                    self._initialize_hessian(atoms)
+                hessian_results = self.hessian_step(
+                    positions, self.neighbors, box, self.offsets
+                )
+                results["hessian"] = hessian_results["hessian"]
 
         self.results = {k: np.array(v, dtype=np.float64) for k, v in results.items()}
         self.results["energy"] = self.results["energy"].item()
+        if "hessian" in results:
+            n_atoms = len(atoms)
+            self.results["hessian"] = self.results["hessian"].reshape(
+                3 * n_atoms, 3 * n_atoms
+            )
+
+    def get_hessian(self, atoms):
+        return self.get_property("hessian", atoms)
 
     def batch_eval(
         self, atoms_list: list[ase.Atoms], batch_size: int = 64, silent: bool = False
@@ -443,14 +575,7 @@ class ASECalculator(Calculator):
 
         model = partial(model, self.params)
 
-        if self.n_models > 1:
-            model = make_ensemble(model)
-
-        if "stress" in self.implemented_properties:
-            model = ProcessStress().apply(model)
-
-        for transformation in self.transformations:
-            model = transformation.apply(model)
+        model = self._wrap_model(model)
 
         model = jax.vmap(model, in_axes=(0, 0, 0, 0, 0))
         model = jax.jit(model)
