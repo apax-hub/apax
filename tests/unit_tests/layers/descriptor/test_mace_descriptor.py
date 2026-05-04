@@ -60,3 +60,22 @@ def test_mace_representation_rejects_no_scalar_irreps(tiny_system):
     model = MaceRepresentation(hidden_irreps="16x1o")
     with pytest.raises(ValueError, match="0e component"):
         model.init(jax.random.PRNGKey(0), dr_vec, Z, idx)
+
+
+def test_mace_representation_threads_node_attrs_through_layers():
+    """Representation builds the full multi-irrep flow and outputs scalars."""
+    n_atoms = 3
+    rep = MaceRepresentation(
+        r_max=5.0, num_bessel=4, num_polynomial_cutoff=5, max_ell=2,
+        hidden_irreps="8x0e", num_interactions=2, correlation=2,
+        interaction_cls="RealAgnosticResidual", num_elements=5,
+    )
+    dr_vec = jnp.array([[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0], [-1.0, 0, 0]])
+    Z = jnp.array([1, 2, 3], dtype=jnp.int32)
+    idx = jnp.array([[0, 1, 2, 0], [1, 0, 0, 2]], dtype=jnp.int32)
+
+    params = rep.init(jax.random.PRNGKey(0), dr_vec, Z, idx)
+    out = rep.apply(params, dr_vec, Z, idx)
+    # Output: per-layer scalar concat; layer hidden = "8x0e", num_interactions=2
+    assert out.shape == (n_atoms, 2 * 8)
+    assert bool(jnp.all(jnp.isfinite(out)))

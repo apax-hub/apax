@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+import e3nn_jax as e3nn
+import jax
 import jax.numpy as jnp
 from flax import linen as nn
 
@@ -106,26 +108,55 @@ class MaceRepresentation(nn.Module):
         if self.apply_mask:
             radial = radial * pair_mask[..., None]
 
-        # Initial node features: scalars only
-        scalar_init = _scalar_irreps_only(self.hidden_irreps)
+        # Compute the full multi-irrep target (matches torch-mace + mace-jax):
+        # interaction_irreps = (sh_irreps × num_features).sort().simplify()
+        sh_irreps = e3nn.Irreps.spherical_harmonics(self.max_ell)
+        sh_irreps_str = str(sh_irreps)
+        hidden_irreps = e3nn.Irreps(self.hidden_irreps)
+        # Validate up-front so the error matches the legacy contract test.
+        _scalar_irreps_only(self.hidden_irreps)
+        num_features = hidden_irreps.count(e3nn.Irrep(0, 1))
+        interaction_irreps = (sh_irreps * num_features).sort().irreps.simplify()
+        interaction_irreps_str = str(interaction_irreps)
+        node_attrs_irreps_str = f"{self.num_elements}x0e"
+        init_node_irreps_str = f"{num_features}x0e"
+
+        # Initial node features: scalars only (LinearNodeEmbedding(num_features x 0e)).
         node_feats = LinearNodeEmbedding(
             num_elements=self.num_elements,
-            irreps_out=scalar_init,
+            irreps_out=init_node_irreps_str,
         )(Z)
+        # One-hot element attributes for the per-element skip in InteractionBlock.
+        Z_one_hot = e3nn.IrrepsArray(
+            node_attrs_irreps_str,
+            jax.nn.one_hot(Z, self.num_elements).astype(dtype),
+        )
 
+        prev_irreps_str = init_node_irreps_str
         per_layer_scalars = []
-        for _ in range(self.num_interactions):
-            node_feats = InteractionBlock(
-                irreps_out=self.hidden_irreps,
+        for k in range(self.num_interactions):
+            is_last = k == self.num_interactions - 1
+            this_hidden_str = (
+                str(e3nn.Irreps([hidden_irreps[0]])) if is_last else self.hidden_irreps
+            )
+            message, sc = InteractionBlock(
+                node_feats_irreps=prev_irreps_str,
+                node_attrs_irreps=node_attrs_irreps_str,
+                edge_attrs_irreps=sh_irreps_str,
+                target_irreps=interaction_irreps_str,
+                hidden_irreps=this_hidden_str,
                 interaction_cls=self.interaction_cls,
-            )(node_feats, sph, radial, i, j)
+            )(node_feats, sph, radial, Z_one_hot, i, j)
             node_feats = ProductBlock(
-                hidden_irreps=self.hidden_irreps,
+                node_feats_irreps=interaction_irreps_str,
+                target_irreps=this_hidden_str,
                 correlation=self.correlation,
                 num_elements=self.num_elements,
+                use_sc=True,
                 use_cueq=self.use_cueq,
-            )(node_feats, Z)
+            )(message, sc, Z)
             per_layer_scalars.append(node_feats.filter(keep="0e").array)
+            prev_irreps_str = this_hidden_str
 
         features = jnp.concatenate(per_layer_scalars, axis=-1)
         if self.apply_mask:
