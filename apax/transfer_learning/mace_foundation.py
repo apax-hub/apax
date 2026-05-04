@@ -280,6 +280,7 @@ def _extract_config_from_torch(model, head: str) -> dict:
     while hasattr(sc0, f"U_matrix_{correlation + 1}"):
         correlation += 1
 
+    avg_num_neighbors = float(model.interactions[0].avg_num_neighbors)
     cfg = {
         "r_max": float(model.r_max),
         "num_bessel": int(model.radial_embedding.bessel_fn.bessel_weights.shape[0]),
@@ -292,6 +293,7 @@ def _extract_config_from_torch(model, head: str) -> dict:
         "use_cueq": False,
         "readout_kind": "mace",
         "MLP_irreps": "16x0e",
+        "avg_num_neighbors": avg_num_neighbors,
         # Float64 throughout for parity with the torch foundation model loaded
         # with default_dtype="float64".
         "descriptor_dtype": "fp64",
@@ -467,6 +469,13 @@ def _map_node_embedding(
     embedding table is ``(_N_SPECIES, hidden)``; rows for chemical species not
     in the torch table stay at their init value (zero-mean Gaussian).
 
+    Torch's ``e3nn.o3.Linear`` applies a ``path_weight = 1/sqrt(num_elements)``
+    factor per forward pass, so the values stored in the torch ``state_dict``
+    are scaled by ``sqrt(num_elements_torch)`` relative to what apax expects.
+    Apax's :class:`~apax.layers.descriptor.mace_blocks.LinearNodeEmbedding`
+    is a plain ``one_hot @ weight`` (no path_weight), so we fold the
+    ``1/sqrt(n_torch)`` factor into the copied weights here.
+
     Parameters
     ----------
     state : dict of str to np.ndarray
@@ -485,7 +494,9 @@ def _map_node_embedding(
             f"node_embedding.linear.weight has {flat.size} elements, expected "
             f"{n_torch * hidden} (= {n_torch} species × {hidden} hidden)."
         )
-    matrix = flat.reshape(n_torch, hidden)
+    # Fold torch's e3nn.o3.Linear path_weight = 1/sqrt(n_torch) into the
+    # copied values; apax's embedding is a plain matmul with no path_weight.
+    matrix = flat.reshape(n_torch, hidden) / np.sqrt(n_torch)
     new = np.zeros_like(target)
     for torch_idx, Z in enumerate(torch_atomic_numbers):
         if 0 <= Z < new.shape[0]:
@@ -636,6 +647,12 @@ def _map_interactions(
                 f"expected {expected} (= M_in * n_torch * M_out)"
             )
         # Torch FCTP weight layout is (in1=M, in2=n_torch, out=M).
+        # Torch FCTP applies path_weight = 1/sqrt(M*n_torch); apax replaces it
+        # with Linear(tensor_product(node_feats, Z_one_hot)) whose path_weight
+        # is 1/sqrt(M*n_species_apax). Compensate by scaling the copied
+        # weights by sqrt(n_species_apax/n_torch) so the effective normaliser
+        # matches torch.
+        scale = float(np.sqrt(n_species_apax / n_torch))
         torch_w_3d = flat.reshape(M, n_torch, M)
         new = np.zeros_like(target)
         for torch_idx, Z in enumerate(torch_atomic_numbers):
@@ -644,7 +661,7 @@ def _map_interactions(
             # apax row index = i * n_species_apax + Z (matches the layout
             # produced by e3nn.tensor_product(node_feats[Mx0e], Z_one_hot)).
             for i in range(M):
-                new[i * n_species_apax + Z, :] = torch_w_3d[i, torch_idx, :]
+                new[i * n_species_apax + Z, :] = torch_w_3d[i, torch_idx, :] * scale
         block["skip_tp"][skip_target_key] = new.astype(target.dtype)
 
         # 4. radial MLP : direct kernel copy for every layer.

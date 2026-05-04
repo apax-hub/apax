@@ -59,12 +59,15 @@ def assemble_edge_features(dr_vec, r_max, num_bessel, num_poly_cutoff, max_ell):
     -----
     The dtype of both outputs matches the dtype of ``dr_vec``.
     """
-    from apax.layers.descriptor.basis_functions import BesselBasis, PolynomialCutoff
+    from apax.layers.descriptor.basis_functions import (
+        MaceBesselBasis,
+        PolynomialCutoff,
+    )
 
     dtype = dr_vec.dtype
     r_ij = jnp.linalg.norm(dr_vec, axis=-1)
 
-    bessel_module = BesselBasis(n_basis=num_bessel, r_max=r_max, dtype=dtype)
+    bessel_module = MaceBesselBasis(n_basis=num_bessel, r_max=r_max, dtype=dtype)
     bessel = bessel_module.apply({}, r_ij)
 
     cutoff_module = PolynomialCutoff(p=num_poly_cutoff, r_max=r_max)
@@ -192,6 +195,12 @@ class InteractionBlock(nn.Module):
         implemented in this phase.
     radial_mlp : tuple
         Hidden widths of the radial MLP gating tensor-product channels.
+    avg_num_neighbors : float
+        Per-atom message normaliser ``message = linear(agg) / avg_num_neighbors``
+        applied after the post-aggregation ``Linear``. Mirrors torch-mace
+        (``mace.modules.blocks.RealAgnosticResidualInteractionBlock`` divides
+        by the same scalar). Defaults to ``1.0`` so freshly built apax models
+        without a precomputed average are unaffected.
 
     Returns
     -------
@@ -208,6 +217,7 @@ class InteractionBlock(nn.Module):
     hidden_irreps: str
     interaction_cls: str = "RealAgnosticResidual"
     radial_mlp: tuple = (64, 64, 64)
+    avg_num_neighbors: float = 1.0
 
     @nn.compact
     def __call__(
@@ -234,10 +244,15 @@ class InteractionBlock(nn.Module):
         x_j = x[senders]
         tp = e3nn.tensor_product(x_j, edge_attrs, filter_ir_out=irreps_mid)
 
-        # 3. Radial MLP: per-edge per-path scalar gates
+        # 3. Radial MLP: per-edge per-path scalar gates.
+        #    output_activation=False matches torch-mace's nn.FullyConnectedNet
+        #    (defaults to no activation on the final layer).
         n_paths = tp.irreps.num_irreps
         weights = e3nn.flax.MultiLayerPerceptron(
-            list(self.radial_mlp) + [n_paths], act=jax.nn.silu, name="radial_mlp",
+            list(self.radial_mlp) + [n_paths],
+            act=jax.nn.silu,
+            output_activation=False,
+            name="radial_mlp",
         )(edge_feats)
         weighted = tp * weights
 
@@ -246,8 +261,11 @@ class InteractionBlock(nn.Module):
             weighted, dst=receivers, output_size=node_feats.shape[0]
         )
 
-        # 5. linear: irreps_mid -> target_irreps
+        # 5. linear: irreps_mid -> target_irreps, divided by avg_num_neighbors
+        #    (matches torch-mace's RealAgnosticResidualInteractionBlock,
+        #    which applies the same per-message normaliser).
         message = e3nn.flax.Linear(target_irreps, name="linear")(agg)
+        message = message / self.avg_num_neighbors
 
         # 6. skip_tp: per-element FCTP (node_feats × node_attrs → hidden_irreps).
         #    Since node_attrs is scalar-only, the FCTP is equivalent to

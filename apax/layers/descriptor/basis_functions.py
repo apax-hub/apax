@@ -79,6 +79,49 @@ class BesselBasis(nn.Module):
         return basis
 
 
+class MaceBesselBasis(nn.Module):
+    """Bessel basis used by torch-mace foundation models.
+
+    Implements the radial basis from
+    ``mace.modules.radial.BesselBasis`` (the form due to Kocer et al. as
+    adapted by MACE):
+
+    .. math::
+
+        b_n(r) = \\sqrt{\\frac{2}{r_\\mathrm{max}}} \\,\\frac{\\sin(n \\pi r / r_\\mathrm{max})}{r}, \\quad n = 1, \\dots, N
+
+    Distinct from :class:`BesselBasis` (Kocer's symmetrised form), which apax
+    keeps for legacy users; use this class to reproduce torch-mace exactly.
+
+    Parameters
+    ----------
+    n_basis : int
+        Number of basis functions (``num_basis`` in torch-mace).
+    r_max : float
+        Cutoff distance.
+    dtype : Any
+        Floating-point dtype.
+    """
+
+    n_basis: int = 8
+    r_max: float = 6.0
+    dtype: Any = jnp.float32
+
+    def setup(self):
+        dtype = str_to_dtype(self.dtype)
+        # bessel_weights = pi/r_max * [1, 2, ..., n_basis]
+        self.bessel_weights = jnp.asarray(
+            np.pi / self.r_max * np.arange(1, self.n_basis + 1, dtype=np.float64),
+            dtype=dtype,
+        )
+        self.prefactor = jnp.asarray(np.sqrt(2.0 / self.r_max), dtype=dtype)
+
+    def __call__(self, dr):
+        x = einops.repeat(dr, "neighbors -> neighbors 1")
+        numerator = jnp.sin(self.bessel_weights * x)
+        return self.prefactor * (numerator / x)
+
+
 class PolynomialCutoff(nn.Module):
     """MACE-style polynomial envelope cutoff.
 

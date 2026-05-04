@@ -60,6 +60,10 @@ class MaceRepresentation(nn.Module):
         If True, zero out masked atoms in the output.
     dtype : Any
         Floating-point dtype for features.
+    avg_num_neighbors : float
+        Per-message normaliser forwarded to every :class:`InteractionBlock`.
+        Foundation models burn in a per-dataset average (~62 for MACE-MP-0);
+        defaults to ``1.0`` to leave freshly trained apax models unchanged.
 
     Notes
     -----
@@ -81,6 +85,7 @@ class MaceRepresentation(nn.Module):
     use_cueq: bool = False
     apply_mask: bool = True
     dtype: Any = jnp.float32
+    avg_num_neighbors: float = 1.0
 
     @nn.compact
     def __call__(self, dr_vec, Z, idx):
@@ -146,6 +151,7 @@ class MaceRepresentation(nn.Module):
                 target_irreps=interaction_irreps_str,
                 hidden_irreps=this_hidden_str,
                 interaction_cls=self.interaction_cls,
+                avg_num_neighbors=self.avg_num_neighbors,
             )(node_feats, sph, radial, Z_one_hot, i, j)
             node_feats = ProductBlock(
                 node_feats_irreps=interaction_irreps_str,

@@ -329,6 +329,11 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
         Variant of the readout block to use.
     MLP_irreps : str, default = "16x0e"
         e3nn-jax irreps string for the readout MLP.
+    avg_num_neighbors : PositiveFloat, default = 1.0
+        Per-atom message normaliser used by every interaction block:
+        ``message = linear(agg) / avg_num_neighbors``. Foundation models
+        burn in a per-dataset average (e.g. ~62 for MP-0); freshly trained
+        apax models default to ``1.0`` so existing configs are unaffected.
     """
 
     name: Literal["mace"] = "mace"
@@ -349,6 +354,7 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
     use_cueq: bool = False
     readout_kind: Literal["mace", "standard"] = "mace"
     MLP_irreps: str = "16x0e"
+    avg_num_neighbors: PositiveFloat = 1.0
 
     def get_builder(self):
         from apax.nn.builder import MaceBuilder

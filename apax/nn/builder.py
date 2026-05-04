@@ -318,6 +318,7 @@ class MaceBuilder(ModelBuilder):
             use_cueq=self.config["use_cueq"],
             apply_mask=apply_mask,
             dtype=self.config["descriptor_dtype"],
+            avg_num_neighbors=self.config.get("avg_num_neighbors", 1.0),
         )
         return descriptor
 
