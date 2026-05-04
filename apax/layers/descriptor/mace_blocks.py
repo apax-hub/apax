@@ -367,12 +367,18 @@ class NonLinearReadoutBlock(nn.Module):
     ----------
     MLP_irreps : str
         Hidden-layer irreps (scalar-only), e.g. ``"16x0e"``.
+    silu_normalization : float
+        Multiplicative constant applied after SiLU to match torch-e3nn's
+        ``normalize2mom`` wrapper on ``torch.nn.functional.silu``. Default is
+        the exact numerical value ``1.6791767923989418`` — required for
+        bit-for-bit parity with torch-mace foundation readouts.
     n_out : int
         Number of scalar output channels. ``1`` (default) gives a single
         per-atom energy; values ``>1`` support shallow ensembles.
     """
 
     MLP_irreps: str = "16x0e"
+    silu_normalization: float = 1.6791767923989418
     n_out: int = 1
 
     @nn.compact
@@ -396,7 +402,7 @@ class NonLinearReadoutBlock(nn.Module):
                 f"(got {self.MLP_irreps!r})."
             )
         x = e3nn.flax.Linear(self.MLP_irreps, name="linear_1")(feat)
-        x = e3nn.IrrepsArray(x.irreps, jax.nn.silu(x.array))
+        x = e3nn.IrrepsArray(x.irreps, jax.nn.silu(x.array) * self.silu_normalization)
         out = e3nn.flax.Linear(f"{self.n_out}x0e", name="linear_2")(x)
         return out.array
 

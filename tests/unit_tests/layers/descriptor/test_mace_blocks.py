@@ -232,3 +232,28 @@ def test_nonlinear_readout_block_vmap_over_atoms():
     feats_batched = e3nn.IrrepsArray("16x0e", jnp.ones((5, 16)))
     out = jax.vmap(lambda x: block.apply(params, x))(feats_batched)
     assert out.shape == (5, 1)
+
+
+def test_nonlinear_readout_block_applies_silu_normalization():
+    """Gate is SiLU * silu_normalization (torch-mace normalize2mom constant)."""
+    from apax.layers.descriptor.mace_blocks import NonLinearReadoutBlock
+    import e3nn_jax as e3nn
+    import jax
+    import jax.numpy as jnp
+    import numpy as np
+
+    # Build a block where we can inspect the linear_2 output directly.
+    block = NonLinearReadoutBlock(MLP_irreps="4x0e", n_out=1)
+    feat = e3nn.IrrepsArray("8x0e", jnp.ones((8,)))
+    params = block.init(jax.random.PRNGKey(0), feat)
+    out_default = block.apply(params, feat)
+
+    # With silu_normalization=1.0, the post-gate activation is plain SiLU.
+    block_ref = NonLinearReadoutBlock(MLP_irreps="4x0e", n_out=1,
+                                       silu_normalization=1.0)
+    out_ref = block_ref.apply(params, feat)
+
+    # Default differs from unnormalised — the constant is actually wired in.
+    assert not np.allclose(out_default, out_ref)
+    # And the default constant is the documented value.
+    assert block.silu_normalization == 1.6791767923989418

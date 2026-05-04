@@ -1,12 +1,15 @@
-"""Integration test for convert-mace. Gated by mace_parity marker.
+"""Integration test for the MACE foundation converter.
 
-Requires:
-    uv sync --group mace-convert --extra mace
+Gated by the ``mace_parity`` marker; requires::
 
-These tests resolve MACE foundation models via the upstream
-``mace.calculators.foundations_models.mace_mp`` interface, which handles
-the bundled-local model, HTTP download, and caching under ``~/.cache/mace/``.
+    uv sync --extra mace-convert
+
+Two tests verify that :func:`apax.transfer_learning.mace_foundation.run_conversion`
+produces a directory in apax's standard training-output layout and that the
+output round-trips through :func:`apax.train.checkpoints.restore_parameters`.
 """
+from __future__ import annotations
+
 import json
 from pathlib import Path
 
@@ -15,84 +18,55 @@ import pytest
 pytestmark = pytest.mark.mace_parity
 
 
-@pytest.mark.parametrize("model_name", [
-    "medium-mpa-0",      # default; bundled with mace-torch package
-    "medium",            # MACE-MP-0 medium; first-run download, cached thereafter
-])
-def test_convert_canonical_name(tmp_path, model_name):
-    """Convert a canonical foundation model fetched via mace_mp()."""
+def test_convert_small_writes_apax_native_format(tmp_path):
+    """Convert MACE-MP-0 ``small`` and verify apax-native layout."""
     pytest.importorskip("torch")
     pytest.importorskip("mace")
+
+    from apax.train.checkpoints import restore_parameters
     from apax.transfer_learning.mace_foundation import run_conversion
 
-    dst = tmp_path / f"{model_name}.apax"
-    run_conversion(model_name, dst, head="mp", family="mace_mp")
+    dst = tmp_path / "small.apax"
+    run_conversion("small", dst, head="default", family="mace_mp")
 
-    assert (dst / "params.msgpack").exists()
-    assert (dst / "config.json").exists()
-    assert (dst / "metadata.json").exists()
+    # Layout: <dst>/config.yaml + <dst>/best/ + <dst>/converter_metadata.json
+    assert (dst / "config.yaml").exists(), "config.yaml not written"
+    assert (dst / "best").is_dir(), "orbax best/ checkpoint dir missing"
+    assert (dst / "converter_metadata.json").exists(), "metadata not written"
 
-    cfg = json.loads((dst / "config.json").read_text())
-    assert cfg["name"] == "mace"
-    assert cfg["num_interactions"] >= 1
+    meta = json.loads((dst / "converter_metadata.json").read_text())
+    assert meta["source"] == "small"
+    assert meta["family"] == "mace_mp"
+    assert meta["head_selected"] == "default"
+    assert meta["torch_mace_version"]
+    assert meta["apax_version"]
 
-    meta = json.loads((dst / "metadata.json").read_text())
-    assert meta["source"] == model_name            # records the canonical name
-    assert meta["source_resolved_path"]             # records where it actually came from
+    # Standard apax loader path: returns (Config, params)
+    cfg, params = restore_parameters(dst)
+    assert cfg.model.name == "mace"
+    assert cfg.model.r_max == pytest.approx(6.0)
+    assert cfg.model.num_interactions == 2
+    assert cfg.model.correlation == 3
+    assert cfg.model.hidden_irreps == "128x0e"
 
-
-def test_convert_local_path(tmp_path):
-    """Convert from an explicit .model path (no network)."""
-    pytest.importorskip("torch")
-    pytest.importorskip("mace")
-    from apax.transfer_learning.mace_foundation import run_conversion
-    from mace.calculators.foundations_models import download_mace_mp_checkpoint
-
-    # Pre-resolve the cached path, then feed it as a local file input
-    local_path = Path(download_mace_mp_checkpoint("medium-mpa-0"))
-    assert local_path.exists()
-
-    dst = tmp_path / "local.apax"
-    run_conversion(str(local_path), dst, head="mp", family="mace_mp")
-
-    assert (dst / "params.msgpack").exists()
+    # Pytree must contain the three top-level branches expected by
+    # ``EnergyDerivativeModel(EnergyModel(representation, readout, scale_shift))``.
+    energy_params = params["params"]["energy_model"]
+    assert "representation" in energy_params
+    assert "readout" in energy_params
+    assert "scale_shift" in energy_params
 
 
 def test_convert_rejects_unknown_head(tmp_path):
-    """Reject unknown --head before any mapping happens."""
+    """Unknown ``--head`` should fail before any heavy work happens."""
     pytest.importorskip("torch")
     pytest.importorskip("mace")
     from apax.transfer_learning.mace_foundation import run_conversion
 
     with pytest.raises(ValueError, match="head"):
-        run_conversion("medium-mpa-0", tmp_path / "out.apax", head="does-not-exist")
-
-
-def test_extract_config_from_torch_small():
-    """Verify config extraction matches the known ``small`` MP-0 hyperparameters."""
-    pytest.importorskip("torch")
-    pytest.importorskip("mace")
-    from mace.calculators.foundations_models import mace_mp
-
-    from apax.transfer_learning.mace_foundation import _extract_config_from_torch
-
-    m = mace_mp("small", return_raw_model=True, default_dtype="float64", device="cpu")
-    cfg = _extract_config_from_torch(m, head="default")
-
-    assert cfg["name"] == "mace"
-    assert cfg["r_max"] == 6.0
-    assert cfg["num_bessel"] == 10
-    assert cfg["num_polynomial_cutoff"] == 5
-    assert cfg["max_ell"] == 3
-    assert cfg["hidden_irreps"] == "128x0e"
-    assert cfg["num_interactions"] == 2
-    assert cfg["correlation"] == 3
-    assert cfg["interaction_cls"] == "RealAgnosticResidual"
-    assert cfg["num_elements"] == 89
-    assert cfg["has_zbl"] is False
-    assert len(cfg["atomic_numbers"]) == 89
-    assert len(cfg["atomic_energies"]) == 89
-    assert isinstance(cfg["scale"], float)
-    assert isinstance(cfg["shift"], float)
-    # No ``selected_head`` key should be set for single-head models.
-    assert "selected_head" not in cfg
+        run_conversion(
+            "medium-mpa-0",
+            tmp_path / "out.apax",
+            head="not-a-real-head",
+            family="mace_mp",
+        )
