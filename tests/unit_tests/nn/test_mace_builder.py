@@ -1,97 +1,87 @@
-"""MaceBuilder wiring — verifies the builder produces a runnable EnergyModel."""
-
+"""MaceBuilder — descriptor + readout composition tests."""
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
-
-@pytest.fixture
-def mace_config_dict():
-    """Minimal MACE config dict, matching what ModelBuilder expects.
-
-    All keys from BaseModelConfig plus MaceModelConfig. Values kept tiny
-    so init and forward pass are fast.
-    """
-    return {
-        "name": "mace",
-        "r_max": 5.0,
-        "num_bessel": 4,
-        "num_polynomial_cutoff": 5,
-        "max_ell": 1,
-        "hidden_irreps": "8x0e",
-        "num_interactions": 1,
-        "correlation": 2,
-        "interaction_cls": "RealAgnosticResidual",
-        "use_cueq": False,
-        # BaseModelConfig fields
-        "descriptor_dtype": "fp32",
-        "readout_dtype": "fp32",
-        "scale_shift_dtype": "fp64",
-        "activation_fn": "silu",
-        "nn": [16, 16],
-        "b_init": "zeros",
-        "w_init": "lecun",
-        "use_ntk": False,
-        "basis": {"name": "bessel", "n_basis": 4, "r_max": 5.0},
-        "ensemble": None,
-        "property_heads": [],
-        "empirical_corrections": [],
-        "calc_stress": False,
-    }
+from apax.config.model_config import MaceModelConfig
+from apax.nn.builder import MaceBuilder
 
 
-def test_mace_builder_builds_energy_model(mace_config_dict):
-    from apax.nn.builder import MaceBuilder
-
-    builder = MaceBuilder(mace_config_dict, n_species=10)
-    model = builder.build_energy_model()
-    assert model.representation is not None
-    assert model.readout is not None
-    assert model.scale_shift is not None
-
-
-def test_mace_builder_get_builder_dispatch(mace_config_dict):
-    """MaceModelConfig.get_builder() must return MaceBuilder."""
-    from apax.config.model_config import MaceModelConfig
-    from apax.nn.builder import MaceBuilder
-
-    # Only keep MaceModelConfig fields for this pydantic instantiation
-    mace_only = {
-        k: v for k, v in mace_config_dict.items() if k in MaceModelConfig.model_fields
-    }
-    cfg = MaceModelConfig(**mace_only)
-    assert cfg.get_builder() is MaceBuilder
+def _minimal_cfg(**overrides):
+    """Build a small MaceModelConfig dict with placeholder data fields."""
+    cfg = MaceModelConfig(
+        r_max=5.0,
+        num_bessel=4,
+        num_polynomial_cutoff=5,
+        max_ell=1,
+        hidden_irreps="8x0e",
+        num_interactions=2,
+        correlation=2,
+        interaction_cls="RealAgnosticResidual",
+        descriptor_dtype="fp32",
+        readout_dtype="fp32",
+        scale_shift_dtype="fp64",
+    )
+    cfg = cfg.model_copy(update=overrides)
+    return cfg.model_dump()
 
 
-def test_mace_builder_derivative_model_runs(mace_config_dict):
-    from apax.nn.builder import MaceBuilder
+def test_mace_builder_uses_mace_readout_by_default():
+    from apax.layers.readout import MaceReadout
+    builder = MaceBuilder(_minimal_cfg(readout_kind="mace"), n_species=5)
+    readout = builder.build_readout(builder.config)
+    assert isinstance(readout, MaceReadout)
+    assert readout.num_interactions == 2
+    assert readout.hidden_dim == 8
+    assert readout.MLP_irreps == "16x0e"
 
-    builder = MaceBuilder(mace_config_dict, n_species=10)
+
+def test_mace_builder_standard_readout_falls_back():
+    from apax.layers.readout import AtomisticReadout
+    cfg = _minimal_cfg(readout_kind="standard")
+    builder = MaceBuilder(cfg, n_species=5)
+    readout = builder.build_readout(builder.config)
+    assert isinstance(readout, AtomisticReadout)
+
+
+def test_mace_builder_shallow_ensemble_plumbs_n_members():
+    from apax.layers.readout import MaceReadout
+    cfg = _minimal_cfg()
+    cfg["ensemble"] = {"kind": "shallow", "n_members": 4,
+                        "force_variance": True, "chunk_size": None}
+    builder = MaceBuilder(cfg, n_species=5)
+    readout = builder.build_readout(builder.config)
+    assert isinstance(readout, MaceReadout)
+    assert readout.n_shallow_ensemble == 4
+
+
+def test_mace_builder_feature_fn_uses_atomistic_readout():
+    """When is_feature_fn=True the standard feature-extraction path applies."""
+    from apax.layers.readout import AtomisticReadout
+    builder = MaceBuilder(_minimal_cfg(readout_kind="mace"), n_species=5)
+    readout = builder.build_readout(builder.config, is_feature_fn=True)
+    assert isinstance(readout, AtomisticReadout)
+
+
+def test_mace_builder_end_to_end_energy_derivative_model():
+    """Compose full EnergyDerivativeModel via MaceBuilder and call it."""
+    cfg = _minimal_cfg()
+    builder = MaceBuilder(cfg, n_species=5)
     model = builder.build_energy_derivative_model()
-    # Forward init on a tiny system
-    n_atoms = 4
-    R = jnp.zeros((n_atoms, 3))
-    Z = jnp.array([1, 8, 1, 6], dtype=jnp.int32)
-    idx = jnp.array(
-        [[0, 0, 0, 1, 1, 2, 2, 3, 3, 3], [1, 2, 3, 0, 2, 0, 3, 0, 1, 2]],
-        dtype=jnp.int32,
-    )
-    # EnergyDerivativeModel.__call__ signature: (R, Z, neighbor, box, offsets)
-    params = model.init(
-        jax.random.PRNGKey(0),
-        R,
-        Z,
-        idx,
-        jnp.zeros(3),
-        jnp.zeros((idx.shape[1], 3)),
-    )
-    out = model.apply(
-        params,
-        R,
-        Z,
-        idx,
-        jnp.zeros(3),
-        jnp.zeros((idx.shape[1], 3)),
-    )
-    # EnergyDerivativeModel returns a dict with energy, forces
-    assert out is not None
+
+    n_atoms = 3
+    # Non-degenerate positions: zero distances cause NaN in grad of |dr|
+    R = jnp.array([[0.0, 0.0, 0.0], [1.5, 0.0, 0.0], [3.0, 0.0, 0.0]])
+    Z = jnp.array([1, 2, 3], dtype=jnp.int32)
+    # Two edges: (0,1) and (1,2) -- index layout matches jax-md (receivers, senders)
+    neighbor = jnp.array([[0, 1], [1, 2]], dtype=jnp.int32).T
+    box = jnp.zeros((3,))
+    offsets = jnp.zeros((neighbor.shape[1], 3))
+
+    params = model.init(jax.random.PRNGKey(0), R, Z, neighbor, box, offsets)
+    out = model.apply(params, R, Z, neighbor, box, offsets)
+    assert "energy" in out
+    assert "forces" in out
+    assert out["forces"].shape == (n_atoms, 3)
+    assert np.all(np.isfinite(np.asarray(out["forces"])))

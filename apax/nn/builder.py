@@ -320,3 +320,57 @@ class MaceBuilder(ModelBuilder):
             dtype=self.config["descriptor_dtype"],
         )
         return descriptor
+
+    def build_readout(
+        self,
+        head_config,
+        is_feature_fn: bool = False,
+        only_use_n_layers: int | None = None,
+    ):
+        """Route between :class:`MaceReadout` and :class:`AtomisticReadout`.
+
+        ``readout_kind="mace"`` (default for ``MaceModelConfig``) builds a
+        :class:`~apax.layers.readout.MaceReadout` matching the foundation
+        forward pass. ``readout_kind="standard"`` falls back to the parent
+        :meth:`ModelBuilder.build_readout` (an :class:`AtomisticReadout`).
+        Feature extraction (``is_feature_fn=True``) always uses the parent
+        path since ``MaceReadout`` produces an energy scalar.
+
+        Parameters
+        ----------
+        head_config : dict
+            Config dict for the readout head, usually ``self.config``.
+        is_feature_fn : bool, optional
+            When ``True``, defer to parent (feature extraction path).
+        only_use_n_layers : int or None, optional
+            Passed through to parent when deferring.
+
+        Returns
+        -------
+        nn.Module
+            A :class:`~apax.layers.readout.MaceReadout` or
+            :class:`~apax.layers.readout.AtomisticReadout` instance.
+        """
+        kind = self.config.get("readout_kind", "mace")
+        if kind != "mace" or is_feature_fn:
+            return super().build_readout(
+                head_config, is_feature_fn, only_use_n_layers
+            )
+
+        import e3nn_jax as e3nn
+
+        from apax.layers.readout import MaceReadout
+
+        n_shallow_ensemble = 0
+        ens = head_config.get("ensemble") if isinstance(head_config, dict) else None
+        if ens and ens.get("kind") == "shallow":
+            n_shallow_ensemble = ens["n_members"]
+
+        hidden_dim = e3nn.Irreps(self.config["hidden_irreps"]).filter("0e").dim
+        return MaceReadout(
+            num_interactions=self.config["num_interactions"],
+            hidden_dim=hidden_dim,
+            MLP_irreps=self.config["MLP_irreps"],
+            n_shallow_ensemble=n_shallow_ensemble,
+            dtype=self.config["readout_dtype"],
+        )
