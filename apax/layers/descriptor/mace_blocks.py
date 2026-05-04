@@ -106,6 +106,60 @@ class LinearNodeEmbedding(nn.Module):
         return e3nn.IrrepsArray(irreps, feats)
 
 
+def tp_out_irreps_with_instructions(irreps_in1, irreps_in2, target_irreps):
+    """Compute the simplified intersection of ``irreps_in1 ⊗ irreps_in2`` with ``target_irreps``.
+
+    Adapted (port) from
+    ``mace_jax/modules/irreps_tools.py:tp_out_irreps_with_instructions``
+    (MIT-licensed). Used by :class:`InteractionBlock` to build the
+    ``conv_tp`` tensor-product graph: ``irreps_mid`` is the set of output
+    irreps reachable from ``in1 ⊗ in2`` and present in ``target_irreps``,
+    sorted to allow simplification by the downstream ``Linear``.
+
+    Parameters
+    ----------
+    irreps_in1 : e3nn.Irreps or str
+        First operand irreps (e.g. node-feature irreps).
+    irreps_in2 : e3nn.Irreps or str
+        Second operand irreps (e.g. spherical-harmonic irreps).
+    target_irreps : e3nn.Irreps or str
+        Filter for the output irreps; only paths whose ``ir_out`` is in
+        ``target_irreps`` are kept.
+
+    Returns
+    -------
+    irreps_mid : e3nn.Irreps
+        The collapsed intermediate irreps reachable in ``target_irreps``,
+        sorted by ``(l, p, mul)``.
+    instructions : list[tuple]
+        e3nn-style ``(i_in1, i_in2, i_out, "uvu", trainable=True)`` paths
+        with output indices permuted to match the sorted ``irreps_mid``.
+    """
+    irreps_in1 = e3nn.Irreps(irreps_in1)
+    irreps_in2 = e3nn.Irreps(irreps_in2)
+    target_irreps = e3nn.Irreps(target_irreps)
+    trainable = True
+
+    irreps_out_list: list[tuple[int, e3nn.Irrep]] = []
+    instructions: list[tuple] = []
+    for i, (mul, ir_in) in enumerate(irreps_in1):
+        for j, (_, ir_edge) in enumerate(irreps_in2):
+            for ir_out in ir_in * ir_edge:  # | l1 - l2 | <= l <= l1 + l2
+                if ir_out in target_irreps:
+                    k = len(irreps_out_list)
+                    irreps_out_list.append((mul, ir_out))
+                    instructions.append((i, j, k, "uvu", trainable))
+
+    irreps_mid = e3nn.Irreps(irreps_out_list)
+    irreps_mid, permut, _ = irreps_mid.sort()
+    instructions = [
+        (i_in1, i_in2, permut[i_out], mode, train)
+        for i_in1, i_in2, i_out, mode, train in instructions
+    ]
+    instructions = sorted(instructions, key=lambda x: x[2])
+    return irreps_mid, instructions
+
+
 # InteractionBlock (RealAgnosticResidual) — port notes
 # Inputs:  node_feats [n_atoms, irreps_in], edge_attrs (sph) [n_edges, Ylm],
 #          edge_feats (radial) [n_edges, n_bessel], i (receivers), j (senders), pair_mask

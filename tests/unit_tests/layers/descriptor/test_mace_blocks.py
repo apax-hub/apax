@@ -234,6 +234,22 @@ def test_nonlinear_readout_block_vmap_over_atoms():
     assert out.shape == (5, 1)
 
 
+def test_tp_out_irreps_with_instructions_basic():
+    """Helper computes the simplified intersection of in1 ⊗ in2 with target."""
+    import e3nn_jax as e3nn
+
+    from apax.layers.descriptor.mace_blocks import tp_out_irreps_with_instructions
+
+    irreps_in1 = e3nn.Irreps("8x0e")
+    irreps_in2 = e3nn.Irreps("1x0e + 1x1o + 1x2e + 1x3o")
+    target = e3nn.Irreps("8x0e + 8x1o + 8x2e + 8x3o")
+    irreps_mid, instructions = tp_out_irreps_with_instructions(
+        irreps_in1, irreps_in2, target,
+    )
+    assert e3nn.Irreps(irreps_mid).dim > 0
+    assert all(isinstance(i, tuple) for i in instructions)
+
+
 def test_nonlinear_readout_block_applies_silu_normalization():
     """Gate is SiLU * silu_normalization (torch-mace normalize2mom constant)."""
     from apax.layers.descriptor.mace_blocks import NonLinearReadoutBlock
