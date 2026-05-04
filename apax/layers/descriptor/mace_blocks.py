@@ -29,6 +29,81 @@ from cuequivariance.group_theory.experimental.mace.symmetric_contractions import
 from flax import linen as nn
 
 
+# torch-mace's :class:`e3nn.nn.FullyConnectedNet` wraps every hidden layer's
+# activation in :class:`e3nn.math.normalize2mom`, which estimates the L2 moment
+# of the activation under a unit Gaussian via Monte Carlo (1M samples, seed 0).
+# For ``torch.nn.functional.silu`` that yields the constant below.  We hard-code
+# the exact torch value so the apax radial MLP matches torch bit-for-bit; in
+# contrast, e3nn-jax's :func:`normalize_function` uses an ICDF-based
+# discretisation that gives ~1.6766 — a ~0.16% drift per activation, which
+# compounds across the 3 hidden silu activations to a ~0.5% drift on the radial
+# MLP output and ~3% on per-atom forces.  See
+# ``e3nn.math._normalize_activation.normalize2mom``.
+_TORCH_NORMALIZE2MOM_SILU_CST = 1.6791767923989418
+
+
+def _silu_torch_normalized(x):
+    """Apply ``torch.nn.functional.silu`` * torch's ``normalize2mom`` constant.
+
+    Parameters
+    ----------
+    x : Array
+        Input tensor.
+
+    Returns
+    -------
+    Array
+        ``silu(x) * 1.6791767923989418``, matching torch-mace's
+        ``e3nn.nn._fc._Layer`` activation.
+    """
+    return jax.nn.silu(x) * _TORCH_NORMALIZE2MOM_SILU_CST
+
+
+class _MaceFullyConnectedNet(nn.Module):
+    """Bit-for-bit replica of torch-mace's :class:`e3nn.nn.FullyConnectedNet`.
+
+    Mirrors the per-layer formula::
+
+        w = weight / sqrt(h_in)         # var_in/var_out are 1 throughout MACE
+        x = x @ w
+        x = silu(x) * 1.6791767...      # only on hidden layers (out_act=False)
+
+    Used as the radial MLP inside :class:`InteractionBlock` so the converted
+    weights from ``conv_tp_weights.layerN.weight`` produce the same gating
+    coefficients as torch.
+
+    Parameters
+    ----------
+    list_neurons : tuple of int
+        Output sizes of each layer (excluding the input layer).
+    """
+
+    list_neurons: tuple
+
+    @nn.compact
+    def __call__(self, x):
+        n_layers = len(self.list_neurons)
+        for i, h_out in enumerate(self.list_neurons):
+            # Use a Dense sub-module with no bias so the param tree is
+            # ``radial_mlp/Dense_{i}/kernel`` — matches the layout produced by
+            # ``e3nn.flax.MultiLayerPerceptron`` (and what
+            # :func:`apax.transfer_learning.mace_foundation._map_interactions`
+            # already targets).
+            h_in = x.shape[-1]
+            x_after_w = nn.Dense(
+                features=h_out,
+                use_bias=False,
+                kernel_init=nn.initializers.normal(stddev=1.0),
+                param_dtype=x.dtype,
+                name=f"Dense_{i}",
+            )(x)
+            # Same algebra as torch's ``_Layer.forward``: ``x @ (w / sqrt(h_in))``.
+            x = x_after_w / jnp.sqrt(jnp.asarray(h_in, x.dtype))
+            if i < n_layers - 1:
+                x = _silu_torch_normalized(x)
+        return x
+
+
 def assemble_edge_features(dr_vec, r_max, num_bessel, num_poly_cutoff, max_ell):
     """Compute per-edge radial × cutoff basis and spherical harmonics.
 
@@ -245,13 +320,14 @@ class InteractionBlock(nn.Module):
         tp = e3nn.tensor_product(x_j, edge_attrs, filter_ir_out=irreps_mid)
 
         # 3. Radial MLP: per-edge per-path scalar gates.
-        #    output_activation=False matches torch-mace's nn.FullyConnectedNet
-        #    (defaults to no activation on the final layer).
+        #    Uses ``_MaceFullyConnectedNet`` rather than e3nn-jax's
+        #    :class:`MultiLayerPerceptron` so the silu activation constant
+        #    matches torch's ``normalize2mom(silu)`` exactly (1.67918 vs
+        #    e3nn-jax's 1.67656).  The 0.16% per-activation drift would
+        #    compound to ~3% per-atom force error.
         n_paths = tp.irreps.num_irreps
-        weights = e3nn.flax.MultiLayerPerceptron(
-            list(self.radial_mlp) + [n_paths],
-            act=jax.nn.silu,
-            output_activation=False,
+        weights = _MaceFullyConnectedNet(
+            list_neurons=tuple(self.radial_mlp) + (n_paths,),
             name="radial_mlp",
         )(edge_feats)
         weighted = tp * weights
