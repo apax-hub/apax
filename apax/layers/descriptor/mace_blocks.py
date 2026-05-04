@@ -372,30 +372,28 @@ class ScaleShift(nn.Module):
 
 
 class ProductBlock(nn.Module):
-    """MACE product block: high-body-order symmetric contraction.
+    """MACE product block: symmetric contraction → Linear → optional ``+ sc``.
 
-    Wraps cuequivariance's MACE symmetric-contraction descriptor, evaluated
-    through :func:`cuequivariance_jax.equivariant_polynomial`. Produces node
-    features after per-element weighted self-tensor-products up to
-    ``correlation`` order. Optionally followed by an ``e3nn.flax.Linear`` post
-    map (``post_linear=True``) to mirror torch-mace's ``EquivariantProductBasisBlock``.
+    Mirrors torch-mace ``EquivariantProductBasisBlock``. Reduces a multi-irrep
+    input ``node_feats_irreps`` to the post-product ``target_irreps`` via
+    per-element symmetric contraction (cuequivariance), then applies a final
+    irreps ``Linear`` and optionally adds the per-element skip ``sc`` from the
+    parent :class:`InteractionBlock`.
 
     Parameters
     ----------
-    hidden_irreps : str
-        Output (target) irreps string. For the small MP-0 model this is
-        ``"128x0e"``. All entries must share a common multiplicity.
-    input_irreps : str or None
-        Input irreps for the symmetric contraction. When ``None`` (default) this
-        equals ``hidden_irreps``; the foundation-model path uses different
-        input/output irreps (e.g. ``"128x0e+128x1o+128x2e+128x3o"`` → ``"128x0e"``).
+    node_feats_irreps : str
+        Input irreps — typically :attr:`InteractionBlock.target_irreps`.
+        All entries must share a common multiplicity.
+    target_irreps : str
+        Output irreps — typically ``this_layer_hidden`` from
+        :class:`MaceRepresentation` (last-layer collapse-aware).
     correlation : int
         Maximum tensor-product order (MACE commonly uses 3).
     num_elements : int
         Number of chemical elements (per-species weight table row count).
-    post_linear : bool
-        If True, apply an ``e3nn.flax.Linear(hidden_irreps → hidden_irreps)`` after
-        the symmetric contraction (matches torch-mace foundation layout).
+    use_sc : bool
+        Whether to add the parent skip ``sc`` after the post-SC Linear.
     use_cueq : bool
         Reserved for P2 (CUDA kernel dispatch). For now, all paths go through
         :func:`cuex.equivariant_polynomial` with ``method='naive'``.
@@ -405,31 +403,28 @@ class ProductBlock(nn.Module):
     The descriptor built by
     :func:`cuequivariance.group_theory.experimental.mace.symmetric_contractions.symmetric_contraction`
     is static (does not depend on any traced values), so it is built lazily per
-    configuration via a module-level ``lru_cache``. Weight initialisation uses
-    ``normal(stddev=1.0)`` as a placeholder; parity with torch-mace is achieved
-    by the state-dict mapper in :mod:`apax.transfer_learning.mace_foundation`.
+    configuration via a module-level ``lru_cache`` keyed on
+    ``(node_feats_irreps, target_irreps, correlation)``. Weight initialisation
+    uses ``normal(stddev=1.0)``; parity with torch-mace is achieved by the
+    state-dict mapper in :mod:`apax.transfer_learning.mace_foundation`.
     """
 
-    hidden_irreps: str
-    input_irreps: str | None = None
+    node_feats_irreps: str
+    target_irreps: str
     correlation: int = 3
     num_elements: int = 119
-    post_linear: bool = False
+    use_sc: bool = True
     use_cueq: bool = False
 
     @nn.compact
-    def __call__(self, node_feats, Z):
+    def __call__(self, node_feats, sc, Z):
         if self.use_cueq:
             raise NotImplementedError(
                 "use_cueq=True is reserved for P2 (cuequivariance CUDA dispatch); "
                 "not yet implemented."
             )
-        irreps_out_e3 = e3nn.Irreps(self.hidden_irreps)
-        irreps_in_e3 = (
-            e3nn.Irreps(self.input_irreps)
-            if self.input_irreps is not None
-            else irreps_out_e3
-        )
+        irreps_in_e3 = e3nn.Irreps(self.node_feats_irreps)
+        irreps_out_e3 = e3nn.Irreps(self.target_irreps)
 
         out_muls = {mul for mul, _ in irreps_out_e3}
         in_muls = {mul for mul, _ in irreps_in_e3}
@@ -488,8 +483,12 @@ class ProductBlock(nn.Module):
         out_ir_mul = out_rep.change_layout(cue.ir_mul).array
         out_mul_ir = _ir_mul_to_mul_ir(out_ir_mul, irreps_out_e3)
         out = e3nn.IrrepsArray(irreps_out_e3, out_mul_ir)
-        if self.post_linear:
-            out = e3nn.flax.Linear(irreps_out_e3, name="linear")(out)
+
+        # Post-SC Linear matches torch's products.k.linear.weight slot.
+        out = e3nn.flax.Linear(irreps_out_e3, name="linear")(out)
+
+        if self.use_sc and sc is not None:
+            out = out + sc
         return out
 
 
