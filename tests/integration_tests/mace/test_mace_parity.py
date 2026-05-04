@@ -3,6 +3,8 @@
 Gated by mace_parity. Requires:
     uv sync --group mace-convert --extra mace
 """
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -135,3 +137,114 @@ def test_force_consistency_via_finite_difference(tmp_path, foundation_name, ase_
             f_numeric[i, d] = -(ep - em) / (2 * h)
 
     np.testing.assert_allclose(f_analytic, f_numeric, atol=1e-3)
+
+
+# ----------------------------------------------------------------------------
+# MACE-MatPES parity test — currently xfailing on conversion until the
+# Density-residual interaction variant is ported (see plan P3.7). The test is
+# structured as a full convert + parity comparison so it auto-flips to a
+# regular passing test once Density support lands; only the xfail decorator
+# needs to be removed.
+# ----------------------------------------------------------------------------
+
+_MATPES_URL = (
+    "https://github.com/ACEsuit/mace-foundations/releases/download/"
+    "mace_matpes_0/MACE-matpes-r2scan-omat-ft.model"
+)
+
+
+def _download_to(target: Path) -> Path:
+    """Download a small foundation .model file to ``target``.
+
+    Parameters
+    ----------
+    target : Path
+        Destination path. Skipped if it already exists (caching across runs
+        in the tmp_path_factory's persistent root).
+
+    Returns
+    -------
+    Path
+        ``target`` for chaining.
+    """
+    import urllib.request
+
+    if target.exists():
+        return target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    urllib.request.urlretrieve(_MATPES_URL, target)
+    return target
+
+
+@pytest.fixture
+def ase_periodic_sio2():
+    """Return a small periodic SiO2 cell suitable for parity tests."""
+    from ase import Atoms
+
+    return Atoms(
+        symbols=["Si", "O", "O"],
+        positions=[[0.0, 0.0, 0.0], [1.6, 0.0, 0.0], [0.0, 1.6, 0.0]],
+        cell=[4.0, 4.0, 4.0],
+        pbc=True,
+    )
+
+
+@pytest.mark.xfail(
+    raises=NotImplementedError,
+    strict=True,
+    reason=(
+        "MatPES-r2scan uses RealAgnosticDensityResidualInteractionBlock "
+        "(or similar Density variant); apax only ports RealAgnosticResidual "
+        "today. Conversion is rejected at the schema boundary as designed. "
+        "When the Density variant is implemented, drop this xfail and the "
+        "test becomes a regular parity assertion."
+    ),
+)
+def test_energy_force_parity_matpes_omat_ft(tmp_path_factory, ase_periodic_sio2):
+    """End-to-end parity for the MatPES-r2scan-omat-ft foundation model.
+
+    Downloads the .model file (cached across pytest sessions in
+    ``tmp_path_factory``'s root), converts it, and compares apax vs torch
+    energy / forces on a periodic SiO2 cell — the same shape of test as
+    ``test_energy_force_parity_water`` but for a different foundation
+    family.
+    """
+    from pathlib import Path
+
+    pytest.importorskip("torch")
+    pytest.importorskip("mace")
+    from apax.transfer_learning.mace_foundation import run_conversion
+
+    cache_root: Path = tmp_path_factory.mktemp("matpes_cache", numbered=False)
+    model_path = _download_to(cache_root / "MACE-matpes-r2scan-omat-ft.model")
+
+    # Sanity: the file was actually fetched (not the GitHub HTML 404 page).
+    assert model_path.stat().st_size > 1_000_000, (
+        f"matpes .model is unexpectedly small ({model_path.stat().st_size} B); "
+        "download may have failed or returned an HTML error page."
+    )
+
+    dst = cache_root / "matpes.apax"
+
+    # Today: this raises NotImplementedError from _extract_config_from_torch
+    # because the interaction block is a Density variant. The xfail decorator
+    # turns that into the expected outcome.
+    #
+    # Tomorrow (after Density port lands): conversion succeeds and the rest
+    # of the test runs the parity comparison below.
+    run_conversion(str(model_path), dst, head="default", family="mace_mp")
+
+    # _torch_energy_forces(name, ...) expects a canonical name; matpes
+    # isn't in mace_mp_names, so build the MACECalculator directly from
+    # the .model path.
+    from mace.calculators.mace import MACECalculator
+    torch_calc = MACECalculator(
+        model_paths=str(model_path), default_dtype="float64", device="cpu",
+    )
+    a = ase_periodic_sio2.copy(); a.calc = torch_calc
+    e_torch = float(a.get_potential_energy())
+    f_torch = np.asarray(a.get_forces())
+    e_apax, f_apax = _apax_energy_forces(dst, ase_periodic_sio2.copy())
+
+    np.testing.assert_allclose(e_apax, e_torch, rtol=1e-4, atol=1e-5)
+    np.testing.assert_allclose(f_apax, f_torch, rtol=1e-3, atol=1e-4)
