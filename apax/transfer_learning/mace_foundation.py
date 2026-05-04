@@ -30,13 +30,16 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from apax.config.train_config import Config
 
 
-# Map torch interaction class names to apax MaceModelConfig.interaction_cls values.
-_INTERACTION_CLS_MAP = {
-    "RealAgnosticInteractionBlock": "RealAgnostic",
-    "RealAgnosticResidualInteractionBlock": "RealAgnosticResidual",
-    "RealAgnosticDensityInteractionBlock": "RealAgnosticDensity",
-    "RealAgnosticDensityResidualInteractionBlock": "RealAgnosticDensityResidual",
-}
+# Torch interaction class names that apax can convert today.
+# Other variants (``RealAgnosticInteractionBlock``,
+# ``RealAgnosticDensityInteractionBlock``,
+# ``RealAgnosticDensityResidualInteractionBlock``) ship with several MACE
+# foundation families (MACE-MPA-0, MatPES, OMAT) but are out of scope until
+# the corresponding apax block ports land. ``MaceModelConfig.interaction_cls``
+# is a one-element ``Literal`` for the same reason — the schema and the
+# converter agree on what is implemented.
+_SUPPORTED_TORCH_INTERACTION_CLS = "RealAgnosticResidualInteractionBlock"
+_APAX_INTERACTION_CLS = "RealAgnosticResidual"
 
 # Number of chemical species in the apax embedding table. Z=0 is reserved for
 # padding; physical Z values are scattered into [1, n_species - 1].
@@ -263,12 +266,14 @@ def _extract_config_from_torch(model, head: str) -> dict:
         )
 
     inter0_cls = type(model.interactions[0]).__name__
-    interaction_cls = _INTERACTION_CLS_MAP.get(inter0_cls)
-    if interaction_cls is None:
+    if inter0_cls != _SUPPORTED_TORCH_INTERACTION_CLS:
         raise NotImplementedError(
-            f"Unsupported interaction class {inter0_cls!r}; "
-            f"supported: {sorted(_INTERACTION_CLS_MAP)}"
+            f"Foundation uses interaction block {inter0_cls!r}; apax currently "
+            f"only supports {_SUPPORTED_TORCH_INTERACTION_CLS!r}. Density / "
+            "non-residual variants (used by MACE-MPA-0, MatPES, OMAT) need "
+            "their apax port before they can be converted."
         )
+    interaction_cls = _APAX_INTERACTION_CLS
 
     hidden_irreps = str(model.products[0].linear.irreps_out)
 

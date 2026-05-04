@@ -23,12 +23,7 @@ from flax import linen as nn
 
 from apax.utils.convert import str_to_dtype
 
-InteractionKind = Literal[
-    "RealAgnostic",
-    "RealAgnosticResidual",
-    "RealAgnosticDensity",
-    "RealAgnosticDensityResidual",
-]
+InteractionKind = Literal["RealAgnosticResidual"]
 
 
 class MaceRepresentation(nn.Module):
@@ -50,8 +45,10 @@ class MaceRepresentation(nn.Module):
         Number of (interaction, product) layer pairs.
     correlation : int
         Symmetric-contraction correlation order.
-    interaction_cls : str
-        Which MACE interaction block variant to use.
+    interaction_cls : Literal["RealAgnosticResidual"]
+        Which MACE interaction block variant to use. Pinned to
+        ``"RealAgnosticResidual"`` until other variants land — see
+        :class:`apax.config.model_config.MaceModelConfig`.
     num_elements : int
         Size of the chemical-element embedding table.
     use_cueq : bool
@@ -150,7 +147,6 @@ class MaceRepresentation(nn.Module):
                 edge_attrs_irreps=sh_irreps_str,
                 target_irreps=interaction_irreps_str,
                 hidden_irreps=this_hidden_str,
-                interaction_cls=self.interaction_cls,
                 avg_num_neighbors=self.avg_num_neighbors,
             )(node_feats, sph, radial, Z_one_hot, i, j)
             node_feats = ProductBlock(

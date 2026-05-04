@@ -104,7 +104,6 @@ def test_interaction_block_shape_and_finite():
         edge_attrs_irreps=sph_irreps,
         target_irreps=target_irreps,
         hidden_irreps=hidden_irreps,
-        interaction_cls="RealAgnosticResidual",
     )
     params = block.init(
         jax.random.PRNGKey(0),
@@ -286,7 +285,6 @@ def test_interaction_block_emits_target_irreps_and_skip():
         edge_attrs_irreps=edge_attrs_irreps,
         target_irreps=target_irreps,
         hidden_irreps=hidden_irreps,
-        interaction_cls="RealAgnosticResidual",
     )
     rng = jax.random.PRNGKey(0)
     node_feats = e3nn.IrrepsArray(

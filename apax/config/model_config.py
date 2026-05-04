@@ -321,8 +321,13 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
         Number of (interaction, product) layer pairs.
     correlation : PositiveInt, default = 3
         Symmetric-contraction correlation order.
-    interaction_cls : Literal, default = "RealAgnosticResidual"
-        Which MACE interaction block variant to use.
+    interaction_cls : Literal["RealAgnosticResidual"], default = "RealAgnosticResidual"
+        Which MACE interaction block variant to use. Currently
+        ``"RealAgnosticResidual"`` is the only implemented variant; foundation
+        models that use ``RealAgnostic`` / ``RealAgnosticDensity`` /
+        ``RealAgnosticDensityResidual`` (e.g. MACE-MPA-0, MatPES, OMAT) are
+        out of scope until those blocks land. Field kept as a one-element
+        Literal so adding new variants is purely additive.
     use_cueq : bool, default = False
         Dispatch to cuequivariance-jax kernels where available.
     readout_kind : Literal["mace", "standard"], default = "mace"
@@ -345,12 +350,7 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
     hidden_irreps: str = "128x0e + 128x1o"
     num_interactions: PositiveInt = 2
     correlation: PositiveInt = 3
-    interaction_cls: Literal[
-        "RealAgnostic",
-        "RealAgnosticResidual",
-        "RealAgnosticDensity",
-        "RealAgnosticDensityResidual",
-    ] = "RealAgnosticResidual"
+    interaction_cls: Literal["RealAgnosticResidual"] = "RealAgnosticResidual"
     use_cueq: bool = False
     readout_kind: Literal["mace", "standard"] = "mace"
     MLP_irreps: str = "16x0e"

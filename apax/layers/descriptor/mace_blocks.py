@@ -265,9 +265,6 @@ class InteractionBlock(nn.Module):
     hidden_irreps : str
         Target irreps for the per-element skip ``sc``. Matches the post-product
         ``this_layer_hidden`` of :class:`MaceRepresentation`.
-    interaction_cls : str
-        Reserved for variant dispatch; only ``"RealAgnosticResidual"`` is
-        implemented in this phase.
     radial_mlp : tuple
         Hidden widths of the radial MLP gating tensor-product channels.
     avg_num_neighbors : float
@@ -290,7 +287,6 @@ class InteractionBlock(nn.Module):
     edge_attrs_irreps: str
     target_irreps: str
     hidden_irreps: str
-    interaction_cls: str = "RealAgnosticResidual"
     radial_mlp: tuple = (64, 64, 64)
     avg_num_neighbors: float = 1.0
 
@@ -298,12 +294,6 @@ class InteractionBlock(nn.Module):
     def __call__(
         self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders,
     ):
-        if self.interaction_cls != "RealAgnosticResidual":
-            raise NotImplementedError(
-                f"Interaction variant {self.interaction_cls!r} not implemented; "
-                "only 'RealAgnosticResidual' is supported in P3."
-            )
-
         node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
         edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
         target_irreps = e3nn.Irreps(self.target_irreps)
