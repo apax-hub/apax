@@ -137,6 +137,7 @@ def run_conversion(
         extra_scalars=extra_scalars,
         selected_head=head,
         config=full_cfg.model,
+        torch_model=torch_model,
     )
     _validate_no_nan(params)
 
@@ -374,12 +375,20 @@ def _map_state_to_pytree(
     extra_scalars: dict,
     selected_head: str,
     config,
+    torch_model,
 ) -> dict:
     """Translate torch ``state_dict`` arrays → a linen pytree matching ``template``.
 
     The returned pytree mirrors the output of
     :meth:`MaceBuilder.build_energy_derivative_model().init(...)`, so its top
     level is ``{"params": {"energy_model": {...}}}``.
+
+    After the P3.5b architecture extension every torch float parameter has a
+    same-numel apax slot, so this mapper performs **direct copies / scatters**
+    only — no projections, slices, or per-element averages. The
+    symmetric-contraction weights are the only non-trivial reshape; that work
+    is delegated to mace-jax's reference adapter so we share its full-CG
+    transform.
 
     Parameters
     ----------
@@ -400,6 +409,10 @@ def _map_state_to_pytree(
         small/medium foundation models.
     config : apax.config.model_config.MaceModelConfig
         The validated model configuration.
+    torch_model : torch.nn.Module
+        Live torch foundation model. Required by :func:`_map_products` to call
+        mace-jax's :func:`_convert_native_weights`, which builds the full-CG
+        transform from torch's :class:`SymmetricContraction` directly.
 
     Returns
     -------
@@ -415,7 +428,13 @@ def _map_state_to_pytree(
 
     _map_node_embedding(state, rep, torch_atomic_numbers)
     _map_interactions(state, rep, torch_atomic_numbers, config)
-    _map_products(state, rep, torch_atomic_numbers, config)
+    _map_products(
+        state,
+        rep,
+        torch_atomic_numbers,
+        config,
+        torch_model=torch_model,
+    )
     _map_readouts(
         state,
         energy_params["readout"],
@@ -528,22 +547,37 @@ def _map_interactions(
 
     Per-block torch keys (k = 0 .. num_interactions-1)::
 
-        interactions.k.linear_up.weight       (M_in * M_out,)
-        interactions.k.linear.weight          (n_paths * M * M,)
-        interactions.k.skip_tp.weight         (M_in * E * M_out,)  per-element
+        interactions.k.linear_up.weight                (M*M,)
+        interactions.k.linear.weight                   (n_paths*M*M,)
+        interactions.k.skip_tp.weight                  (M*n_torch*M,)
         interactions.k.conv_tp_weights.layerN.weight   radial-MLP layer N
 
-    The current apax :class:`InteractionBlock` is scalar-only (``128x0e`` in
-    and out). The torch interaction emits the full ``128x0e+128x1o+128x2e+128x3o``
-    irreps. To get a non-NaN pytree we extract:
+    All slots are direct copies / scatters now that the apax
+    :class:`~apax.layers.descriptor.mace_blocks.InteractionBlock` carries the
+    full multi-irrep target plus a per-element skip:
 
-    - ``linear_up`` : direct reshape, identical layout (both ``128x0e → 128x0e``).
-    - ``linear_down`` : the leading ``0e → 0e`` block of the full torch ``linear``.
-    - ``skip_linear`` : average of the per-element torch ``skip_tp`` over species.
-    - ``radial_mlp`` Dense_{0..2} : direct reshape of torch layer 0..2.
-      Dense_3 takes only the first ``n_paths_apax`` (= ``M`` for ``128x0e``
-      output) columns of the torch last-layer weight (which has ``n_paths`` for
-      the full torch irreps).
+    - ``linear_up`` : single ``Mx0e → Mx0e`` block, flat reshape ``(M, M)``.
+    - ``linear``    : torch ``e3nn.o3.Linear`` with one diagonal instruction
+      per output irrep (e.g. four ``(128, 128)`` blocks for
+      ``128x0e+128x1o+128x2e+128x3o``). Slice the flat torch weight
+      block-by-block in the order torch's :meth:`instructions` produces them
+      (which matches the e3nn-jax ``w[i,i]`` slot order in
+      :class:`e3nn_jax.flax.Linear`). Both implementations apply the same
+      ``path_weight = 1/sqrt(M)`` normalisation, so the values are
+      bit-for-bit copies.
+    - ``skip_tp``   : torch ``FullyConnectedTensorProduct(node_feats × node_attrs
+      → hidden)``. apax replaces this with
+      ``e3nn.flax.Linear(e3nn.tensor_product(node_feats, Z_one_hot))`` whose
+      weight is ``(M_in * n_species, M_out)``. The ``e3nn.tensor_product``
+      layout puts ``i*n_species + Z_phys`` in row order, so we scatter
+      ``apax_W[i*119 + Z_phys, k_out] = torch_W[i, torch_idx, k_out]`` and
+      leave rows for missing species at zero. The two paths share the same
+      ``path_weight = 1/sqrt(M_in * n_species)`` normalisation.
+    - ``radial_mlp`` Dense_{0..3} : both torch ``FullyConnectedNet`` layers
+      and ``e3nn_jax.flax.MultiLayerPerceptron`` store kernels as
+      ``(in, out)``. Direct reshape across all four layers — the torch model
+      already targets the full-irrep ``n_paths`` (= ``num_irreps`` of
+      ``interaction_irreps``) so no slicing is needed.
 
     Parameters
     ----------
@@ -560,13 +594,13 @@ def _map_interactions(
 
     n_torch = len(torch_atomic_numbers)
     hidden_irreps = e3nn.Irreps(config.hidden_irreps)
-    M = hidden_irreps.filter("0e").dim  # scalar channel count
+    M = hidden_irreps.filter("0e").dim  # scalar channel count (= num_features)
 
     for k in range(int(config.num_interactions)):
         block = rep_params[f"InteractionBlock_{k}"]
         prefix = f"interactions.{k}."
 
-        # 1. linear_up : 128x0e -> 128x0e, flat reshape directly.
+        # 1. linear_up : single 128x0e -> 128x0e block, flat reshape directly.
         target = block["linear_up"]["w[0,0] 128x0e,128x0e"]
         flat = state[prefix + "linear_up.weight"]
         if flat.size != target.size:
@@ -578,58 +612,102 @@ def _map_interactions(
             target.shape
         ).astype(target.dtype)
 
-        # 2. linear_down : take the leading 0e->0e block of torch's full linear.
-        target = block["linear_down"]["w[0,0] 128x0e,128x0e"]
-        flat = state[prefix + "linear.weight"]
-        # Torch ordering is sorted by output irrep index; for irreps
-        # "128x0e+128x1o+128x2e+128x3o" -> "128x0e+...", first M*M elements are
-        # the 0e->0e block (see e3nn.o3.Linear instructions).
-        n_per_block = M * M
-        if flat.size < n_per_block:
-            raise ValueError(
-                f"interactions.{k}.linear.weight too small ({flat.size}) for "
-                f"the leading {n_per_block}-element 0e→0e block"
-            )
-        block["linear_down"]["w[0,0] 128x0e,128x0e"] = (
-            flat[:n_per_block].reshape(M, M).astype(target.dtype)
+        # 2. linear : multi-irrep e3nn.o3.Linear flat → per-irrep apax slots.
+        #    torch stores 4 (M, M) blocks back-to-back in the order produced by
+        #    its ``instructions`` (which the e3nn-jax slot keys mirror).
+        _scatter_o3_linear_blocks(
+            block["linear"], state[prefix + "linear.weight"], M=M,
         )
 
-        # 3. skip_linear : torch skip_tp is per-element (M_in, E, M_out); apax
-        #    skip is element-agnostic (M_in, M_out). Average over the torch
-        #    element dimension as a reasonable single-tensor projection.
-        target = block["skip_linear"]["w[0,0] 128x0e,128x0e"]
+        # 3. skip_tp : per-element FCTP → e3nn.flax.Linear over tensor product.
+        skip_target_key = next(iter(block["skip_tp"]))
+        target = block["skip_tp"][skip_target_key]
         flat = state[prefix + "skip_tp.weight"]
+        n_species_apax = target.shape[0] // M
+        if target.shape[0] != n_species_apax * M:
+            raise ValueError(
+                f"InteractionBlock_{k} skip_tp slot has shape {target.shape}; "
+                "rows must be (M_in * n_species_apax)."
+            )
         expected = M * n_torch * M
         if flat.size != expected:
             raise ValueError(
                 f"interactions.{k}.skip_tp.weight size {flat.size} != "
-                f"expected {expected} (= M_in * E * M_out)"
+                f"expected {expected} (= M_in * n_torch * M_out)"
             )
-        per_elem = flat.reshape(M, n_torch, M)
-        block["skip_linear"]["w[0,0] 128x0e,128x0e"] = (
-            per_elem.mean(axis=1).astype(target.dtype)
-        )
+        # Torch FCTP weight layout is (in1=M, in2=n_torch, out=M).
+        torch_w_3d = flat.reshape(M, n_torch, M)
+        new = np.zeros_like(target)
+        for torch_idx, Z in enumerate(torch_atomic_numbers):
+            if not (0 <= Z < n_species_apax):
+                continue
+            # apax row index = i * n_species_apax + Z (matches the layout
+            # produced by e3nn.tensor_product(node_feats[Mx0e], Z_one_hot)).
+            for i in range(M):
+                new[i * n_species_apax + Z, :] = torch_w_3d[i, torch_idx, :]
+        block["skip_tp"][skip_target_key] = new.astype(target.dtype)
 
-        # 4. radial MLP layers.
+        # 4. radial MLP : direct kernel copy for every layer.
         radial = block["radial_mlp"]
         for layer_idx in range(4):
             target = radial[f"Dense_{layer_idx}"]["kernel"]
             torch_w = state[
                 prefix + f"conv_tp_weights.layer{layer_idx}.weight"
             ]
-            if torch_w.shape[0] != target.shape[0]:
+            if torch_w.shape != target.shape:
                 raise ValueError(
-                    f"radial_mlp Dense_{layer_idx} input dim mismatch: "
-                    f"torch {torch_w.shape[0]} vs apax {target.shape[0]}"
+                    f"radial_mlp Dense_{layer_idx} shape mismatch: "
+                    f"torch {torch_w.shape} vs apax {target.shape}"
                 )
-            # The last layer's torch output dim is the number of TP paths for
-            # the full torch irreps; apax keeps only the leading block of size
-            # `target.shape[1]` (= scalar n_paths).
-            cols = min(torch_w.shape[1], target.shape[1])
-            sliced = torch_w[:, :cols]
-            new = np.zeros_like(target)
-            new[:, :cols] = sliced
-            radial[f"Dense_{layer_idx}"]["kernel"] = new.astype(target.dtype)
+            radial[f"Dense_{layer_idx}"]["kernel"] = (
+                np.asarray(torch_w).astype(target.dtype)
+            )
+
+
+def _scatter_o3_linear_blocks(
+    block_params: dict,
+    flat: np.ndarray,
+    *,
+    M: int,
+) -> None:
+    """Slice a flat ``e3nn.o3.Linear`` weight into apax ``w[i,i]`` slots.
+
+    Both torch's :class:`e3nn.o3.Linear` and apax's
+    :class:`e3nn_jax.flax.Linear` enumerate diagonal instructions (one per
+    irrep in the input/output) in the same order, with each instruction
+    contributing a ``(mul_in, mul_out)`` block to the flat weight. For the
+    interaction layer's ``128x0e+128x1o+128x2e+128x3o → ...`` setting that's
+    four ``(128, 128)`` blocks back-to-back. The apax slot keys
+    (``"w[0,0] ..."`` / ``"w[1,1] ..."`` / ...) sort lexicographically into
+    the same order, so a sorted iteration over the slots fills them
+    deterministically.
+
+    Parameters
+    ----------
+    block_params : dict
+        The ``InteractionBlock_k.linear`` (or analogous) sub-dict (mutated
+        in place).
+    flat : np.ndarray
+        Flat torch ``Linear.weight`` tensor.
+    M : int
+        Common multiplicity (e.g. 128). Each instruction contributes
+        ``M * M`` weights.
+    """
+    keys = sorted(block_params.keys())
+    expected = len(keys) * M * M
+    if flat.size != expected:
+        raise ValueError(
+            f"e3nn.o3.Linear flat weight size {flat.size} != expected "
+            f"{expected} (= {len(keys)} blocks × {M}×{M})."
+        )
+    for slot_idx, key in enumerate(keys):
+        target = block_params[key]
+        if target.shape != (M, M):
+            raise ValueError(
+                f"Linear slot {key!r} has shape {target.shape}; expected ({M}, {M})."
+            )
+        block = flat[slot_idx * M * M : (slot_idx + 1) * M * M].reshape(M, M)
+        block_params[key] = block.astype(target.dtype)
 
 
 def _map_products(
@@ -637,26 +715,33 @@ def _map_products(
     rep_params: dict,
     torch_atomic_numbers: tuple[int, ...],
     config,
+    *,
+    torch_model,
 ) -> None:
-    """Map ``products.k.symmetric_contractions.*`` into ``ProductBlock_k/weight``.
+    """Map ``products.k.*`` into apax ``ProductBlock_k`` (SC + post-Linear).
 
-    Both the torch ``SymmetricContraction`` and apax's cuequivariance-based
-    :class:`ProductBlock` materialise a per-element weight tensor of shape
-    ``(num_elements, basis_dim, mul)``. For the small MP-0 model with
-    scalar-only ``hidden_irreps="128x0e"`` and ``correlation=3``:
+    Two slots per layer:
 
-    - torch native: ``weights_max (E, b_max, M)`` + ``weights.{m} (E, b_m, M)``
-      concatenated to ``(E, b_native, M)``.
-    - apax cue: ``(E, basis_dim, M)`` directly.
+    1. ``ProductBlock_k.weight`` — symmetric-contraction per-element weight
+       tensor of shape ``(num_elements_apax, basis_dim, mul)``. The torch
+       native module stores its weights per-contraction and per-degree
+       (``contractions.{c}.weights_max`` for the top correlation order plus
+       ``contractions.{c}.weights.{m}`` for the lower degrees). Reshaping
+       these into the cue descriptor's canonical basis requires the
+       full-CG transform, which is expensive to derive on the fly. We
+       delegate to mace-jax's reference adapter
+       :func:`mace_jax.adapters.cuequivariance.symmetric_contraction._convert_native_weights`
+       — it's the same code path mace-jax uses for its own torch→jax import.
 
-    For the scalar-only case the cuequivariance descriptor uses
-    ``basis_dim == correlation`` (3), and the torch native blocks for each
-    degree are 1-D scalars per correlation order; they map slot-by-slot when
-    ``basis_dim == correlation``. We populate the leading
-    ``min(basis_dim, native_dim)`` slots and leave any remainder zero.
+       The adapter returns a ``(num_elements_torch, basis_dim, mul)`` tensor
+       in the cue descriptor's canonical basis, which we then scatter row-wise
+       into the apax slot using ``torch_atomic_numbers`` so physical Z values
+       index the table. Rows for missing species stay at their init value.
 
-    Per-element rows are scattered by physical Z; rows for missing species
-    stay at their template init.
+    2. ``ProductBlock_k.linear`` — post-SC ``e3nn.o3.Linear(target_irreps →
+       target_irreps)`` whose weight is a single ``(M, M)`` block (the
+       small/medium MP-0 ``target_irreps == "128x0e"``). Direct flat reshape;
+       see :func:`_scatter_o3_linear_blocks` for the multi-block contract.
 
     Parameters
     ----------
@@ -667,48 +752,50 @@ def _map_products(
     torch_atomic_numbers : tuple of int
         Maps each torch element row to its physical Z value.
     config : MaceModelConfig
-        Used for ``num_interactions`` and ``correlation``.
+        Used for ``num_interactions``.
+    torch_model : torch.nn.Module
+        Live torch foundation model. ``products[k].symmetric_contractions`` is
+        passed to mace-jax's adapter to handle the full-CG transform.
     """
-    correlation = int(config.correlation)
+    import jax.numpy as jnp  # noqa: PLC0415
+    from mace_jax.adapters.cuequivariance.symmetric_contraction import (  # noqa: PLC0415
+        _convert_native_weights,
+    )
+
     n_torch = len(torch_atomic_numbers)
     for k in range(int(config.num_interactions)):
-        target = rep_params[f"ProductBlock_{k}"]["weight"]
-        n_species, basis_dim, M = target.shape
-        prefix = f"products.{k}.symmetric_contractions.contractions.0."
+        block = rep_params[f"ProductBlock_{k}"]
+        target = block["weight"]
+        n_species_apax, basis_dim, mul = target.shape
 
-        # Stack native blocks degree-high to degree-low (same order mace-jax
-        # uses): weights_max, weights.0, weights.1, ...
-        blocks: list[np.ndarray] = []
-        max_arr = state[prefix + "weights_max"]  # (E, b_max, M)
-        # The corr=highest block typically has the largest "b" dim and
-        # corresponds to the top-correlation order; lower-degree weights live
-        # in `weights.{m}`.
-        # For the scalar-only descriptor (mace-jax's projection is square 3×3),
-        # we only need the per-degree scalar entries, which are typically the
-        # full block for scalar irreps.
-        blocks.append(max_arr)
-        for m in range(correlation - 1):
-            key = prefix + f"weights.{m}"
-            if key in state:
-                blocks.append(state[key])
-        native = np.concatenate(blocks, axis=1)  # (E, b_native_total, M)
+        # Build the full-CG-aware conversion through mace-jax's reference
+        # adapter; ``target_template`` only carries the desired (basis, mul)
+        # shape and dtype, never values.
+        torch_sc = torch_model.products[k].symmetric_contractions
+        native_template = jnp.zeros(
+            (n_torch, basis_dim, mul), dtype=target.dtype
+        )
+        converted = np.asarray(
+            _convert_native_weights(torch_sc, target_template=native_template)
+        )
+        if converted.shape != (n_torch, basis_dim, mul):
+            raise ValueError(
+                f"products.{k} SC adapter returned shape {converted.shape}; "
+                f"expected ({n_torch}, {basis_dim}, {mul})."
+            )
 
-        # Take the leading `basis_dim` columns. For the scalar-only descriptor
-        # this is exact (basis_dim=3, native concat dim=23+4+1=28, but only the
-        # first `basis_dim` dims map directly to the cue scalar weights). The
-        # remainder are higher-order-CG tensors that vanish for scalar output.
-        cols = min(basis_dim, native.shape[1])
         new = np.zeros_like(target)
         for torch_idx, Z in enumerate(torch_atomic_numbers):
-            if 0 <= Z < n_species:
-                new[Z, :cols, :] = native[torch_idx, :cols, :]
-        # Quick sanity assertion that the torch row count matches the table.
-        if native.shape[0] != n_torch:
-            raise ValueError(
-                f"product k={k}: native weight row count {native.shape[0]} "
-                f"!= torch element count {n_torch}"
-            )
-        rep_params[f"ProductBlock_{k}"]["weight"] = new.astype(target.dtype)
+            if 0 <= Z < n_species_apax:
+                new[Z] = converted[torch_idx]
+        block["weight"] = new.astype(target.dtype)
+
+        # Post-SC Linear: mirrors interactions.linear handling.
+        _scatter_o3_linear_blocks(
+            block["linear"],
+            state[f"products.{k}.linear.weight"],
+            M=mul,
+        )
 
 
 def _map_readouts(
