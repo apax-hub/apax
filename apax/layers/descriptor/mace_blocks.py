@@ -473,8 +473,22 @@ class ProductBlock(nn.Module):
                 f"got {array.shape[-1]}"
             )
 
-        # Reshape (n_atoms, mul*feature_dim) -> (n_atoms, mul, feature_dim) in mul_ir.
-        x_mul_ir = array.reshape(n_atoms, mul, feature_dim_in)
+        # The flat e3nn ``mul_ir`` layout stores each ``(mul, ir)`` chunk as a
+        # contiguous ``mul * ir.dim`` block in mul-major order:
+        # ``[m0_d0, m0_d1, ..., m0_d_{ir.dim-1}, m1_d0, ...]``.  A single
+        # ``reshape(n_atoms, mul, feature_dim_in)`` would treat the flat axis as
+        # row-major ``(mul, feature_dim_in)`` which interleaves irreps incorrectly.
+        # We instead slice per-irrep, reshape to ``(n_atoms, mul, ir.dim)`` and
+        # concatenate along the last axis to obtain the canonical
+        # ``(n_atoms, mul, feature_dim_in)`` tensor expected by
+        # :func:`_features_to_rep`.
+        offset = 0
+        per_irrep = []
+        for mul_i, ir in irreps_in_e3:
+            block = array[..., offset : offset + mul_i * ir.dim]
+            offset += mul_i * ir.dim
+            per_irrep.append(block.reshape(n_atoms, mul_i, ir.dim))
+        x_mul_ir = jnp.concatenate(per_irrep, axis=-1)
 
         # Per-element weight table.
         weight = self.param(
