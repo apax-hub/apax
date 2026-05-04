@@ -141,7 +141,93 @@ class MaceRepresentation(nn.Module):
         return features   # (n_atoms, num_interactions * hidden_scalar_dim)
 ```
 
-Internally: node embedding → N× (interaction → product) → concatenate the scalar (l=0) features from every layer → apply node mask → return. Non-scalar irreps are discarded at the apax boundary because readouts expect scalars. The per-layer concatenation is what makes `MaceReadout` able to reapply MACE's per-layer readout pattern (§3.5).
+Internally the descriptor builds the **full multi-irrep MACE pipeline**:
+
+```
+sh_irreps          = Irreps.spherical_harmonics(max_ell)              # 1x0e + 1x1o + … + 1x{L}{e|o}
+num_features       = hidden_irreps.count(Irrep(0,1))                  # 128 for "128x0e"
+node_attr_irreps   = Irreps([(num_elements, (0, 1))])                 # 119x0e — one-hot Z
+node_feats_irreps  = Irreps([(num_features, (0, 1))])                 # 128x0e (initial scalars)
+interaction_irreps = (sh_irreps * num_features).sort()[0].simplify()  # 128x0e + 128x1o + 128x2e + 128x3o
+```
+
+Per layer:
+
+1. `(message, sc) = InteractionBlock(node_feats_irreps=prev, node_attrs_irreps=node_attr_irreps,
+   edge_attrs_irreps=sh_irreps, target_irreps=interaction_irreps,
+   hidden_irreps=this_layer_hidden)(node_feats, sph, radial, Z_one_hot, i, j)`
+2. `node_feats = ProductBlock(node_feats_irreps=interaction_irreps, target_irreps=this_layer_hidden,
+   correlation=correlation, num_elements=num_elements, use_sc=True)(message, sc, Z)`
+3. The scalar-only slice of `node_feats` is appended to the per-layer output buffer.
+
+`this_layer_hidden` is `hidden_irreps` for layers `0..N-2` and `Irreps(str(hidden_irreps[0]))` for the last layer (the "first-irrep collapse"); for `hidden_irreps="128x0e"` every layer ends in `128x0e`, for `"128x0e+128x1o"` only the last layer collapses to `128x0e`. After the loop the per-layer scalars are concatenated, masked, and returned — `MaceReadout` (§3.5) consumes that scalar tail.
+
+This is the same forward composition as upstream torch-mace `MACE.__init__` + `MACE.forward` (`mace/modules/models.py:148-273`) and mace-jax `MACE.__init__` (`mace_jax/modules/models.py:249-303`).
+
+### 3.4a `InteractionBlock` and `ProductBlock` contracts
+
+These primitives live in `apax/layers/descriptor/mace_blocks.py`. Both take explicit irrep specifications so `MaceRepresentation` can wire them with the multi-irrep `interaction_irreps` target.
+
+#### `InteractionBlock`
+
+```python
+class InteractionBlock(nn.Module):
+    node_feats_irreps: str            # input node features (e.g. "128x0e")
+    node_attrs_irreps: str            # one-hot element irreps (e.g. "119x0e")
+    edge_attrs_irreps: str            # spherical harmonics, e.g. "1x0e + 1x1o + 1x2e + 1x3o"
+    target_irreps: str                # multi-irrep target (interaction_irreps)
+    hidden_irreps: str                # post-product target (used by skip_tp slot)
+    interaction_cls: str = "RealAgnosticResidual"
+    radial_mlp: tuple = (64, 64, 64)
+
+    @nn.compact
+    def __call__(self, node_feats, sph, radial, Z_one_hot, i, j):
+        # 1. linear_up:  node_feats   -> node_feats_irreps         (in-place mix)
+        # 2. conv_tp:    (node_feats_j × sph)  filtered to target_irreps via
+        #                tp_out_irreps_with_instructions
+        # 3. radial MLP gates the per-edge TP weights from `radial`
+        # 4. scatter-sum into receivers
+        # 5. linear:     irreps_mid   -> target_irreps
+        # 6. skip_tp:    e3nn.flax.Linear(node_feats × Z_one_hot -> hidden_irreps)
+        return message, sc          # message: target_irreps; sc: hidden_irreps
+```
+
+`skip_tp` is the parity-critical per-element bilinear — `node_feats × node_attrs` projected to `hidden_irreps`. In e3nn-jax this is `e3nn.flax.Linear(hidden_irreps)(e3nn.tensor_product(node_feats, Z_one_hot))`. It corresponds to torch's `FullyConnectedTensorProduct(node_feats_irreps, node_attrs_irreps, hidden_irreps)` and stores `(num_elements × n_paths)` weights — **not** an element-agnostic Linear.
+
+`tp_out_irreps_with_instructions(irreps_in1, irreps_in2, target)` is a small helper (ported from `mace_jax/modules/blocks.py`) that returns `(irreps_mid, instructions)` where `irreps_mid` is the simplified intersection of `irreps_in1 ⊗ irreps_in2` with `target`. Used so the conv-TP only computes paths that contribute to `target_irreps`.
+
+#### `ProductBlock`
+
+```python
+class ProductBlock(nn.Module):
+    node_feats_irreps: str            # input (= InteractionBlock.target_irreps)
+    target_irreps: str                # output (= this_layer_hidden, e.g. "128x0e")
+    correlation: int = 3
+    num_elements: int = 119
+    use_sc: bool = True
+    use_cueq: bool = False
+
+    @nn.compact
+    def __call__(self, node_feats, sc, Z):
+        # 1. SymmetricContraction (cuequivariance):
+        #      node_feats_irreps -> target_irreps with per-element weights
+        # 2. Linear(target_irreps -> target_irreps, name="linear")
+        # 3. + sc   (if use_sc and sc is not None)
+        return out                    # target_irreps
+```
+
+The `Linear` after symmetric contraction matches torch's `products.{k}.linear.weight`; without it, the post-SC features would skip the `+ sc` path's linear-mixing step.
+
+### 3.4b Last-layer collapse
+
+For `num_interactions = N` and `hidden_irreps = H`:
+
+| Layer index | `this_layer_hidden`              |
+|-------------|----------------------------------|
+| `0..N-2`    | `H` (full)                       |
+| `N-1`       | `Irreps(str(H[0]))` (first slot) |
+
+For `H = "128x0e"`, every layer ends in `128x0e` (the collapse is a no-op). For `H = "128x0e + 128x1o"`, only the last layer collapses to `"128x0e"` — its product retains scalars only since the readout is scalar-only.
 
 **Z-indexing convention:** `num_elements` defaults to 119 (matches GMNN's `n_species`), so the one-hot embedding is keyed by `Z` directly. Foundation weights (trained on 89 specific elements) are zero-padded at convert time into the 119-row slot (§4.3). No `atomic_numbers` LUT inside the model.
 
@@ -366,20 +452,24 @@ def run_conversion(source, dst, *, head="default", family="mace_mp") -> None:
 
 ### 4.4 Torch → apax parameter mapping
 
-Enumerate torch `state_dict` keys; for each, place the numpy array in the corresponding slot of the linen `params_template`. Key transformations:
+With the §3.4/3.4a forward pass, every torch `state_dict` weight maps **directly** to an apax leaf — no projections, slicing, or per-element averaging. The only transformations are zero-padding along the element axis (89 → 119) and torch ↔ e3nn-jax row/column conventions where they differ.
 
-- **`node_embedding.linear.weight`** `(N_torch_elts * hidden_scalar,)` → apax `(N_apax=119, hidden_scalar)` zero-padded at `torch_atomic_numbers` indices. Transpose to match e3nn_jax `Linear` convention.
-- **`interactions.{k}.linear_up.weight` / `.linear.weight` / `.skip_tp.weight`** — `e3nn.o3.Linear` / `FullyConnectedTensorProduct` weights. Follow `/Users/fzills/tools/mace-jax/mace_jax/modules/blocks.py:RealAgnosticResidualInteractionBlock.import_from_torch` as the reference map, adapting its NNX layout to our linen layout.
-- **`interactions.{k}.conv_tp_weights.layer{0..3}.weight`** — per-layer MLP weights. Our `e3nn.flax.MultiLayerPerceptron` stores them as `kernel_{j}`; direct assignment with a possible transpose.
-- **`products.{k}.symmetric_contractions.contractions.{c}.weights_max` + `.weights.{m}`** — torch stores per-correlation-order weights separately; our cuequivariance-based `ProductBlock` stores a single fused `(N_apax=119, weight_numel, mul)` tensor. Concatenate + zero-pad along the element axis; see `/Users/fzills/tools/mace-jax/mace_jax/adapters/cuequivariance/symmetric_contraction.py` for the fusion rule.
-- **`products.{k}.linear.weight`** → `ProductBlock` internal Linear output projection.
+- **`node_embedding.linear.weight`** `(N_torch_elts * hidden_scalar,)` → apax `(119, hidden_scalar)` with rows scattered at `torch_atomic_numbers` indices.
+- **`interactions.{k}.linear_up.weight`** → apax `InteractionBlock.linear_up.kernel`, full `node_feats_irreps × node_feats_irreps` weight (no slicing — `linear_up` is in-place mix).
+- **`interactions.{k}.linear.weight`** → apax `InteractionBlock.linear.kernel`, full `irreps_mid × target_irreps` (`128x0e+128x1o+128x2e+128x3o → 128x0e+128x1o+128x2e+128x3o`). Direct copy.
+- **`interactions.{k}.skip_tp.weight`** → apax `InteractionBlock.skip_tp.kernel`, full `(node_feats_irreps × node_attrs_irreps → hidden_irreps)` per-element FCTP weight `(num_elements, n_paths)` zero-padded along the element axis. Direct copy of weights at `torch_atomic_numbers` rows.
+- **`interactions.{k}.conv_tp_weights.layer{0..3}.weight`** — per-layer MLP weights. Our `e3nn.flax.MultiLayerPerceptron` stores them as `kernel_{j}`; direct assignment of `(in, out)` tensors. Output dim of `layer3` is the FULL `conv_tp.weight_numel` (e.g. `512` for `target_irreps="128x0e+128x1o+128x2e+128x3o"` with `max_ell=3`).
+- **`products.{k}.symmetric_contractions.contractions.{c}.weights_max` + `.weights.{m}`** — torch stores per-correlation-order weights separately; cuequivariance fuses them into `(num_elements, weight_numel, mul)`. The cuex `SymmetricContraction` descriptor must be built from `node_feats_irreps=interaction_irreps` (the multi-irrep input) and `target_irreps=this_layer_hidden`. Use `/Users/fzills/tools/mace-jax/mace_jax/adapters/cuequivariance/symmetric_contraction.py` as the fusion rule. All correlation orders for all `l` channels are mapped — no truncation.
+- **`products.{k}.linear.weight`** → apax `ProductBlock.linear.kernel`, `target_irreps × target_irreps`. Direct copy.
 - **`readouts.0.linear.weight`** `(hidden_scalar,)` → `MaceReadout.readout_0.linear.kernel` with shape `(hidden_scalar, 1)`.
 - **`readouts.-1.linear_1.weight`** / **`linear_2.weight`** → `MaceReadout.readout_{N-1}.linear_1.kernel`, `linear_2.kernel` of shapes `(hidden_scalar, MLP_dim)` and `(MLP_dim, 1)`.
-- **`scale_shift.scale` + `scale_shift.shift` + `atomic_energies_fn.atomic_energies`** → combined into `PerElementScaleShift.scale_per_element (119, 1)` (constant at `global_scale`) and `shift_per_element (119, 1)` (zero-padded `atomic_energies[Z] + global_shift`, at `torch_atomic_numbers` indices).
+- **`scale_shift.scale` + `scale_shift.shift` + `atomic_energies_fn.atomic_energies`** → folded into `PerElementScaleShift.scale_per_element (119, 1)` (constant at `global_scale`) and `shift_per_element (119, 1)` (zero-padded `atomic_energies[Z] + global_shift`, at `torch_atomic_numbers` indices).
 - **Radial basis parameters** — `radial_embedding.bessel_fn.bessel_weights`, `.prefactor`, `cutoff_fn.p`, `cutoff_fn.r_max` — mapped into `BesselBasis` / `PolynomialCutoff` params.
-- **`normalize2mom` activation constant** — extracted at conversion time via the mace-jax `_extract_norm_consts` recipe, stored as a non-trainable `constants` variable in the pytree.
+- **`normalize2mom` activation constant** — extracted at conversion time via the mace-jax `_extract_norm_consts` recipe, stored as a non-trainable `constants` variable in the pytree (or as the `silu_normalization` field on `NonLinearReadoutBlock` — see §3.5).
 
-Invariant: after mapping, `_validate_no_nan(params)` passes (every float leaf is finite). If not, conversion raises listing the leaf path so we can extend the map.
+Invariants:
+- `_validate_no_nan(params)` passes (every float leaf finite).
+- For every torch `state_dict` key, there exists an apax leaf with the **same total `numel`** (modulo the 89→119 element-axis padding). The shape-coverage test (P3.5b.6) enforces this.
 
 ### 4.5 Multi-head foundation models
 

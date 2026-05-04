@@ -14,6 +14,8 @@
 
 **Revision note (2026-04-22):** Earlier drafts of P3 introduced a parallel output format (`params.msgpack` + `config.json` + `metadata.json`), a dedicated `load_mace_foundation` loader, and a dispatch branch inside `ASECalculator`. Verification against the code base (`EnergyModel.__call__`, `PerElementScaleShift`, `restore_parameters`, `TransferLearningConfig`) showed those created two parallel load paths where one will do. The plan now matches the spec revision: the converter emits `<dst>/config.yaml` (via `Config.dump_config`) + `<dst>/best/` orbax checkpoint, and loading is `restore_parameters(dst)`. The per-layer readout + scale/shift + atomic-energy structure lives in a new `MaceReadout` module that fills the existing readout slot. See P3.0 through P3.6 below.
 
+**Revision note (2026-05-04):** P3.5 surfaced a correctness gap that P1/P2 left untouched: our `MaceRepresentation` was scalar-only inside (`InteractionBlock(irreps_out=hidden_irreps)` with `hidden_irreps="128x0e"` collapses every interaction's output to scalars), while torch foundation MACE-MP-0 small operates on the full `interaction_irreps = (sh_irreps × num_features).sort().simplify() = "128x0e + 128x1o + 128x2e + 128x3o"` inside each interaction. Without extending the apax blocks to the full multi-irrep contract, torch weights cannot direct-copy into apax — they would have to be projected/sliced/averaged, breaking parity. **A new phase P3.5b is inserted between P3.5 and P3.6** with six tasks that rewrite `InteractionBlock` (separate `target_irreps` from `hidden_irreps`, return `(message, sc)`, per-element FCTP skip), `ProductBlock` (distinct in/out irreps, optional `use_sc`, post-SC Linear), `MaceRepresentation` (thread one-hot Z attrs, build full multi-irrep flow per layer), and `_map_state_to_pytree` (direct-copy mappings). After P3.5b lands, P3.6 parity becomes achievable. See spec §3.4, §3.4a, §3.4b for the corresponding architecture rewrite.
+
 **Reference: how upstream MACE loads foundation models** (`/Users/fzills/tools/mace/mace/calculators/foundations_models.py`):
 
 - `mace_mp(model=..., return_raw_model=True)` returns the raw `torch.nn.Module` and handles everything: bundled-local → cache → download.
@@ -2538,6 +2540,648 @@ Expected: 2 passed. If NaN validation fails, the error message lists the missed 
 git add apax/transfer_learning/mace_foundation.py tests/integration_tests/mace/test_convert.py
 git commit -m "feat(mace): converter writes config.yaml + orbax best/; maps torch weights"
 ```
+
+---
+
+## Phase P3.5b — Extend `MaceRepresentation` to the full multi-irrep MACE contract
+
+**Inserted 2026-05-04.** P3.5 surfaced that the current `MaceRepresentation` is scalar-only inside (`InteractionBlock(irreps_out=hidden_irreps)` with `hidden_irreps="128x0e"` collapses every interaction's output to scalars). Torch foundation MACE-MP-0 small operates on the full `interaction_irreps = (sh_irreps × num_features).sort().simplify() = "128x0e + 128x1o + 128x2e + 128x3o"` inside each interaction, then the `EquivariantProductBasisBlock` reduces back to `hidden_irreps` via symmetric contraction + Linear + per-element skip.
+
+Without this extension, P3.5's `_map_state_to_pytree` would have to project / slice / average torch weights to fit our scalar-only blocks → values won't match torch. P3.5b closes that gap at the architecture level so torch weights direct-copy into apax with no projections, enabling P3.6 parity.
+
+Reference: spec §3.4, §3.4a, §3.4b.
+
+### Task P3.5b.1: `InteractionBlock` — `target_irreps` separate from `hidden_irreps`, return `(message, sc)`
+
+**Files:**
+- Modify: `apax/layers/descriptor/mace_blocks.py`
+- Test: `tests/unit_tests/layers/descriptor/test_mace_blocks.py`
+
+- [ ] **Step 1: Read existing `InteractionBlock`**
+
+Open `apax/layers/descriptor/mace_blocks.py`. Note the current fields (`irreps_out`, `interaction_cls`, `radial_mlp`) and the `__call__` signature `(node_feats, edge_attrs, edge_feats, receivers, senders)`.
+
+- [ ] **Step 2: Write failing tests**
+
+Append to `tests/unit_tests/layers/descriptor/test_mace_blocks.py`:
+
+```python
+def test_interaction_block_emits_target_irreps_and_skip():
+    """InteractionBlock returns (message in target_irreps, sc in hidden_irreps)."""
+    import e3nn_jax as e3nn
+    import jax
+    import jax.numpy as jnp
+    from apax.layers.descriptor.mace_blocks import InteractionBlock
+
+    n_atoms, n_edges = 4, 6
+    node_feats_irreps = "8x0e"
+    node_attrs_irreps = "5x0e"
+    edge_attrs_irreps = "1x0e + 1x1o + 1x2e"      # max_ell=2
+    target_irreps = "8x0e + 8x1o + 8x2e"           # interaction_irreps
+    hidden_irreps = "8x0e"
+
+    block = InteractionBlock(
+        node_feats_irreps=node_feats_irreps,
+        node_attrs_irreps=node_attrs_irreps,
+        edge_attrs_irreps=edge_attrs_irreps,
+        target_irreps=target_irreps,
+        hidden_irreps=hidden_irreps,
+        interaction_cls="RealAgnosticResidual",
+    )
+    rng = jax.random.PRNGKey(0)
+    node_feats = e3nn.IrrepsArray(node_feats_irreps,
+                                   jnp.ones((n_atoms, e3nn.Irreps(node_feats_irreps).dim)))
+    sph = e3nn.IrrepsArray(edge_attrs_irreps,
+                            jnp.ones((n_edges, e3nn.Irreps(edge_attrs_irreps).dim)))
+    radial = jnp.ones((n_edges, 4))
+    Z_one_hot = e3nn.IrrepsArray(node_attrs_irreps,
+                                  jax.nn.one_hot(jnp.arange(n_atoms) % 5, 5))
+    receivers = jnp.array([0, 1, 2, 3, 0, 1])
+    senders   = jnp.array([1, 2, 3, 0, 2, 3])
+
+    params = block.init(rng, node_feats, sph, radial, Z_one_hot, receivers, senders)
+    message, sc = block.apply(params, node_feats, sph, radial, Z_one_hot, receivers, senders)
+
+    assert isinstance(message, e3nn.IrrepsArray)
+    assert isinstance(sc, e3nn.IrrepsArray)
+    assert e3nn.Irreps(message.irreps) == e3nn.Irreps(target_irreps)
+    assert e3nn.Irreps(sc.irreps) == e3nn.Irreps(hidden_irreps)
+    assert message.array.shape[0] == n_atoms
+    assert sc.array.shape[0] == n_atoms
+```
+
+- [ ] **Step 3: Run — expect fail**
+
+```bash
+uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py -v -k interaction_block_emits
+```
+Expected: FAIL — `InteractionBlock` doesn't have the new fields or return shape.
+
+- [ ] **Step 4: Rewrite `InteractionBlock`**
+
+Replace the class body in `apax/layers/descriptor/mace_blocks.py`:
+
+```python
+class InteractionBlock(nn.Module):
+    """MACE interaction block — multi-irrep target with per-element skip.
+
+    Mirrors torch-mace ``RealAgnosticResidualInteractionBlock``. Internally
+    runs ``linear_up → tensor_product(node_feats × sph) → radial-weighted
+    scatter sum → linear`` and computes a parallel per-element skip
+    ``FCTP(node_feats, Z_one_hot) → hidden_irreps``. Returns the tuple
+    ``(message, sc)`` so the downstream :class:`ProductBlock` can apply
+    the skip after the symmetric contraction.
+
+    Parameters
+    ----------
+    node_feats_irreps : str
+        Input node-feature irreps (e.g. ``"128x0e"`` for the first layer,
+        ``hidden_irreps`` for subsequent layers).
+    node_attrs_irreps : str
+        One-hot element-attribute irreps (``"<num_elements>x0e"``).
+    edge_attrs_irreps : str
+        Spherical-harmonics irreps (``Irreps.spherical_harmonics(max_ell)``).
+    target_irreps : str
+        Multi-irrep target for ``message`` — typically
+        ``(sh_irreps * num_features).sort().simplify()``.
+    hidden_irreps : str
+        Target irreps for the per-element skip ``sc``. Matches the post-product
+        ``this_layer_hidden`` of :class:`MaceRepresentation`.
+    interaction_cls : str
+        Reserved for variant dispatch; only ``"RealAgnosticResidual"`` is
+        implemented in this phase.
+    radial_mlp : tuple
+        Hidden widths of the radial MLP gating tensor-product channels.
+    """
+
+    node_feats_irreps: str
+    node_attrs_irreps: str
+    edge_attrs_irreps: str
+    target_irreps: str
+    hidden_irreps: str
+    interaction_cls: str = "RealAgnosticResidual"
+    radial_mlp: tuple = (64, 64, 64)
+
+    @nn.compact
+    def __call__(self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders):
+        if self.interaction_cls != "RealAgnosticResidual":
+            raise NotImplementedError(
+                f"Interaction variant {self.interaction_cls!r} not implemented; "
+                "only 'RealAgnosticResidual' is supported in P3."
+            )
+        from apax.layers.descriptor.mace_blocks import tp_out_irreps_with_instructions
+
+        node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
+        target_irreps     = e3nn.Irreps(self.target_irreps)
+        hidden_irreps     = e3nn.Irreps(self.hidden_irreps)
+
+        # 1. linear_up: node_feats -> node_feats_irreps (in-place mix)
+        x = e3nn.flax.Linear(node_feats_irreps, name="linear_up")(node_feats)
+
+        # 2. conv_tp: (x_j × sph) restricted to paths reachable in target_irreps
+        irreps_mid, _ = tp_out_irreps_with_instructions(
+            node_feats_irreps, e3nn.Irreps(self.edge_attrs_irreps), target_irreps
+        )
+        x_j = x[senders]
+        tp = e3nn.tensor_product(x_j, edge_attrs, filter_ir_out=irreps_mid)
+
+        # 3. Radial MLP: per-edge per-path scalar gates
+        n_paths = tp.irreps.num_irreps
+        weights = e3nn.flax.MultiLayerPerceptron(
+            list(self.radial_mlp) + [n_paths], act=jax.nn.silu, name="radial_mlp"
+        )(edge_feats)
+        weighted = tp * weights
+
+        # 4. Scatter-sum into receivers
+        agg = e3nn.scatter_sum(weighted, dst=receivers, output_size=node_feats.shape[0])
+
+        # 5. linear: irreps_mid -> target_irreps
+        message = e3nn.flax.Linear(target_irreps, name="linear")(agg)
+
+        # 6. skip_tp: per-element FCTP (node_feats × node_attrs → hidden_irreps)
+        skip_input = e3nn.tensor_product(node_feats, node_attrs)
+        sc = e3nn.flax.Linear(hidden_irreps, name="skip_tp",
+                               force_irreps_out=True)(skip_input)
+
+        return message, sc
+```
+
+Note: `tp_out_irreps_with_instructions` is added in Task P3.5b.3. If you sequence by task IDs, you can land it as a stub here returning `(target_irreps, [])` and refine in the next task; or land P3.5b.3 first.
+
+- [ ] **Step 5: Run — expect pass**
+
+```bash
+uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py -v -k interaction
+```
+Expected: the new test PASSES; pre-existing interaction tests may FAIL because the call signature changed — those need updating to thread `node_attrs` through. Update them minimally to match the new signature.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apax/layers/descriptor/mace_blocks.py tests/unit_tests/layers/descriptor/test_mace_blocks.py
+git commit -m "feat(mace): InteractionBlock — multi-irrep target + per-element skip (P3.5b.1)"
+```
+
+---
+
+### Task P3.5b.2: `ProductBlock` — distinct in/out irreps + `use_sc` + post-Linear
+
+**Files:**
+- Modify: `apax/layers/descriptor/mace_blocks.py`
+- Test: `tests/unit_tests/layers/descriptor/test_mace_blocks.py`
+
+- [ ] **Step 1: Read existing `ProductBlock`**
+
+The current class has `hidden_irreps` (used for both input and output) and `__call__(node_feats, Z)`. The cuequivariance descriptor is built from `hidden_irreps`. We need to split that into `node_feats_irreps` (input, multi-irrep) and `target_irreps` (output, scalar after collapse), and add a post-SC `Linear` plus optional `+ sc`.
+
+- [ ] **Step 2: Write failing test**
+
+Append to `tests/unit_tests/layers/descriptor/test_mace_blocks.py`:
+
+```python
+def test_product_block_emits_target_irreps_with_skip():
+    """ProductBlock symmetric-contracts node_feats_irreps -> target_irreps + sc."""
+    import e3nn_jax as e3nn
+    import jax
+    import jax.numpy as jnp
+    from apax.layers.descriptor.mace_blocks import ProductBlock
+
+    n_atoms = 3
+    node_feats_irreps = "8x0e + 8x1o + 8x2e"
+    target_irreps = "8x0e"
+
+    block = ProductBlock(
+        node_feats_irreps=node_feats_irreps,
+        target_irreps=target_irreps,
+        correlation=2,
+        num_elements=5,
+        use_sc=True,
+    )
+    node_feats = e3nn.IrrepsArray(
+        node_feats_irreps, jnp.ones((n_atoms, e3nn.Irreps(node_feats_irreps).dim))
+    )
+    sc = e3nn.IrrepsArray(target_irreps,
+                           jnp.ones((n_atoms, e3nn.Irreps(target_irreps).dim)))
+    Z = jnp.array([1, 2, 3])
+
+    params = block.init(jax.random.PRNGKey(0), node_feats, sc, Z)
+    out = block.apply(params, node_feats, sc, Z)
+    assert isinstance(out, e3nn.IrrepsArray)
+    assert e3nn.Irreps(out.irreps) == e3nn.Irreps(target_irreps)
+    assert out.array.shape == (n_atoms, e3nn.Irreps(target_irreps).dim)
+```
+
+- [ ] **Step 3: Run — expect fail**
+
+```bash
+uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py -v -k product_block_emits
+```
+
+- [ ] **Step 4: Rewrite `ProductBlock`**
+
+Replace the class body. Key changes from current:
+
+```python
+class ProductBlock(nn.Module):
+    """MACE product block: symmetric contraction → Linear → optional + sc.
+
+    Mirrors torch-mace ``EquivariantProductBasisBlock``. Reduces a multi-irrep
+    input ``node_feats_irreps`` to the post-product ``target_irreps`` via
+    per-element symmetric contraction (cuequivariance), then applies a final
+    irrep-Linear and optionally adds the per-element skip ``sc`` from the
+    parent :class:`InteractionBlock`.
+
+    Parameters
+    ----------
+    node_feats_irreps : str
+        Input irreps — typically ``InteractionBlock.target_irreps``.
+    target_irreps : str
+        Output irreps — typically ``this_layer_hidden`` from
+        :class:`MaceRepresentation` (last-layer collapse-aware).
+    correlation : int
+        Symmetric-contraction correlation order.
+    num_elements : int
+        Number of chemical elements in the per-element weight table.
+    use_sc : bool
+        Whether to add the parent skip ``sc`` after the post-SC Linear.
+    use_cueq : bool
+        Reserved for P2 cueq dispatch.
+    """
+
+    node_feats_irreps: str
+    target_irreps: str
+    correlation: int = 3
+    num_elements: int = 119
+    use_sc: bool = True
+    use_cueq: bool = False
+
+    @nn.compact
+    def __call__(self, node_feats, sc, Z):
+        if self.use_cueq:
+            raise NotImplementedError("use_cueq=True is reserved for P2.")
+
+        node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
+        target_irreps     = e3nn.Irreps(self.target_irreps)
+
+        # cuex symmetric contraction descriptor built from input & output irreps
+        descriptor, weight_irreps, weight_numel = _get_symmetric_contraction_descriptor(
+            str(node_feats_irreps),
+            str(target_irreps),
+            int(self.correlation),
+        )
+        # ... (rebuild the existing weight wiring; mul/feature_dim derived from
+        # node_feats_irreps, NOT a single shared mul. SymmetricContraction supports
+        # mul_ir layout — see /Users/fzills/tools/mace-jax/mace_jax/adapters/
+        # cuequivariance/symmetric_contraction.py for the per-element fused weight
+        # shape and the input layout transform.)
+
+        out = ...  # SymmetricContraction(node_feats, Z) → IrrepsArray(target_irreps)
+
+        # Post-SC Linear matches torch's products.k.linear.weight
+        out = e3nn.flax.Linear(target_irreps, name="linear")(out)
+
+        if self.use_sc and sc is not None:
+            out = out + sc
+        return out
+```
+
+The `_get_symmetric_contraction_descriptor` helper currently expects `irreps_in == irreps_out`. Generalise it to take both. Reference:
+`/Users/fzills/tools/mace-jax/mace_jax/adapters/cuequivariance/symmetric_contraction.py` builds the descriptor per `(irreps_in, irreps_out, correlation)`.
+
+- [ ] **Step 5: Run — expect pass**
+
+```bash
+uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py -v -k product
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apax/layers/descriptor/mace_blocks.py tests/unit_tests/layers/descriptor/test_mace_blocks.py
+git commit -m "feat(mace): ProductBlock — distinct in/out irreps + skip-add (P3.5b.2)"
+```
+
+---
+
+### Task P3.5b.3: Port `tp_out_irreps_with_instructions` helper
+
+**Files:**
+- Modify: `apax/layers/descriptor/mace_blocks.py`
+- Test: `tests/unit_tests/layers/descriptor/test_mace_blocks.py`
+
+- [ ] **Step 1: Read the mace-jax helper**
+
+Open `/Users/fzills/tools/mace-jax/mace_jax/modules/blocks.py` and find `tp_out_irreps_with_instructions`. It's a small function (a few dozen lines) computing `irreps_mid` (the simplified intersection of `irreps_in1 ⊗ irreps_in2` with `target`) and the path-instruction list.
+
+- [ ] **Step 2: Write failing test**
+
+Append to `tests/unit_tests/layers/descriptor/test_mace_blocks.py`:
+
+```python
+def test_tp_out_irreps_with_instructions_basic():
+    import e3nn_jax as e3nn
+    from apax.layers.descriptor.mace_blocks import tp_out_irreps_with_instructions
+
+    irreps_in1 = e3nn.Irreps("8x0e")
+    irreps_in2 = e3nn.Irreps("1x0e + 1x1o + 1x2e + 1x3o")
+    target = e3nn.Irreps("8x0e + 8x1o + 8x2e + 8x3o")
+    irreps_mid, instructions = tp_out_irreps_with_instructions(
+        irreps_in1, irreps_in2, target,
+    )
+    assert e3nn.Irreps(irreps_mid).dim > 0
+    assert all(isinstance(i, tuple) for i in instructions)
+```
+
+- [ ] **Step 3: Port the helper into `mace_blocks.py`**
+
+Add (with attribution comment pointing to mace-jax):
+
+```python
+def tp_out_irreps_with_instructions(irreps_in1, irreps_in2, target_irreps):
+    """Compute the simplified intersection of irreps_in1 ⊗ irreps_in2 with target_irreps.
+
+    Adapted from
+    ``mace_jax/modules/blocks.py:tp_out_irreps_with_instructions`` (MIT-licensed).
+
+    Returns
+    -------
+    irreps_mid : e3nn.Irreps
+        The collapsed intermediate irreps reachable in target.
+    instructions : list[tuple]
+        e3nn-style ``(i_1, i_2, i_out, "uvu", True)`` instructions that the
+        ``InteractionBlock.conv_tp`` uses to construct its tensor-product graph.
+    """
+    irreps_in1 = e3nn.Irreps(irreps_in1)
+    irreps_in2 = e3nn.Irreps(irreps_in2)
+    target_irreps = e3nn.Irreps(target_irreps)
+    instructions = []
+    irreps_mid = []
+    for i, (mul, ir_in1) in enumerate(irreps_in1):
+        for j, (_, ir_in2) in enumerate(irreps_in2):
+            for ir_out in ir_in1 * ir_in2:
+                if ir_out in target_irreps:
+                    k = len(irreps_mid)
+                    irreps_mid.append((mul, ir_out))
+                    instructions.append((i, j, k, "uvu", True))
+    irreps_mid = e3nn.Irreps(irreps_mid)
+    irreps_mid, p, _ = irreps_mid.sort()
+    instructions = [(i, j, p[k], mode, train) for i, j, k, mode, train in instructions]
+    return irreps_mid, instructions
+```
+
+- [ ] **Step 4: Run + commit**
+
+```bash
+uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py -v -k tp_out
+git add apax/layers/descriptor/mace_blocks.py tests/unit_tests/layers/descriptor/test_mace_blocks.py
+git commit -m "feat(mace): port tp_out_irreps_with_instructions helper (P3.5b.3)"
+```
+
+---
+
+### Task P3.5b.4: Rewire `MaceRepresentation` for the full irreps flow
+
+**Files:**
+- Modify: `apax/layers/descriptor/mace.py`
+- Test: `tests/unit_tests/layers/descriptor/test_mace_descriptor.py`
+
+- [ ] **Step 1: Write failing test**
+
+Append (or modify) `tests/unit_tests/layers/descriptor/test_mace_descriptor.py`:
+
+```python
+def test_mace_representation_threads_node_attrs_through_layers():
+    """Representation builds the full multi-irrep flow and outputs scalars."""
+    import jax
+    import jax.numpy as jnp
+    from apax.layers.descriptor.mace import MaceRepresentation
+
+    n_atoms, n_edges = 3, 4
+    rep = MaceRepresentation(
+        r_max=5.0, num_bessel=4, num_polynomial_cutoff=5, max_ell=2,
+        hidden_irreps="8x0e", num_interactions=2, correlation=2,
+        interaction_cls="RealAgnosticResidual", num_elements=5,
+    )
+    dr_vec = jnp.array([[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0], [-1.0, 0, 0]])
+    Z = jnp.array([1, 2, 3], dtype=jnp.int32)
+    idx = jnp.array([[0, 1, 2, 0], [1, 0, 0, 2]], dtype=jnp.int32)
+
+    params = rep.init(jax.random.PRNGKey(0), dr_vec, Z, idx)
+    out = rep.apply(params, dr_vec, Z, idx)
+    # Output: per-layer scalar concat; layer hidden = "8x0e", num_interactions=2
+    assert out.shape == (n_atoms, 2 * 8)
+    assert bool(jnp.all(jnp.isfinite(out)))
+```
+
+- [ ] **Step 2: Rewire `__call__`**
+
+In `apax/layers/descriptor/mace.py`, rewrite `MaceRepresentation.__call__`:
+
+```python
+@nn.compact
+def __call__(self, dr_vec, Z, idx):
+    from apax.layers.descriptor.mace_blocks import (
+        InteractionBlock,
+        LinearNodeEmbedding,
+        ProductBlock,
+        assemble_edge_features,
+    )
+
+    dtype = str_to_dtype(self.dtype)
+    dr_vec = dr_vec.astype(dtype)
+    i, j = idx[0], idx[1]
+
+    pair_mask = _get_neighbor_mask(idx) if self.apply_mask else 1.0
+    node_mask = _get_node_mask(Z) if self.apply_mask else 1.0
+
+    radial, sph = assemble_edge_features(
+        dr_vec, self.r_max, self.num_bessel, self.num_polynomial_cutoff, self.max_ell,
+    )
+    if self.apply_mask:
+        radial = radial * pair_mask[..., None]
+
+    # Compute the full multi-irrep target (matches torch-mace + mace-jax)
+    sh_irreps_str = str(e3nn.Irreps.spherical_harmonics(self.max_ell))
+    hidden_irreps = e3nn.Irreps(self.hidden_irreps)
+    num_features = hidden_irreps.count(e3nn.Irrep(0, 1))
+    interaction_irreps = (
+        e3nn.Irreps.spherical_harmonics(self.max_ell) * num_features
+    ).sort().irreps.simplify()
+    interaction_irreps_str = str(interaction_irreps)
+    node_attrs_irreps_str = f"{self.num_elements}x0e"
+    init_node_irreps_str = f"{num_features}x0e"
+
+    # Initial node features: scalars only
+    node_feats = LinearNodeEmbedding(
+        num_elements=self.num_elements,
+        irreps_out=init_node_irreps_str,
+    )(Z)
+    # One-hot element attributes for the per-element skip
+    Z_one_hot = e3nn.IrrepsArray(
+        node_attrs_irreps_str,
+        jax.nn.one_hot(Z, self.num_elements).astype(dtype),
+    )
+
+    prev_irreps_str = init_node_irreps_str
+    per_layer_scalars = []
+    for k in range(self.num_interactions):
+        is_last = k == self.num_interactions - 1
+        this_hidden_str = (
+            str(e3nn.Irreps([hidden_irreps[0]])) if is_last else self.hidden_irreps
+        )
+        message, sc = InteractionBlock(
+            node_feats_irreps=prev_irreps_str,
+            node_attrs_irreps=node_attrs_irreps_str,
+            edge_attrs_irreps=sh_irreps_str,
+            target_irreps=interaction_irreps_str,
+            hidden_irreps=this_hidden_str,
+            interaction_cls=self.interaction_cls,
+        )(node_feats, sph, radial, Z_one_hot, i, j)
+        node_feats = ProductBlock(
+            node_feats_irreps=interaction_irreps_str,
+            target_irreps=this_hidden_str,
+            correlation=self.correlation,
+            num_elements=self.num_elements,
+            use_sc=True,
+            use_cueq=self.use_cueq,
+        )(message, sc, Z)
+        per_layer_scalars.append(node_feats.filter(keep="0e").array)
+        prev_irreps_str = this_hidden_str
+
+    features = jnp.concatenate(per_layer_scalars, axis=-1)
+    if self.apply_mask:
+        features = features * node_mask[..., None]
+    features = features.astype(dtype)
+    return features
+```
+
+Drop the now-unused `_scalar_irreps_only` helper (or keep it for the `LinearNodeEmbedding` call — verify call sites).
+
+- [ ] **Step 3: Run**
+
+```bash
+uv run pytest tests/unit_tests/layers/descriptor/ -v
+```
+Expected: PASS for the new test plus existing descriptor tests (the existing tests may need minor signature updates if they instantiate InteractionBlock directly).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apax/layers/descriptor/mace.py tests/unit_tests/layers/descriptor/test_mace_descriptor.py
+git commit -m "feat(mace): MaceRepresentation builds full multi-irrep flow (P3.5b.4)"
+```
+
+---
+
+### Task P3.5b.5: Update `_map_state_to_pytree` to direct copies
+
+**Files:**
+- Modify: `apax/transfer_learning/mace_foundation.py`
+
+- [ ] **Step 1: Drop projections; map full weights**
+
+In `apax/transfer_learning/mace_foundation.py`, in `_map_state_to_pytree` and its helpers:
+
+- `_map_interactions`: copy `interactions.k.linear.weight` whole (no scalar slice). Copy `interactions.k.skip_tp.weight` as the new per-element FCTP weight `(num_elements_padded=119, n_paths)` — pad torch's 89 rows to 119 at `torch_atomic_numbers` indices. Copy `conv_tp_weights.layer3.weight` whole `(64, 512)` (no truncation).
+- `_map_products`: build the cuex SymmetricContraction fused weight from torch's `weights_max` + `weights.{m}` for ALL correlation orders and ALL `l` channels (not just scalar). Reference `/Users/fzills/tools/mace-jax/mace_jax/adapters/cuequivariance/symmetric_contraction.py` for the fusion rule. Map `products.k.linear.weight` to the new ProductBlock `Linear` slot.
+- `_map_readouts`: unchanged.
+- `_map_scale_shift`: unchanged.
+- `_map_node_embedding`: unchanged.
+
+- [ ] **Step 2: Re-run gated converter test**
+
+```bash
+uv run pytest tests/integration_tests/mace/test_convert.py -v -m mace_parity
+```
+Expected: PASS — `_validate_no_nan` clean, no leaves left behind.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add apax/transfer_learning/mace_foundation.py
+git commit -m "feat(mace): _map_state_to_pytree direct-copy after irreps extension (P3.5b.5)"
+```
+
+---
+
+### Task P3.5b.6: Shape-for-shape verification test
+
+**Files:**
+- Modify: `tests/integration_tests/mace/test_convert.py`
+
+- [ ] **Step 1: Add the gated coverage test**
+
+Append:
+
+```python
+def test_torch_to_apax_param_coverage_no_projections():
+    """Every torch state_dict float param maps 1:1 to an apax leaf (modulo 89→119 padding).
+
+    Asserts numel-per-key equality so we catch regressions where a future
+    refactor would silently drop or project a torch weight.
+    """
+    pytest.importorskip("torch")
+    pytest.importorskip("mace")
+    import jax
+    import numpy as np
+    from mace.calculators.foundations_models import mace_mp
+    from apax.transfer_learning.mace_foundation import (
+        _extract_config_from_torch, _load_torch_foundation_model, _map_state_to_pytree,
+        _synthesize_full_config,
+    )
+
+    torch_model, _ = _load_torch_foundation_model("small", family="mace_mp")
+    torch_atomic_numbers = tuple(
+        torch_model.atomic_numbers.detach().cpu().numpy().astype(int).tolist()
+    )
+    cfg_fields = _extract_config_from_torch(torch_model, head="default")
+    full_cfg = _synthesize_full_config(cfg_fields, dst=__import__("pathlib").Path("/tmp/_apax_pcov"))
+    Builder = full_cfg.model.get_builder()
+    builder = Builder(full_cfg.model.model_dump(), n_species=119)
+    energy_model = builder.build_energy_derivative_model()
+
+    import jax.numpy as jnp
+    R = jnp.zeros((2, 3)); Z = jnp.array([1, 1], dtype=jnp.int32)
+    neigh = jnp.array([[0], [1]], dtype=jnp.int32)
+    box = jnp.zeros((3,)); offsets = jnp.zeros((1, 3))
+    template = energy_model.init(jax.random.PRNGKey(0), R, Z, neigh, box, offsets)
+
+    state = {k: v.detach().cpu().numpy() for k, v in torch_model.state_dict().items()}
+    extra_scalars = {
+        "scale": float(torch_model.scale_shift.scale.detach().cpu()),
+        "shift": float(torch_model.scale_shift.shift.detach().cpu()),
+        "atomic_energies": torch_model.atomic_energies_fn.atomic_energies.detach().cpu().numpy(),
+    }
+    params = _map_state_to_pytree(
+        state, template, torch_atomic_numbers=torch_atomic_numbers,
+        extra_scalars=extra_scalars, selected_head="default", config=full_cfg.model,
+    )
+
+    apax_total = sum(int(np.prod(v.shape))
+                     for _, v in jax.tree_util.tree_flatten_with_path(params)[0])
+    torch_total = sum(int(np.prod(v.shape)) for v in state.values()
+                       if v.dtype.kind == "f")
+    # Apax has 119/89 element padding plus PerElementScaleShift's pre-existing
+    # rows; allow only the documented padding overhead.
+    assert apax_total >= torch_total, (
+        f"apax total numel {apax_total} < torch total {torch_total} — "
+        "weights are being dropped"
+    )
+```
+
+- [ ] **Step 2: Run + commit**
+
+```bash
+uv run pytest tests/integration_tests/mace/test_convert.py -v -m mace_parity -k coverage
+git add tests/integration_tests/mace/test_convert.py
+git commit -m "test(mace): shape-for-shape coverage guard for torch→apax map (P3.5b.6)"
+```
+
+**P3.5b exit criteria:**
+- `MaceRepresentation` runs the full `(InteractionBlock(target=interaction_irreps) → ProductBlock(target=hidden_irreps_out) → per-element + sc)` flow per layer.
+- `_validate_no_nan(params)` is clean for `mace_mp("small")`.
+- Coverage test confirms no torch param is dropped.
+- `tests/integration_tests/mace/test_convert.py` (4 tests under mace_parity) all PASS.
 
 ---
 
