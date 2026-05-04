@@ -160,217 +160,105 @@ def tp_out_irreps_with_instructions(irreps_in1, irreps_in2, target_irreps):
     return irreps_mid, instructions
 
 
-# InteractionBlock (RealAgnosticResidual) — port notes
-# Inputs:  node_feats [n_atoms, irreps_in], edge_attrs (sph) [n_edges, Ylm],
-#          edge_feats (radial) [n_edges, n_bessel], i (receivers), j (senders), pair_mask
-# Layout:
-#   1. source_linear:    node_feats[j] -> irreps_in (e3nn Linear)
-#   2. conv_tp:          source @ edge_attrs via FullyConnectedTensorProduct
-#                        with per-edge MLP weights from radial features
-#   3. scatter_sum:      aggregate messages into receiver index i
-#   4. target_linear:    aggregated -> irreps_out (e3nn Linear)
-#   5. residual:         output + skip connection from original node_feats
-# Output: new node_feats [n_atoms, irreps_out]
 class InteractionBlock(nn.Module):
-    """MACE interaction + residual.
+    """MACE interaction block — multi-irrep target with per-element skip.
 
-    RealAgnosticResidual variant: one tensor product between node features and
-    edge (spherical-harmonic) attributes, weighted by a radial MLP, aggregated
-    into receivers via scatter-sum, plus a skip connection.
+    Mirrors torch-mace ``RealAgnosticResidualInteractionBlock``. Internally
+    runs ``linear_up → tensor_product(node_feats × sph) → radial-weighted
+    scatter sum → linear`` and computes a parallel per-element skip
+    ``Linear(node_feats × node_attrs) → hidden_irreps`` (the
+    ``FullyConnectedTensorProduct`` factorises into an irreps-Linear over the
+    tensor product because ``node_attrs`` are scalars). Returns the tuple
+    ``(message, sc)`` so the downstream :class:`ProductBlock` can apply the
+    skip after the symmetric contraction.
 
     Parameters
     ----------
-    irreps_out : str
-        Target irreps for node features after this block.
-    target_irreps : str or None
-        Target irreps used for the inner ``linear`` (post-TP). If ``None`` this
-        equals ``irreps_out``. Foundation parity requires ``target_irreps`` to
-        be the full irreps emitted by the tensor product (e.g.
-        ``"128x0e+128x1o+128x2e+128x3o"``), independent of the final
-        ``hidden_irreps`` which is scalar-only.
+    node_feats_irreps : str
+        Input node-feature irreps (e.g. ``"128x0e"`` for the first layer,
+        ``hidden_irreps`` for subsequent layers).
+    node_attrs_irreps : str
+        One-hot element-attribute irreps (``"<num_elements>x0e"``).
+    edge_attrs_irreps : str
+        Spherical-harmonics irreps (``Irreps.spherical_harmonics(max_ell)``).
+    target_irreps : str
+        Multi-irrep target for ``message`` — typically
+        ``(sh_irreps * num_features).sort().simplify()``.
+    hidden_irreps : str
+        Target irreps for the per-element skip ``sc``. Matches the post-product
+        ``this_layer_hidden`` of :class:`MaceRepresentation`.
     interaction_cls : str
-        Which interaction variant; for now only RealAgnosticResidual is
-        implemented. Other variants raise NotImplementedError.
-    radial_mlp : tuple[int, ...]
-        Hidden layer widths for the radial MLP that gates tensor-product
-        channels. Defaults to ``(64, 64, 64)``.
-    foundation_mode : bool
-        If True, mirrors torch-mace foundation semantics:
-        - skip connection becomes per-element
-          ``FullyConnectedTensorProduct(node_feats_irreps, one_hot(Z), hidden_irreps)``;
-          ``num_elements`` and ``hidden_irreps_final`` must be provided.
-        - post-conv ``linear`` output is divided by ``avg_num_neighbors``.
-        - radial MLP has no activation on the output layer.
-        If False, behaviour is unchanged (existing training codepath).
-    num_elements : int
-        Number of chemical species for the per-element skip. Required when
-        ``foundation_mode=True``.
-    hidden_irreps_final : str or None
-        Irreps of the skip-connection output in foundation mode (e.g.
-        ``"128x0e"`` for small MP-0). Not used if ``foundation_mode=False``.
-    avg_num_neighbors : float
-        Normalisation factor; post-conv message is divided by this. Only used
-        when ``foundation_mode=True``.
-    """
-
-    irreps_out: str
-    target_irreps: str | None = None
-    interaction_cls: str = "RealAgnosticResidual"
-    radial_mlp: tuple = (64, 64, 64)
-    foundation_mode: bool = False
-    num_elements: int = 0
-    hidden_irreps_final: str | None = None
-    avg_num_neighbors: float = 1.0
-
-    @nn.compact
-    def __call__(self, node_feats, edge_attrs, edge_feats, receivers, senders, Z=None):
-        if self.interaction_cls != "RealAgnosticResidual":
-            raise NotImplementedError(
-                f"Interaction variant {self.interaction_cls!r} not yet implemented; "
-                "only 'RealAgnosticResidual' is supported at this phase."
-            )
-        irreps_in = node_feats.irreps
-        irreps_out = e3nn.Irreps(self.irreps_out)
-        target_irreps = (
-            e3nn.Irreps(self.target_irreps) if self.target_irreps is not None
-            else irreps_out
-        )
-
-        # 1. Linear pre-mix
-        x = e3nn.flax.Linear(irreps_in, name="linear_up")(node_feats)
-
-        # 2. Gather source node features at senders
-        x_j = x[senders]
-
-        # 3. Tensor product with edge spherical harmonics
-        #    Output irreps = full tensor-square subset reachable in target_irreps
-        tp = e3nn.tensor_product(x_j, edge_attrs, filter_ir_out=target_irreps)
-
-        # 4. Radial MLP producing a scalar per TP path per edge
-        n_paths = tp.irreps.num_irreps
-        mlp_widths = (*self.radial_mlp, n_paths)
-        mlp_kwargs = {}
-        if self.foundation_mode:
-            mlp_kwargs["output_activation"] = False
-        weights = e3nn.flax.MultiLayerPerceptron(
-            list(mlp_widths), act=jax.nn.silu, name="radial_mlp", **mlp_kwargs
-        )(edge_feats)
-        weighted = tp * weights                                 # broadcast-safe
-
-        # 5. Scatter-sum into receivers
-        out = e3nn.scatter_sum(weighted, dst=receivers, output_size=node_feats.shape[0])
-
-        # 6. Post-mix and residual.
-        out = e3nn.flax.Linear(target_irreps, name="linear_down")(out)
-        if self.foundation_mode:
-            out = out / self.avg_num_neighbors
-
-        if self.foundation_mode:
-            if self.num_elements <= 0 or self.hidden_irreps_final is None or Z is None:
-                raise ValueError(
-                    "foundation_mode=True requires num_elements>0, "
-                    "hidden_irreps_final, and a Z argument."
-                )
-            skip = PerElementSkipTP(
-                num_elements=self.num_elements,
-                hidden_irreps=self.hidden_irreps_final,
-                name="skip_tp",
-            )(node_feats, Z)
-            # Expand skip to target_irreps layout by zero-padding non-scalar channels
-            skip = _pad_to_irreps(skip, target_irreps)
-        else:
-            # Backward-compatible per-irrep linear skip with zero-padded extras.
-            skip = e3nn.flax.Linear(
-                target_irreps, name="skip_linear", force_irreps_out=True
-            )(node_feats)
-
-        return out + skip
-
-
-def _pad_to_irreps(src, target_irreps):
-    """Expand a scalar-only IrrepsArray to ``target_irreps`` with zero padding.
-
-    Parameters
-    ----------
-    src : e3nn.IrrepsArray
-        Scalar-only input, irreps ``"Mx0e"``.
-    target_irreps : e3nn.Irreps
-        Target irreps, must start with ``Mx0e`` (same multiplicity) and contain
-        additional non-scalar entries to be zero-padded.
+        Reserved for variant dispatch; only ``"RealAgnosticResidual"`` is
+        implemented in this phase.
+    radial_mlp : tuple
+        Hidden widths of the radial MLP gating tensor-product channels.
 
     Returns
     -------
-    e3nn.IrrepsArray
-        Array with irreps ``target_irreps``; scalar block copied from ``src``,
-        non-scalar blocks filled with zeros.
-    """
-    target_irreps = e3nn.Irreps(target_irreps)
-    # Pad: concatenate zeros for the non-0e part.
-    n_leading = src.array.shape[:-1]
-    total_dim = target_irreps.dim
-    src_dim = src.array.shape[-1]
-    if total_dim == src_dim:
-        return e3nn.IrrepsArray(target_irreps, src.array)
-    pad = jnp.zeros((*n_leading, total_dim - src_dim), dtype=src.array.dtype)
-    arr = jnp.concatenate([src.array, pad], axis=-1)
-    return e3nn.IrrepsArray(target_irreps, arr)
-
-
-class PerElementSkipTP(nn.Module):
-    """Per-element skip connection mirroring torch-mace's ``skip_tp``.
-
-    Implements ``FullyConnectedTensorProduct((M_in x 0e), (E x 0e), (M_out x 0e))``
-    where the second argument is a one-hot over chemical species ``Z``. This is
-    equivalent to gathering a per-element linear weight matrix of shape
-    ``(num_elements, M_in, M_out)`` and applying it to the scalar-only node
-    features. The e3nn path weight ``1/sqrt(M_in * num_elements)`` is baked
-    into the forward pass so that torch weights can be copied verbatim.
-
-    Parameters
-    ----------
-    num_elements : int
-        Number of chemical species (must match the torch model's
-        ``atomic_numbers`` table length).
-    hidden_irreps : str
-        Output irreps, e.g. ``"128x0e"``.
+    message : e3nn.IrrepsArray
+        Aggregated message in ``target_irreps``.
+    sc : e3nn.IrrepsArray
+        Per-element skip in ``hidden_irreps``.
     """
 
-    num_elements: int
+    node_feats_irreps: str
+    node_attrs_irreps: str
+    edge_attrs_irreps: str
+    target_irreps: str
     hidden_irreps: str
+    interaction_cls: str = "RealAgnosticResidual"
+    radial_mlp: tuple = (64, 64, 64)
 
     @nn.compact
-    def __call__(self, node_feats, Z):
-        in_irreps = node_feats.irreps
-        out_irreps = e3nn.Irreps(self.hidden_irreps)
-
-        if not all(ir.l == 0 for _, ir in in_irreps):
+    def __call__(
+        self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders,
+    ):
+        if self.interaction_cls != "RealAgnosticResidual":
             raise NotImplementedError(
-                "PerElementSkipTP currently supports scalar-only node features "
-                f"(got irreps={in_irreps})."
-            )
-        if not all(ir.l == 0 for _, ir in out_irreps):
-            raise NotImplementedError(
-                "PerElementSkipTP currently supports scalar-only output "
-                f"(got {self.hidden_irreps!r})."
+                f"Interaction variant {self.interaction_cls!r} not implemented; "
+                "only 'RealAgnosticResidual' is supported in P3."
             )
 
-        in_mul = sum(mul for mul, ir in in_irreps if ir.l == 0)
-        out_mul = sum(mul for mul, ir in out_irreps if ir.l == 0)
-        dtype = node_feats.array.dtype
+        node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
+        edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
+        target_irreps = e3nn.Irreps(self.target_irreps)
+        hidden_irreps = e3nn.Irreps(self.hidden_irreps)
 
-        path_weight = 1.0 / jnp.sqrt(
-            jnp.asarray(in_mul * self.num_elements, dtype=dtype)
+        # 1. linear_up: node_feats -> node_feats_irreps (in-place mix)
+        x = e3nn.flax.Linear(node_feats_irreps, name="linear_up")(node_feats)
+
+        # 2. conv_tp: (x_j × sph) restricted to paths reachable in target_irreps
+        irreps_mid, _instructions = tp_out_irreps_with_instructions(
+            node_feats_irreps, edge_attrs_irreps, target_irreps,
         )
-        weight = self.param(
-            "weight",
-            nn.initializers.normal(stddev=1.0),
-            (self.num_elements, in_mul, out_mul),
-            dtype,
+        x_j = x[senders]
+        tp = e3nn.tensor_product(x_j, edge_attrs, filter_ir_out=irreps_mid)
+
+        # 3. Radial MLP: per-edge per-path scalar gates
+        n_paths = tp.irreps.num_irreps
+        weights = e3nn.flax.MultiLayerPerceptron(
+            list(self.radial_mlp) + [n_paths], act=jax.nn.silu, name="radial_mlp",
+        )(edge_feats)
+        weighted = tp * weights
+
+        # 4. Scatter-sum into receivers
+        agg = e3nn.scatter_sum(
+            weighted, dst=receivers, output_size=node_feats.shape[0]
         )
-        w_selected = weight[Z.astype(jnp.int32)]          # (n_atoms, in_mul, out_mul)
-        x = node_feats.array                              # (n_atoms, in_mul)
-        y = jnp.einsum("ni,nij->nj", x, w_selected) * path_weight
-        return e3nn.IrrepsArray(out_irreps, y)
+
+        # 5. linear: irreps_mid -> target_irreps
+        message = e3nn.flax.Linear(target_irreps, name="linear")(agg)
+
+        # 6. skip_tp: per-element FCTP (node_feats × node_attrs → hidden_irreps).
+        #    Since node_attrs is scalar-only, the FCTP is equivalent to
+        #    Linear(tensor_product(node_feats, node_attrs)) — force_irreps_out
+        #    zero-pads channels not reachable from the input.
+        skip_input = e3nn.tensor_product(node_feats, node_attrs)
+        sc = e3nn.flax.Linear(
+            hidden_irreps, name="skip_tp", force_irreps_out=True,
+        )(skip_input)
+
+        return message, sc
 
 
 class LinearReadoutBlock(nn.Module):

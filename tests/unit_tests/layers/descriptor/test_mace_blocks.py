@@ -74,24 +74,49 @@ from apax.layers.descriptor.mace_blocks import InteractionBlock
 
 def test_interaction_block_shape_and_finite():
     n_atoms, n_edges = 5, 12
-    hidden = "16x0e + 16x1o"
+    node_feats_irreps = "16x0e"
+    node_attrs_irreps = "10x0e"
     sph_irreps = "1x0e + 1x1o + 1x2e"  # max_ell=2
+    target_irreps = "16x0e + 16x1o + 16x2e"
+    hidden_irreps = "16x0e"
 
     node_feats = e3nn.IrrepsArray(
-        e3nn.Irreps(hidden),
-        jnp.asarray(np.random.default_rng(0).normal(size=(n_atoms, 64))),
+        e3nn.Irreps(node_feats_irreps),
+        jnp.asarray(
+            np.random.default_rng(0).normal(
+                size=(n_atoms, e3nn.Irreps(node_feats_irreps).dim)
+            )
+        ),
     )
     sph_array = jnp.asarray(np.random.default_rng(1).normal(size=(n_edges, 9)))
     edge_attrs = e3nn.IrrepsArray(e3nn.Irreps(sph_irreps), sph_array)
     edge_feats = jnp.asarray(np.random.default_rng(2).normal(size=(n_edges, 8)))
+    node_attrs = e3nn.IrrepsArray(
+        node_attrs_irreps,
+        jax.nn.one_hot(jnp.arange(n_atoms) % 10, 10),
+    )
     i = jnp.asarray(np.random.default_rng(3).integers(0, n_atoms, size=n_edges))
     j = jnp.asarray(np.random.default_rng(4).integers(0, n_atoms, size=n_edges))
 
-    block = InteractionBlock(irreps_out=hidden, interaction_cls="RealAgnosticResidual")
-    params = block.init(jax.random.PRNGKey(0), node_feats, edge_attrs, edge_feats, i, j)
-    out = block.apply(params, node_feats, edge_attrs, edge_feats, i, j)
-    assert out.array.shape == (n_atoms, e3nn.Irreps(hidden).dim)
-    assert jnp.isfinite(out.array).all()
+    block = InteractionBlock(
+        node_feats_irreps=node_feats_irreps,
+        node_attrs_irreps=node_attrs_irreps,
+        edge_attrs_irreps=sph_irreps,
+        target_irreps=target_irreps,
+        hidden_irreps=hidden_irreps,
+        interaction_cls="RealAgnosticResidual",
+    )
+    params = block.init(
+        jax.random.PRNGKey(0),
+        node_feats, edge_attrs, edge_feats, node_attrs, i, j,
+    )
+    message, sc = block.apply(
+        params, node_feats, edge_attrs, edge_feats, node_attrs, i, j
+    )
+    assert message.array.shape == (n_atoms, e3nn.Irreps(target_irreps).dim)
+    assert sc.array.shape == (n_atoms, e3nn.Irreps(hidden_irreps).dim)
+    assert jnp.isfinite(message.array).all()
+    assert jnp.isfinite(sc.array).all()
 
 
 from apax.layers.descriptor.mace_blocks import ProductBlock
@@ -232,6 +257,53 @@ def test_nonlinear_readout_block_vmap_over_atoms():
     feats_batched = e3nn.IrrepsArray("16x0e", jnp.ones((5, 16)))
     out = jax.vmap(lambda x: block.apply(params, x))(feats_batched)
     assert out.shape == (5, 1)
+
+
+def test_interaction_block_emits_target_irreps_and_skip():
+    """InteractionBlock returns (message in target_irreps, sc in hidden_irreps)."""
+    n_atoms, n_edges = 4, 6
+    node_feats_irreps = "8x0e"
+    node_attrs_irreps = "5x0e"
+    edge_attrs_irreps = "1x0e + 1x1o + 1x2e"      # max_ell=2
+    target_irreps = "8x0e + 8x1o + 8x2e"           # interaction_irreps
+    hidden_irreps = "8x0e"
+
+    block = InteractionBlock(
+        node_feats_irreps=node_feats_irreps,
+        node_attrs_irreps=node_attrs_irreps,
+        edge_attrs_irreps=edge_attrs_irreps,
+        target_irreps=target_irreps,
+        hidden_irreps=hidden_irreps,
+        interaction_cls="RealAgnosticResidual",
+    )
+    rng = jax.random.PRNGKey(0)
+    node_feats = e3nn.IrrepsArray(
+        node_feats_irreps,
+        jnp.ones((n_atoms, e3nn.Irreps(node_feats_irreps).dim)),
+    )
+    sph = e3nn.IrrepsArray(
+        edge_attrs_irreps,
+        jnp.ones((n_edges, e3nn.Irreps(edge_attrs_irreps).dim)),
+    )
+    radial = jnp.ones((n_edges, 4))
+    Z_one_hot = e3nn.IrrepsArray(
+        node_attrs_irreps,
+        jax.nn.one_hot(jnp.arange(n_atoms) % 5, 5),
+    )
+    receivers = jnp.array([0, 1, 2, 3, 0, 1])
+    senders = jnp.array([1, 2, 3, 0, 2, 3])
+
+    params = block.init(rng, node_feats, sph, radial, Z_one_hot, receivers, senders)
+    message, sc = block.apply(
+        params, node_feats, sph, radial, Z_one_hot, receivers, senders
+    )
+
+    assert isinstance(message, e3nn.IrrepsArray)
+    assert isinstance(sc, e3nn.IrrepsArray)
+    assert e3nn.Irreps(message.irreps) == e3nn.Irreps(target_irreps)
+    assert e3nn.Irreps(sc.irreps) == e3nn.Irreps(hidden_irreps)
+    assert message.array.shape[0] == n_atoms
+    assert sc.array.shape[0] == n_atoms
 
 
 def test_tp_out_irreps_with_instructions_basic():
