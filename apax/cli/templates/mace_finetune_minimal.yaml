@@ -1,0 +1,57 @@
+# Minimal fine-tune config for a converted MACE foundation model.
+#
+# Prerequisites:
+#   uv sync --extra mace
+#   uv run apax convert-mace small ./mace-mp-0-small.apax
+#
+# Then:
+#   uv run apax train mace_finetune_minimal.yaml
+#
+# This config replaces the foundation's MaceReadout with apax's standard
+# AtomisticReadout MLP head and adds a shallow ensemble for uncertainty.
+# To keep the foundation MaceReadout instead, set readout_kind: mace and
+# adjust transfer_learning.reset_layers accordingly.
+
+n_epochs: 50
+seed: 1
+
+data:
+  directory: ./runs/
+  experiment: mace_finetune
+  data_path: ./dataset.extxyz
+  n_train: 800
+  n_valid: 100
+  batch_size: 16
+  valid_batch_size: 32
+
+model:
+  name: mace
+  r_max: 6.0
+  num_bessel: 10
+  num_polynomial_cutoff: 5
+  max_ell: 3
+  hidden_irreps: 128x0e
+  num_interactions: 2
+  correlation: 3
+  interaction_cls: RealAgnosticResidual
+  readout_kind: standard
+  nn: [256, 256]
+  ensemble:
+    kind: shallow
+    n_members: 8
+    force_variance: true
+
+transfer_learning:
+  base_model_checkpoint: ./mace-mp-0-small.apax
+  reset_layers: []
+
+loss:
+  - { name: energy, loss_type: crps }
+  - { name: forces, loss_type: crps }
+
+optimizer:
+  name: adam
+  nn_lr: 0.0003
+  emb_lr: 0.0003
+  scale_lr: 0.0001
+  shift_lr: 0.0003
