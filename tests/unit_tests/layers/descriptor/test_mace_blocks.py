@@ -362,6 +362,165 @@ def test_tp_out_irreps_with_instructions_basic():
     assert all(isinstance(i, tuple) for i in instructions)
 
 
+from apax.layers.descriptor.mace_blocks import (
+    InteractionBlockDensity,
+    InteractionBlockDensityResidual,
+    InteractionBlockResidual,
+    _INTERACTION_BLOCK_CLS,
+)
+
+
+def _make_density_inputs(seed: int = 0):
+    """Build a small set of inputs reusable by Density / DensityResidual tests."""
+    n_atoms, n_edges = 5, 12
+    node_feats_irreps = "16x0e"
+    node_attrs_irreps = "10x0e"
+    sph_irreps = "1x0e + 1x1o + 1x2e"
+    target_irreps = "16x0e + 16x1o + 16x2e"
+    hidden_irreps = "16x0e"
+
+    rng = np.random.default_rng(seed)
+    node_feats = e3nn.IrrepsArray(
+        node_feats_irreps,
+        jnp.asarray(rng.normal(size=(n_atoms, e3nn.Irreps(node_feats_irreps).dim))),
+    )
+    sph = e3nn.IrrepsArray(
+        sph_irreps,
+        jnp.asarray(rng.normal(size=(n_edges, e3nn.Irreps(sph_irreps).dim))),
+    )
+    radial = jnp.asarray(rng.normal(size=(n_edges, 8)))
+    Z_one_hot = e3nn.IrrepsArray(
+        node_attrs_irreps, jax.nn.one_hot(jnp.arange(n_atoms) % 10, 10),
+    )
+    receivers = jnp.asarray(rng.integers(0, n_atoms, size=n_edges))
+    senders = jnp.asarray(rng.integers(0, n_atoms, size=n_edges))
+    return {
+        "node_feats_irreps": node_feats_irreps,
+        "node_attrs_irreps": node_attrs_irreps,
+        "sph_irreps": sph_irreps,
+        "target_irreps": target_irreps,
+        "hidden_irreps": hidden_irreps,
+        "node_feats": node_feats,
+        "sph": sph,
+        "radial": radial,
+        "Z_one_hot": Z_one_hot,
+        "receivers": receivers,
+        "senders": senders,
+        "n_atoms": n_atoms,
+    }
+
+
+def test_interaction_block_density_shape_and_finite():
+    """Density variant returns ``(message, None)`` with message in target_irreps."""
+    ctx = _make_density_inputs(seed=0)
+    block = InteractionBlockDensity(
+        node_feats_irreps=ctx["node_feats_irreps"],
+        node_attrs_irreps=ctx["node_attrs_irreps"],
+        edge_attrs_irreps=ctx["sph_irreps"],
+        target_irreps=ctx["target_irreps"],
+        hidden_irreps=ctx["hidden_irreps"],  # unused
+    )
+    params = block.init(
+        jax.random.PRNGKey(0),
+        ctx["node_feats"], ctx["sph"], ctx["radial"], ctx["Z_one_hot"],
+        ctx["receivers"], ctx["senders"],
+    )
+    message, sc = block.apply(
+        params,
+        ctx["node_feats"], ctx["sph"], ctx["radial"], ctx["Z_one_hot"],
+        ctx["receivers"], ctx["senders"],
+    )
+    assert sc is None
+    assert isinstance(message, e3nn.IrrepsArray)
+    assert e3nn.Irreps(message.irreps) == e3nn.Irreps(ctx["target_irreps"])
+    assert message.array.shape == (ctx["n_atoms"], e3nn.Irreps(ctx["target_irreps"]).dim)
+    assert jnp.isfinite(message.array).all()
+
+
+def test_interaction_block_density_residual_shape_and_finite():
+    """DensityResidual returns ``(message in target, sc in hidden)``."""
+    ctx = _make_density_inputs(seed=1)
+    block = InteractionBlockDensityResidual(
+        node_feats_irreps=ctx["node_feats_irreps"],
+        node_attrs_irreps=ctx["node_attrs_irreps"],
+        edge_attrs_irreps=ctx["sph_irreps"],
+        target_irreps=ctx["target_irreps"],
+        hidden_irreps=ctx["hidden_irreps"],
+    )
+    params = block.init(
+        jax.random.PRNGKey(0),
+        ctx["node_feats"], ctx["sph"], ctx["radial"], ctx["Z_one_hot"],
+        ctx["receivers"], ctx["senders"],
+    )
+    message, sc = block.apply(
+        params,
+        ctx["node_feats"], ctx["sph"], ctx["radial"], ctx["Z_one_hot"],
+        ctx["receivers"], ctx["senders"],
+    )
+    assert sc is not None
+    assert e3nn.Irreps(message.irreps) == e3nn.Irreps(ctx["target_irreps"])
+    assert e3nn.Irreps(sc.irreps) == e3nn.Irreps(ctx["hidden_irreps"])
+    assert message.array.shape[0] == ctx["n_atoms"]
+    assert sc.array.shape[0] == ctx["n_atoms"]
+    assert jnp.isfinite(message.array).all() and jnp.isfinite(sc.array).all()
+
+
+def test_interaction_scaffold_param_names_match_torch():
+    """Residual param tree carries the torch-aligned slot names.
+
+    Acts as a regression guard for converter mapping: the slots
+    ``linear_up``, ``radial_mlp``, ``linear``, ``skip_tp`` are the keys the
+    torch->apax mapper writes into.
+    """
+    ctx = _make_density_inputs(seed=2)
+    block = InteractionBlockResidual(
+        node_feats_irreps=ctx["node_feats_irreps"],
+        node_attrs_irreps=ctx["node_attrs_irreps"],
+        edge_attrs_irreps=ctx["sph_irreps"],
+        target_irreps=ctx["target_irreps"],
+        hidden_irreps=ctx["hidden_irreps"],
+    )
+    params = block.init(
+        jax.random.PRNGKey(0),
+        ctx["node_feats"], ctx["sph"], ctx["radial"], ctx["Z_one_hot"],
+        ctx["receivers"], ctx["senders"],
+    )
+    keys = set(params["params"].keys())
+    assert keys == {"linear_up", "radial_mlp", "linear", "skip_tp"}
+
+
+def test_interaction_block_density_param_tree_has_density_fn():
+    """Density variant adds a ``density_fn`` slot for the per-edge gate weight."""
+    ctx = _make_density_inputs(seed=3)
+    block = InteractionBlockDensity(
+        node_feats_irreps=ctx["node_feats_irreps"],
+        node_attrs_irreps=ctx["node_attrs_irreps"],
+        edge_attrs_irreps=ctx["sph_irreps"],
+        target_irreps=ctx["target_irreps"],
+        hidden_irreps=ctx["hidden_irreps"],
+    )
+    params = block.init(
+        jax.random.PRNGKey(0),
+        ctx["node_feats"], ctx["sph"], ctx["radial"], ctx["Z_one_hot"],
+        ctx["receivers"], ctx["senders"],
+    )
+    keys = set(params["params"].keys())
+    assert keys == {"linear_up", "radial_mlp", "linear", "skip_tp", "density_fn"}
+    # density_fn is a single Dense(num_bessel -> 1) layer.
+    density_kernel = params["params"]["density_fn"]["Dense_0"]["kernel"]
+    assert density_kernel.shape == (ctx["radial"].shape[-1], 1)
+
+
+def test_interaction_block_dispatch_table_complete():
+    """``_INTERACTION_BLOCK_CLS`` covers every Literal value in MaceModelConfig."""
+    assert _INTERACTION_BLOCK_CLS["RealAgnosticResidual"] is InteractionBlockResidual
+    assert _INTERACTION_BLOCK_CLS["RealAgnosticDensity"] is InteractionBlockDensity
+    assert (
+        _INTERACTION_BLOCK_CLS["RealAgnosticDensityResidual"]
+        is InteractionBlockDensityResidual
+    )
+
+
 def test_nonlinear_readout_block_applies_silu_normalization():
     """Gate is SiLU * silu_normalization (torch-mace normalize2mom constant)."""
     from apax.layers.descriptor.mace_blocks import NonLinearReadoutBlock

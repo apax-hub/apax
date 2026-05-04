@@ -30,16 +30,16 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from apax.config.train_config import Config
 
 
-# Torch interaction class names that apax can convert today.
-# Other variants (``RealAgnosticInteractionBlock``,
-# ``RealAgnosticDensityInteractionBlock``,
-# ``RealAgnosticDensityResidualInteractionBlock``) ship with several MACE
-# foundation families (MACE-MPA-0, MatPES, OMAT) but are out of scope until
-# the corresponding apax block ports land. ``MaceModelConfig.interaction_cls``
-# is a one-element ``Literal`` for the same reason — the schema and the
-# converter agree on what is implemented.
-_SUPPORTED_TORCH_INTERACTION_CLS = "RealAgnosticResidualInteractionBlock"
-_APAX_INTERACTION_CLS = "RealAgnosticResidual"
+# Torch interaction class names that apax can convert today, mapped to the
+# apax-side ``Literal`` values consumed by ``MaceModelConfig.interaction_cls``.
+# ``RealAgnosticInteractionBlock`` (the non-residual non-density variant) is
+# still out of scope — adding it is purely additive (one more block class +
+# Literal extension). Schema and converter agree on what is implemented.
+_SUPPORTED_TORCH_INTERACTION_CLS = {
+    "RealAgnosticResidualInteractionBlock": "RealAgnosticResidual",
+    "RealAgnosticDensityInteractionBlock": "RealAgnosticDensity",
+    "RealAgnosticDensityResidualInteractionBlock": "RealAgnosticDensityResidual",
+}
 
 # Number of chemical species in the apax embedding table. Z=0 is reserved for
 # padding; physical Z values are scattered into [1, n_species - 1].
@@ -265,15 +265,22 @@ def _extract_config_from_torch(model, head: str) -> dict:
             f"Pass --head <name> from that list."
         )
 
-    inter0_cls = type(model.interactions[0]).__name__
-    if inter0_cls != _SUPPORTED_TORCH_INTERACTION_CLS:
-        raise NotImplementedError(
-            f"Foundation uses interaction block {inter0_cls!r}; apax currently "
-            f"only supports {_SUPPORTED_TORCH_INTERACTION_CLS!r}. Density / "
-            "non-residual variants (used by MACE-MPA-0, MatPES, OMAT) need "
-            "their apax port before they can be converted."
-        )
-    interaction_cls = _APAX_INTERACTION_CLS
+    per_layer_cls: list[str] = []
+    for inter in model.interactions:
+        cls_name = type(inter).__name__
+        if cls_name not in _SUPPORTED_TORCH_INTERACTION_CLS:
+            raise NotImplementedError(
+                f"Foundation uses interaction block {cls_name!r}; apax supports "
+                f"{sorted(_SUPPORTED_TORCH_INTERACTION_CLS)}. Other variants need "
+                "their apax port before they can be converted."
+            )
+        per_layer_cls.append(_SUPPORTED_TORCH_INTERACTION_CLS[cls_name])
+    # Emit a single str when every layer uses the same variant; emit a list
+    # otherwise (e.g. mpa-0 / matpes use Density first, DensityResidual last).
+    if len(set(per_layer_cls)) == 1:
+        interaction_cls: Union[str, list[str]] = per_layer_cls[0]
+    else:
+        interaction_cls = per_layer_cls
 
     hidden_irreps = str(model.products[0].linear.irreps_out)
 
@@ -286,6 +293,60 @@ def _extract_config_from_torch(model, head: str) -> dict:
         correlation += 1
 
     avg_num_neighbors = float(model.interactions[0].avg_num_neighbors)
+
+    # Detect torch's :class:`mace.modules.radial.ZBLBasis` correction and
+    # emit an apax ``MaceZBLPairRepulsion`` config entry for the converter to
+    # populate. The correction is detected by the ``pair_repulsion_fn``
+    # submodule attribute (present on MACE-MPA-0, MatPES, OMAT foundations).
+    empirical_corrections: list[dict] = []
+    if hasattr(model, "pair_repulsion_fn"):
+        import torch  # noqa: PLC0415
+        zbl = model.pair_repulsion_fn
+        # ``p`` is a registered buffer (torch tensor); cast to int.
+        p_value = int(zbl.p.detach().cpu().item())
+        # ``a_exp`` and ``a_prefactor`` may be either buffers (trainable=False)
+        # or :class:`nn.Parameter` (trainable=True); detect via instance.
+        is_trainable = isinstance(zbl.a_exp, torch.nn.Parameter)
+        # Torch-mace folds the ZBL contribution INSIDE ``scale_shift`` (it
+        # scales ``readout + ZBL`` by the global ``scale``). apax's
+        # ``EnergyModel`` applies corrections AFTER ``scale_shift``, so we
+        # replicate the torch behaviour by passing the global ``scale`` in as
+        # ``output_scale`` on the apax ZBL module. Buffers (c, a_exp, ...)
+        # stay bit-identical to the torch source — no buffer munging.
+        global_scale = float(model.scale_shift.scale.detach().cpu())
+        empirical_corrections.append(
+            {
+                "name": "mace_zbl",
+                "p": p_value,
+                "trainable": is_trainable,
+                "output_scale": global_scale,
+            }
+        )
+
+    # Detect torch's :class:`mace.modules.radial.AgnesiTransform` and emit a
+    # ``DistanceTransformConfig`` entry. The transform is attached to the
+    # radial embedding block on foundations like MACE-MPA-0, MatPES,
+    # OMAT-r2scan; small / medium do not carry it.
+    distance_transform_cfg = None
+    if hasattr(model.radial_embedding, "distance_transform"):
+        import torch  # noqa: PLC0415
+        dt = model.radial_embedding.distance_transform
+        cls_name = type(dt).__name__
+        if cls_name == "AgnesiTransform":
+            is_trainable = isinstance(dt.a, torch.nn.Parameter)
+            distance_transform_cfg = {
+                "name": "agnesi",
+                "a": float(dt.a.detach().cpu()),
+                "q": float(dt.q.detach().cpu()),
+                "p": float(dt.p.detach().cpu()),
+                "trainable": is_trainable,
+            }
+        else:
+            raise NotImplementedError(
+                f"Foundation uses distance_transform {cls_name!r}; apax supports "
+                f"['AgnesiTransform']. Other variants need their apax port."
+            )
+
     cfg = {
         "r_max": float(model.r_max),
         "num_bessel": int(model.radial_embedding.bessel_fn.bessel_weights.shape[0]),
@@ -299,6 +360,8 @@ def _extract_config_from_torch(model, head: str) -> dict:
         "readout_kind": "mace",
         "MLP_irreps": "16x0e",
         "avg_num_neighbors": avg_num_neighbors,
+        "empirical_corrections": empirical_corrections,
+        "distance_transform": distance_transform_cfg,
         # Float64 throughout for parity with the torch foundation model loaded
         # with default_dtype="float64".
         "descriptor_dtype": "fp64",
@@ -454,6 +517,16 @@ def _map_state_to_pytree(
         atomic_energies=np.asarray(extra_scalars["atomic_energies"]),
         torch_atomic_numbers=torch_atomic_numbers,
     )
+    if hasattr(torch_model, "pair_repulsion_fn"):
+        # Locate the mace_zbl entry in the configured corrections list. The
+        # converter only ever appends a single MaceZBLPairRepulsion today, but
+        # honour the position so future configs with multiple corrections still
+        # map correctly.
+        correction_index = next(
+            i for i, c in enumerate(config.empirical_corrections)
+            if getattr(c, "name", None) == "mace_zbl"
+        )
+        _map_pair_repulsion(state, out, correction_index=correction_index)
     return out
 
 
@@ -542,9 +615,15 @@ def _map_scale_shift(
     n_species = ss_params["scale_per_element"].shape[0]
     scale = np.full((n_species, 1), global_scale, dtype=np.float64)
     shift = np.zeros((n_species, 1), dtype=np.float64)
+    # ``atomic_energies`` is 1-D ``(n_species,)`` for some foundations and
+    # 2-D ``(n_heads, n_species)`` for others (matpes ships a 2-D table even
+    # with a single head). Single-head foundations always use head 0.
+    ae = np.asarray(atomic_energies)
+    if ae.ndim == 2:
+        ae = ae[0]
     for torch_idx, Z in enumerate(torch_atomic_numbers):
         if 0 <= Z < n_species:
-            shift[Z, 0] = global_shift + float(atomic_energies[torch_idx])
+            shift[Z, 0] = global_shift + float(ae[torch_idx])
     ss_params["scale_per_element"] = scale.astype(
         ss_params["scale_per_element"].dtype
     )
@@ -612,21 +691,23 @@ def _map_interactions(
     hidden_irreps = e3nn.Irreps(config.hidden_irreps)
     M = hidden_irreps.filter("0e").dim  # scalar channel count (= num_features)
 
+    # Resolve per-layer interaction class (str → broadcast, list → as-is).
+    if isinstance(config.interaction_cls, str):
+        per_layer_cls = [config.interaction_cls] * int(config.num_interactions)
+    else:
+        per_layer_cls = list(config.interaction_cls)
+
     for k in range(int(config.num_interactions)):
         block = rep_params[f"InteractionBlock_{k}"]
         prefix = f"interactions.{k}."
 
-        # 1. linear_up : single 128x0e -> 128x0e block, flat reshape directly.
-        target = block["linear_up"]["w[0,0] 128x0e,128x0e"]
-        flat = state[prefix + "linear_up.weight"]
-        if flat.size != target.size:
-            raise ValueError(
-                f"linear_up size mismatch for block {k}: "
-                f"torch {flat.size} vs apax {target.size}"
-            )
-        block["linear_up"]["w[0,0] 128x0e,128x0e"] = flat.reshape(
-            target.shape
-        ).astype(target.dtype)
+        # 1. linear_up : plain e3nn.o3.Linear in shared irreps.  For scalar-only
+        #    layers (small foundation, layer 0 of medium/mpa-0) this is one
+        #    (M, M) slot; for multi-irrep layers (layer 1 of medium/mpa-0) it
+        #    is one (M, M) slot per shared irrep, in instruction order.
+        _scatter_o3_linear_blocks(
+            block["linear_up"], state[prefix + "linear_up.weight"], M=M,
+        )
 
         # 2. linear : multi-irrep e3nn.o3.Linear flat → per-irrep apax slots.
         #    torch stores 4 (M, M) blocks back-to-back in the order produced by
@@ -635,39 +716,17 @@ def _map_interactions(
             block["linear"], state[prefix + "linear.weight"], M=M,
         )
 
-        # 3. skip_tp : per-element FCTP → e3nn.flax.Linear over tensor product.
-        skip_target_key = next(iter(block["skip_tp"]))
-        target = block["skip_tp"][skip_target_key]
-        flat = state[prefix + "skip_tp.weight"]
-        n_species_apax = target.shape[0] // M
-        if target.shape[0] != n_species_apax * M:
-            raise ValueError(
-                f"InteractionBlock_{k} skip_tp slot has shape {target.shape}; "
-                "rows must be (M_in * n_species_apax)."
-            )
-        expected = M * n_torch * M
-        if flat.size != expected:
-            raise ValueError(
-                f"interactions.{k}.skip_tp.weight size {flat.size} != "
-                f"expected {expected} (= M_in * n_torch * M_out)"
-            )
-        # Torch FCTP weight layout is (in1=M, in2=n_torch, out=M).
-        # Torch FCTP applies path_weight = 1/sqrt(M*n_torch); apax replaces it
-        # with Linear(tensor_product(node_feats, Z_one_hot)) whose path_weight
-        # is 1/sqrt(M*n_species_apax). Compensate by scaling the copied
-        # weights by sqrt(n_species_apax/n_torch) so the effective normaliser
-        # matches torch.
-        scale = float(np.sqrt(n_species_apax / n_torch))
-        torch_w_3d = flat.reshape(M, n_torch, M)
-        new = np.zeros_like(target)
-        for torch_idx, Z in enumerate(torch_atomic_numbers):
-            if not (0 <= Z < n_species_apax):
-                continue
-            # apax row index = i * n_species_apax + Z (matches the layout
-            # produced by e3nn.tensor_product(node_feats[Mx0e], Z_one_hot)).
-            for i in range(M):
-                new[i * n_species_apax + Z, :] = torch_w_3d[i, torch_idx, :] * scale
-        block["skip_tp"][skip_target_key] = new.astype(target.dtype)
+        # 3. skip_tp : torch FCTP → apax Linear(tensor_product(in, attrs)).
+        #    One path per output irrep reachable from the input. Torch packs
+        #    every path's (mul_in, n_torch, mul_out) block back-to-back in
+        #    instruction order, which matches lexicographic sort of apax slot
+        #    keys (e.g. ``w[0,0]`` < ``w[1,1]`` < ...).
+        _scatter_skip_tp_blocks(
+            block["skip_tp"],
+            state[prefix + "skip_tp.weight"],
+            n_torch=n_torch,
+            torch_atomic_numbers=torch_atomic_numbers,
+        )
 
         # 4. radial MLP : direct kernel copy for every layer.
         radial = block["radial_mlp"]
@@ -685,24 +744,44 @@ def _map_interactions(
                 np.asarray(torch_w).astype(target.dtype)
             )
 
+        # 5. density_fn (Density variants only).
+        variant = per_layer_cls[k]
+        if variant in ("RealAgnosticDensity", "RealAgnosticDensityResidual"):
+            target = block["density_fn"]["Dense_0"]["kernel"]
+            torch_w = state[prefix + "density_fn.layer0.weight"]
+            if torch_w.shape != target.shape:
+                raise ValueError(
+                    f"density_fn shape mismatch for block {k}: torch "
+                    f"{torch_w.shape} vs apax {target.shape}"
+                )
+            block["density_fn"]["Dense_0"]["kernel"] = (
+                np.asarray(torch_w).astype(target.dtype)
+            )
+
 
 def _scatter_o3_linear_blocks(
     block_params: dict,
     flat: np.ndarray,
     *,
-    M: int,
+    M: int = 0,  # noqa: ARG001  retained for back-compat with prior signature
 ) -> None:
-    """Slice a flat ``e3nn.o3.Linear`` weight into apax ``w[i,i]`` slots.
+    """Slice a flat ``e3nn.o3.Linear`` weight into apax slots, size-aware.
 
-    Both torch's :class:`e3nn.o3.Linear` and apax's
-    :class:`e3nn_jax.flax.Linear` enumerate diagonal instructions (one per
-    irrep in the input/output) in the same order, with each instruction
-    contributing a ``(mul_in, mul_out)`` block to the flat weight. For the
-    interaction layer's ``128x0e+128x1o+128x2e+128x3o → ...`` setting that's
-    four ``(128, 128)`` blocks back-to-back. The apax slot keys
-    (``"w[0,0] ..."`` / ``"w[1,1] ..."`` / ...) sort lexicographically into
-    the same order, so a sorted iteration over the slots fills them
-    deterministically.
+    Each diagonal instruction in torch's ``e3nn.o3.Linear`` contributes a
+    ``(mul_in, mul_out)`` block to the flat weight in instruction order.
+    Sorted apax slot keys (``w[i,i] ...``) match that order, but the per-slot
+    shape may vary across slots:
+
+    - Uniform case (``small`` foundation, ``mpa-0`` layer 0 ``linear``): every
+      slot is ``(M, M)``.
+    - Non-uniform case (``mpa-0`` / ``matpes`` layer 1 ``linear``): multiple
+      input paths reach the same output irrep, collapsed by ``simplify()``,
+      so an output irrep's slot has shape ``(sum_of_path_muls_in, mul_out)``
+      where ``sum_of_path_muls_in`` is generally a small multiple of ``M``.
+
+    This implementation reads each slot's shape from the target and consumes
+    ``target.size`` flat elements per slot. The legacy ``M`` parameter is
+    retained for callers that still pass it but is not used internally.
 
     Parameters
     ----------
@@ -711,25 +790,221 @@ def _scatter_o3_linear_blocks(
         in place).
     flat : np.ndarray
         Flat torch ``Linear.weight`` tensor.
-    M : int
-        Common multiplicity (e.g. 128). Each instruction contributes
-        ``M * M`` weights.
+    M : int, optional
+        Unused — preserved for source-compatibility with prior call sites.
     """
     keys = sorted(block_params.keys())
-    expected = len(keys) * M * M
-    if flat.size != expected:
-        raise ValueError(
-            f"e3nn.o3.Linear flat weight size {flat.size} != expected "
-            f"{expected} (= {len(keys)} blocks × {M}×{M})."
-        )
-    for slot_idx, key in enumerate(keys):
+    offset = 0
+    for key in keys:
         target = block_params[key]
-        if target.shape != (M, M):
+        n = target.size
+        if offset + n > flat.size:
             raise ValueError(
-                f"Linear slot {key!r} has shape {target.shape}; expected ({M}, {M})."
+                f"Linear slot {key!r}: flat weight only has {flat.size - offset} "
+                f"elements remaining but slot needs {n}."
             )
-        block = flat[slot_idx * M * M : (slot_idx + 1) * M * M].reshape(M, M)
-        block_params[key] = block.astype(target.dtype)
+        block_params[key] = (
+            flat[offset : offset + n].reshape(target.shape).astype(target.dtype)
+        )
+        offset += n
+    if offset != flat.size:
+        raise ValueError(
+            f"e3nn.o3.Linear flat weight has {flat.size - offset} unconsumed "
+            f"elements after filling {len(keys)} slots."
+        )
+
+
+def _scatter_skip_tp_blocks(
+    block_params: dict,
+    flat: np.ndarray,
+    *,
+    n_torch: int,
+    torch_atomic_numbers: tuple[int, ...],
+) -> None:
+    """Scatter torch FCTP weight into the apax tensor-product Linear slots.
+
+    Each reachable output irrep gets one slot of shape
+    ``(mul_in1 * n_species_apax, mul_out)``. Torch packs every path's
+    ``(mul_in1, n_torch, mul_out)`` block back-to-back in instruction order;
+    lexicographic sort of apax slot keys (``w[0,0] ...``, ``w[1,1] ...``, ...)
+    matches that order.
+
+    Per-path scatter: for each ``(torch_idx, Z)`` in ``torch_atomic_numbers``,
+    the apax slot row ``i * n_species_apax + Z`` (matching the
+    ``e3nn.tensor_product(node_feats, Z_one_hot)`` layout) takes the torch
+    weight scaled by ``sqrt(n_species_apax / n_torch)`` to compensate for the
+    different ``path_weight = 1/sqrt(mul_in1 * n_species)`` normalisations
+    on either side.
+
+    Parameters
+    ----------
+    block_params : dict
+        The ``skip_tp`` sub-dict of an apax ``InteractionBlock_k`` (mutated
+        in place). Each value is a flat ``(mul_in1 * n_species_apax, mul_out)``
+        weight slot.
+    flat : np.ndarray
+        Torch FCTP ``skip_tp.weight``.
+    n_torch : int
+        Foundation-side species table size (``len(model.atomic_numbers)``).
+    torch_atomic_numbers : tuple of int
+        Maps each torch row to its physical Z value.
+    """
+    keys = sorted(block_params.keys())
+    if not keys:
+        if flat.size != 0:
+            raise ValueError(
+                f"skip_tp has no slots but torch flat weight has size {flat.size}."
+            )
+        return
+
+    # Read mul_in1 / mul_out / n_species_apax from the first slot. e3nn-jax
+    # creates uniform shapes per slot (one path per output irrep, all with the
+    # same mul on input and output sides for these foundation models).
+    sample = block_params[keys[0]]
+    mul_out = sample.shape[1]
+    if sample.shape[0] % n_torch != 0:
+        # If torch's species table is smaller than apax's, the apax slot rows
+        # are mul_in1 * n_species_apax; back out mul_in1 by dividing by the
+        # apax-side species count we infer from the slot shape and n_torch.
+        # Heuristic: mul_in1 must be a power-of-two-ish factor that divides
+        # both shape[0] and torch's expected per-path size.
+        pass  # validated per-path below
+    # Path numel: mul_in1 * n_torch * mul_out.
+    path_size = flat.size // len(keys)
+    expected_total = path_size * len(keys)
+    if flat.size != expected_total:
+        raise ValueError(
+            f"skip_tp flat size {flat.size} not divisible into {len(keys)} "
+            f"equal-sized paths."
+        )
+    if path_size % (n_torch * mul_out) != 0:
+        raise ValueError(
+            f"skip_tp path size {path_size} not divisible by n_torch*mul_out "
+            f"({n_torch}*{mul_out})."
+        )
+    mul_in1 = path_size // (n_torch * mul_out)
+    n_species_apax = sample.shape[0] // mul_in1
+    if sample.shape != (mul_in1 * n_species_apax, mul_out):
+        raise ValueError(
+            f"skip_tp slot shape {sample.shape} not consistent with "
+            f"(mul_in1*n_species_apax={mul_in1*n_species_apax}, "
+            f"mul_out={mul_out})."
+        )
+
+    # path_weight compensation: torch FCTP uses 1/sqrt(mul_in1 * n_torch);
+    # apax Linear uses 1/sqrt(mul_in1 * n_species_apax). Scale copied weights
+    # by sqrt(n_species_apax / n_torch).
+    scale = float(np.sqrt(n_species_apax / n_torch))
+
+    for path_idx, key in enumerate(keys):
+        target = block_params[key]
+        if target.shape != (mul_in1 * n_species_apax, mul_out):
+            raise ValueError(
+                f"skip_tp slot {key!r} has shape {target.shape}; expected "
+                f"({mul_in1 * n_species_apax}, {mul_out})."
+            )
+        path_slice = flat[path_idx * path_size : (path_idx + 1) * path_size]
+        torch_w_3d = path_slice.reshape(mul_in1, n_torch, mul_out)
+        new = np.zeros_like(target)
+        for torch_idx, Z in enumerate(torch_atomic_numbers):
+            if not (0 <= Z < n_species_apax):
+                continue
+            for i in range(mul_in1):
+                new[i * n_species_apax + Z, :] = torch_w_3d[i, torch_idx, :] * scale
+        block_params[key] = new.astype(target.dtype)
+
+
+def _map_pair_repulsion(
+    state: dict[str, np.ndarray],
+    out: dict,
+    *,
+    correction_index: int,
+) -> None:
+    """Copy torch ``pair_repulsion_fn`` weights into the apax ZBL slot.
+
+    The :class:`MaceZBLPairRepulsion` Linen module registers ``c``,
+    ``covalent_radii`` (and, when ``trainable=False``, ``a_exp`` /
+    ``a_prefactor``) as variables in the ``buffers`` collection; with
+    ``trainable=True`` ``a_exp`` and ``a_prefactor`` live in ``params``
+    instead. The resolved pytree path is
+    ``{collection}/energy_model/corrections_{correction_index}/<leaf>``
+    where ``correction_index`` is the position of the ``mace_zbl`` entry in
+    the original ``empirical_corrections`` config list.
+
+    Parameters
+    ----------
+    state : dict of str to np.ndarray
+        Torch ``state_dict`` arrays (``pair_repulsion_fn.*``).
+    out : dict
+        The full apax pytree (mutated in place). Must contain at least
+        ``out["buffers"]["energy_model"][f"corrections_{correction_index}"]``.
+    correction_index : int
+        Index of the ``mace_zbl`` correction in the empirical_corrections
+        list. For foundation models in scope (single ZBL correction) this is
+        always ``0``.
+    """
+    slot_key = f"corrections_{correction_index}"
+
+    # Buffers collection always carries c + covalent_radii; a_exp / a_prefactor
+    # live here when trainable=False.
+    buf_slot = out["buffers"]["energy_model"][slot_key]
+    buf_slot["c"] = np.asarray(state["pair_repulsion_fn.c"]).astype(
+        buf_slot["c"].dtype
+    )
+    buf_slot["covalent_radii"] = np.asarray(
+        state["pair_repulsion_fn.covalent_radii"]
+    ).astype(buf_slot["covalent_radii"].dtype)
+
+    # a_exp / a_prefactor: present in whichever collection the template
+    # initialized them in. Try buffers first (trainable=False), fall back to
+    # params (trainable=True).
+    for name in ("a_exp", "a_prefactor"):
+        torch_arr = np.asarray(state[f"pair_repulsion_fn.{name}"])
+        if name in buf_slot:
+            buf_slot[name] = torch_arr.astype(buf_slot[name].dtype)
+        else:
+            par_slot = out["params"]["energy_model"][slot_key]
+            par_slot[name] = torch_arr.astype(par_slot[name].dtype)
+
+
+def _map_distance_transform(
+    state: dict[str, np.ndarray],
+    out: dict,
+) -> None:
+    """Copy torch ``radial_embedding.distance_transform`` into the apax slot.
+
+    The :class:`AgnesiTransform` Linen module is attached as a field on
+    :class:`MaceRepresentation`, so its leaves land in the pytree at::
+
+        buffers/energy_model/representation/distance_transform/{a,q,p,covalent_radii}
+
+    When ``trainable=True`` the three scalar parameters ``a`` / ``q`` / ``p``
+    move from the ``buffers`` collection to ``params``. ``covalent_radii``
+    always stays in ``buffers``.
+
+    Parameters
+    ----------
+    state : dict of str to np.ndarray
+        Torch ``state_dict`` arrays. The four expected keys are
+        ``radial_embedding.distance_transform.{a,q,p,covalent_radii}``.
+    out : dict
+        Full apax pytree (mutated in place). Must already carry
+        ``out["buffers"]["energy_model"]["representation"]["distance_transform"]``.
+    """
+    rep_buf = out["buffers"]["energy_model"]["representation"]
+    dt_buf = rep_buf["distance_transform"]
+    dt_buf["covalent_radii"] = np.asarray(
+        state["radial_embedding.distance_transform.covalent_radii"]
+    ).astype(dt_buf["covalent_radii"].dtype)
+    for name in ("a", "q", "p"):
+        torch_arr = np.asarray(state[f"radial_embedding.distance_transform.{name}"])
+        if name in dt_buf:
+            dt_buf[name] = torch_arr.astype(dt_buf[name].dtype)
+        else:
+            par_slot = out["params"]["energy_model"]["representation"][
+                "distance_transform"
+            ]
+            par_slot[name] = torch_arr.astype(par_slot[name].dtype)
 
 
 def _map_products(

@@ -20,7 +20,11 @@ def check_for_ensemble(params: FrozenDict) -> int:
     This is the case if all parameters share the same first dimension (parameter batch)
     """
     flat_params = flatten_dict(params)
-    shapes = [v.shape[0] for v in flat_params.values()]
+    # 0-d scalar leaves (e.g. torch-style scalar buffers like
+    # ``MaceZBLPairRepulsion.a_exp``) have no axis 0; treat them as size 1.
+    # Real ensembles always stack via ``jnp.stack`` which lifts every leaf to
+    # at least 1-d, so the 0-d branch only fires for single-model pytrees.
+    shapes = [v.shape[0] if v.ndim > 0 else 1 for v in flat_params.values()]
     is_ensemble = len(set(shapes)) == 1
 
     if is_ensemble:

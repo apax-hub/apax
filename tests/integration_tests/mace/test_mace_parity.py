@@ -11,7 +11,7 @@ import pytest
 pytestmark = pytest.mark.mace_parity
 
 
-@pytest.fixture(params=["small"])
+@pytest.fixture(params=["small", "medium", "medium-mpa-0"])
 def foundation_name(request):
     """Return canonical MACE foundation model name to evaluate.
 
@@ -178,28 +178,25 @@ def _download_to(target: Path) -> Path:
 
 @pytest.fixture
 def ase_periodic_sio2():
-    """Return a small periodic SiO2 cell suitable for parity tests."""
+    """Return a periodic SiO2 cell suitable for parity tests.
+
+    The cell is sized so that no atom sees a periodic image of itself within
+    the foundation cutoff (``r_max = 6 Å``); a tighter 4 Å cell triggers a
+    pre-existing apax PBC bug (NaN forces on self-image edges) that is
+    orthogonal to MACE-foundation parity. Validating across periodic offset
+    paths is the point of this test, so we keep ``pbc=True`` but choose
+    ``cell = 14 Å`` — well above ``2 * r_max``.
+    """
     from ase import Atoms
 
     return Atoms(
         symbols=["Si", "O", "O"],
         positions=[[0.0, 0.0, 0.0], [1.6, 0.0, 0.0], [0.0, 1.6, 0.0]],
-        cell=[4.0, 4.0, 4.0],
+        cell=[14.0, 14.0, 14.0],
         pbc=True,
     )
 
 
-@pytest.mark.xfail(
-    raises=NotImplementedError,
-    strict=True,
-    reason=(
-        "MatPES-r2scan uses RealAgnosticDensityResidualInteractionBlock "
-        "(or similar Density variant); apax only ports RealAgnosticResidual "
-        "today. Conversion is rejected at the schema boundary as designed. "
-        "When the Density variant is implemented, drop this xfail and the "
-        "test becomes a regular parity assertion."
-    ),
-)
 def test_energy_force_parity_matpes_omat_ft(tmp_path_factory, ase_periodic_sio2):
     """End-to-end parity for the MatPES-r2scan-omat-ft foundation model.
 
@@ -226,12 +223,6 @@ def test_energy_force_parity_matpes_omat_ft(tmp_path_factory, ase_periodic_sio2)
 
     dst = cache_root / "matpes.apax"
 
-    # Today: this raises NotImplementedError from _extract_config_from_torch
-    # because the interaction block is a Density variant. The xfail decorator
-    # turns that into the expected outcome.
-    #
-    # Tomorrow (after Density port lands): conversion succeeds and the rest
-    # of the test runs the parity comparison below.
     run_conversion(str(model_path), dst, head="default", family="mace_mp")
 
     # _torch_energy_forces(name, ...) expects a canonical name; matpes

@@ -105,7 +105,14 @@ class _MaceFullyConnectedNet(nn.Module):
 
 
 def assemble_edge_features(dr_vec, r_max, num_bessel, num_poly_cutoff, max_ell):
-    """Compute per-edge radial × cutoff basis and spherical harmonics.
+    """Back-compat shim that wraps :class:`MaceRadialEmbedding` (no transform).
+
+    Existing callers (and tests) construct radial features without a
+    distance transform; this thin wrapper preserves their signature by
+    instantiating :class:`MaceRadialEmbedding` with
+    ``distance_transform=None`` and applying it to ``dr_vec``. The dummy
+    ``Z`` / ``idx`` arrays are never consumed because the no-transform path
+    does not read them.
 
     Parameters
     ----------
@@ -134,30 +141,18 @@ def assemble_edge_features(dr_vec, r_max, num_bessel, num_poly_cutoff, max_ell):
     -----
     The dtype of both outputs matches the dtype of ``dr_vec``.
     """
-    from apax.layers.descriptor.basis_functions import (
-        MaceBesselBasis,
-        PolynomialCutoff,
+    from apax.layers.descriptor.basis_functions import MaceRadialEmbedding
+
+    module = MaceRadialEmbedding(
+        r_max=r_max,
+        num_bessel=num_bessel,
+        num_polynomial_cutoff=num_poly_cutoff,
+        max_ell=max_ell,
+        distance_transform=None,
     )
-
-    dtype = dr_vec.dtype
-    r_ij = jnp.linalg.norm(dr_vec, axis=-1)
-
-    bessel_module = MaceBesselBasis(n_basis=num_bessel, r_max=r_max, dtype=dtype)
-    bessel = bessel_module.apply({}, r_ij)
-
-    cutoff_module = PolynomialCutoff(p=num_poly_cutoff, r_max=r_max)
-    cutoff = cutoff_module.apply({}, r_ij)
-
-    radial = (bessel * cutoff[..., None]).astype(dtype)
-
-    irreps = e3nn.Irreps.spherical_harmonics(max_ell)
-    sph = e3nn.spherical_harmonics(
-        irreps,
-        dr_vec,
-        normalize=True,
-        normalization="component",
-    )
-    return radial, sph
+    Z_dummy = jnp.zeros((1,), dtype=jnp.int32)
+    idx_dummy = jnp.zeros((2, dr_vec.shape[0]), dtype=jnp.int32)
+    return module.apply({}, dr_vec, Z_dummy, idx_dummy)
 
 
 class LinearNodeEmbedding(nn.Module):
@@ -238,13 +233,112 @@ def tp_out_irreps_with_instructions(irreps_in1, irreps_in2, target_irreps):
     return irreps_mid, instructions
 
 
-class InteractionBlock(nn.Module):
-    """MACE interaction block — multi-irrep target with per-element skip.
+def _interaction_scaffold(
+    node_feats,
+    edge_attrs,
+    edge_feats,
+    receivers,
+    senders,
+    *,
+    node_feats_irreps: e3nn.Irreps,
+    edge_attrs_irreps: e3nn.Irreps,
+    target_irreps: e3nn.Irreps,
+    radial_mlp: tuple,
+):
+    """Common interaction-block prefix shared by all three variants.
+
+    Runs ``linear_up → conv_tp → radial-MLP gate → scatter-sum → linear``.
+    Returns the un-normalised aggregated message in ``target_irreps`` so each
+    variant can divide by either ``avg_num_neighbors`` (Residual) or
+    ``density + 1`` (Density variants).
+
+    Submodules are created with literal names (``linear_up``, ``radial_mlp``,
+    ``linear``) so the calling block's param tree path matches torch-mace's
+    ``state_dict`` segments exactly. This keeps the converter's per-block
+    mapping logic identical across all three variants.
+
+    Parameters
+    ----------
+    node_feats : e3nn.IrrepsArray
+        Per-atom node features.
+    edge_attrs : e3nn.IrrepsArray
+        Per-edge spherical harmonics.
+    edge_feats : Array
+        Per-edge radial basis × cutoff features.
+    receivers : Array
+        Per-edge receiver indices.
+    senders : Array
+        Per-edge sender indices.
+    node_feats_irreps, edge_attrs_irreps, target_irreps : e3nn.Irreps
+        Pre-parsed irreps. ``target_irreps`` is the multi-irrep message target
+        (typically ``(sh_irreps × num_features).sort().simplify()``).
+    radial_mlp : tuple
+        Hidden widths of the radial MLP gating tensor-product channels.
+
+    Returns
+    -------
+    e3nn.IrrepsArray
+        Aggregated message in ``target_irreps``, before any per-message
+        normalisation.
+    """
+    x = e3nn.flax.Linear(node_feats_irreps, name="linear_up")(node_feats)
+    irreps_mid, _instructions = tp_out_irreps_with_instructions(
+        node_feats_irreps, edge_attrs_irreps, target_irreps,
+    )
+    x_j = x[senders]
+    tp = e3nn.tensor_product(x_j, edge_attrs, filter_ir_out=irreps_mid)
+
+    # Per-edge per-path scalar gates from the radial MLP.  We use the
+    # bit-for-bit ``_MaceFullyConnectedNet`` rather than e3nn-jax's
+    # MultiLayerPerceptron so the silu normalisation constant matches torch.
+    n_paths = tp.irreps.num_irreps
+    weights = _MaceFullyConnectedNet(
+        list_neurons=tuple(radial_mlp) + (n_paths,), name="radial_mlp",
+    )(edge_feats)
+    weighted = tp * weights
+
+    agg = e3nn.scatter_sum(weighted, dst=receivers, output_size=node_feats.shape[0])
+    return e3nn.flax.Linear(target_irreps, name="linear")(agg)
+
+
+def _edge_density(edge_feats, receivers, n_atoms):
+    """Per-atom density gate used by the Density / DensityResidual variants.
+
+    Mirrors torch-mace's ``edge_density = tanh(density_fn(edge_feats) ** 2)``
+    followed by a scatter-sum into receivers. The ``density_fn`` is a single
+    Dense layer with no activation (matches torch's
+    ``FullyConnectedNet([input_dim, 1], silu)`` — with only one layer the
+    activation never fires; see torch's ``_Layer.forward``).
+
+    Parameters
+    ----------
+    edge_feats : Array, shape (n_edges, num_bessel)
+        Bessel × cutoff features.
+    receivers : Array, shape (n_edges,)
+        Per-edge receiver index.
+    n_atoms : int
+        Number of receivers (sets ``output_size``).
+
+    Returns
+    -------
+    e3nn.IrrepsArray with irreps ``"1x0e"``
+        Per-atom density gate of shape ``(n_atoms, 1)``.
+    """
+    edge_density = jnp.tanh(
+        _MaceFullyConnectedNet(list_neurons=(1,), name="density_fn")(edge_feats) ** 2
+    )
+    return e3nn.scatter_sum(
+        e3nn.IrrepsArray("0e", edge_density), dst=receivers, output_size=n_atoms,
+    )
+
+
+class InteractionBlockResidual(nn.Module):
+    """MACE Residual interaction block — multi-irrep target with per-element skip.
 
     Mirrors torch-mace ``RealAgnosticResidualInteractionBlock``. Internally
     runs ``linear_up → tensor_product(node_feats × sph) → radial-weighted
-    scatter sum → linear`` and computes a parallel per-element skip
-    ``Linear(node_feats × node_attrs) → hidden_irreps`` (the
+    scatter sum → linear / avg_num_neighbors`` and computes a parallel per-element
+    skip ``Linear(node_feats × node_attrs) → hidden_irreps`` (the
     ``FullyConnectedTensorProduct`` factorises into an irreps-Linear over the
     tensor product because ``node_attrs`` are scalars). Returns the tuple
     ``(message, sc)`` so the downstream :class:`ProductBlock` can apply the
@@ -299,50 +393,149 @@ class InteractionBlock(nn.Module):
         target_irreps = e3nn.Irreps(self.target_irreps)
         hidden_irreps = e3nn.Irreps(self.hidden_irreps)
 
-        # 1. linear_up: node_feats -> node_feats_irreps (in-place mix)
-        x = e3nn.flax.Linear(node_feats_irreps, name="linear_up")(node_feats)
-
-        # 2. conv_tp: (x_j × sph) restricted to paths reachable in target_irreps
-        irreps_mid, _instructions = tp_out_irreps_with_instructions(
-            node_feats_irreps, edge_attrs_irreps, target_irreps,
+        message = _interaction_scaffold(
+            node_feats, edge_attrs, edge_feats, receivers, senders,
+            node_feats_irreps=node_feats_irreps,
+            edge_attrs_irreps=edge_attrs_irreps,
+            target_irreps=target_irreps,
+            radial_mlp=self.radial_mlp,
         )
-        x_j = x[senders]
-        tp = e3nn.tensor_product(x_j, edge_attrs, filter_ir_out=irreps_mid)
-
-        # 3. Radial MLP: per-edge per-path scalar gates.
-        #    Uses ``_MaceFullyConnectedNet`` rather than e3nn-jax's
-        #    :class:`MultiLayerPerceptron` so the silu activation constant
-        #    matches torch's ``normalize2mom(silu)`` exactly (1.67918 vs
-        #    e3nn-jax's 1.67656).  The 0.16% per-activation drift would
-        #    compound to ~3% per-atom force error.
-        n_paths = tp.irreps.num_irreps
-        weights = _MaceFullyConnectedNet(
-            list_neurons=tuple(self.radial_mlp) + (n_paths,),
-            name="radial_mlp",
-        )(edge_feats)
-        weighted = tp * weights
-
-        # 4. Scatter-sum into receivers
-        agg = e3nn.scatter_sum(
-            weighted, dst=receivers, output_size=node_feats.shape[0]
-        )
-
-        # 5. linear: irreps_mid -> target_irreps, divided by avg_num_neighbors
-        #    (matches torch-mace's RealAgnosticResidualInteractionBlock,
-        #    which applies the same per-message normaliser).
-        message = e3nn.flax.Linear(target_irreps, name="linear")(agg)
         message = message / self.avg_num_neighbors
 
-        # 6. skip_tp: per-element FCTP (node_feats × node_attrs → hidden_irreps).
-        #    Since node_attrs is scalar-only, the FCTP is equivalent to
-        #    Linear(tensor_product(node_feats, node_attrs)) — force_irreps_out
-        #    zero-pads channels not reachable from the input.
+        # skip_tp: per-element FCTP (node_feats × node_attrs → hidden_irreps).
+        # Since node_attrs is scalar-only, the FCTP is equivalent to
+        # Linear(tensor_product(node_feats, node_attrs)) — force_irreps_out
+        # zero-pads channels not reachable from the input.
+        skip_input = e3nn.tensor_product(node_feats, node_attrs)
+        sc = e3nn.flax.Linear(
+            hidden_irreps, name="skip_tp", force_irreps_out=True,
+        )(skip_input)
+        return message, sc
+
+
+# Back-compat alias: the existing ``InteractionBlock`` symbol is referenced by
+# tests, the converter (``rep_params["InteractionBlock_{k}"]``), and external
+# imports. Keep it pointing at the Residual variant so existing param trees
+# round-trip unchanged.
+InteractionBlock = InteractionBlockResidual
+
+
+class InteractionBlockDensity(nn.Module):
+    """MACE Density interaction block (non-residual).
+
+    Mirrors torch-mace ``RealAgnosticDensityInteractionBlock``
+    (``mace/modules/blocks.py:745-862``). Differs from
+    :class:`InteractionBlockResidual` in two ways:
+
+    1. The per-message normaliser is ``density + 1`` rather than
+       ``avg_num_neighbors``, where ``density`` is the per-atom scatter-sum of
+       ``tanh(density_fn(edge_feats) ** 2)``.
+    2. ``skip_tp`` is applied to the post-density message in
+       ``target_irreps`` (not to raw ``node_feats``); there is no separate
+       ``sc`` returned. The signature is
+       ``FullyConnectedTensorProduct(target_irreps, node_attrs, target_irreps)``.
+
+    Returns ``(message, None)``; the downstream :class:`ProductBlock` is
+    constructed with ``use_sc=False``.
+    """
+
+    node_feats_irreps: str
+    node_attrs_irreps: str
+    edge_attrs_irreps: str
+    target_irreps: str
+    # Unused — kept for parity with InteractionBlockResidual signature so the
+    # MaceRepresentation dispatch can pass identical kwargs to every variant.
+    hidden_irreps: str = ""
+    radial_mlp: tuple = (64, 64, 64)
+    avg_num_neighbors: float = 1.0  # ignored; mirrors torch (no /avg)
+
+    @nn.compact
+    def __call__(
+        self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders,
+    ):
+        node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
+        edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
+        target_irreps = e3nn.Irreps(self.target_irreps)
+
+        pre = _interaction_scaffold(
+            node_feats, edge_attrs, edge_feats, receivers, senders,
+            node_feats_irreps=node_feats_irreps,
+            edge_attrs_irreps=edge_attrs_irreps,
+            target_irreps=target_irreps,
+            radial_mlp=self.radial_mlp,
+        )
+        density = _edge_density(edge_feats, receivers, node_feats.shape[0])
+        # density is an IrrepsArray("0e", (n_atoms, 1)); broadcast over message irreps.
+        message = pre / (density.array + 1.0)
+
+        # skip_tp: target_irreps × node_attrs_irreps → target_irreps. Operates on
+        # the post-density message (not raw node_feats), so there is no separate
+        # ``sc`` returned.
+        skip_input = e3nn.tensor_product(message, node_attrs)
+        message = e3nn.flax.Linear(
+            target_irreps, name="skip_tp", force_irreps_out=True,
+        )(skip_input)
+        return message, None
+
+
+class InteractionBlockDensityResidual(nn.Module):
+    """MACE Density interaction block with parent-style residual skip.
+
+    Mirrors torch-mace ``RealAgnosticDensityResidualInteractionBlock``
+    (``mace/modules/blocks.py:866-988``). Combines the Density per-message
+    normaliser (``/(density + 1)``) with the Residual block's per-element skip
+    computed up front from raw ``node_feats``:
+    ``skip_tp = FullyConnectedTensorProduct(node_feats_irreps, node_attrs_irreps,
+    hidden_irreps)``.
+
+    Returns ``(message, sc)`` exactly like :class:`InteractionBlockResidual`;
+    the downstream :class:`ProductBlock` runs with ``use_sc=True``.
+    """
+
+    node_feats_irreps: str
+    node_attrs_irreps: str
+    edge_attrs_irreps: str
+    target_irreps: str
+    hidden_irreps: str
+    radial_mlp: tuple = (64, 64, 64)
+    avg_num_neighbors: float = 1.0  # ignored; mirrors torch (no /avg)
+
+    @nn.compact
+    def __call__(
+        self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders,
+    ):
+        node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
+        edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
+        target_irreps = e3nn.Irreps(self.target_irreps)
+        hidden_irreps = e3nn.Irreps(self.hidden_irreps)
+
+        # Skip is computed from raw node_feats BEFORE linear_up — same shape
+        # and placement as the Residual variant.
         skip_input = e3nn.tensor_product(node_feats, node_attrs)
         sc = e3nn.flax.Linear(
             hidden_irreps, name="skip_tp", force_irreps_out=True,
         )(skip_input)
 
+        pre = _interaction_scaffold(
+            node_feats, edge_attrs, edge_feats, receivers, senders,
+            node_feats_irreps=node_feats_irreps,
+            edge_attrs_irreps=edge_attrs_irreps,
+            target_irreps=target_irreps,
+            radial_mlp=self.radial_mlp,
+        )
+        density = _edge_density(edge_feats, receivers, node_feats.shape[0])
+        message = pre / (density.array + 1.0)
         return message, sc
+
+
+# Maps :attr:`MaceModelConfig.interaction_cls` literal to the Linen module.
+# Single source of truth used by :class:`MaceRepresentation` dispatch. New
+# variants are added here and to the ``Literal`` in ``MaceModelConfig``.
+_INTERACTION_BLOCK_CLS = {
+    "RealAgnosticResidual": InteractionBlockResidual,
+    "RealAgnosticDensity": InteractionBlockDensity,
+    "RealAgnosticDensityResidual": InteractionBlockDensityResidual,
+}
 
 
 class LinearReadoutBlock(nn.Module):

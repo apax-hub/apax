@@ -28,21 +28,35 @@ def test_mace_model_config_has_no_removed_fields():
     assert "num_elements" not in fields
 
 
-def test_mace_model_config_interaction_cls_only_residual():
-    """Schema enforces the only currently-implemented interaction variant.
+def test_mace_model_config_interaction_cls_implemented_only():
+    """Schema enforces the implemented interaction-block variants.
 
     Pydantic narrows the field rather than relying on a runtime guard inside
-    ``InteractionBlock``, so unsupported variants (Density, non-residual) get
-    rejected at config-validation time with a clear message — not 30s later
-    inside the JIT-traced forward pass.
+    the dispatch, so unsupported variants get rejected at config-validation
+    time with a clear message — not 30s later inside the JIT-traced forward.
+    Currently-supported variants (single-string broadcast OR per-layer list):
+    ``RealAgnosticResidual``, ``RealAgnosticDensity``,
+    ``RealAgnosticDensityResidual``.
     """
-    cfg = MaceModelConfig(interaction_cls="RealAgnosticResidual")
-    assert cfg.interaction_cls == "RealAgnosticResidual"
-    for unsupported in (
-        "RealAgnostic",
+    for ok in (
+        "RealAgnosticResidual",
         "RealAgnosticDensity",
         "RealAgnosticDensityResidual",
-        "garbage",
     ):
+        cfg = MaceModelConfig(interaction_cls=ok)
+        assert cfg.interaction_cls == ok
+
+    # Per-layer list form is also accepted.
+    cfg = MaceModelConfig(
+        num_interactions=2,
+        interaction_cls=["RealAgnosticDensity", "RealAgnosticDensityResidual"],
+    )
+    assert cfg.interaction_cls == [
+        "RealAgnosticDensity",
+        "RealAgnosticDensityResidual",
+    ]
+
+    # Unsupported variants and garbage still rejected.
+    for unsupported in ("RealAgnostic", "garbage"):
         with pytest.raises(Exception, match="interaction_cls"):
             MaceModelConfig(interaction_cls=unsupported)

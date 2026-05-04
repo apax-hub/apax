@@ -126,7 +126,70 @@ class LatentEwald(Correction, extra="forbid"):
     use_property: str = "charges"
 
 
-EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion, LatentEwald]
+class MaceZBLPairRepulsion(Correction, extra="forbid"):
+    """Faithful torch-mace ``ZBLBasis`` correction.
+
+    Distinct from :class:`ZBLRepulsion` (apax's existing cosine-cutoff +
+    softplus-coefficient flavour). This one matches torch-mace's
+    polynomial-cutoff ZBL with per-pair ``r_max`` from ASE covalent radii —
+    the format MACE foundation models (MACE-MPA-0, MatPES, OMAT) ship.
+
+    Parameters
+    ----------
+    p : int, default = 6
+        Polynomial-cutoff order.
+    trainable : bool, default = False
+        If ``True``, ``a_exp`` and ``a_prefactor`` become trainable parameters.
+        Foundation models in scope use ``trainable=False``.
+    """
+
+    name: Literal["mace_zbl"]
+    p: int = 6
+    trainable: bool = False
+    output_scale: float = 1.0
+
+
+EmpiricalCorrection = Union[
+    ZBLRepulsion, ExponentialRepulsion, LatentEwald, MaceZBLPairRepulsion,
+]
+
+
+class DistanceTransform(BaseModel, extra="forbid"):
+    name: str
+
+
+class AgnesiTransformConfig(DistanceTransform, extra="forbid"):
+    """Faithful port of ``mace.modules.radial.AgnesiTransform``.
+
+    Per-edge length transform driven by element-pair covalent radii. Used by
+    MACE foundations such as MACE-MPA-0 and MACE-matpes-r2scan-omat-ft, which
+    insert this transform between the polynomial cutoff and the Bessel basis
+    in the radial embedding.
+
+    Parameters
+    ----------
+    a : float, default = 1.0805
+        Multiplicative coefficient in the Agnesi denominator. Default matches
+        the foundation-model value.
+    q : float, default = 0.9183
+        Numerator exponent of the scaled distance. Default matches the
+        foundation-model value.
+    p : float, default = 4.5791
+        Denominator exponent offset (``q - p`` is the actual exponent in the
+        inner term). Default matches the foundation-model value.
+    trainable : bool, default = False
+        If ``True``, ``a``/``q``/``p`` become trainable parameters. Foundation
+        models in scope ship them as non-trainable buffers.
+    """
+
+    name: Literal["agnesi"]
+    a: float = 1.0805
+    q: float = 0.9183
+    p: float = 4.5791
+    trainable: bool = False
+
+
+DistanceTransformConfig = Union[AgnesiTransformConfig]
 
 
 class PropertyHead(BaseModel, extra="forbid"):
@@ -321,13 +384,20 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
         Number of (interaction, product) layer pairs.
     correlation : PositiveInt, default = 3
         Symmetric-contraction correlation order.
-    interaction_cls : Literal["RealAgnosticResidual"], default = "RealAgnosticResidual"
-        Which MACE interaction block variant to use. Currently
-        ``"RealAgnosticResidual"`` is the only implemented variant; foundation
-        models that use ``RealAgnostic`` / ``RealAgnosticDensity`` /
-        ``RealAgnosticDensityResidual`` (e.g. MACE-MPA-0, MatPES, OMAT) are
-        out of scope until those blocks land. Field kept as a one-element
-        Literal so adding new variants is purely additive.
+    interaction_cls : str or list[str], default = "RealAgnosticResidual"
+        Which MACE interaction block variant to use. Either a single
+        ``Literal`` (broadcast to every layer) or a per-layer list. Implemented
+        variants:
+
+        - ``"RealAgnosticResidual"`` — MACE-MP-0 small/medium baseline.
+        - ``"RealAgnosticDensity"`` — Density-normalised, no residual skip
+          (used by MACE-MPA-0 / MatPES layer 0).
+        - ``"RealAgnosticDensityResidual"`` — Density-normalised with the
+          parent-style residual skip (MACE-MPA-0 / MatPES layer 1).
+
+        ``RealAgnostic`` (non-residual non-density) remains unimplemented;
+        adding it is purely additive. Foundation models that mix variants
+        across layers (mpa-0 / matpes) emit a list.
     use_cueq : bool, default = False
         Dispatch to cuequivariance-jax kernels where available.
     readout_kind : Literal["mace", "standard"], default = "mace"
@@ -339,6 +409,16 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
         ``message = linear(agg) / avg_num_neighbors``. Foundation models
         burn in a per-dataset average (e.g. ~62 for MP-0); freshly trained
         apax models default to ``1.0`` so existing configs are unaffected.
+    distance_transform : Optional[DistanceTransformConfig], default = None
+        Optional per-edge length transform applied between the polynomial
+        cutoff and the Bessel basis in the radial embedding. Mirrors
+        torch-mace's ``radial_embedding.distance_transform`` slot. ``None``
+        (default) preserves apax's existing ``radial = bessel(r) * cutoff(r)``
+        pipeline used by ``small`` / ``medium`` foundations and freshly
+        trained apax models. Foundations that ship a non-trivial transform
+        (MACE-MPA-0, MACE-matpes-r2scan-omat-ft) set this to an
+        :class:`AgnesiTransformConfig` so the cutoff sees the original ``r``
+        while the Bessel basis sees the transformed value.
     """
 
     name: Literal["mace"] = "mace"
@@ -350,11 +430,25 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
     hidden_irreps: str = "128x0e + 128x1o"
     num_interactions: PositiveInt = 2
     correlation: PositiveInt = 3
-    interaction_cls: Literal["RealAgnosticResidual"] = "RealAgnosticResidual"
+    interaction_cls: Union[
+        Literal[
+            "RealAgnosticResidual",
+            "RealAgnosticDensity",
+            "RealAgnosticDensityResidual",
+        ],
+        list[
+            Literal[
+                "RealAgnosticResidual",
+                "RealAgnosticDensity",
+                "RealAgnosticDensityResidual",
+            ]
+        ],
+    ] = "RealAgnosticResidual"
     use_cueq: bool = False
     readout_kind: Literal["mace", "standard"] = "mace"
     MLP_irreps: str = "16x0e"
     avg_num_neighbors: PositiveFloat = 1.0
+    distance_transform: Optional[DistanceTransformConfig] = None
 
     def get_builder(self):
         from apax.nn.builder import MaceBuilder

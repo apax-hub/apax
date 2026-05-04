@@ -10,6 +10,7 @@ from apax.layers.descriptor import (
     So3kratesRepresentation,
 )
 from apax.layers.descriptor.basis_functions import (
+    AgnesiTransform,
     BesselBasis,
     GaussianBasis,
     RadialFunction,
@@ -305,6 +306,21 @@ class MaceBuilder(ModelBuilder):
     ):
         from apax.layers.descriptor.mace import MaceRepresentation
 
+        dt_cfg = self.config.get("distance_transform")
+        if dt_cfg is None:
+            distance_transform = None
+        elif dt_cfg["name"] == "agnesi":
+            distance_transform = AgnesiTransform(
+                a_init=dt_cfg["a"],
+                q_init=dt_cfg["q"],
+                p_init=dt_cfg["p"],
+                trainable=dt_cfg["trainable"],
+            )
+        else:
+            raise NotImplementedError(
+                f"distance_transform {dt_cfg['name']!r} not supported"
+            )
+
         descriptor = MaceRepresentation(
             r_max=self.config["r_max"],
             num_bessel=self.config["num_bessel"],
@@ -319,6 +335,7 @@ class MaceBuilder(ModelBuilder):
             apply_mask=apply_mask,
             dtype=self.config["descriptor_dtype"],
             avg_num_neighbors=self.config.get("avg_num_neighbors", 1.0),
+            distance_transform=distance_transform,
         )
         return descriptor
 

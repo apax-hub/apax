@@ -14,7 +14,7 @@ and is composed here into the full MACE pipeline:
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 import e3nn_jax as e3nn
 import jax
@@ -23,7 +23,12 @@ from flax import linen as nn
 
 from apax.utils.convert import str_to_dtype
 
-InteractionKind = Literal["RealAgnosticResidual"]
+# Mirrors :attr:`apax.config.model_config.MaceModelConfig.interaction_cls`.
+InteractionKind = Literal[
+    "RealAgnosticResidual",
+    "RealAgnosticDensity",
+    "RealAgnosticDensityResidual",
+]
 
 
 class MaceRepresentation(nn.Module):
@@ -77,21 +82,36 @@ class MaceRepresentation(nn.Module):
     hidden_irreps: str = "128x0e + 128x1o"
     num_interactions: int = 2
     correlation: int = 3
-    interaction_cls: InteractionKind = "RealAgnosticResidual"
+    interaction_cls: Union[InteractionKind, tuple[InteractionKind, ...]] = (
+        "RealAgnosticResidual"
+    )
     num_elements: int = 119
     use_cueq: bool = False
     apply_mask: bool = True
     dtype: Any = jnp.float32
     avg_num_neighbors: float = 1.0
+    distance_transform: Any = None
 
     @nn.compact
     def __call__(self, dr_vec, Z, idx):
+        from apax.layers.descriptor.basis_functions import MaceRadialEmbedding
         from apax.layers.descriptor.mace_blocks import (
-            InteractionBlock,
+            _INTERACTION_BLOCK_CLS,
             LinearNodeEmbedding,
             ProductBlock,
-            assemble_edge_features,
         )
+
+        # Resolve ``interaction_cls`` to a concrete per-layer list. A single
+        # str is broadcast; a list/tuple must match ``num_interactions``.
+        if isinstance(self.interaction_cls, str):
+            per_layer_cls = [self.interaction_cls] * self.num_interactions
+        else:
+            per_layer_cls = list(self.interaction_cls)
+            if len(per_layer_cls) != self.num_interactions:
+                raise ValueError(
+                    f"interaction_cls list length {len(per_layer_cls)} does not "
+                    f"match num_interactions {self.num_interactions}"
+                )
 
         dtype = str_to_dtype(self.dtype)
         dr_vec = dr_vec.astype(dtype)
@@ -100,13 +120,14 @@ class MaceRepresentation(nn.Module):
         pair_mask = _get_neighbor_mask(idx) if self.apply_mask else 1.0
         node_mask = _get_node_mask(Z) if self.apply_mask else 1.0
 
-        radial, sph = assemble_edge_features(
-            dr_vec,
-            self.r_max,
-            self.num_bessel,
-            self.num_polynomial_cutoff,
-            self.max_ell,
-        )
+        radial, sph = MaceRadialEmbedding(
+            r_max=self.r_max,
+            num_bessel=self.num_bessel,
+            num_polynomial_cutoff=self.num_polynomial_cutoff,
+            max_ell=self.max_ell,
+            distance_transform=self.distance_transform,
+            name="radial_embedding",
+        )(dr_vec, Z, idx)
         if self.apply_mask:
             radial = radial * pair_mask[..., None]
 
@@ -141,20 +162,26 @@ class MaceRepresentation(nn.Module):
             this_hidden_str = (
                 str(e3nn.Irreps([hidden_irreps[0]])) if is_last else self.hidden_irreps
             )
-            message, sc = InteractionBlock(
+            Block = _INTERACTION_BLOCK_CLS[per_layer_cls[k]]
+            # Pass ``name=`` explicitly so the converter sees a uniform
+            # ``InteractionBlock_{k}`` path regardless of which variant class
+            # is used; otherwise Linen names the block after the class.
+            message, sc = Block(
                 node_feats_irreps=prev_irreps_str,
                 node_attrs_irreps=node_attrs_irreps_str,
                 edge_attrs_irreps=sh_irreps_str,
                 target_irreps=interaction_irreps_str,
                 hidden_irreps=this_hidden_str,
                 avg_num_neighbors=self.avg_num_neighbors,
+                name=f"InteractionBlock_{k}",
             )(node_feats, sph, radial, Z_one_hot, i, j)
             node_feats = ProductBlock(
                 node_feats_irreps=interaction_irreps_str,
                 target_irreps=this_hidden_str,
                 correlation=self.correlation,
                 num_elements=self.num_elements,
-                use_sc=True,
+                # Density (non-residual) variant returns sc=None.
+                use_sc=(sc is not None),
                 use_cueq=self.use_cueq,
             )(message, sc, Z)
             per_layer_scalars.append(node_feats.filter(keep="0e").array)
