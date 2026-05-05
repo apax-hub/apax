@@ -212,10 +212,21 @@ class PropertyHead(BaseModel, extra="forbid"):
         Aggregation method for atomic contributions.
     mode : str, default = "l0"
         Rotation order of the property.
+    kind : Literal["standard", "mace"], default = "standard"
+        Which readout architecture to instantiate. ``"standard"`` selects
+        :class:`apax.layers.readout.AtomisticReadout` (the default for
+        GMNN/EquivMP/So3krates property heads); ``"mace"`` selects
+        :class:`apax.layers.readout.MaceReadout`. MACE users must set this
+        to ``"mace"`` explicitly per property head — the builder errors
+        otherwise.
     nn : List[PositiveInt], default = [128, 128]
-        Number of hidden layers and units in those layers.
+        Number of hidden layers and units in those layers. Used only when
+        ``kind="standard"``.
     n_shallow_members : int, default = 0
         Number of shallow ensemble members for this head.
+    MLP_irreps : str, default = "16x0e"
+        e3nn irreps string for the MaceReadout's intermediate MLP. Used only
+        when ``kind="mace"``.
     w_init : Literal["normal", "lecun"], default = "lecun"
         Initialization scheme for the neural network weights.
     b_init : Literal["normal", "zeros"], default = "zeros"
@@ -230,8 +241,11 @@ class PropertyHead(BaseModel, extra="forbid"):
     aggregation: str = "none"
     mode: str = "l0"
 
+    kind: Literal["standard", "mace"] = "standard"
+
     nn: List[PositiveInt] = [128, 128]
     n_shallow_members: int = 0
+    MLP_irreps: str = "16x0e"
     w_init: Literal["normal", "lecun"] = "lecun"
     b_init: Literal["normal", "zeros"] = "zeros"
     use_ntk: bool = False

@@ -33,3 +33,28 @@ def test_mace_model_config_has_no_removed_fields():
     assert "freeze_backbone" not in fields
     assert "unfreeze_backbone_epoch" not in fields
     assert "num_elements" not in fields
+
+
+def test_property_head_default_kind_is_standard():
+    from apax.config.model_config import PropertyHead
+
+    head = PropertyHead(name="charges")
+    assert head.kind == "standard"
+    assert head.MLP_irreps == "16x0e"
+
+
+def test_property_head_kind_mace_accepted():
+    from apax.config.model_config import PropertyHead
+
+    head = PropertyHead(name="charges", kind="mace", MLP_irreps="32x0e")
+    assert head.kind == "mace"
+    assert head.MLP_irreps == "32x0e"
+
+
+def test_property_head_kind_invalid_rejected():
+    import pydantic
+
+    from apax.config.model_config import PropertyHead
+
+    with pytest.raises(pydantic.ValidationError):
+        PropertyHead(name="charges", kind="bogus")
