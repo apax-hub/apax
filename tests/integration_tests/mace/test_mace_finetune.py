@@ -102,19 +102,31 @@ def test_finetune_converted_small_runs_end_to_end(tmp_path):
         },
         "model": {
             "name": "mace",
-            "r_max": 6.0,
-            "num_bessel": 10,
-            "num_polynomial_cutoff": 5,
-            "max_ell": 3,
-            "hidden_irreps": "128x0e",
-            "num_interactions": 2,
-            "correlation": 3,
-            "interaction_cls": "RealAgnosticResidual",
+            "basis": {
+                "name": "bessel",
+                "variant": "standard",
+                "n_basis": 10,
+                "r_max": 6.0,
+            },
+            "radial_embedding": {
+                "num_polynomial_cutoff": 5,
+                "distance_transform": None,
+            },
+            "descriptor": {
+                "max_ell": 3,
+                "hidden_irreps": "128x0e",
+                "correlation": 3,
+                "interactions": [
+                    {"name": "RealAgnosticResidual"},
+                    {"name": "RealAgnosticResidual"},
+                ],
+                "avg_num_neighbors": 1.0,
+                "use_cueq": False,
+            },
             # Match the converter output's readout to keep pytrees
-            # structurally identical; head-swapping (readout_kind=standard)
+            # structurally identical; head-swapping (readout.kind=standard)
             # is incompatible with the current black_list_param_transfer.
-            "readout_kind": "mace",
-            "MLP_irreps": "16x0e",
+            "readout": {"kind": "mace", "MLP_irreps": "16x0e"},
             # Float64 throughout to match the converter dump.
             "descriptor_dtype": "fp64",
             "readout_dtype": "fp64",
@@ -143,8 +155,8 @@ def test_finetune_converted_small_runs_end_to_end(tmp_path):
 
     restored_cfg, restored_params = restore_parameters(ft_dir)
     assert restored_cfg.model.name == "mace"
-    assert restored_cfg.model.readout_kind == "mace"
-    assert restored_cfg.model.num_interactions == 2
+    assert restored_cfg.model.readout.kind == "mace"
+    assert len(restored_cfg.model.descriptor.interactions) == 2
 
     import jax
 

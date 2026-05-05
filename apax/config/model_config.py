@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional, Union
+from typing import Annotated, List, Literal, Optional, Union
 
 from pydantic import (
     BaseModel,
@@ -400,102 +400,155 @@ class So3kratesConfig(BaseModelConfig, extra="forbid"):
         return So3kratesBuilder
 
 
-class MaceModelConfig(BaseModelConfig, extra="forbid"):
-    """
-    Configuration for a MACE model.
+class MaceRadialEmbeddingConfig(BaseModel, extra="forbid"):
+    """MACE radial-embedding cutoff envelope + optional length transform.
 
     Parameters
     ----------
-    r_max : PositiveFloat, default = 5.0
-        Interaction cutoff (Angstrom).
-    num_bessel : PositiveInt, default = 8
-        Number of Bessel radial basis functions.
     num_polynomial_cutoff : PositiveInt, default = 5
-        Polynomial order of the envelope cutoff.
+        Polynomial order of the smooth-cutoff envelope.
+    distance_transform : Optional[DistanceTransformConfig], default = None
+        Optional per-edge length transform applied between the polynomial
+        cutoff and the basis. ``None`` (default) preserves the existing
+        ``radial = bessel(r) * cutoff(r)`` pipeline; foundations that ship
+        a non-trivial transform (MACE-MPA-0, MACE-matpes-r2scan-omat-ft)
+        set this to an :class:`AgnesiTransformConfig`.
+    """
+
+    num_polynomial_cutoff: PositiveInt = 5
+    distance_transform: Optional[DistanceTransformConfig] = None
+
+
+class RealAgnosticResidualConfig(BaseModel, extra="forbid"):
+    """MACE-MP-0 small/medium baseline interaction-block variant."""
+
+    name: Literal["RealAgnosticResidual"] = "RealAgnosticResidual"
+
+
+class RealAgnosticDensityConfig(BaseModel, extra="forbid"):
+    """Density-normalised, no residual skip (MACE-MPA-0 / MatPES layer 0)."""
+
+    name: Literal["RealAgnosticDensity"] = "RealAgnosticDensity"
+
+
+class RealAgnosticDensityResidualConfig(BaseModel, extra="forbid"):
+    """Density-normalised with parent-style residual skip (MPA-0 / MatPES layer 1)."""
+
+    name: Literal["RealAgnosticDensityResidual"] = "RealAgnosticDensityResidual"
+
+
+InteractionConfig = Annotated[
+    Union[
+        RealAgnosticResidualConfig,
+        RealAgnosticDensityConfig,
+        RealAgnosticDensityResidualConfig,
+    ],
+    Field(discriminator="name"),
+]
+
+
+class MaceDescriptorConfig(BaseModel, extra="forbid"):
+    """MACE message-passing architecture knobs.
+
+    Parameters
+    ----------
     max_ell : PositiveInt, default = 3
         Maximum spherical-harmonic degree.
     hidden_irreps : str, default = "128x0e + 128x1o"
-        e3nn-jax irreps string for node features. Must include a 0e component.
-    num_interactions : PositiveInt, default = 2
-        Number of (interaction, product) layer pairs.
+        e3nn irreps string for node features. Must include a ``0e`` term.
     correlation : PositiveInt, default = 3
         Symmetric-contraction correlation order.
-    interaction_cls : str or list[str] or tuple[str, ...], default = "RealAgnosticResidual"
-        Which MACE interaction block variant to use. Either a single
-        ``Literal`` (broadcast to every layer) or a per-layer list. Implemented
-        variants:
-
-        - ``"RealAgnosticResidual"`` — MACE-MP-0 small/medium baseline.
-        - ``"RealAgnosticDensity"`` — Density-normalised, no residual skip
-          (used by MACE-MPA-0 / MatPES layer 0).
-        - ``"RealAgnosticDensityResidual"`` — Density-normalised with the
-          parent-style residual skip (MACE-MPA-0 / MatPES layer 1).
-
-        ``RealAgnostic`` (non-residual non-density) remains unimplemented;
-        adding it is purely additive. Foundation models that mix variants
-        across layers (mpa-0 / matpes) emit a list. Accepted as ``list`` or
-        ``tuple`` from YAML; coerced to ``tuple`` in :class:`MaceBuilder`
-        before reaching the descriptor (Linen's mutable-default protection
-        rejects list-typed fields).
+    interactions : list[InteractionConfig], min_length = 1, default = two RealAgnosticResidual
+        Per-layer interaction-block configs. The number of layers is
+        ``len(interactions)``; there is no separate ``num_interactions``.
+    avg_num_neighbors : PositiveFloat, default = 1.0
+        Per-message normaliser used by every interaction block.
     use_cueq : bool, default = False
         Dispatch to cuequivariance-jax kernels where available.
-    readout_kind : Literal["mace", "standard"], default = "mace"
-        Variant of the readout block to use.
+    """
+
+    max_ell: PositiveInt = 3
+    hidden_irreps: str = "128x0e + 128x1o"
+    correlation: PositiveInt = 3
+    interactions: list[InteractionConfig] = Field(
+        default_factory=lambda: [
+            RealAgnosticResidualConfig(),
+            RealAgnosticResidualConfig(),
+        ],
+        min_length=1,
+    )
+    avg_num_neighbors: PositiveFloat = 1.0
+    use_cueq: bool = False
+
+
+class MaceReadoutConfig(BaseModel, extra="forbid"):
+    """MACE readout group (Literal kind, not a discriminated union).
+
+    Parameters
+    ----------
+    kind : Literal["mace", "standard"], default = "mace"
+        ``"mace"`` selects :class:`apax.layers.readout.MaceReadout`;
+        ``"standard"`` falls back to :class:`AtomisticReadout`.
     MLP_irreps : str, default = "16x0e"
-        e3nn-jax irreps string for the readout MLP.
-    avg_num_neighbors : PositiveFloat, default = 1.0
-        Per-atom message normaliser used by every interaction block:
-        ``message = linear(agg) / avg_num_neighbors``. Foundation models
-        burn in a per-dataset average (e.g. ~62 for MP-0); freshly trained
-        apax models default to ``1.0`` so existing configs are unaffected.
-    distance_transform : Optional[DistanceTransformConfig], default = None
-        Optional per-edge length transform applied between the polynomial
-        cutoff and the Bessel basis in the radial embedding. Mirrors
-        torch-mace's ``radial_embedding.distance_transform`` slot. ``None``
-        (default) preserves apax's existing ``radial = bessel(r) * cutoff(r)``
-        pipeline used by ``small`` / ``medium`` foundations and freshly
-        trained apax models. Foundations that ship a non-trivial transform
-        (MACE-MPA-0, MACE-matpes-r2scan-omat-ft) set this to an
-        :class:`AgnesiTransformConfig` so the cutoff sees the original ``r``
-        while the Bessel basis sees the transformed value.
+        e3nn irreps string for the MaceReadout's intermediate MLP.
+    """
+
+    kind: Literal["mace", "standard"] = "mace"
+    MLP_irreps: str = "16x0e"
+
+
+class MaceModelConfig(BaseModelConfig, extra="forbid"):
+    """Configuration for a MACE model.
+
+    The MACE schema is grouped into four sub-configs that mirror the forward
+    pass: ``basis -> radial_embedding -> descriptor -> readout``. There are
+    no flat ``r_max``, ``num_bessel``, ``num_interactions``, or
+    ``interaction_cls`` fields: ``model.basis.r_max`` is the single source of
+    truth for the cutoff, ``model.basis.n_basis`` for the bessel count, and
+    ``len(model.descriptor.interactions)`` for the layer count.
+
+    Parameters
+    ----------
+    basis : BesselBasisConfig
+        Default overridden to ``(variant="standard", n_basis=8, r_max=5.0)``
+        — torch-mace's bessel formula plus apax's MACE defaults. Other apax
+        models inherit ``variant="kocer"`` from :class:`BaseModelConfig`.
+    radial_embedding : MaceRadialEmbeddingConfig
+        Cutoff envelope + optional length transform.
+    descriptor : MaceDescriptorConfig
+        Message-passing architecture knobs.
+    readout : MaceReadoutConfig
+        Readout block kind + MLP irreps.
     """
 
     name: Literal["mace"] = "mace"
 
-    r_max: PositiveFloat = 5.0
-    num_bessel: PositiveInt = 8
-    num_polynomial_cutoff: PositiveInt = 5
-    max_ell: PositiveInt = 3
-    hidden_irreps: str = "128x0e + 128x1o"
-    num_interactions: PositiveInt = 2
-    correlation: PositiveInt = 3
-    interaction_cls: Union[
-        Literal[
-            "RealAgnosticResidual",
-            "RealAgnosticDensity",
-            "RealAgnosticDensityResidual",
-        ],
-        list[
-            Literal[
-                "RealAgnosticResidual",
-                "RealAgnosticDensity",
-                "RealAgnosticDensityResidual",
-            ]
-        ],
-        tuple[
-            Literal[
-                "RealAgnosticResidual",
-                "RealAgnosticDensity",
-                "RealAgnosticDensityResidual",
-            ],
-            ...,
-        ],
-    ] = "RealAgnosticResidual"
-    use_cueq: bool = False
-    readout_kind: Literal["mace", "standard"] = "mace"
-    MLP_irreps: str = "16x0e"
-    avg_num_neighbors: PositiveFloat = 1.0
-    distance_transform: Optional[DistanceTransformConfig] = None
+    basis: BesselBasisConfig = Field(
+        default_factory=lambda: BesselBasisConfig(
+            variant="standard", n_basis=8, r_max=5.0,
+        ),
+        discriminator="name",
+    )
+    radial_embedding: MaceRadialEmbeddingConfig = Field(
+        default_factory=MaceRadialEmbeddingConfig
+    )
+    descriptor: MaceDescriptorConfig = Field(default_factory=MaceDescriptorConfig)
+    readout: MaceReadoutConfig = Field(default_factory=MaceReadoutConfig)
+
+    # Temporary back-compat properties so the converter (Task 5) and any
+    # leftover flat-field reads keep working until Task 5 cuts them over.
+    # Delete in Task 5.
+    @property
+    def num_interactions(self) -> int:
+        return len(self.descriptor.interactions)
+
+    @property
+    def hidden_irreps(self) -> str:
+        return self.descriptor.hidden_irreps
+
+    @property
+    def interaction_cls(self) -> list[str]:
+        return [i.name for i in self.descriptor.interactions]
 
     def get_builder(self):
         from apax.nn.builder import MaceBuilder

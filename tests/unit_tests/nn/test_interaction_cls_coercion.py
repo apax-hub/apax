@@ -1,14 +1,9 @@
-"""MaceBuilder coerces flat interaction_cls config into the descriptor's
-``interactions`` field of typed dicts.
-"""
+"""MaceBuilder coerces descriptor.interactions from list to tuple of dicts."""
 
 import pytest
 
 
-def test_mace_builder_translates_interaction_cls_to_interactions(tmp_path):
-    """A list ``interaction_cls`` config becomes a tuple of dicts on the
-    descriptor side.
-    """
+def test_mace_builder_coerces_interactions_list_to_tuple_of_dicts(tmp_path):
     pytest.importorskip("e3nn_jax")
     pytest.importorskip("cuequivariance_jax")
 
@@ -16,32 +11,33 @@ def test_mace_builder_translates_interaction_cls_to_interactions(tmp_path):
     from apax.nn.builder import MaceBuilder
 
     cfg = MaceModelConfig(
-        r_max=6.0,
-        num_bessel=8,
-        num_polynomial_cutoff=5,
-        max_ell=3,
-        hidden_irreps="16x0e + 16x1o",
-        num_interactions=2,
-        correlation=3,
-        interaction_cls=[
-            "RealAgnosticDensity",
-            "RealAgnosticDensityResidual",
-        ],
-        use_cueq=False,
+        basis={"name": "bessel", "variant": "standard", "n_basis": 8, "r_max": 6.0},
+        radial_embedding={"num_polynomial_cutoff": 5, "distance_transform": None},
+        descriptor={
+            "max_ell": 3,
+            "hidden_irreps": "16x0e + 16x1o",
+            "correlation": 3,
+            "interactions": [
+                {"name": "RealAgnosticDensity"},
+                {"name": "RealAgnosticDensityResidual"},
+            ],
+            "avg_num_neighbors": 1.0,
+            "use_cueq": False,
+        },
+        readout={"kind": "mace", "MLP_irreps": "16x0e"},
         descriptor_dtype="fp32",
         readout_dtype="fp32",
         scale_shift_dtype="fp64",
-        avg_num_neighbors=1.0,
-        distance_transform=None,
     ).model_dump()
+
+    assert isinstance(cfg["descriptor"]["interactions"], list)
 
     builder = MaceBuilder(cfg, n_species=119)
     descriptor = builder.build_descriptor(apply_mask=False)
 
     assert isinstance(descriptor.interactions, tuple), (
-        f"interactions on MaceRepresentation must be tuple, "
-        f"got {type(descriptor.interactions).__name__}: "
-        f"{descriptor.interactions!r}"
+        f"interactions must be a tuple, got "
+        f"{type(descriptor.interactions).__name__}: {descriptor.interactions!r}"
     )
     assert descriptor.interactions == (
         {"name": "RealAgnosticDensity"},

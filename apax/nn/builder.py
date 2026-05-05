@@ -332,7 +332,10 @@ class MaceBuilder(ModelBuilder):
         from apax.layers.descriptor.basis_functions import MaceRadialEmbedding
         from apax.layers.descriptor.mace import MaceRepresentation
 
-        dt_cfg = self.config.get("distance_transform")
+        re_cfg = self.config["radial_embedding"]
+        desc_cfg = self.config["descriptor"]
+
+        dt_cfg = re_cfg.get("distance_transform")
         if dt_cfg is None:
             distance_transform = None
         elif dt_cfg["name"] == "agnesi":
@@ -347,45 +350,29 @@ class MaceBuilder(ModelBuilder):
                 f"distance_transform {dt_cfg['name']!r} not supported"
             )
 
-        # Build the radial basis externally so MaceRepresentation matches the
-        # GMNN / EquivMP / So3krates injection pattern. Task 1 added variant
-        # dispatch in build_basis_function(); MACE always wants the standard
-        # (torch-mace) form so we construct MaceBesselBasis directly here
-        # until Task 4 cuts over to model.basis.
-        from apax.layers.descriptor.basis_functions import MaceBesselBasis
-
-        basis_fn = MaceBesselBasis(
-            n_basis=self.config["num_bessel"],
-            r_max=self.config["r_max"],
-            dtype=self.config["descriptor_dtype"],
-        )
+        # Single basis-dispatch path: build_basis_function() honours
+        # config.basis.variant (Task 1).
+        basis_fn = self.build_basis_function()
         radial_embedding = MaceRadialEmbedding(
             basis_fn=basis_fn,
-            num_polynomial_cutoff=self.config["num_polynomial_cutoff"],
-            r_max=self.config["r_max"],
+            num_polynomial_cutoff=re_cfg["num_polynomial_cutoff"],
+            r_max=self.config["basis"]["r_max"],
             distance_transform=distance_transform,
         )
 
-        # Translate flat ``interaction_cls`` (str, list, or tuple) into the
-        # discriminated-dict tuple the descriptor expects. Schema reshape in
-        # Task 4 will make this straight pass-through.
-        ic = self.config["interaction_cls"]
-        if isinstance(ic, str):
-            per_layer = [ic] * self.config["num_interactions"]
-        else:
-            per_layer = list(ic)
-        interactions = tuple({"name": v} for v in per_layer)
+        # Linen rejects list-typed fields; coerce to tuple here once.
+        interactions = tuple(desc_cfg["interactions"])
 
         descriptor = MaceRepresentation(
             radial_embedding=radial_embedding,
             distance_transform=distance_transform,
-            max_ell=self.config["max_ell"],
-            hidden_irreps=self.config["hidden_irreps"],
-            correlation=self.config["correlation"],
+            max_ell=desc_cfg["max_ell"],
+            hidden_irreps=desc_cfg["hidden_irreps"],
+            correlation=desc_cfg["correlation"],
             interactions=interactions,
-            avg_num_neighbors=self.config.get("avg_num_neighbors", 1.0),
+            avg_num_neighbors=desc_cfg["avg_num_neighbors"],
             num_elements=self.n_species,
-            use_cueq=self.config["use_cueq"],
+            use_cueq=desc_cfg["use_cueq"],
             apply_mask=apply_mask,
             dtype=self.config["descriptor_dtype"],
         )
@@ -397,32 +384,8 @@ class MaceBuilder(ModelBuilder):
         is_feature_fn: bool = False,
         only_use_n_layers: int | None = None,
     ):
-        """Route between :class:`MaceReadout` and :class:`AtomisticReadout`.
-
-        ``readout_kind="mace"`` (default for ``MaceModelConfig``) builds a
-        :class:`~apax.layers.readout.MaceReadout` matching the foundation
-        forward pass. ``readout_kind="standard"`` falls back to the parent
-        :meth:`ModelBuilder.build_readout` (an :class:`AtomisticReadout`).
-        Feature extraction (``is_feature_fn=True``) always uses the parent
-        path since ``MaceReadout`` produces an energy scalar.
-
-        Parameters
-        ----------
-        head_config : dict
-            Config dict for the readout head, usually ``self.config``.
-        is_feature_fn : bool, optional
-            When ``True``, defer to parent (feature extraction path).
-        only_use_n_layers : int or None, optional
-            Passed through to parent when deferring.
-
-        Returns
-        -------
-        nn.Module
-            A :class:`~apax.layers.readout.MaceReadout` or
-            :class:`~apax.layers.readout.AtomisticReadout` instance.
-        """
-        kind = self.config.get("readout_kind", "mace")
-        if kind != "mace" or is_feature_fn:
+        readout_cfg = self.config["readout"]
+        if readout_cfg["kind"] != "mace" or is_feature_fn:
             return super().build_readout(
                 head_config, is_feature_fn, only_use_n_layers
             )
@@ -436,11 +399,12 @@ class MaceBuilder(ModelBuilder):
         if ens and ens.get("kind") == "shallow":
             n_shallow_ensemble = ens["n_members"]
 
-        hidden_dim = e3nn.Irreps(self.config["hidden_irreps"]).filter("0e").dim
+        desc_cfg = self.config["descriptor"]
+        hidden_dim = e3nn.Irreps(desc_cfg["hidden_irreps"]).filter("0e").dim
         return MaceReadout(
-            num_interactions=self.config["num_interactions"],
+            num_interactions=len(desc_cfg["interactions"]),
             hidden_dim=hidden_dim,
-            MLP_irreps=self.config["MLP_irreps"],
+            MLP_irreps=readout_cfg["MLP_irreps"],
             n_shallow_ensemble=n_shallow_ensemble,
             dtype=self.config["readout_dtype"],
         )

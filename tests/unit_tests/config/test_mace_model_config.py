@@ -1,22 +1,29 @@
-"""MaceModelConfig pydantic schema — smoke tests."""
+"""MaceModelConfig pydantic schema — nested-shape smoke tests.
+
+The detailed round-trip + rejection coverage lives in test_mace_nested_schema.py.
+This file keeps the original spirit (defaults, removed legacy fields) under the
+nested shape.
+"""
+
 import pytest
+
 from apax.config.model_config import MaceModelConfig
 
 
 def test_mace_model_config_defaults():
     cfg = MaceModelConfig()
     assert cfg.name == "mace"
-    assert cfg.readout_kind == "mace"
-    assert cfg.MLP_irreps == "16x0e"
-    assert cfg.hidden_irreps == "128x0e + 128x1o"
-    assert cfg.num_interactions == 2
+    assert cfg.readout.kind == "mace"
+    assert cfg.readout.MLP_irreps == "16x0e"
+    assert cfg.descriptor.hidden_irreps == "128x0e + 128x1o"
+    assert len(cfg.descriptor.interactions) == 2
 
 
 def test_mace_model_config_readout_kind_literal():
-    cfg = MaceModelConfig(readout_kind="standard")
-    assert cfg.readout_kind == "standard"
-    with pytest.raises(Exception, match="readout_kind"):
-        MaceModelConfig(readout_kind="garbage")
+    cfg = MaceModelConfig(readout={"kind": "standard"})
+    assert cfg.readout.kind == "standard"
+    with pytest.raises(Exception, match="kind"):
+        MaceModelConfig(readout={"kind": "garbage"})
 
 
 def test_mace_model_config_has_no_removed_fields():
@@ -26,37 +33,3 @@ def test_mace_model_config_has_no_removed_fields():
     assert "freeze_backbone" not in fields
     assert "unfreeze_backbone_epoch" not in fields
     assert "num_elements" not in fields
-
-
-def test_mace_model_config_interaction_cls_implemented_only():
-    """Schema enforces the implemented interaction-block variants.
-
-    Pydantic narrows the field rather than relying on a runtime guard inside
-    the dispatch, so unsupported variants get rejected at config-validation
-    time with a clear message — not 30s later inside the JIT-traced forward.
-    Currently-supported variants (single-string broadcast OR per-layer list):
-    ``RealAgnosticResidual``, ``RealAgnosticDensity``,
-    ``RealAgnosticDensityResidual``.
-    """
-    for ok in (
-        "RealAgnosticResidual",
-        "RealAgnosticDensity",
-        "RealAgnosticDensityResidual",
-    ):
-        cfg = MaceModelConfig(interaction_cls=ok)
-        assert cfg.interaction_cls == ok
-
-    # Per-layer list form is also accepted.
-    cfg = MaceModelConfig(
-        num_interactions=2,
-        interaction_cls=["RealAgnosticDensity", "RealAgnosticDensityResidual"],
-    )
-    assert cfg.interaction_cls == [
-        "RealAgnosticDensity",
-        "RealAgnosticDensityResidual",
-    ]
-
-    # Unsupported variants and garbage still rejected.
-    for unsupported in ("RealAgnostic", "garbage"):
-        with pytest.raises(Exception, match="interaction_cls"):
-            MaceModelConfig(interaction_cls=unsupported)

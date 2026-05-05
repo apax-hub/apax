@@ -23,19 +23,22 @@ model:
   name: mace
   basis:
     name: bessel
+    variant: standard
     n_basis: 4
     r_max: 5.0
-
-  # MACE-specific
-  r_max: 5.0
-  num_bessel: 4
-  num_polynomial_cutoff: 5
-  max_ell: 1
-  hidden_irreps: "8x0e"
-  num_interactions: 1
-  correlation: 2
-  interaction_cls: "RealAgnosticResidual"
-  use_cueq: false
+  radial_embedding:
+    num_polynomial_cutoff: 5
+  descriptor:
+    max_ell: 1
+    hidden_irreps: "8x0e"
+    correlation: 2
+    interactions:
+      - name: RealAgnosticResidual
+    avg_num_neighbors: 1.0
+    use_cueq: false
+  readout:
+    kind: mace
+    MLP_irreps: 16x0e
 
   nn: [16, 16]
 
