@@ -62,7 +62,7 @@ def _format_combined_error(
         List of ``(leaf_path_tuple, source_shape, target_shape)`` triples
         for same-path different-shape mismatches.
     """
-    n_total = sum(max(len(s[1]), len(s[2])) for s in structural) + len(shape)
+    n_total = sum(len(s[2]) for s in structural) + len(shape)
     lines = [f"Transfer learning mismatch on {n_total} parameter slot(s):", ""]
 
     if structural:
@@ -169,7 +169,7 @@ def black_list_param_transfer(
         tgt_by_parent[p[:-1]].add(p)
 
     structural: list = []
-    for parent in src_by_parent.keys() | tgt_by_parent.keys():
+    for parent in sorted(src_by_parent.keys() | tgt_by_parent.keys()):
         src_set = src_by_parent.get(parent, set())
         tgt_set = tgt_by_parent.get(parent, set())
         common = src_set & tgt_set
