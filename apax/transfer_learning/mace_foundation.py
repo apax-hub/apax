@@ -357,9 +357,12 @@ def _extract_config_from_torch(model, head: str | None) -> dict:
                 f"['AgnesiTransform']. Other variants need their apax port."
             )
 
+    r_max = float(model.r_max)
+    num_bessel = int(model.radial_embedding.bessel_fn.bessel_weights.shape[0])
+
     cfg = {
-        "r_max": float(model.r_max),
-        "num_bessel": int(model.radial_embedding.bessel_fn.bessel_weights.shape[0]),
+        "r_max": r_max,
+        "num_bessel": num_bessel,
         "num_polynomial_cutoff": int(model.radial_embedding.cutoff_fn.p),
         "max_ell": int(max_ell),
         "hidden_irreps": hidden_irreps,
@@ -372,6 +375,16 @@ def _extract_config_from_torch(model, head: str | None) -> dict:
         "avg_num_neighbors": avg_num_neighbors,
         "empirical_corrections": empirical_corrections,
         "distance_transform": distance_transform_cfg,
+        # ``basis`` is consumed by ``ASECalculator`` to build the jax-md
+        # neighbour-list cutoff (it reads ``config.model.basis.r_max``, NOT
+        # the top-level ``r_max``). Without this entry the BesselBasisConfig
+        # default of 5.0 Å is used and the NL truncates pairs in
+        # [5.0, model.r_max) Å — see MACE foundation review T6.
+        "basis": {
+            "name": "bessel",
+            "n_basis": num_bessel,
+            "r_max": r_max,
+        },
         # Float64 throughout for parity with the torch foundation model loaded
         # with default_dtype="float64".
         "descriptor_dtype": "fp64",
