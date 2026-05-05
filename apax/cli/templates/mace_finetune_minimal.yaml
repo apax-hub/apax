@@ -7,17 +7,20 @@
 # Then:
 #   uv run apax train mace_finetune_minimal.yaml
 #
-# This template keeps the foundation's per-layer MaceReadout and adds a
-# shallow ensemble on top so the MaceReadout's final NonLinearReadoutBlock
-# emits n_members scalar channels rather than 1 — the standard apax
-# uncertainty mechanism with no MACE-specific trainer code.
+# Foundation → shallow-ensemble fine-tune workflow:
 #
-# Swapping the head for a fresh AtomisticReadout MLP (set readout.kind: standard,
-# nn: [256, 256]) is the natural extension but is currently blocked by an
-# upstream apax limitation: ``black_list_param_transfer`` writes every source
-# key into the target params pytree, so the foundation's MaceReadout params
-# leak in and break ``optax.masked``. Until that's fixed, keep readout.kind:
-# mace below.
+#   1. Run `apax train mace_finetune_minimal.yaml` once.
+#   2. The first run fails with a "shape mismatch" error listing every
+#      readout slot that needs to be re-initialized for the new ensemble
+#      width. Copy the suggested `reset_layers:` block into this config.
+#   3. Re-run; the listed slots stay random-initialized (the classical
+#      "drop scalar head, attach N-output head, train" pattern), every
+#      other slot transfers from the foundation.
+#
+# This is the standard apax mechanism for going from a single-output
+# foundation to an n_members shallow ensemble. The `model:` and
+# `transfer_learning:` blocks below are unchanged across the two runs;
+# only `reset_layers` grows.
 
 n_epochs: 50
 seed: 1
