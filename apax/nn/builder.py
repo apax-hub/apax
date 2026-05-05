@@ -13,6 +13,7 @@ from apax.layers.descriptor.basis_functions import (
     AgnesiTransform,
     BesselBasis,
     GaussianBasis,
+    MaceBesselBasis,
     RadialFunction,
 )
 from apax.layers.empirical import all_corrections
@@ -47,11 +48,21 @@ class ModelBuilder:
                 spacing=basis_config["spacing"],
             )
         elif name == "bessel":
-            basis_fn = BesselBasis(
-                n_basis=basis_config["n_basis"],
-                r_max=basis_config["r_max"],
-                dtype=self.config["descriptor_dtype"],
-            )
+            variant = basis_config.get("variant", "kocer")
+            if variant == "kocer":
+                basis_fn = BesselBasis(
+                    n_basis=basis_config["n_basis"],
+                    r_max=basis_config["r_max"],
+                    dtype=self.config["descriptor_dtype"],
+                )
+            elif variant == "standard":
+                basis_fn = MaceBesselBasis(
+                    n_basis=basis_config["n_basis"],
+                    r_max=basis_config["r_max"],
+                    dtype=self.config["descriptor_dtype"],
+                )
+            else:
+                raise ValueError(f"unknown bessel variant: {variant!r}")
         else:
             raise ValueError("unknown basis requested")
         return basis_fn

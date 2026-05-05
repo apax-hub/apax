@@ -40,6 +40,13 @@ class BesselBasisConfig(BaseModel, extra="forbid"):
 
     Parameters
     ----------
+    variant : Literal["kocer", "standard"], default = "kocer"
+        ``kocer`` selects the Kocer 2019 symmetrised form (apax's legacy
+        :class:`~apax.layers.descriptor.basis_functions.BesselBasis`).
+        ``standard`` selects the textbook spherical-Bessel form used by
+        torch-mace (:class:`~apax.layers.descriptor.basis_functions.MaceBesselBasis`).
+        Default ``kocer`` preserves every existing GMNN / EquivMP / So3krates
+        config; MACE configs override to ``standard``.
     n_basis : PositiveInt, default = 16
         Number of uncontracted basis functions.
     r_max : PositiveFloat, default = 5.0
@@ -47,6 +54,7 @@ class BesselBasisConfig(BaseModel, extra="forbid"):
     """
 
     name: Literal["bessel"] = "bessel"
+    variant: Literal["kocer", "standard"] = "kocer"
     n_basis: PositiveInt = 16
     r_max: PositiveFloat = 5.0
 
