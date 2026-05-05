@@ -120,14 +120,26 @@ class MaceRepresentation(nn.Module):
         pair_mask = _get_neighbor_mask(idx) if self.apply_mask else 1.0
         node_mask = _get_node_mask(Z) if self.apply_mask else 1.0
 
-        radial, sph = MaceRadialEmbedding(
-            r_max=self.r_max,
-            num_bessel=self.num_bessel,
+        from apax.layers.descriptor.basis_functions import MaceBesselBasis
+
+        # Construct radial submodule inline; Task 4 will hoist this into the
+        # builder and pass a pre-built instance via ``self.radial_embedding``.
+        basis_fn = MaceBesselBasis(
+            n_basis=self.num_bessel, r_max=self.r_max, dtype=dtype,
+        )
+        radial = MaceRadialEmbedding(
+            basis_fn=basis_fn,
             num_polynomial_cutoff=self.num_polynomial_cutoff,
-            max_ell=self.max_ell,
+            r_max=self.r_max,
             distance_transform=self.distance_transform,
             name="radial_embedding",
         )(dr_vec, Z, idx)
+        sph = e3nn.spherical_harmonics(
+            e3nn.Irreps.spherical_harmonics(self.max_ell),
+            dr_vec,
+            normalize=True,
+            normalization="component",
+        )
         if self.apply_mask:
             radial = radial * pair_mask[..., None]
 

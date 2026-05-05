@@ -1,6 +1,5 @@
 from typing import Any, Literal, Optional
 
-import e3nn_jax as e3nn
 import einops
 import flax.linen as nn
 import jax.numpy as jnp
@@ -353,46 +352,49 @@ class AgnesiTransform(nn.Module):
 
 
 class MaceRadialEmbedding(nn.Module):
-    """Composable radial embedding: bessel x cutoff with optional transform.
+    """Composable radial embedding: basis(r) x cutoff(r) with optional transform.
 
-    Mirrors torch-mace's :class:`RadialEmbeddingBlock`. The optional
-    ``distance_transform`` is applied between ``cutoff_fn`` and ``bessel_fn``
-    and consumes per-edge atomic numbers. The forward returns
-    ``(radial, sph)`` where::
+    Mirrors torch-mace's :class:`RadialEmbeddingBlock`. The basis function is
+    **injected** by the builder; this submodule no longer owns ``n_basis`` or
+    the choice between Kocer / standard Bessel. Spherical harmonics moved
+    out — they are angular features and live on :class:`MaceRepresentation`.
 
-        radial = bessel(T(r)) * cutoff(r)        # transform configured
-        radial = bessel(r)    * cutoff(r)        # no transform
+    The optional ``distance_transform`` is applied between ``cutoff_fn`` and
+    the basis and consumes per-edge atomic numbers. The forward returns the
+    radial features::
+
+        radial = basis(T(r)) * cutoff(r)        # transform configured
+        radial = basis(r)    * cutoff(r)        # no transform
 
     Critically the cutoff is computed on the **original** ``r``; only the
-    bessel basis sees the transformed value. Reordering breaks parity with
-    torch.
+    basis sees the transformed value. Reordering breaks parity with torch.
 
     Parameters
     ----------
-    r_max : float
-        Interaction cutoff in the same units as ``dr_vec``.
-    num_bessel : int
-        Number of Bessel radial basis functions.
+    basis_fn : nn.Module
+        Pre-built radial basis Linen module (e.g. :class:`MaceBesselBasis`
+        for torch-mace parity, or :class:`BesselBasis` for the Kocer form).
+        Constructed by :meth:`apax.nn.builder.ModelBuilder.build_basis_function`.
     num_polynomial_cutoff : int
         Polynomial order of the smooth envelope cutoff.
-    max_ell : int
-        Maximum spherical-harmonic degree (inclusive).
+    r_max : float
+        Interaction cutoff in the same units as ``dr_vec``. Must equal
+        ``basis_fn.r_max`` (both sourced from ``model.basis.r_max``).
     distance_transform : Any, optional
-        Either ``None`` (default) or a Linen ``nn.Module`` instance with
-        signature ``__call__(r, Z, idx) -> r_transformed``. The runtime type
-        is dynamic; the field is typed as :class:`typing.Any` so any
-        future transform module can be attached without widening the type.
+        Either ``None`` or a Linen ``nn.Module`` instance with signature
+        ``__call__(r, Z, idx) -> r_transformed``. Typed :class:`Any` because
+        the runtime type is dynamic and Linen field types do not constrain
+        injected modules.
     """
 
-    r_max: float
-    num_bessel: int
+    basis_fn: Any
     num_polynomial_cutoff: int
-    max_ell: int
+    r_max: float
     distance_transform: Optional[Any] = None
 
     @nn.compact
     def __call__(self, dr_vec, Z, idx):
-        """Compute the per-edge radial features and spherical harmonics.
+        """Compute per-edge radial features.
 
         Parameters
         ----------
@@ -406,12 +408,9 @@ class MaceRadialEmbedding(nn.Module):
 
         Returns
         -------
-        radial : jnp.ndarray
-            Bessel basis multiplied element-wise by the polynomial cutoff
-            envelope, shape ``(n_edges, num_bessel)``.
-        sph : e3nn_jax.IrrepsArray
-            Spherical harmonics of ``dr_vec`` with ``"component"``
-            normalization on the unit sphere.
+        jnp.ndarray
+            Basis multiplied element-wise by the polynomial cutoff envelope,
+            shape ``(n_edges, n_basis)``.
         """
         dtype = dr_vec.dtype
         r_ij = jnp.linalg.norm(dr_vec, axis=-1)
@@ -420,17 +419,8 @@ class MaceRadialEmbedding(nn.Module):
         )(r_ij)
         if self.distance_transform is not None:
             r_ij = self.distance_transform(r_ij, Z, idx)
-        bessel = MaceBesselBasis(
-            n_basis=self.num_bessel, r_max=self.r_max, dtype=dtype,
-        )(r_ij)
+        bessel = self.basis_fn(r_ij)
         radial = (bessel * cutoff[..., None]).astype(dtype)
-        # Gated so plain ``model.init`` doesn't sprout a ``debug`` branch.
         if is_parity_debug_enabled():
             self.sow("debug", "radial_embedding", radial)
-        sph = e3nn.spherical_harmonics(
-            e3nn.Irreps.spherical_harmonics(self.max_ell),
-            dr_vec,
-            normalize=True,
-            normalization="component",
-        )
-        return radial, sph
+        return radial

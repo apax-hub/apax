@@ -143,18 +143,30 @@ def assemble_edge_features(dr_vec, r_max, num_bessel, num_poly_cutoff, max_ell):
     -----
     The dtype of both outputs matches the dtype of ``dr_vec``.
     """
-    from apax.layers.descriptor.basis_functions import MaceRadialEmbedding
+    from apax.layers.descriptor.basis_functions import (
+        MaceBesselBasis,
+        MaceRadialEmbedding,
+    )
 
+    basis_fn = MaceBesselBasis(
+        n_basis=num_bessel, r_max=r_max, dtype=dr_vec.dtype,
+    )
     module = MaceRadialEmbedding(
-        r_max=r_max,
-        num_bessel=num_bessel,
+        basis_fn=basis_fn,
         num_polynomial_cutoff=num_poly_cutoff,
-        max_ell=max_ell,
+        r_max=r_max,
         distance_transform=None,
     )
     Z_dummy = jnp.zeros((1,), dtype=jnp.int32)
     idx_dummy = jnp.zeros((2, dr_vec.shape[0]), dtype=jnp.int32)
-    return module.apply({}, dr_vec, Z_dummy, idx_dummy)
+    radial = module.apply({}, dr_vec, Z_dummy, idx_dummy)
+    sph = e3nn.spherical_harmonics(
+        e3nn.Irreps.spherical_harmonics(max_ell),
+        dr_vec,
+        normalize=True,
+        normalization="component",
+    )
+    return radial, sph
 
 
 class LinearNodeEmbedding(nn.Module):
