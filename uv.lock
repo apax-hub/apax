@@ -380,7 +380,7 @@ dev = [
 ]
 lint = [{ name = "ruff", specifier = ">=0.9.1" }]
 mace-convert = [
-    { name = "mace-jax", editable = "/Users/fzills/tools/mace-jax" },
+    { name = "mace-jax", git = "https://github.com/ACEsuit/mace-jax?rev=fe19806ad8077a90975eeb83fdd777a9513e9f0c" },
     { name = "mace-torch", specifier = ">=0.3" },
     { name = "torch", specifier = ">=2.1" },
 ]
@@ -1204,7 +1204,7 @@ nvtx = [
 
 [[package]]
 name = "cuequivariance"
-version = "0.9.1"
+version = "0.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "networkx" },
@@ -1213,14 +1213,14 @@ dependencies = [
     { name = "scipy" },
     { name = "sympy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/04/33/d9bd6f1f70940fa657796db1ddb2efe5fffc9dc2cc415668970b95072161/cuequivariance-0.9.1.tar.gz", hash = "sha256:718936970beee9e3ea18a1aecdfb30b5915ab8abb9b2a81aeab004a82b3ea6f8", size = 238620, upload-time = "2026-03-16T17:25:35.185Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9e/df/eaad918ad320805c08ec29ca5f3df8f89b1d0b6c828668d0c10e94ae6b6e/cuequivariance-0.10.0.tar.gz", hash = "sha256:8be785f84a0c25b6b3e927e551078be261f0900c583a7c8c95744bcd5fa1967d", size = 214826, upload-time = "2026-04-22T01:20:40.317Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/25/70/7bfedcdd0223357930f5312c9ac5d6cc5fea88b73372c4087ffc3655a9e3/cuequivariance-0.9.1-py3-none-any.whl", hash = "sha256:9560813c90f2d530b9860a61a5e39e808a95a6345e9cc9768ea01e78de3a7c1e", size = 269242, upload-time = "2026-03-16T17:25:34.138Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/52/3131b6dc9577eaa556b2b66584a44df32a9d4356aa641ff5d33c8b797225/cuequivariance-0.10.0-py3-none-any.whl", hash = "sha256:340f5160b99efe57f8a220db75747e59b8a0f9f3bbced7ec527c46f8cc615e87", size = 246357, upload-time = "2026-04-22T01:20:38.828Z" },
 ]
 
 [[package]]
 name = "cuequivariance-jax"
-version = "0.9.1"
+version = "0.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cuequivariance" },
@@ -1228,9 +1228,9 @@ dependencies = [
     { name = "jax" },
     { name = "packaging" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3f/d3/eee83f7cd0c248378cb7d0e0d55b69218efba05a8414e337a56c04018bef/cuequivariance_jax-0.9.1.tar.gz", hash = "sha256:75d237dbbaef40adc53e1cc40e301f3c0b86ff3fa0ef8749029af3571d4d1172", size = 229691, upload-time = "2026-03-16T17:25:38.118Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/dd/13/c72779d03d0f4ea012b65d1c47d7036293ae0a7d82f89210cce66085834f/cuequivariance_jax-0.10.0.tar.gz", hash = "sha256:42b4f8e65790c9bbf9d9c3a1480da4aac3b93f94e0181116d547576d61970c8e", size = 206677, upload-time = "2026-04-22T01:20:43.44Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/48/2f/588112cfd0dc8de59cb2d0b3e3378312311e4babf9381e559767303093a7/cuequivariance_jax-0.9.1-py3-none-any.whl", hash = "sha256:91973a2f0643500f72117035286b03cb88e5ccffcc452feb27fda6997d8d1b1f", size = 228066, upload-time = "2026-03-16T17:25:36.89Z" },
+    { url = "https://files.pythonhosted.org/packages/75/00/23a1c05670d50dc4e1e923be322d42bb86c2b9c5d781c2e80b8539a197e2/cuequivariance_jax-0.10.0-py3-none-any.whl", hash = "sha256:bd49a9404a69e62fcc062e39b200c37bc26aa25baebfb8abbe19a4a89a0183ce", size = 205941, upload-time = "2026-04-22T01:20:42.031Z" },
 ]
 
 [[package]]
@@ -3111,7 +3111,7 @@ wheels = [
 [[package]]
 name = "mace-jax"
 version = "0.2.0"
-source = { editable = "/Users/fzills/tools/mace-jax" }
+source = { git = "https://github.com/ACEsuit/mace-jax?rev=fe19806ad8077a90975eeb83fdd777a9513e9f0c#fe19806ad8077a90975eeb83fdd777a9513e9f0c" }
 dependencies = [
     { name = "ase" },
     { name = "chex" },
@@ -3133,48 +3133,6 @@ dependencies = [
     { name = "tqdm" },
     { name = "unique-names-generator" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "ase" },
-    { name = "chex" },
-    { name = "configargparse" },
-    { name = "cuequivariance", specifier = ">=0.9.1,<0.10" },
-    { name = "cuequivariance-jax", specifier = ">=0.9.1,<0.10" },
-    { name = "cuequivariance-ops-cu12", marker = "extra == 'conv-fusion'", specifier = ">=0.9.1,<0.10" },
-    { name = "cuequivariance-ops-cu12", marker = "extra == 'gpu'", specifier = ">=0.9.1,<0.10" },
-    { name = "cuequivariance-ops-jax-cu12", marker = "extra == 'conv-fusion'", specifier = ">=0.9.1,<0.10" },
-    { name = "cuequivariance-ops-jax-cu12", marker = "extra == 'gpu'", specifier = ">=0.9.1,<0.10" },
-    { name = "cuequivariance-ops-torch", marker = "extra == 'torch'", specifier = ">=0.9.1,<0.10" },
-    { name = "cuequivariance-torch", marker = "extra == 'torch'", specifier = ">=0.9.1,<0.10" },
-    { name = "e3nn", specifier = "==0.4.4" },
-    { name = "e3nn-jax" },
-    { name = "flax" },
-    { name = "gin-config" },
-    { name = "h5py" },
-    { name = "jax", specifier = ">=0.4.23" },
-    { name = "jax", extras = ["cuda12"], marker = "extra == 'conv-fusion'" },
-    { name = "jax", extras = ["cuda12"], marker = "extra == 'gpu'" },
-    { name = "jax", extras = ["cuda12"], marker = "extra == 'jax-cuda12'" },
-    { name = "jraph" },
-    { name = "lammps", marker = "extra == 'lammps'" },
-    { name = "matplotlib", marker = "extra == 'plot'" },
-    { name = "matscipy" },
-    { name = "nox", marker = "extra == 'test'" },
-    { name = "numpy" },
-    { name = "optax" },
-    { name = "pandas", marker = "extra == 'plot'" },
-    { name = "pymatgen", marker = "extra == 'data'" },
-    { name = "pytest", marker = "extra == 'test'" },
-    { name = "pytest-xdist", marker = "extra == 'test'" },
-    { name = "pyyaml" },
-    { name = "roundmantissa" },
-    { name = "torch", marker = "extra == 'torch'" },
-    { name = "tqdm" },
-    { name = "unique-names-generator" },
-    { name = "wandb", marker = "extra == 'wandb'" },
-]
-provides-extras = ["gpu", "torch", "test", "plot", "wandb", "data", "lammps", "jax-cuda12", "conv-fusion"]
 
 [[package]]
 name = "mace-torch"
