@@ -343,6 +343,8 @@ class MaceBuilder(ModelBuilder):
             hidden_irreps=self.config["hidden_irreps"],
             num_interactions=self.config["num_interactions"],
             correlation=self.config["correlation"],
+            # Linen dataclass rejects list-typed fields; YAML emits list,
+            # descriptor expects tuple.
             interaction_cls=(
                 tuple(self.config["interaction_cls"])
                 if isinstance(self.config["interaction_cls"], list)
