@@ -50,7 +50,7 @@ def run_conversion(
     source: Union[str, Path],
     dst: Path,
     *,
-    head: str = "default",
+    head: str | None = None,
     family: str = "mace_mp",
 ) -> None:
     """Convert a torch-mace foundation model into an apax training-output dir.
@@ -68,9 +68,10 @@ def run_conversion(
         path to a local ``.model`` file.
     dst : Path
         Output directory. Will be created if it does not exist.
-    head : str, default = "default"
+    head : str or None, default = None
         For multi-head foundation models (e.g. MPA), which head to retain.
-        Single-head models accept the literal string ``"default"``.
+        ``None`` falls back to the first head in ``model.heads`` (or the
+        literal ``"default"`` for single-head models).
     family : str, default = "mace_mp"
         Foundation-family resolver. Initial scope: ``"mace_mp"`` (covers
         MACE-MP-0/0b/0b2/0b3 and MACE-MPA). Other families deferred.
@@ -228,7 +229,7 @@ def _load_torch_foundation_model(source, *, family: str):
     return torch_model, resolved_path
 
 
-def _extract_config_from_torch(model, head: str) -> dict:
+def _extract_config_from_torch(model, head: str | None) -> dict:
     """Return a dict that matches :class:`MaceModelConfig` schema.
 
     Reads hyperparameters off a torch ``ScaleShiftMACE`` foundation-model
@@ -239,10 +240,11 @@ def _extract_config_from_torch(model, head: str) -> dict:
     ----------
     model : torch.nn.Module
         The loaded MACE torch model (typically a ``ScaleShiftMACE``).
-    head : str
-        Head selector for multi-head models. Single-head models ignore this
-        argument apart from validating it is in ``model.heads`` (or the literal
-        ``"default"``).
+    head : str or None
+        Head selector for multi-head models. ``None`` falls back to the
+        first head in ``model.heads`` (or the literal ``"default"`` for
+        single-head models). When given, must be a member of
+        ``model.heads``.
 
     Returns
     -------
@@ -259,7 +261,9 @@ def _extract_config_from_torch(model, head: str) -> dict:
     import e3nn  # noqa: PLC0415
 
     heads = list(getattr(model, "heads", ["default"]))
-    if head not in heads:
+    if head is None:
+        head = heads[0]
+    elif head not in heads:
         raise ValueError(
             f"head={head!r} not in available heads {heads}. "
             f"Pass --head <name> from that list."

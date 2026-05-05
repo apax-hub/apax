@@ -22,7 +22,14 @@ def convert_mace(
         ),
     ),
     dst: Path = typer.Argument(..., help="Output apax-native directory"),
-    head: str = typer.Option("mp", help="Which head to select for multi-head models"),
+    head: str | None = typer.Option(
+        None,
+        "--head",
+        help=(
+            "Which head to select for multi-head models. Defaults to the "
+            "first head in the model (or 'default' for single-head models)."
+        ),
+    ),
     family: str = typer.Option(
         "mace_mp",
         help="Foundation-model family: 'mace_mp' covers MPA-0 and MP-0/0b/0b2/0b3. "
@@ -40,6 +47,7 @@ def convert_mace(
         Output directory. Will be created.
     head
         For multi-head foundation models (e.g. MPA), the head to retain.
+        ``None`` (the default) selects the first head in the model.
     family
         Foundation-family resolver. Initial scope: ``"mace_mp"``.
     """
