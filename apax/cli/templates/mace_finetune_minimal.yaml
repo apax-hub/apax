@@ -12,11 +12,11 @@
 # emits n_members scalar channels rather than 1 — the standard apax
 # uncertainty mechanism with no MACE-specific trainer code.
 #
-# Swapping the head for a fresh AtomisticReadout MLP (set readout_kind: standard,
+# Swapping the head for a fresh AtomisticReadout MLP (set readout.kind: standard,
 # nn: [256, 256]) is the natural extension but is currently blocked by an
 # upstream apax limitation: ``black_list_param_transfer`` writes every source
 # key into the target params pytree, so the foundation's MaceReadout params
-# leak in and break ``optax.masked``. Until that's fixed, keep readout_kind:
+# leak in and break ``optax.masked``. Until that's fixed, keep readout.kind:
 # mace below.
 
 n_epochs: 50
@@ -33,16 +33,25 @@ data:
 
 model:
   name: mace
-  r_max: 6.0
-  num_bessel: 10
-  num_polynomial_cutoff: 5
-  max_ell: 3
-  hidden_irreps: 128x0e
-  num_interactions: 2
-  correlation: 3
-  interaction_cls: RealAgnosticResidual
-  readout_kind: mace
-  MLP_irreps: 16x0e
+  basis:
+    name: bessel
+    variant: standard
+    n_basis: 10
+    r_max: 6.0
+  radial_embedding:
+    num_polynomial_cutoff: 5
+  descriptor:
+    max_ell: 3
+    hidden_irreps: 128x0e
+    correlation: 3
+    interactions:
+      - name: RealAgnosticResidual
+      - name: RealAgnosticResidual
+    avg_num_neighbors: 1.0
+    use_cueq: false
+  readout:
+    kind: mace
+    MLP_irreps: 16x0e
   ensemble:
     kind: shallow
     n_members: 8
