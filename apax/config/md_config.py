@@ -366,6 +366,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     buffer_size: PositiveInt = 2500
     dr_threshold: PositiveFloat = 0.5
     extra_capacity: NonNegativeInt = 0
+    disable_cell_list: bool = False
 
     biases: list[BiasEnergy] = []
     dynamics_checks: list[DynamicsCheck] = []

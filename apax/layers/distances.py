@@ -1,8 +1,7 @@
 import jax.numpy as jnp
 import numpy as np
 from jax import vmap
-
-from apax.utils.jax_md_reduced import partition, space
+from jax_md import partition, space
 
 
 def canonicalize_neighbors(neighbor):

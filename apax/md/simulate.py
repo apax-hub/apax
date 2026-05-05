@@ -9,8 +9,8 @@ import numpy as np
 import orbax.checkpoint as ocp
 from ase import units
 from ase.io import read
-from jax import tree_util
 from jax.experimental import io_callback
+from jax_md import partition, quantity, simulate, space
 from tqdm import trange
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -32,8 +32,6 @@ from apax.train.checkpoints import (
     restore_parameters,
 )
 from apax.train.run import setup_logging
-from apax.utils.jax_md_reduced import partition, quantity, simulate, space
-from apax.utils.transform import make_energy_only_model
 
 log = logging.getLogger(__name__)
 
@@ -45,15 +43,21 @@ def create_energy_fn(
     n_models,
     shallow=False,
 ):
-    def full_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
+    def full_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None, **kwargs):
         vmodel = jax.vmap(model, (0, None, None, None, None, None, None), 0)
         energies, _ = vmodel(params, R, Z, neighbor, box, offsets, perturbation)
         energy = jnp.mean(energies)
         return energy
 
-    def shallow_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
+    def shallow_ensemble(
+        params, R, Z, neighbor, box, offsets, perturbation=None, **kwargs
+    ):
         energies, _ = model(params, R, Z, neighbor, box, offsets, perturbation)
         energy = jnp.mean(energies)
+        return energy
+
+    def single_model(params, R, Z, neighbor, box, offsets, perturbation=None, **kwargs):
+        energy, _ = model(params, R, Z, neighbor, box, offsets, perturbation)
         return energy
 
     if n_models > 1:
@@ -62,7 +66,7 @@ def create_energy_fn(
         else:
             energy_fn = full_ensemble
     else:
-        energy_fn = make_energy_only_model(model)
+        energy_fn = single_model
 
     energy_fn = partial(
         energy_fn,
@@ -157,25 +161,24 @@ def handle_checkpoints(state, step, system, load_momenta, ckpt_dir, should_load_
     return state, step
 
 
-def create_evaluation_functions(aux_fn, positions, Z, neighbor, box, dynamics_checks):
+def create_evaluation_functions(traj_handler, aux_fn, Z, neighbor, dynamics_checks):
     offsets = jnp.zeros((neighbor.idx.shape[1], 3))
 
-    def on_eval(positions, neighbor, box):
+    def on_eval(state, neighbor, box, nbr_kwargs):
+        positions = state.position
         predictions = aux_fn(positions, Z, neighbor, box, offsets)
         all_checks_passed = True
 
         for check in dynamics_checks:
             check_passed = check.check(predictions, positions, box)
             all_checks_passed = all_checks_passed & check_passed
-        return predictions, all_checks_passed
 
-    predictions = aux_fn(positions, Z, neighbor, box, offsets)
-    dummpy_preds = tree_util.tree_map(lambda x: jnp.zeros_like(x), predictions)
+        io_callback(traj_handler.step, None, (state, predictions, nbr_kwargs))
+        return all_checks_passed
 
-    def no_eval(positions, neighbor, box):
-        predictions = dummpy_preds
+    def no_eval(state, neighbor, box, nbr_kwargs):
         all_checks_passed = True
-        return predictions, all_checks_passed
+        return all_checks_passed
 
     return on_eval, no_eval
 
@@ -215,6 +218,37 @@ def create_constraint_function(constraints: list[ConstraintBase], system):
     return apply_constraints, constraind_idxs
 
 
+def check_for_nans(state, step):
+    if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
+        raise ValueError(f"NaN encountered, simulation aborted after {step + 1} steps.")
+
+
+def handle_overflow(neighbor_fn, state, traj_handler, step):
+    with logging_redirect_tqdm():
+        log.warning("step %d: neighbor list overflowed, reallocating.", step)
+    traj_handler.reset_buffer()
+    return neighbor_fn.allocate(state.position)
+
+
+def maybe_save_checkpoint(mngr, state, step, checkpoint_interval, sim_time_per_step):
+    if step % checkpoint_interval == 0:
+        with logging_redirect_tqdm():
+            log.info(
+                "saving checkpoint at %.1f ps - step: %d",
+                step * sim_time_per_step,
+                step,
+            )
+        mngr.save(step, args=ocp.args.StandardSave({"state": state, "step": step}))
+
+
+def maybe_update_pbar(
+    sim_pbar, step, pbar_update_freq, pbar_increment, current_temperature
+):
+    if step % pbar_update_freq == 0:
+        sim_pbar.set_postfix(T=f"{current_temperature:.1f} K")
+        sim_pbar.update(pbar_increment)
+
+
 def run_sim(
     system: System,
     sim_fns: SimulationFunctions,
@@ -225,6 +259,7 @@ def run_sim(
     extra_capacity: int,
     rng_key: int,
     traj_handler: TrajHandler,
+    sampling_rate: int = 10,
     load_momenta: bool = False,
     restart: bool = True,
     checkpoint_interval: int = 50_000,
@@ -300,13 +335,11 @@ def run_sim(
     pbar_update_freq = int(np.ceil(500 / n_inner))
     pbar_increment = n_inner * pbar_update_freq
 
-    sampling_rate = traj_handler.sampling_rate
     on_eval, no_eval = create_evaluation_functions(
+        traj_handler,
         sim_fns.auxiliary_fn,
-        state.position,
         system.atomic_numbers,
         neighbor,
-        system.box,
         dynamics_checks,
     )
 
@@ -333,14 +366,11 @@ def run_sim(
             neighbor = neighbor.update(state.position, **nbr_kwargs)
 
             condition = step % sampling_rate == 0
-            predictions, check_passed = jax.lax.cond(
-                condition, on_eval, no_eval, state.position, neighbor, box
+            checks_passed = jax.lax.cond(
+                condition, on_eval, no_eval, state, neighbor, box, nbr_kwargs
             )
 
-            all_checks_passed = all_checks_passed & check_passed
-
-            # maybe move this to on_eval
-            io_callback(traj_handler.step, None, (state, predictions, nbr_kwargs))
+            all_checks_passed = all_checks_passed & checks_passed
             return state, outer_step, neighbor, all_checks_passed
 
         all_checks_passed = True
@@ -367,47 +397,34 @@ def run_sim(
         disable=disable_pbar,
         leave=True,
     )
+    sim_time_per_step = n_inner * ensemble.dt / 1000
     with mngr:
         while step < n_outer:
             new_state, neighbor, current_temperature, all_checks_passed = sim(
                 state, step, neighbor
             )
 
-            if np.any(np.isnan(state.position)) or np.any(np.isnan(state.velocity)):
-                raise ValueError(
-                    f"NaN encountered, simulation aborted after {step + 1} steps."
-                )
+            check_for_nans(state, step)
 
             if not all_checks_passed:
                 with logging_redirect_tqdm():
                     log.critical(
-                        f"One or more dynamics checks failed at step: {step + 1}"
+                        "One or more dynamics checks failed at step: %d", step + 1
                     )
                 break
 
             if neighbor.did_buffer_overflow:
-                with logging_redirect_tqdm():
-                    log.warn("step %d: neighbor list overflowed, reallocating.", step)
-                traj_handler.reset_buffer()
-                neighbor = neighbor_fn.allocate(
-                    state.position
-                )  # TODO check that this actually works
-            else:
-                state = new_state
-                step += 1
+                neighbor = handle_overflow(neighbor_fn, state, traj_handler, step)
+                continue
 
-                if step % checkpoint_interval == 0:
-                    with logging_redirect_tqdm():
-                        current_sim_time = step * n_inner * ensemble.dt / 1000
-                        log.info(
-                            f"saving checkpoint at {current_sim_time:.1f} ps - step: {step}"
-                        )
-                    ckpt = {"state": state, "step": step}
-                    mngr.save(step, args=ocp.args.StandardSave(ckpt))
-
-                if step % pbar_update_freq == 0:
-                    sim_pbar.set_postfix(T=f"{(current_temperature):.1f} K")  # set string
-                    sim_pbar.update(pbar_increment)
+            state = new_state
+            step += 1
+            maybe_save_checkpoint(
+                mngr, state, step, checkpoint_interval, sim_time_per_step
+            )
+            maybe_update_pbar(
+                sim_pbar, step, pbar_update_freq, pbar_increment, current_temperature
+            )
 
         # In case of mismatch update freq and n_steps, we can set it to 100% manually
         sim_pbar.update(n_steps - sim_pbar.n)
@@ -503,6 +520,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         init_box=np.array(system.box),
         inference_disp_fn=displacement_fn,
     )
+    disable_cell_list = md_config.disable_cell_list or np.all(system.box < 1e-6)
     neighbor_fn = partition.neighbor_list(
         displacement_fn,
         system.box,
@@ -510,7 +528,7 @@ def md_setup(model_config: Config, md_config: MDConfig):
         md_config.dr_threshold,
         fractional_coordinates=frac_coords,
         format=partition.Sparse,
-        disable_cell_list=True,
+        disable_cell_list=disable_cell_list,
     )
 
     _, gradient_model_params = restore_parameters(model_config.data.model_version_path)
@@ -540,8 +558,19 @@ def md_setup(model_config: Config, md_config: MDConfig):
         bias_list = [BiasEnergies(b.model_dump()) for b in md_config.biases]
         biases.extend(bias_list)
 
+    force_variance = "forces_uncertainty" in md_config.properties
+    if md_config.dynamics_checks:
+        for check in md_config.dynamics_checks:
+            if check.name == "forces_uncertainty":
+                force_variance = True
+
     auxiliary_fn = builder.build_energy_derivative_model(
-        apply_mask=True, init_box=np.array(system.box), inference_disp_fn=displacement_fn
+        apply_mask=True,
+        init_box=np.array(system.box),
+        inference_disp_fn=displacement_fn,
+        calc_stress="stress" in md_config.properties,
+        calc_hessian="hessian" in md_config.properties,
+        force_variance=force_variance,
     ).apply
 
     if n_models > 1 and not shallow:
@@ -601,7 +630,6 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
 
     traj_handler = H5TrajHandler(
         system,
-        md_config.sampling_rate,
         md_config.buffer_size,
         traj_path,
         md_config.ensemble.dt,
@@ -617,6 +645,7 @@ def run_md(model_config: Config, md_config: MDConfig, log_level="error"):
         n_steps=n_steps,
         n_inner=md_config.n_inner,
         extra_capacity=md_config.extra_capacity,
+        sampling_rate=md_config.sampling_rate,
         load_momenta=md_config.load_momenta,
         traj_handler=traj_handler,
         rng_key=jax.random.PRNGKey(md_config.seed),

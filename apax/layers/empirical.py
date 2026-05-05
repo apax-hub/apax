@@ -7,10 +7,10 @@ import jax.numpy as jnp
 import numpy as np
 from ase import data
 from jax import vmap
+from jax_md import space
 
 from apax.layers.masking import mask_by_atom, mask_by_neighbor
 from apax.utils.convert import str_to_dtype
-from apax.utils.jax_md_reduced import space
 from apax.utils.math import fp64_sum
 
 

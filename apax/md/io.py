@@ -7,10 +7,10 @@ import znh5md
 from ase import Atoms
 from ase.calculators.calculator import all_properties
 from ase.calculators.singlepoint import SinglePointCalculator
+from jax_md import space
 
 from apax.md.sim_utils import System
 from apax.utils.helpers import APAX_PROPERTIES
-from apax.utils.jax_md_reduced import space
 
 log = logging.getLogger(__name__)
 
@@ -19,7 +19,6 @@ class TrajHandler:
     def __init__(
         self,
         system: System,
-        sampling_rate: int,
         buffer_size: int,
         traj_path: Path,
         time_step: float = 0.5,
@@ -28,7 +27,6 @@ class TrajHandler:
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
         self.fractional = np.any(self.box > 1e-6)
-        self.sampling_rate = sampling_rate
         self.traj_path = traj_path
         self.time_step = time_step
         self.properties = properties
@@ -82,7 +80,6 @@ class H5TrajHandler(TrajHandler):
     def __init__(
         self,
         system: System,
-        sampling_rate: int,
         buffer_size: int,
         traj_path: Path,
         time_step: float,
@@ -92,7 +89,6 @@ class H5TrajHandler(TrajHandler):
         self.atomic_numbers = system.atomic_numbers
         self.box = system.box
         self.fractional = np.any(self.box > 1e-6)
-        self.sampling_rate = sampling_rate
         self.traj_path = traj_path
         self.time_step = time_step
         self.properties = properties
@@ -108,7 +104,6 @@ class H5TrajHandler(TrajHandler):
             **h5md_options,
         )
 
-        self.step_counter = 0
         self.buffer = []
         self.buffer_size = buffer_size
 
@@ -117,11 +112,8 @@ class H5TrajHandler(TrajHandler):
 
     def step(self, state, transform=None):
         state, predictions, nbr_kwargs = state
-
-        if self.step_counter % self.sampling_rate == 0:
-            new_atoms = self.atoms_from_state(state, predictions, nbr_kwargs)
-            self.buffer.append(new_atoms)
-        self.step_counter += 1
+        new_atoms = self.atoms_from_state(state, predictions, nbr_kwargs)
+        self.buffer.append(new_atoms)
 
         if len(self.buffer) >= self.buffer_size:
             self.write()

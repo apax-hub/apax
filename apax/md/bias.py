@@ -2,9 +2,8 @@ from typing import Any, Callable, Union
 
 import jax
 import jax.numpy as jnp
+from jax_md.space import distance
 from pydantic import BaseModel, TypeAdapter
-
-from apax.utils.jax_md_reduced.space import distance
 
 
 class BiasEnergyBase(BaseModel):
@@ -15,7 +14,7 @@ class BiasEnergyBase(BaseModel):
 def apply_bias_energy(bias: BiasEnergyBase, model) -> Callable[..., dict[str, Any]]:
     # Function signature:
     # Array, Array, Array, pertubation -> float
-    def energy_fn(R, neighbor, box, pertubation=None):
+    def energy_fn(R, neighbor, box, pertubation=None, **kwargs):
         energy = model(R=R, neighbor=neighbor, box=box)
         E_bias = bias.energy(R, neighbor, box, pertubation=pertubation)
 

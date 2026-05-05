@@ -9,13 +9,13 @@ import pytest
 import yaml
 from ase import Atoms
 from ase.io import read, write
+from jax_md import partition, space
 from openmm.openmm import LangevinMiddleIntegrator, PythonForce
 from openmm.unit import angstrom, ev, femtosecond, item, kelvin, picosecond
 
 from apax.config import Config
 from apax.md.ase_calc import ASECalculator
 from apax.md.openmm_interface import OpenMMInterface, create_simulation, create_system
-from apax.utils import jax_md_reduced
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
 
@@ -65,17 +65,17 @@ def test_openmm_interface(atoms, get_tmp_path):
     atoms_is_periodic = bool(np.any(atoms.cell.array > 1e-6))
 
     if atoms_is_periodic:
-        displacement_fn, _ = jax_md_reduced.space.periodic_general(
+        displacement_fn, _ = space.periodic_general(
             atoms.cell.array, fractional_coordinates=False
         )
     else:
-        displacement_fn, _ = jax_md_reduced.space.free()
+        displacement_fn, _ = space.free()
 
-    neighbor_fn = jax_md_reduced.partition.neighbor_list(
+    neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=atoms.cell.array,
         r_cutoff=model_config.model.basis.r_max,
-        format=jax_md_reduced.partition.Sparse,
+        format=partition.Sparse,
         fractional_coordinates=False,
     )
     neighbors = neighbor_fn.allocate(jnp.asarray(atoms.positions))
@@ -158,13 +158,13 @@ def test_openmm_interface_different_unit(get_tmp_path):
     atoms = Atoms(atomic_numbers, positions)
     write(initial_structure_path.as_posix(), atoms)
 
-    displacement_fn, _ = jax_md_reduced.space.free()
+    displacement_fn, _ = space.free()
 
-    neighbor_fn = jax_md_reduced.partition.neighbor_list(
+    neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=model_config.model.basis.r_max,
-        format=jax_md_reduced.partition.Sparse,
+        format=partition.Sparse,
         fractional_coordinates=False,
     )
     neighbors = neighbor_fn.allocate(positions)

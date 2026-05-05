@@ -7,6 +7,13 @@ def mask_by_atom(arr, Z):
     return masked_arr
 
 
+def mask_hessian(hessian, Z):
+    mask = (Z != 0).astype(hessian.dtype)
+    # create a 4D mask for (N, 3, N, 3)
+    mask_4d = mask[:, None, None, None] * mask[None, None, :, None]
+    return hessian * mask_4d
+
+
 def mask_by_neighbor(arr, idx):
     mask = ((idx[0] - idx[1]) != 0).astype(arr.dtype)
     if len(arr.shape) == 2:

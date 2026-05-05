@@ -2,8 +2,7 @@ import dataclasses
 
 import jax
 import jax.numpy as jnp
-
-from apax.utils.jax_md_reduced import quantity
+from jax_md import quantity
 
 
 def make_biased_energy_force_fn(bias_fn):

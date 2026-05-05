@@ -82,13 +82,18 @@ def compute_property_shapes(config: Config):
 
     additional_properties = []
 
+    loss_names = [loss.name for loss in config.loss]
+    metric_names = [metric.name for metric in config.metrics]
+
+    if "hessian" in loss_names or "hessian" in metric_names:
+        additional_properties.append(("hessian", ["natoms", 3, "natoms", 3]))
+
     if len(property_configs) == 0:
         return additional_properties
 
-    loss_names = [loss.name for loss in config.loss]
     for pconf in property_configs:
         name = pconf["name"]
-        if name not in loss_names:
+        if name not in loss_names and name not in metric_names:
             continue
         shape = []
         if pconf["aggregation"] == "none":

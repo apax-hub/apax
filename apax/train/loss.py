@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 import jax.scipy as jsc
 import numpy as np
+from ase.data import atomic_masses
 
 from apax.utils.math import inv_and_det_3x3, normed_dotp
 
@@ -12,8 +13,9 @@ from apax.utils.math import inv_and_det_3x3, normed_dotp
 def weighted_squared_error(
     label: jnp.array,
     prediction: jnp.array,
-    name,
+    name: str,
     parameters: dict = {},
+    inputs: dict = {},
 ) -> jnp.array:
     """
     Squared error function that allows weighting of
@@ -26,8 +28,9 @@ def weighted_squared_error(
 def weighted_huber_loss(
     label: jnp.array,
     prediction: jnp.array,
-    name,
+    name: str,
     parameters: dict = {},
+    inputs: dict = {},
 ) -> jnp.array:
     """
     Huber loss function that allows weighting of
@@ -45,8 +48,9 @@ def weighted_huber_loss(
 def crps_loss(
     label: jax.Array,
     prediction: jax.Array,
-    name,
+    name: str,
     parameters: dict = {},
+    inputs: dict = {},
 ) -> jax.Array:
     """Computes the CRPS of a gaussian distribution given
     means, targets and standard deviations (uncertainty estimate)
@@ -72,8 +76,9 @@ def crps_loss(
 def nll_loss(
     label: jax.Array,
     prediction: jax.Array,
-    name,
+    name: str,
     parameters: dict = {},
+    inputs: dict = {},
 ) -> jax.Array:
     """Computes the gaussian NLL loss given
     means, targets and standard deviations (uncertainty estimate)
@@ -96,8 +101,9 @@ def nll_loss(
 def force_angle_loss(
     label: jnp.array,
     prediction: jnp.array,
-    name,
+    name: str,
     parameters: dict = {},
+    inputs: dict = {},
 ) -> jnp.array:
     """
     Consine similarity loss function. Contributions are summed in `Loss`.
@@ -110,8 +116,9 @@ def force_angle_loss(
 def force_angle_div_force_label(
     label: jnp.array,
     prediction: jnp.array,
-    name,
+    name: str,
     parameters: dict = {},
+    inputs: dict = {},
 ):
     """
     Consine similarity loss function weighted by the norm of the force labels.
@@ -127,8 +134,9 @@ def force_angle_div_force_label(
 def force_angle_exponential_weight(
     label: jnp.array,
     prediction: jnp.array,
-    name,
+    name: str,
     parameters: dict = {},
+    inputs: dict = {},
 ) -> jnp.array:
     """
     Consine similarity loss function exponentially scaled by the norm of the force labels.
@@ -140,7 +148,13 @@ def force_angle_exponential_weight(
     return (1.0 - dotp) * jnp.exp(-F_0_norm)
 
 
-def stress_tril(label, prediction, name, parameters: dict = {}):
+def stress_tril(
+    label: jnp.array,
+    prediction: jnp.array,
+    name: str,
+    parameters: dict = {},
+    inputs: dict = {},
+):
     label, prediction = label[name], prediction[name]
     idxs = jnp.tril_indices(3)
     label_tril = label[:, idxs[0], idxs[1]]
@@ -148,7 +162,13 @@ def stress_tril(label, prediction, name, parameters: dict = {}):
     return (label_tril - prediction_tril) ** 2
 
 
-def nll_3x3(label, prediction, name, parameters: dict = {}):
+def nll_3x3(
+    label: jnp.array,
+    prediction: jnp.array,
+    name: str,
+    parameters: dict = {},
+    inputs: dict = {},
+):
     label = label[name]
     means = prediction[name]
     ensemble = prediction[name + "_ensemble"]
@@ -182,6 +202,44 @@ def nll_3x3(label, prediction, name, parameters: dict = {}):
     return nll
 
 
+def mass_weighted_hessian_loss(
+    label: jnp.array,
+    prediction: jnp.array,
+    name: str,
+    parameters: dict = {},
+    inputs: dict = {},
+) -> jnp.array:
+    """
+    Mass-weighted Hessian loss.
+    H_mw = H / sqrt(mi * mj)
+    """
+    label, prediction = label[name], prediction[name]
+    Z = inputs["numbers"]
+
+    # Get masses from ase
+    masses = jnp.array(atomic_masses)
+    m = masses[Z]  # (batch, natoms)
+
+    # Repeat for 3 DOF
+    m_dof = jnp.repeat(m, 3, axis=1)  # (batch, 3*natoms)
+
+    # Create mass matrix: sqrt(mi * mj)
+    m_matrix = jnp.sqrt(m_dof[:, :, None] * m_dof[:, None, :])
+
+    # Flatten prediction/label if they are 4D (batch, natoms, 3, natoms, 3)
+    if prediction.ndim == 5:
+        batch_size, n_atoms = prediction.shape[0], prediction.shape[1]
+        prediction = prediction.reshape(batch_size, 3 * n_atoms, 3 * n_atoms)
+    if label.ndim == 5:
+        batch_size, n_atoms = label.shape[0], label.shape[1]
+        label = label.reshape(batch_size, 3 * n_atoms, 3 * n_atoms)
+
+    label_mw = label / m_matrix
+    prediction_mw = prediction / m_matrix
+
+    return (label_mw - prediction_mw) ** 2
+
+
 loss_functions = {
     "mse": weighted_squared_error,
     "huber": weighted_huber_loss,
@@ -192,6 +250,7 @@ loss_functions = {
     "crps": crps_loss,
     "nll": nll_loss,
     "nll_3x3": nll_3x3,
+    "mw_hessian": mass_weighted_hessian_loss,
 }
 
 
@@ -220,7 +279,7 @@ class Loss:
         # TODO we may want to insert an additional `mask` argument for this method
 
         divisor = inputs["n_atoms"] ** self.atoms_exponent
-        batch_losses = self.loss_fn(label, prediction, self.name, self.parameters)
+        batch_losses = self.loss_fn(label, prediction, self.name, self.parameters, inputs)
 
         axes_to_add = len(batch_losses.shape) - 1
         for _ in range(axes_to_add):

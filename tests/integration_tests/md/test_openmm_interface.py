@@ -8,13 +8,13 @@ import orbax.checkpoint as ocp
 import yaml
 from ase import Atoms
 from ase.io import read, write
+from jax_md import partition, space
 from openmm.app import PDBReporter
 from openmm.openmm import LangevinMiddleIntegrator, PythonForce
 from openmm.unit import femtosecond, kelvin, picosecond
 
 from apax.config import Config
 from apax.md.openmm_interface import OpenMMInterface, create_simulation, create_system
-from apax.utils import jax_md_reduced
 from apax.utils.openmm_reporters import XYZReporter
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
@@ -47,15 +47,13 @@ def test_openmm_interface(get_tmp_path):
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(initial_structure_path.as_posix(), atoms)
 
-    displacement_fn, _ = jax_md_reduced.space.periodic_general(
-        cell_size, fractional_coordinates=False
-    )
+    displacement_fn, _ = space.periodic_general(cell_size, fractional_coordinates=False)
 
-    neighbor_fn = jax_md_reduced.partition.neighbor_list(
+    neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=model_config.model.basis.r_max,
-        format=jax_md_reduced.partition.Sparse,
+        format=partition.Sparse,
         fractional_coordinates=False,
     )
     neighbors = neighbor_fn.allocate(positions)
@@ -136,15 +134,13 @@ def test_xyz_reporter_openmm_interface_periodic(get_tmp_path):
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(initial_structure_path.as_posix(), atoms)
 
-    displacement_fn, _ = jax_md_reduced.space.periodic_general(
-        cell_size, fractional_coordinates=False
-    )
+    displacement_fn, _ = space.periodic_general(cell_size, fractional_coordinates=False)
 
-    neighbor_fn = jax_md_reduced.partition.neighbor_list(
+    neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=model_config.model.basis.r_max,
-        format=jax_md_reduced.partition.Sparse,
+        format=partition.Sparse,
         fractional_coordinates=False,
     )
     neighbors = neighbor_fn.allocate(positions)
@@ -294,15 +290,15 @@ def test_xyz_reporter_openmm_interface_nonperiodic(get_tmp_path):
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(initial_structure_path.as_posix(), atoms)
 
-    displacement_fn, _ = jax_md_reduced.space.free()
-
-    neighbor_fn = jax_md_reduced.partition.neighbor_list(
+    displacement_fn, _ = space.free()
+    neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=model_config.model.basis.r_max,
-        format=jax_md_reduced.partition.Sparse,
+        format=partition.Sparse,
         fractional_coordinates=False,
     )
+
     neighbors = neighbor_fn.allocate(positions)
 
     Builder = model_config.model.get_builder()

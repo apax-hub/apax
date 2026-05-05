@@ -11,12 +11,13 @@ import yaml
 import znh5md
 from ase import Atoms
 from ase.io import read, write
+from jax_md import partition, space
 
 from apax.config import Config, MDConfig
 from apax.md import run_md
 from apax.md.ase_calc import ASECalculator
 from apax.md.function_transformations import UncertaintyDrivenDynamics
-from apax.utils import jax_md_reduced, math
+from apax.utils import math
 from tests.conftest import load_config_and_run_training
 
 TEST_PATH = pathlib.Path(__file__).parent.resolve()
@@ -56,13 +57,13 @@ def test_run_md(get_tmp_path):
 
     n_species = 119  # int(np.max(atomic_numbers) + 1)
 
-    displacement_fn, _ = jax_md_reduced.space.free()
+    displacement_fn, _ = space.free()
 
-    neighbor_fn = jax_md_reduced.partition.neighbor_list(
+    neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=model_config.model.basis.r_max,
-        format=jax_md_reduced.partition.Sparse,
+        format=partition.Sparse,
         fractional_coordinates=False,
     )
     neighbors = neighbor_fn.allocate(positions)
@@ -130,15 +131,13 @@ def test_ase_calc(get_tmp_path):
     atoms = Atoms(atomic_numbers, positions, cell=box)
     write(initial_structure_path.as_posix(), atoms)
 
-    displacement_fn, _ = jax_md_reduced.space.periodic_general(
-        cell_size, fractional_coordinates=False
-    )
+    displacement_fn, _ = space.periodic_general(cell_size, fractional_coordinates=False)
 
-    neighbor_fn = jax_md_reduced.partition.neighbor_list(
+    neighbor_fn = partition.neighbor_list(
         displacement_or_metric=displacement_fn,
         box=box,
         r_cutoff=model_config.model.basis.r_max,
-        format=jax_md_reduced.partition.Sparse,
+        format=partition.Sparse,
         fractional_coordinates=False,
     )
     neighbors = neighbor_fn.allocate(positions)
@@ -305,5 +304,5 @@ def test_biased_jaxmd(get_tmp_path, example_dataset):
     assert "energy_unbiased" in results
     assert "forces_unbiased" in results
     assert results["energy"] == results["energy_unbiased"] + 0.5 * 1.0 * np.sum(
-        np.clip(jax_md_reduced.space.distance(positions) - 1.0, a_min=0, a_max=None) ** 2
+        np.clip(space.distance(positions) - 1.0, a_min=0, a_max=None) ** 2
     )

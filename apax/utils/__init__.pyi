@@ -1,3 +1,3 @@
-from . import convert, data, datasets, jax_md_reduced, math, random
+from . import convert, data, datasets, math, random
 
-__all__ = ["convert", "data", "math", "random", "jax_md_reduced", datasets]
+__all__ = ["convert", "data", "math", "random", "datasets"]

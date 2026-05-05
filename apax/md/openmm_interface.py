@@ -23,6 +23,7 @@ except ImportError:
     _openmm_imported = False
 
 from ase.units import eV, kJ, mol, nm
+from jax_md import space
 from vesin import NeighborList
 
 from apax.md.ase_calc import (
@@ -33,7 +34,6 @@ from apax.md.ase_calc import (
     neighbor_calculable_with_jax,
 )
 from apax.train.checkpoints import restore_parameters
-from apax.utils.jax_md_reduced import space
 
 log = logging.getLogger(__name__)
 

@@ -18,6 +18,7 @@ dependencies = [
     "einops>=0.8.0",
     "flax>=0.10.6",
     "jax>=0.7.0",
+    "jax-md>=0.2.28",
     "lazy-loader>=0.4",
     "numpy>=2.0.0",
     "optax>=0.2.4",
