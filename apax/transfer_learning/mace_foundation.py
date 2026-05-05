@@ -32,11 +32,12 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 
 # Torch interaction class names that apax can convert today, mapped to the
-# apax-side ``Literal`` values consumed by ``MaceModelConfig.interaction_cls``.
+# apax-side discriminator values consumed by MaceDescriptorConfig.interactions.
 # ``RealAgnosticInteractionBlock`` (the non-residual non-density variant) is
 # still out of scope — adding it is purely additive (one more block class +
-# Literal extension). Schema and converter agree on what is implemented.
-_SUPPORTED_TORCH_INTERACTION_CLS = {
+# one more InteractionConfig variant). Schema and converter agree on what is
+# implemented.
+_TORCH_TO_APAX_INTERACTION = {
     "RealAgnosticResidualInteractionBlock": "RealAgnosticResidual",
     "RealAgnosticDensityInteractionBlock": "RealAgnosticDensity",
     "RealAgnosticDensityResidualInteractionBlock": "RealAgnosticDensityResidual",
@@ -275,22 +276,16 @@ def _extract_config_from_torch(model, head: str | None) -> dict:
             f"Pass --head <name> from that list."
         )
 
-    per_layer_cls: list[str] = []
+    interactions: list[dict] = []
     for inter in model.interactions:
         cls_name = type(inter).__name__
-        if cls_name not in _SUPPORTED_TORCH_INTERACTION_CLS:
+        if cls_name not in _TORCH_TO_APAX_INTERACTION:
             raise NotImplementedError(
                 f"Foundation uses interaction block {cls_name!r}; apax supports "
-                f"{sorted(_SUPPORTED_TORCH_INTERACTION_CLS)}. Other variants need "
+                f"{sorted(_TORCH_TO_APAX_INTERACTION)}. Other variants need "
                 "their apax port before they can be converted."
             )
-        per_layer_cls.append(_SUPPORTED_TORCH_INTERACTION_CLS[cls_name])
-    # Emit a single str when every layer uses the same variant; emit a list
-    # otherwise (e.g. mpa-0 / matpes use Density first, DensityResidual last).
-    if len(set(per_layer_cls)) == 1:
-        interaction_cls: Union[str, list[str]] = per_layer_cls[0]
-    else:
-        interaction_cls = per_layer_cls
+        interactions.append({"name": _TORCH_TO_APAX_INTERACTION[cls_name]})
 
     hidden_irreps = str(model.products[0].linear.irreps_out)
 
@@ -304,27 +299,13 @@ def _extract_config_from_torch(model, head: str | None) -> dict:
 
     avg_num_neighbors = float(model.interactions[0].avg_num_neighbors)
 
-    # Detect torch's :class:`mace.modules.radial.ZBLBasis` correction and
-    # emit an apax ``MaceZBLPairRepulsion`` config entry for the converter to
-    # populate. The correction is detected by the ``pair_repulsion_fn``
-    # submodule attribute (present on MACE-MPA-0, MatPES, OMAT foundations).
     empirical_corrections: list[dict] = []
     if hasattr(model, "pair_repulsion_fn"):
         import torch  # noqa: PLC0415
+
         zbl = model.pair_repulsion_fn
-        # ``p`` is a registered buffer (torch tensor); cast to int.
         p_value = int(zbl.p.detach().cpu().item())
-        # ``a_exp`` and ``a_prefactor`` may be either buffers (trainable=False)
-        # or :class:`nn.Parameter` (trainable=True); detect via instance.
         is_trainable = isinstance(zbl.a_exp, torch.nn.Parameter)
-        # Torch-mace folds the ZBL contribution INSIDE ``scale_shift`` (it
-        # scales ``readout + ZBL`` by the global ``scale``). apax's
-        # ``EnergyModel`` applies corrections AFTER ``scale_shift``, so we
-        # replicate the torch behaviour by passing the global ``scale`` in as
-        # ``output_scale`` on the apax ZBL module. Buffers (c, a_exp, ...)
-        # stay bit-identical to the torch source — no buffer munging.
-        # apax's ZBL applies a single output_scale; per-element scales
-        # would silently miscompute. Fail loud instead.
         scale_tensor = model.scale_shift.scale.detach().cpu()
         if scale_tensor.numel() > 1 and torch.unique(scale_tensor).numel() > 1:
             raise NotImplementedError(
@@ -343,13 +324,10 @@ def _extract_config_from_torch(model, head: str | None) -> dict:
             }
         )
 
-    # Detect torch's :class:`mace.modules.radial.AgnesiTransform` and emit a
-    # ``DistanceTransformConfig`` entry. The transform is attached to the
-    # radial embedding block on foundations like MACE-MPA-0, MatPES,
-    # OMAT-r2scan; small / medium do not carry it.
     distance_transform_cfg = None
     if hasattr(model.radial_embedding, "distance_transform"):
         import torch  # noqa: PLC0415
+
         dt = model.radial_embedding.distance_transform
         cls_name = type(dt).__name__
         if cls_name == "AgnesiTransform":
@@ -368,45 +346,34 @@ def _extract_config_from_torch(model, head: str | None) -> dict:
             )
 
     r_max = float(model.r_max)
-    num_bessel = int(model.radial_embedding.bessel_fn.bessel_weights.shape[0])
+    n_basis = int(model.radial_embedding.bessel_fn.bessel_weights.shape[0])
 
     cfg = {
-        "r_max": r_max,
-        "num_bessel": num_bessel,
-        "num_polynomial_cutoff": int(model.radial_embedding.cutoff_fn.p),
-        "max_ell": int(max_ell),
-        "hidden_irreps": hidden_irreps,
-        "num_interactions": int(model.num_interactions),
-        "correlation": int(correlation),
-        "interaction_cls": interaction_cls,
-        "use_cueq": False,
-        "readout_kind": "mace",
-        "MLP_irreps": "16x0e",
-        "avg_num_neighbors": avg_num_neighbors,
-        "empirical_corrections": empirical_corrections,
-        "distance_transform": distance_transform_cfg,
-        # ``basis`` is consumed by neighbour-list builders across ``md/``,
-        # ``bal/``, ``train/`` (they read ``config.model.basis.r_max``, NOT
-        # the top-level ``r_max``). Without this entry the BesselBasisConfig
-        # default of 5.0 Å is used and the NL truncates pairs in
-        # [5.0, model.r_max) Å.
+        "name": "mace",
         "basis": {
             "name": "bessel",
-            "n_basis": num_bessel,
+            "variant": "standard",
+            "n_basis": n_basis,
             "r_max": r_max,
         },
-        # Float64 throughout for parity with the torch foundation model loaded
-        # with default_dtype="float64".
+        "radial_embedding": {
+            "num_polynomial_cutoff": int(model.radial_embedding.cutoff_fn.p),
+            "distance_transform": distance_transform_cfg,
+        },
+        "descriptor": {
+            "max_ell": int(max_ell),
+            "hidden_irreps": hidden_irreps,
+            "correlation": int(correlation),
+            "interactions": interactions,
+            "avg_num_neighbors": avg_num_neighbors,
+            "use_cueq": False,
+        },
+        "readout": {"kind": "mace", "MLP_irreps": "16x0e"},
+        "empirical_corrections": empirical_corrections,
         "descriptor_dtype": "fp64",
         "readout_dtype": "fp64",
         "scale_shift_dtype": "fp64",
     }
-    assert cfg["basis"]["r_max"] == cfg["r_max"], (
-        "basis.r_max must mirror top-level r_max"
-    )
-    assert cfg["basis"]["n_basis"] == cfg["num_bessel"], (
-        "basis.n_basis must mirror num_bessel"
-    )
     return cfg
 
 
@@ -547,7 +514,7 @@ def _map_state_to_pytree(
     _map_readouts(
         state,
         energy_params["readout"],
-        num_interactions=int(config.num_interactions),
+        num_interactions=len(config.descriptor.interactions),
     )
     _map_scale_shift(
         energy_params["scale_shift"],
@@ -722,21 +689,17 @@ def _map_interactions(
     torch_atomic_numbers : tuple of int
         Maps each torch element row to its physical Z value.
     config : MaceModelConfig
-        Used for ``num_interactions`` and ``hidden_irreps``.
+        Used for ``descriptor.interactions`` and ``descriptor.hidden_irreps``.
     """
     import e3nn_jax as e3nn  # noqa: PLC0415
 
     n_torch = len(torch_atomic_numbers)
-    hidden_irreps = e3nn.Irreps(config.hidden_irreps)
+    hidden_irreps = e3nn.Irreps(config.descriptor.hidden_irreps)
     M = hidden_irreps.filter("0e").dim  # scalar channel count (= num_features)
 
-    # Resolve per-layer interaction class (str → broadcast, list → as-is).
-    if isinstance(config.interaction_cls, str):
-        per_layer_cls = [config.interaction_cls] * int(config.num_interactions)
-    else:
-        per_layer_cls = list(config.interaction_cls)
+    per_layer_cls = [i.name for i in config.descriptor.interactions]
 
-    for k in range(int(config.num_interactions)):
+    for k in range(len(per_layer_cls)):
         block = rep_params[f"InteractionBlock_{k}"]
         prefix = f"interactions.{k}."
 
@@ -1099,7 +1062,7 @@ def _map_products(
     )
 
     n_torch = len(torch_atomic_numbers)
-    for k in range(int(config.num_interactions)):
+    for k in range(len(config.descriptor.interactions)):
         block = rep_params[f"ProductBlock_{k}"]
         target = block["weight"]
         n_species_apax, basis_dim, mul = target.shape

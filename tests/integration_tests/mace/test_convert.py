@@ -44,10 +44,10 @@ def test_convert_small_writes_apax_native_format(tmp_path):
     # Standard apax loader path: returns (Config, params)
     cfg, params = restore_parameters(dst)
     assert cfg.model.name == "mace"
-    assert cfg.model.r_max == pytest.approx(6.0)
-    assert cfg.model.num_interactions == 2
-    assert cfg.model.correlation == 3
-    assert cfg.model.hidden_irreps == "128x0e"
+    assert len(cfg.model.descriptor.interactions) == 2
+    assert cfg.model.descriptor.correlation == 3
+    assert cfg.model.descriptor.hidden_irreps == "128x0e"
+    assert cfg.model.basis.r_max == pytest.approx(6.0)
 
     # Pytree must contain the three top-level branches expected by
     # ``EnergyDerivativeModel(EnergyModel(representation, readout, scale_shift))``.

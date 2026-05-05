@@ -535,21 +535,6 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
     descriptor: MaceDescriptorConfig = Field(default_factory=MaceDescriptorConfig)
     readout: MaceReadoutConfig = Field(default_factory=MaceReadoutConfig)
 
-    # Temporary back-compat properties so the converter (Task 5) and any
-    # leftover flat-field reads keep working until Task 5 cuts them over.
-    # Delete in Task 5.
-    @property
-    def num_interactions(self) -> int:
-        return len(self.descriptor.interactions)
-
-    @property
-    def hidden_irreps(self) -> str:
-        return self.descriptor.hidden_irreps
-
-    @property
-    def interaction_cls(self) -> list[str]:
-        return [i.name for i in self.descriptor.interactions]
-
     def get_builder(self):
         from apax.nn.builder import MaceBuilder
 
