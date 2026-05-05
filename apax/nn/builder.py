@@ -97,6 +97,19 @@ class ModelBuilder:
     def build_readout(
         self, head_config, is_feature_fn=False, only_use_n_layers: None | int = None
     ):
+        is_energy_head = head_config is self.config
+        if (
+            not is_energy_head
+            and isinstance(head_config, dict)
+            and head_config.get("kind") == "mace"
+        ):
+            raise ValueError(
+                f"property_head '{head_config.get('name')}' uses kind='mace' "
+                f"but the model is {self.config['name']}; MaceReadout requires "
+                "the per-layer-concatenated feature shape that only "
+                "MaceRepresentation produces."
+            )
+
         has_ensemble = "ensemble" in head_config.keys() and head_config["ensemble"]
         if has_ensemble and head_config["ensemble"]["kind"] == "shallow":
             n_shallow_ensemble = head_config["ensemble"]["n_members"]
@@ -384,27 +397,59 @@ class MaceBuilder(ModelBuilder):
         is_feature_fn: bool = False,
         only_use_n_layers: int | None = None,
     ):
-        readout_cfg = self.config["readout"]
-        if readout_cfg["kind"] != "mace" or is_feature_fn:
-            return super().build_readout(
-                head_config, is_feature_fn, only_use_n_layers
+        is_energy_head = head_config is self.config
+
+        if is_energy_head:
+            readout_cfg = self.config["readout"]
+            if readout_cfg["kind"] != "mace" or is_feature_fn:
+                return super().build_readout(
+                    head_config, is_feature_fn, only_use_n_layers
+                )
+
+            import e3nn_jax as e3nn
+
+            from apax.layers.readout import MaceReadout
+
+            n_shallow_ensemble = 0
+            ens = (
+                head_config.get("ensemble")
+                if isinstance(head_config, dict)
+                else None
+            )
+            if ens and ens.get("kind") == "shallow":
+                n_shallow_ensemble = ens["n_members"]
+
+            desc_cfg = self.config["descriptor"]
+            hidden_dim = e3nn.Irreps(desc_cfg["hidden_irreps"]).filter("0e").dim
+            return MaceReadout(
+                num_interactions=len(desc_cfg["interactions"]),
+                hidden_dim=hidden_dim,
+                MLP_irreps=readout_cfg["MLP_irreps"],
+                n_shallow_ensemble=n_shallow_ensemble,
+                dtype=self.config["readout_dtype"],
             )
 
+        # Property-head path: dispatch on the per-head ``kind``.
+        kind = head_config.get("kind", "standard")
+        if kind == "standard":
+            raise ValueError(
+                f"property_head '{head_config.get('name')}' uses kind='standard' "
+                "but the model is MACE; AtomisticReadout doesn't respect MACE's "
+                "per-layer body-order structure. Set kind='mace' explicitly, "
+                "or change the model."
+            )
+
+        # kind == "mace"
         import e3nn_jax as e3nn
 
         from apax.layers.readout import MaceReadout
-
-        n_shallow_ensemble = 0
-        ens = head_config.get("ensemble") if isinstance(head_config, dict) else None
-        if ens and ens.get("kind") == "shallow":
-            n_shallow_ensemble = ens["n_members"]
 
         desc_cfg = self.config["descriptor"]
         hidden_dim = e3nn.Irreps(desc_cfg["hidden_irreps"]).filter("0e").dim
         return MaceReadout(
             num_interactions=len(desc_cfg["interactions"]),
             hidden_dim=hidden_dim,
-            MLP_irreps=readout_cfg["MLP_irreps"],
-            n_shallow_ensemble=n_shallow_ensemble,
-            dtype=self.config["readout_dtype"],
+            MLP_irreps=head_config["MLP_irreps"],
+            n_shallow_ensemble=head_config["n_shallow_members"],
+            dtype=head_config["dtype"],
         )
