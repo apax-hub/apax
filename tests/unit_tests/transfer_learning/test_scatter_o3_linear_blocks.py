@@ -51,6 +51,7 @@ def test_scatter_o3_linear_blocks_multi_irrep_round_trip():
     # 0e, 1o, 2e cover scalar, vector, and rank-2 tensor channels — the
     # combination that surfaces the slot-key sort vs instruction-order
     # invariant for production foundation models.
+    # Multiplicities are asymmetric (`mul_in=8 != mul_out=4`) so a transposed `(mul_in, mul_out)` block in the converter would not coincidentally pass.
     irreps_in = "8x0e + 8x1o + 8x2e"
     irreps_out = "4x0e + 4x1o + 4x2e"
 
