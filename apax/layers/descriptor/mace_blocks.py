@@ -244,6 +244,7 @@ def _interaction_scaffold(
     edge_attrs_irreps: e3nn.Irreps,
     target_irreps: e3nn.Irreps,
     radial_mlp: tuple,
+    sow_fn=None,
 ):
     """Common interaction-block prefix shared by all three variants.
 
@@ -282,6 +283,8 @@ def _interaction_scaffold(
         normalisation.
     """
     x = e3nn.flax.Linear(node_feats_irreps, name="linear_up")(node_feats)
+    if sow_fn is not None:
+        sow_fn("linear_up", x.array)
     irreps_mid, _instructions = tp_out_irreps_with_instructions(
         node_feats_irreps, edge_attrs_irreps, target_irreps,
     )
@@ -296,9 +299,14 @@ def _interaction_scaffold(
         list_neurons=tuple(radial_mlp) + (n_paths,), name="radial_mlp",
     )(edge_feats)
     weighted = tp * weights
+    if sow_fn is not None:
+        sow_fn("conv_tp", weighted.array)
 
     agg = e3nn.scatter_sum(weighted, dst=receivers, output_size=node_feats.shape[0])
-    return e3nn.flax.Linear(target_irreps, name="linear")(agg)
+    out = e3nn.flax.Linear(target_irreps, name="linear")(agg)
+    if sow_fn is not None:
+        sow_fn("linear", out.array)
+    return out
 
 
 def _edge_density(edge_feats, receivers, n_atoms):
@@ -383,6 +391,7 @@ class InteractionBlockResidual(nn.Module):
     hidden_irreps: str
     radial_mlp: tuple = (64, 64, 64)
     avg_num_neighbors: float = 1.0
+    layer_idx: int = 0  # Set by the parent module for sow naming.
 
     @nn.compact
     def __call__(
@@ -393,12 +402,16 @@ class InteractionBlockResidual(nn.Module):
         target_irreps = e3nn.Irreps(self.target_irreps)
         hidden_irreps = e3nn.Irreps(self.hidden_irreps)
 
+        def _sow(slot, arr):
+            self.sow("debug", f"interactions[{self.layer_idx}].{slot}", arr)
+
         message = _interaction_scaffold(
             node_feats, edge_attrs, edge_feats, receivers, senders,
             node_feats_irreps=node_feats_irreps,
             edge_attrs_irreps=edge_attrs_irreps,
             target_irreps=target_irreps,
             radial_mlp=self.radial_mlp,
+            sow_fn=_sow,
         )
         message = message / self.avg_num_neighbors
 
@@ -410,6 +423,7 @@ class InteractionBlockResidual(nn.Module):
         sc = e3nn.flax.Linear(
             hidden_irreps, name="skip_tp", force_irreps_out=True,
         )(skip_input)
+        _sow("skip_tp", sc.array)
         return message, sc
 
 
@@ -448,6 +462,7 @@ class InteractionBlockDensity(nn.Module):
     hidden_irreps: str = ""
     radial_mlp: tuple = (64, 64, 64)
     avg_num_neighbors: float = 1.0  # ignored; mirrors torch (no /avg)
+    layer_idx: int = 0  # Set by the parent module for sow naming.
 
     @nn.compact
     def __call__(
@@ -457,12 +472,16 @@ class InteractionBlockDensity(nn.Module):
         edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
         target_irreps = e3nn.Irreps(self.target_irreps)
 
+        def _sow(slot, arr):
+            self.sow("debug", f"interactions[{self.layer_idx}].{slot}", arr)
+
         pre = _interaction_scaffold(
             node_feats, edge_attrs, edge_feats, receivers, senders,
             node_feats_irreps=node_feats_irreps,
             edge_attrs_irreps=edge_attrs_irreps,
             target_irreps=target_irreps,
             radial_mlp=self.radial_mlp,
+            sow_fn=_sow,
         )
         density = _edge_density(edge_feats, receivers, node_feats.shape[0])
         # density is an IrrepsArray("0e", (n_atoms, 1)); broadcast over message irreps.
@@ -475,6 +494,7 @@ class InteractionBlockDensity(nn.Module):
         message = e3nn.flax.Linear(
             target_irreps, name="skip_tp", force_irreps_out=True,
         )(skip_input)
+        _sow("skip_tp", message.array)
         return message, None
 
 
@@ -499,6 +519,7 @@ class InteractionBlockDensityResidual(nn.Module):
     hidden_irreps: str
     radial_mlp: tuple = (64, 64, 64)
     avg_num_neighbors: float = 1.0  # ignored; mirrors torch (no /avg)
+    layer_idx: int = 0  # Set by the parent module for sow naming.
 
     @nn.compact
     def __call__(
@@ -509,12 +530,16 @@ class InteractionBlockDensityResidual(nn.Module):
         target_irreps = e3nn.Irreps(self.target_irreps)
         hidden_irreps = e3nn.Irreps(self.hidden_irreps)
 
+        def _sow(slot, arr):
+            self.sow("debug", f"interactions[{self.layer_idx}].{slot}", arr)
+
         # Skip is computed from raw node_feats BEFORE linear_up — same shape
         # and placement as the Residual variant.
         skip_input = e3nn.tensor_product(node_feats, node_attrs)
         sc = e3nn.flax.Linear(
             hidden_irreps, name="skip_tp", force_irreps_out=True,
         )(skip_input)
+        _sow("skip_tp", sc.array)
 
         pre = _interaction_scaffold(
             node_feats, edge_attrs, edge_feats, receivers, senders,
@@ -522,6 +547,7 @@ class InteractionBlockDensityResidual(nn.Module):
             edge_attrs_irreps=edge_attrs_irreps,
             target_irreps=target_irreps,
             radial_mlp=self.radial_mlp,
+            sow_fn=_sow,
         )
         density = _edge_density(edge_feats, receivers, node_feats.shape[0])
         message = pre / (density.array + 1.0)
@@ -692,6 +718,7 @@ class ProductBlock(nn.Module):
     num_elements: int = 119
     use_sc: bool = True
     use_cueq: bool = False
+    layer_idx: int = 0  # Set by the parent module for sow naming.
 
     @nn.compact
     def __call__(self, node_feats, sc, Z):
@@ -780,6 +807,7 @@ class ProductBlock(nn.Module):
 
         if self.use_sc and sc is not None:
             out = out + sc
+        self.sow("debug", f"products[{self.layer_idx}]", out.array)
         return out
 
 

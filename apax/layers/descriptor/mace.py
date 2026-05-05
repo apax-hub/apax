@@ -173,6 +173,7 @@ class MaceRepresentation(nn.Module):
                 target_irreps=interaction_irreps_str,
                 hidden_irreps=this_hidden_str,
                 avg_num_neighbors=self.avg_num_neighbors,
+                layer_idx=k,
                 name=f"InteractionBlock_{k}",
             )(node_feats, sph, radial, Z_one_hot, i, j)
             node_feats = ProductBlock(
@@ -183,6 +184,7 @@ class MaceRepresentation(nn.Module):
                 # Density (non-residual) variant returns sc=None.
                 use_sc=(sc is not None),
                 use_cueq=self.use_cueq,
+                layer_idx=k,
             )(message, sc, Z)
             per_layer_scalars.append(node_feats.filter(keep="0e").array)
             prev_irreps_str = this_hidden_str

@@ -285,7 +285,9 @@ class MaceZBLPairRepulsion(EmpiricalEnergyTerm):
         v_edges = 0.5 * v_edges * envelope
         if self.apply_mask:
             v_edges = mask_by_neighbor(v_edges, idx)
-        return self.output_scale * fp64_sum(v_edges)
+        zbl_energy = self.output_scale * fp64_sum(v_edges)
+        self.sow("debug", "pair_repulsion", zbl_energy)
+        return zbl_energy
 
 
 all_corrections = {

@@ -423,6 +423,7 @@ class MaceRadialEmbedding(nn.Module):
             n_basis=self.num_bessel, r_max=self.r_max, dtype=dtype,
         )(r_ij)
         radial = (bessel * cutoff[..., None]).astype(dtype)
+        self.sow("debug", "radial_embedding", radial)
         sph = e3nn.spherical_harmonics(
             e3nn.Irreps.spherical_harmonics(self.max_ell),
             dr_vec,

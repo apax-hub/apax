@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Union
 
+import flax
 import numpy as np
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -114,6 +115,10 @@ def run_conversion(
     neigh_dummy = jnp.array([[0, 1], [1, 0]], dtype=jnp.int32)
     box_dummy = jnp.zeros((3,))
     offsets_dummy = jnp.zeros((neigh_dummy.shape[1], 3))
+    # Drop the ``debug`` collection used by the layer-by-layer parity harness
+    # (``scripts/mace_layer_parity.py``); it carries vmap tracers during
+    # ``init`` that the downstream :func:`np.asarray` mapper can't convert,
+    # and is irrelevant to weight conversion.
     params_template = energy_derivative_model.init(
         jax.random.PRNGKey(0),
         R_dummy,
@@ -121,6 +126,7 @@ def run_conversion(
         neigh_dummy,
         box_dummy,
         offsets_dummy,
+        mutable=flax.core.DenyList("debug"),
     )
 
     # 5. Translate torch weights into the template pytree.

@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 from typing import List, Tuple, Union
 
+import flax
 import jax
 import jax.numpy as jnp
 import orbax.checkpoint as ocp
@@ -58,13 +59,20 @@ def create_params(model, rng_key, sample_input: tuple, n_models: int):
 
     log.info(f"Initializing {n_models} model(s)")
 
+    # Drop the ``debug`` collection (used by ``scripts/mace_layer_parity.py``
+    # for layer-by-layer parity diffs); it carries vmap tracers during init
+    # that downstream code can't process and is irrelevant to training.
+    init_mutable = flax.core.DenyList("debug")
     if n_models == 1:
-        params = model.init(model_rng[0], *sample_input)
+        params = model.init(model_rng[0], *sample_input, mutable=init_mutable)
     elif n_models > 1:
         num_args = len(sample_input)
         # vmap only over parameters, not over any data from the input
         in_axes = (0, *[None] * num_args)
-        params = jax.vmap(model.init, in_axes=in_axes)(model_rng, *sample_input)
+        params = jax.vmap(
+            lambda rng, *args: model.init(rng, *args, mutable=init_mutable),
+            in_axes=in_axes,
+        )(model_rng, *sample_input)
     else:
         raise ValueError(f"n_models should be a positive integer, found {n_models}")
 

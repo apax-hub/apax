@@ -84,6 +84,7 @@ def test_torch_to_apax_param_coverage_no_projections(tmp_path):
     pytest.importorskip("torch")
     pytest.importorskip("mace")
 
+    import flax
     import jax
     import jax.numpy as jnp
     import numpy as np
@@ -112,6 +113,7 @@ def test_torch_to_apax_param_coverage_no_projections(tmp_path):
     offsets = jnp.zeros((neigh.shape[1], 3))
     template = energy_model.init(
         jax.random.PRNGKey(0), R, Z, neigh, box, offsets,
+        mutable=flax.core.DenyList("debug"),
     )
 
     state = {

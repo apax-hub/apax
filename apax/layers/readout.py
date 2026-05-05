@@ -114,11 +114,13 @@ class MaceReadout(nn.Module):
         for k in range(self.num_interactions):
             feat = e3nn.IrrepsArray(f"{self.hidden_dim}x0e", layers[k])
             if k < self.num_interactions - 1:
-                E = E + LinearReadoutBlock(n_out=n_out, name=f"readout_{k}")(feat)
+                contrib = LinearReadoutBlock(n_out=n_out, name=f"readout_{k}")(feat)
             else:
-                E = E + NonLinearReadoutBlock(
+                contrib = NonLinearReadoutBlock(
                     MLP_irreps=self.MLP_irreps,
                     n_out=n_out,
                     name=f"readout_{k}",
                 )(feat)
+            self.sow("debug", f"readouts[{k}]", contrib)
+            E = E + contrib
         return E
