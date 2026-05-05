@@ -375,11 +375,11 @@ def _extract_config_from_torch(model, head: str | None) -> dict:
         "avg_num_neighbors": avg_num_neighbors,
         "empirical_corrections": empirical_corrections,
         "distance_transform": distance_transform_cfg,
-        # ``basis`` is consumed by ``ASECalculator`` to build the jax-md
-        # neighbour-list cutoff (it reads ``config.model.basis.r_max``, NOT
+        # ``basis`` is consumed by neighbour-list builders across ``md/``,
+        # ``bal/``, ``train/`` (they read ``config.model.basis.r_max``, NOT
         # the top-level ``r_max``). Without this entry the BesselBasisConfig
         # default of 5.0 Å is used and the NL truncates pairs in
-        # [5.0, model.r_max) Å — see MACE foundation review T6.
+        # [5.0, model.r_max) Å.
         "basis": {
             "name": "bessel",
             "n_basis": num_bessel,
@@ -391,6 +391,12 @@ def _extract_config_from_torch(model, head: str | None) -> dict:
         "readout_dtype": "fp64",
         "scale_shift_dtype": "fp64",
     }
+    assert cfg["basis"]["r_max"] == cfg["r_max"], (
+        "basis.r_max must mirror top-level r_max"
+    )
+    assert cfg["basis"]["n_basis"] == cfg["num_bessel"], (
+        "basis.n_basis must mirror num_bessel"
+    )
     return cfg
 
 
