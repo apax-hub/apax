@@ -323,14 +323,15 @@ def _extract_config_from_torch(model, head: str | None) -> dict:
         # replicate the torch behaviour by passing the global ``scale`` in as
         # ``output_scale`` on the apax ZBL module. Buffers (c, a_exp, ...)
         # stay bit-identical to the torch source — no buffer munging.
-        # I7 — apax's ZBL applies a single output_scale; per-element scales
+        # apax's ZBL applies a single output_scale; per-element scales
         # would silently miscompute. Fail loud instead.
         scale_tensor = model.scale_shift.scale.detach().cpu()
         if scale_tensor.numel() > 1 and torch.unique(scale_tensor).numel() > 1:
             raise NotImplementedError(
                 "Foundation has per-element scale_shift.scale; apax ZBL "
-                "applies a single output_scale only. This conversion path "
-                "is not supported."
+                "applies a single output_scale only. Supporting per-element "
+                "ZBL output_scale would require a change to apax's ZBL "
+                "module — please open an issue with the foundation name."
             )
         global_scale = float(scale_tensor.flatten()[0])
         empirical_corrections.append(

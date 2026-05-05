@@ -1,4 +1,4 @@
-"""I7 — ZBL ``output_scale`` assumes a single global scalar.
+"""ZBL ``output_scale`` assumes a single global scalar.
 
 The ZBL fold (``apax/transfer_learning/mace_foundation.py``) reads
 ``model.scale_shift.scale`` and casts to a Python float. For multi-element
@@ -9,8 +9,9 @@ from types import SimpleNamespace
 
 import pytest
 
+pytestmark = pytest.mark.mace_parity
 
-@pytest.mark.mace_parity
+
 def test_extract_config_rejects_per_element_scale():
     """Multi-element ``scale_shift.scale`` triggers a clear NotImplementedError.
 
