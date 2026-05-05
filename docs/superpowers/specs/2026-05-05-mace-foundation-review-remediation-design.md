@@ -108,28 +108,25 @@ foundation runs). Fix:
 - Test: extend `tests/unit_tests/cli/test_convert_mace.py` with a case
   asserting that omitting `--head` picks `heads[0]`.
 
-### 0.3 Vendor `_convert_native_weights`; drop `mace-jax` local-path dep
+### 0.3 Pin `mace-jax` to a public git URL
 
 The branch's only consumer of `mace-jax` is the symmetric-contraction
 weight converter at `apax/transfer_learning/mace_foundation.py:1058`
 (`from mace_jax.adapters.cuequivariance.symmetric_contraction import
-_convert_native_weights`). `mace-jax` is not on PyPI and is currently
-pinned by absolute local path in `pyproject.toml`, which makes the
-branch unbuildable on any other machine.
+_convert_native_weights`). The current absolute-local-path pin in
+`pyproject.toml` makes the branch unbuildable on any other machine.
 
-- Create `apax/transfer_learning/_mace_jax_compat.py`. Copy the helper
-  function and any private dependencies it pulls in (Clebsch–Gordan
-  coefficient builders) verbatim, with a top-of-file comment citing
-  the upstream source path and revision (`mace-jax` commit SHA at
-  copy time) and the upstream MIT license header.
-- Replace the import in `mace_foundation.py:1058` with the local
-  module.
-- Remove `mace-jax` from `[project.optional-dependencies].mace` and
-  from `[tool.uv.sources]` in `pyproject.toml`. Run `uv sync --extra
-  mace` to regenerate the lockfile.
-- Verify by running the converter end-to-end on
-  `mace-mpa-0-medium.model` and confirming the resulting apax model
-  loads.
+- In `pyproject.toml` `[tool.uv.sources]`, replace the local-path
+  entry with a git pin to upstream:
+  ```toml
+  mace-jax = { git = "https://github.com/ACEsuit/mace-jax", rev = "fe19806ad8077a90975eeb83fdd777a9513e9f0c" }
+  ```
+  (The `rev` is `main` at spec time; bump if a needed fix lands
+  upstream.)
+- Keep `mace-jax` in `[project.optional-dependencies].mace`.
+- Run `uv sync --extra mace` to regenerate the lockfile.
+- Verify by cloning into a clean checkout, `uv sync --extra mace`,
+  and running the converter end-to-end on `mace-mpa-0-medium.model`.
 
 ## 5. Phase 1 — Systematic debugging for C1 (parity gap)
 
@@ -270,8 +267,8 @@ All of the following must pass:
 - Full apax test suite passes: `uv run pytest`.
 - `apax convert-mace` without `--head` succeeds on the local
   `mace-mpa-0-medium.model`.
-- `pyproject.toml` contains no absolute paths and no `mace-jax`
-  reference; `uv sync --extra mace` succeeds in a clean environment.
+- `pyproject.toml` contains no absolute paths; `uv sync --extra mace`
+  succeeds in a clean environment.
 
 ## 8. Subagent fan-out plan
 
@@ -298,11 +295,10 @@ parallel after 0.1 lands. Phase 1 is sequential by nature (evidence
   high-multipole accumulation rather than a per-edge bias. Phase 1's
   iteration plan accounts for this; the architectural-escalation
   clause in 5.4 prevents indefinite thrashing.
-- **Vendoring `_convert_native_weights` decouples apax from
-  upstream mace-jax fixes.** If mace-jax later corrects a CG
-  coefficient bug, we will need to re-pull. Mitigation: the vendored
-  file's header records the upstream commit SHA, so the diff is
-  traceable.
+- **`mace-jax` git pin coupling.** Pinning to a git rev means
+  upstream `main` may move under us, but `uv.lock` plus the explicit
+  `rev` keep builds reproducible. Bumping the pin is a one-line
+  change when needed.
 - **Inference performance.** Out of scope per Section 3, but should
   be mentioned in the PR description so reviewers don't expect
   parity *and* speed in this PR.
