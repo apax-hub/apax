@@ -107,7 +107,8 @@ class ModelBuilder:
                 f"property_head '{head_config.get('name')}' uses kind='mace' "
                 f"but the model is {self.config['name']}; MaceReadout requires "
                 "the per-layer-concatenated feature shape that only "
-                "MaceRepresentation produces."
+                "MaceRepresentation produces. "
+                "Set kind='standard' instead, or change the model to MACE."
             )
 
         has_ensemble = "ensemble" in head_config.keys() and head_config["ensemble"]
