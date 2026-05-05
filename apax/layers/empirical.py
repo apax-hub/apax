@@ -12,6 +12,7 @@ from jax_md import space
 from apax.layers.masking import mask_by_atom, mask_by_neighbor
 from apax.utils.convert import str_to_dtype
 from apax.utils.math import fp64_sum
+from apax.utils.parity_debug import is_parity_debug_enabled
 
 
 def inverse_softplus(x):
@@ -286,7 +287,9 @@ class MaceZBLPairRepulsion(EmpiricalEnergyTerm):
         if self.apply_mask:
             v_edges = mask_by_neighbor(v_edges, idx)
         zbl_energy = self.output_scale * fp64_sum(v_edges)
-        self.sow("debug", "pair_repulsion", zbl_energy)
+        # Gated so plain ``model.init`` doesn't sprout a ``debug`` branch.
+        if is_parity_debug_enabled():
+            self.sow("debug", "pair_repulsion", zbl_energy)
         return zbl_energy
 
 

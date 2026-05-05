@@ -28,6 +28,8 @@ from cuequivariance.group_theory.experimental.mace.symmetric_contractions import
 )
 from flax import linen as nn
 
+from apax.utils.parity_debug import is_parity_debug_enabled
+
 
 # torch-mace's :class:`e3nn.nn.FullyConnectedNet` wraps every hidden layer's
 # activation in :class:`e3nn.math.normalize2mom`, which estimates the L2 moment
@@ -407,7 +409,9 @@ class InteractionBlockResidual(nn.Module):
         hidden_irreps = e3nn.Irreps(self.hidden_irreps)
 
         def _sow(slot, arr):
-            self.sow("debug", f"interactions[{self.layer_idx}].{slot}", arr)
+            # Gated so plain ``model.init`` doesn't sprout a ``debug`` branch.
+            if is_parity_debug_enabled():
+                self.sow("debug", f"interactions[{self.layer_idx}].{slot}", arr)
 
         message = _interaction_scaffold(
             node_feats, edge_attrs, edge_feats, receivers, senders,
@@ -481,7 +485,9 @@ class InteractionBlockDensity(nn.Module):
         target_irreps = e3nn.Irreps(self.target_irreps)
 
         def _sow(slot, arr):
-            self.sow("debug", f"interactions[{self.layer_idx}].{slot}", arr)
+            # Gated so plain ``model.init`` doesn't sprout a ``debug`` branch.
+            if is_parity_debug_enabled():
+                self.sow("debug", f"interactions[{self.layer_idx}].{slot}", arr)
 
         pre = _interaction_scaffold(
             node_feats, edge_attrs, edge_feats, receivers, senders,
@@ -543,7 +549,9 @@ class InteractionBlockDensityResidual(nn.Module):
         hidden_irreps = e3nn.Irreps(self.hidden_irreps)
 
         def _sow(slot, arr):
-            self.sow("debug", f"interactions[{self.layer_idx}].{slot}", arr)
+            # Gated so plain ``model.init`` doesn't sprout a ``debug`` branch.
+            if is_parity_debug_enabled():
+                self.sow("debug", f"interactions[{self.layer_idx}].{slot}", arr)
 
         # Skip is computed from raw node_feats BEFORE linear_up — same shape
         # and placement as the Residual variant.
@@ -823,7 +831,9 @@ class ProductBlock(nn.Module):
 
         if self.use_sc and sc is not None:
             out = out + sc
-        self.sow("debug", f"products[{self.layer_idx}]", out.array)
+        # Gated so plain ``model.init`` doesn't sprout a ``debug`` branch.
+        if is_parity_debug_enabled():
+            self.sow("debug", f"products[{self.layer_idx}]", out.array)
         return out
 
 

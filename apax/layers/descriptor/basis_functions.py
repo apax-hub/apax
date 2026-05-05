@@ -9,6 +9,7 @@ from ase import data
 
 from apax.layers.initializers import uniform_range
 from apax.utils.convert import str_to_dtype
+from apax.utils.parity_debug import is_parity_debug_enabled
 
 
 class GaussianBasis(nn.Module):
@@ -423,7 +424,9 @@ class MaceRadialEmbedding(nn.Module):
             n_basis=self.num_bessel, r_max=self.r_max, dtype=dtype,
         )(r_ij)
         radial = (bessel * cutoff[..., None]).astype(dtype)
-        self.sow("debug", "radial_embedding", radial)
+        # Gated so plain ``model.init`` doesn't sprout a ``debug`` branch.
+        if is_parity_debug_enabled():
+            self.sow("debug", "radial_embedding", radial)
         sph = e3nn.spherical_harmonics(
             e3nn.Irreps.spherical_harmonics(self.max_ell),
             dr_vec,

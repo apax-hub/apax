@@ -197,6 +197,7 @@ def run_apax(apax_dir, atoms):
     from flax.core.frozen_dict import freeze, unfreeze
 
     from apax.md.ase_calc import ASECalculator
+    from apax.utils.parity_debug import parity_debug
 
     calc = ASECalculator(apax_dir)
     a = atoms.copy()
@@ -261,15 +262,20 @@ def run_apax(apax_dir, atoms):
             inner[col] = raw[col]
     params = freeze(inner)
 
-    (energy_apax, _props), sown = energy_model.apply(
-        params,
-        positions,
-        Z,
-        idx_jax,
-        box_jax,
-        offsets_jax,
-        mutable=["debug"],
-    )
+    # Open the runtime gate so the ``self.sow("debug", ...)`` calls in
+    # apax's MACE blocks actually fire (they're no-ops outside the
+    # harness so plain ``model.init`` callers don't get a stray
+    # ``debug`` branch in their params pytree).
+    with parity_debug():
+        (energy_apax, _props), sown = energy_model.apply(
+            params,
+            positions,
+            Z,
+            idx_jax,
+            box_jax,
+            offsets_jax,
+            mutable=["debug"],
+        )
 
     # apax's jax-md NL pads with self-pairs (i, i) that downstream
     # masking zeroes out — torch's NL skips them entirely.  Stash a mask
