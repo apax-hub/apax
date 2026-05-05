@@ -118,3 +118,98 @@ def test_full_path_skip_does_not_trigger_legacy_match():
     out = black_list_param_transfer(src, tgt, ["params/foo/bar"])
 
     assert np.all(np.asarray(out["params"]["foo"]["bar"]) == 0.0)
+
+
+def test_structural_mismatch_raises_with_target_paths_in_snippet():
+    """Source and target have orphan siblings under the same parent → raise."""
+    src = _params({"params/readout_0/linear/w 8x0e,1x0e": (8, 1)})
+    tgt = _params({"params/readout_0/linear/w 8x0e,4x0e": (8, 4)})
+
+    with pytest.raises(TransferLearningShapeMismatchError) as excinfo:
+        black_list_param_transfer(src, tgt, [])
+
+    msg = str(excinfo.value)
+    assert "params/readout_0/linear" in msg
+    assert "w 8x0e,1x0e" in msg
+    assert "w 8x0e,4x0e" in msg
+    # Suggested reset_layers entry must be the TARGET path (so the target
+    # slot stays random-init when pasted).
+    assert re.search(
+        r"-\s*params/readout_0/linear/w\s+8x0e,4x0e", msg
+    ), f"missing target path in yaml-ready bullet:\n{msg}"
+
+
+def test_target_path_in_reset_layers_suppresses_structural_mismatch():
+    """Pasting the target path into reset_layers silences the structural error."""
+    src = _params({"params/readout_0/linear/w 8x0e,1x0e": (8, 1)})
+    tgt = _params({"params/readout_0/linear/w 8x0e,4x0e": (8, 4)})
+    tgt["params"]["readout_0"]["linear"]["w 8x0e,4x0e"][:] = 99.0
+
+    out = black_list_param_transfer(
+        src, tgt, ["params/readout_0/linear/w 8x0e,4x0e"]
+    )
+
+    # Target stays random-init (still 99.0); source orphan is dropped silently.
+    leaf = np.asarray(out["params"]["readout_0"]["linear"]["w 8x0e,4x0e"])
+    assert np.all(leaf == 99.0)
+
+
+def test_pure_source_only_orphan_does_not_trigger_structural_mismatch():
+    """A source leaf with no target counterpart anywhere stays a silent skip.
+
+    Preserves the legitimate refactor / deprecated-param case: the existing
+    behavior of silently skipping source-only keys must not regress into a
+    spurious structural error.
+    """
+    src = _params({
+        "params/dense/kernel": (4, 8),
+        "params/deprecated/old_param": (3,),
+    })
+    tgt = _params({"params/dense/kernel": (4, 8)})
+    src["params"]["dense"]["kernel"][:] = 1.0
+
+    out = black_list_param_transfer(src, tgt, [])
+
+    assert np.all(np.asarray(out["params"]["dense"]["kernel"]) == 1.0)
+
+
+def test_pure_target_only_orphan_does_not_trigger_structural_mismatch():
+    """A target leaf with no source counterpart stays at random init silently.
+
+    The "new slot" case: target adds parameters that didn't exist in the
+    source (e.g., a fresh property head). No error; transfer proceeds and
+    the new slot stays as initialized.
+    """
+    src = _params({"params/dense/kernel": (4, 8)})
+    tgt = _params({
+        "params/dense/kernel": (4, 8),
+        "params/new_head/kernel": (8, 1),
+    })
+    src["params"]["dense"]["kernel"][:] = 1.0
+    tgt["params"]["new_head"]["kernel"][:] = 99.0
+
+    out = black_list_param_transfer(src, tgt, [])
+
+    assert np.all(np.asarray(out["params"]["dense"]["kernel"]) == 1.0)
+    assert np.all(np.asarray(out["params"]["new_head"]["kernel"]) == 99.0)
+
+
+def test_combined_structural_and_shape_mismatch_in_one_error():
+    """Both mismatch categories fire → one raise listing both."""
+    src = _params({
+        "params/readout/w 8x0e,1x0e": (8, 1),
+        "params/dense/kernel": (4, 1),
+    })
+    tgt = _params({
+        "params/readout/w 8x0e,4x0e": (8, 4),
+        "params/dense/kernel": (4, 4),
+    })
+
+    with pytest.raises(TransferLearningShapeMismatchError) as excinfo:
+        black_list_param_transfer(src, tgt, [])
+
+    msg = str(excinfo.value)
+    assert "Structural" in msg or "structural" in msg
+    assert "Shape" in msg or "shape" in msg
+    assert "params/readout" in msg
+    assert "params/dense/kernel" in msg
