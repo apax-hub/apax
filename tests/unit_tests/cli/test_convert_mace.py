@@ -19,8 +19,9 @@ def test_convert_mace_missing_torch_fails_gracefully(monkeypatch, tmp_path):
 
 def test_convert_mace_accepts_canonical_name_and_file_path():
     """Argument parsing treats both as valid 'source' inputs."""
-    from apax.cli.convert_mace import convert_mace
     import inspect
+
+    from apax.cli.convert_mace import convert_mace
     sig = inspect.signature(convert_mace)
     assert "source" in sig.parameters
 
@@ -28,9 +29,11 @@ def test_convert_mace_accepts_canonical_name_and_file_path():
 def test_extract_config_falls_back_to_first_head_when_none():
     """``head=None`` selects ``model.heads[0]`` rather than crashing."""
     pytest.importorskip("torch")
-    from apax.transfer_learning.mace_foundation import _extract_config_from_torch
     from types import SimpleNamespace
+
     import torch as _torch
+
+    from apax.transfer_learning.mace_foundation import _extract_config_from_torch
 
     # Fabricate the smallest torch-mace-shaped object the function reads.
     # We only exercise the head-resolution path; everything else is shielded

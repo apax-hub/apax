@@ -4,13 +4,10 @@ import pytest
 import yaml
 
 from apax.config.model_config import (
-    BesselBasisConfig,
     MaceDescriptorConfig,
     MaceModelConfig,
     MaceRadialEmbeddingConfig,
     MaceReadoutConfig,
-    RealAgnosticDensityConfig,
-    RealAgnosticDensityResidualConfig,
     RealAgnosticResidualConfig,
 )
 

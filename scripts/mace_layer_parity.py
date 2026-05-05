@@ -31,7 +31,6 @@ from pathlib import Path
 
 import numpy as np
 
-
 # Torch hook outputs land here while a forward pass is running.  Cleared at
 # the end of :func:`run_torch` so a second invocation starts clean.
 _TORCH_CAPS: dict[str, np.ndarray] = {}
@@ -192,7 +191,6 @@ def run_apax(apax_dir, atoms):
     captures : dict of str to np.ndarray
         Per-block outputs from the sown ``debug`` collection.
     """
-    import jax
     import jax.numpy as jnp
     from flax.core.frozen_dict import freeze, unfreeze
 

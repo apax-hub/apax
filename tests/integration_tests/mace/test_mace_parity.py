@@ -115,8 +115,8 @@ def test_force_consistency_via_finite_difference(tmp_path, foundation_name, ase_
     """Independent of torch: apax autodiff forces match numerical grad."""
     pytest.importorskip("torch")
     pytest.importorskip("mace")
-    from apax.transfer_learning.mace_foundation import run_conversion
     from apax.md.ase_calc import ASECalculator
+    from apax.transfer_learning.mace_foundation import run_conversion
 
     dst = tmp_path / f"{foundation_name}.apax"
     run_conversion(foundation_name, dst, head="default", family="mace_mp")

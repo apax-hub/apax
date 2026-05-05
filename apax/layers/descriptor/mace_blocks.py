@@ -30,7 +30,6 @@ from flax import linen as nn
 
 from apax.utils.parity_debug import is_parity_debug_enabled
 
-
 # torch-mace's :class:`e3nn.nn.FullyConnectedNet` wraps every hidden layer's
 # activation in :class:`e3nn.math.normalize2mom`, which estimates the L2 moment
 # of the activation under a unit Gaussian via Monte Carlo (1M samples, seed 0).
@@ -586,9 +585,10 @@ class InteractionBlockDensityResidual(nn.Module):
         return message, sc
 
 
-# Maps :attr:`MaceModelConfig.interaction_cls` literal to the Linen module.
-# Single source of truth used by :class:`MaceRepresentation` dispatch. New
-# variants are added here and to the ``Literal`` in ``MaceModelConfig``.
+# Maps :attr:`MaceDescriptorConfig.interactions` discriminator names to the
+# Linen module. Single source of truth used by :class:`MaceRepresentation`
+# dispatch. New variants are added here and to the discriminated
+# :data:`InteractionConfig` union in :mod:`apax.config.model_config`.
 _INTERACTION_BLOCK_CLS = {
     "RealAgnosticResidual": InteractionBlockResidual,
     "RealAgnosticDensity": InteractionBlockDensity,

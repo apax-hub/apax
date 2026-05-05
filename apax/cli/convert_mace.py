@@ -52,8 +52,8 @@ def convert_mace(
         Foundation-family resolver. Initial scope: ``"mace_mp"``.
     """
     try:
+        import mace  # noqa: F401
         import torch  # noqa: F401
-        import mace   # noqa: F401
     except ImportError as e:
         raise typer.BadParameter(
             "Converting MACE foundation models requires torch and mace-torch. "

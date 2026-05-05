@@ -11,7 +11,6 @@ output round-trips through :func:`apax.train.checkpoints.restore_parameters`.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 

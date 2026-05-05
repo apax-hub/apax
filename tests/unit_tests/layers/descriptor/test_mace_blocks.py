@@ -369,10 +369,10 @@ def test_tp_out_irreps_with_instructions_basic():
 
 
 from apax.layers.descriptor.mace_blocks import (
+    _INTERACTION_BLOCK_CLS,
     InteractionBlockDensity,
     InteractionBlockDensityResidual,
     InteractionBlockResidual,
-    _INTERACTION_BLOCK_CLS,
 )
 
 
@@ -533,11 +533,12 @@ def test_interaction_block_dispatch_table_complete():
 
 def test_nonlinear_readout_block_applies_silu_normalization():
     """Gate is SiLU * silu_normalization (torch-mace normalize2mom constant)."""
-    from apax.layers.descriptor.mace_blocks import NonLinearReadoutBlock
     import e3nn_jax as e3nn
     import jax
     import jax.numpy as jnp
     import numpy as np
+
+    from apax.layers.descriptor.mace_blocks import NonLinearReadoutBlock
 
     # Build a block where we can inspect the linear_2 output directly.
     block = NonLinearReadoutBlock(MLP_irreps="4x0e", n_out=1)

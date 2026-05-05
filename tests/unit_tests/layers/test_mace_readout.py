@@ -1,5 +1,4 @@
 """MaceReadout — per-layer sum readout for the EnergyModel readout slot."""
-import e3nn_jax as e3nn
 import jax
 import jax.numpy as jnp
 import numpy as np

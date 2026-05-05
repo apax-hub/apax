@@ -30,6 +30,7 @@ def test_extract_config_rejects_per_element_scale():
     # e3nn itself and are safe.
     _torch.serialization.add_safe_globals([slice])
     import e3nn.o3  # noqa: F401, PLC0415  # ensure e3nn.o3 is loaded
+
     from apax.transfer_learning.mace_foundation import _extract_config_from_torch
 
     class _PairRep(_torch.nn.Module):
