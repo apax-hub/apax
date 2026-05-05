@@ -14,7 +14,7 @@ and is composed here into the full MACE pipeline:
 
 from __future__ import annotations
 
-from typing import Any, Literal, Union
+from typing import Any
 
 import e3nn_jax as e3nn
 import jax
@@ -23,95 +23,67 @@ from flax import linen as nn
 
 from apax.utils.convert import str_to_dtype
 
-# Mirrors :attr:`apax.config.model_config.MaceModelConfig.interaction_cls`.
-InteractionKind = Literal[
-    "RealAgnosticResidual",
-    "RealAgnosticDensity",
-    "RealAgnosticDensityResidual",
-]
-
 
 class MaceRepresentation(nn.Module):
     """MACE descriptor producing per-atom scalar features.
 
     Parameters
     ----------
-    r_max : float
-        Interaction cutoff in Angstrom.
-    num_bessel : int
-        Number of Bessel radial basis functions.
-    num_polynomial_cutoff : int
-        Polynomial order of the envelope cutoff.
+    radial_embedding : nn.Module
+        Pre-built :class:`apax.layers.descriptor.basis_functions.MaceRadialEmbedding`
+        instance, constructed by :class:`apax.nn.builder.MaceBuilder` from
+        ``model.basis`` + ``model.radial_embedding`` config groups. Mirrors the
+        injection pattern used by GMNN / EquivMP / So3krates.
+    distance_transform : nn.Module or None
+        Same Linen instance referenced by ``radial_embedding.distance_transform``.
+        Held here as a field so its parameter slot lands at
+        ``representation/distance_transform/...`` in the apax pytree — the
+        slot key the torch→jax converter targets. ``None`` for foundations
+        without a transform (small/medium MP-0).
     max_ell : int
-        Maximum spherical-harmonic degree used for edge features.
+        Maximum spherical-harmonic degree used for edge features. Spherical
+        harmonics are computed inline here (not in the radial submodule).
     hidden_irreps : str
         e3nn irreps string for node features, e.g. ``"128x0e + 128x1o"``.
-    num_interactions : int
-        Number of (interaction, product) layer pairs.
+        Must include a 0e component.
     correlation : int
         Symmetric-contraction correlation order.
-    interaction_cls : Literal["RealAgnosticResidual"]
-        Which MACE interaction block variant to use. Pinned to
-        ``"RealAgnosticResidual"`` until other variants land — see
-        :class:`apax.config.model_config.MaceModelConfig`.
+    interactions : tuple[dict, ...]
+        Per-layer interaction-block configs. Each element is a discriminated
+        dict keyed by ``"name"``; the dispatch table
+        :data:`~apax.layers.descriptor.mace_blocks._INTERACTION_BLOCK_CLS`
+        resolves the name to a Linen block class.
+    avg_num_neighbors : float
+        Per-message normaliser forwarded to every interaction block.
     num_elements : int
         Size of the chemical-element embedding table.
     use_cueq : bool
-        If True, use cuequivariance-jax kernels where available.
+        If ``True``, use cuequivariance-jax kernels where available.
     apply_mask : bool
-        If True, zero out masked atoms in the output.
+        If ``True``, zero out masked atoms in the output.
     dtype : Any
         Floating-point dtype for features.
-    avg_num_neighbors : float
-        Per-message normaliser forwarded to every :class:`InteractionBlock`.
-        Foundation models burn in a per-dataset average (~62 for MACE-MP-0);
-        defaults to ``1.0`` to leave freshly trained apax models unchanged.
-
-    Notes
-    -----
-    Output is the concatenation of per-layer scalar (``0e``) features. The
-    per-layer layout is relied upon by the planned ``MaceReadout`` layer
-    (see plan P3.3) to reproduce the foundation MACE forward pass via
-    per-layer linear / non-linear heads.
     """
 
-    r_max: float = 5.0
-    num_bessel: int = 8
-    num_polynomial_cutoff: int = 5
-    max_ell: int = 3
-    hidden_irreps: str = "128x0e + 128x1o"
-    num_interactions: int = 2
-    correlation: int = 3
-    interaction_cls: Union[InteractionKind, tuple[InteractionKind, ...]] = (
-        "RealAgnosticResidual"
-    )
-    num_elements: int = 119
-    use_cueq: bool = False
-    apply_mask: bool = True
-    dtype: Any = jnp.float32
-    avg_num_neighbors: float = 1.0
-    distance_transform: Any = None
+    radial_embedding: Any
+    distance_transform: Any
+    max_ell: int
+    hidden_irreps: str
+    correlation: int
+    interactions: tuple
+    avg_num_neighbors: float
+    num_elements: int
+    use_cueq: bool
+    apply_mask: bool
+    dtype: Any
 
     @nn.compact
     def __call__(self, dr_vec, Z, idx):
-        from apax.layers.descriptor.basis_functions import MaceRadialEmbedding
         from apax.layers.descriptor.mace_blocks import (
             _INTERACTION_BLOCK_CLS,
             LinearNodeEmbedding,
             ProductBlock,
         )
-
-        # Resolve ``interaction_cls`` to a concrete per-layer list. A single
-        # str is broadcast; a list/tuple must match ``num_interactions``.
-        if isinstance(self.interaction_cls, str):
-            per_layer_cls = [self.interaction_cls] * self.num_interactions
-        else:
-            per_layer_cls = list(self.interaction_cls)
-            if len(per_layer_cls) != self.num_interactions:
-                raise ValueError(
-                    f"interaction_cls list length {len(per_layer_cls)} does not "
-                    f"match num_interactions {self.num_interactions}"
-                )
 
         dtype = str_to_dtype(self.dtype)
         dr_vec = dr_vec.astype(dtype)
@@ -120,35 +92,20 @@ class MaceRepresentation(nn.Module):
         pair_mask = _get_neighbor_mask(idx) if self.apply_mask else 1.0
         node_mask = _get_node_mask(Z) if self.apply_mask else 1.0
 
-        from apax.layers.descriptor.basis_functions import MaceBesselBasis
+        radial = self.radial_embedding(dr_vec, Z, idx)
+        if self.apply_mask:
+            radial = radial * pair_mask[..., None]
 
-        # Construct radial submodule inline; Task 4 will hoist this into the
-        # builder and pass a pre-built instance via ``self.radial_embedding``.
-        basis_fn = MaceBesselBasis(
-            n_basis=self.num_bessel, r_max=self.r_max, dtype=dtype,
-        )
-        radial = MaceRadialEmbedding(
-            basis_fn=basis_fn,
-            num_polynomial_cutoff=self.num_polynomial_cutoff,
-            r_max=self.r_max,
-            distance_transform=self.distance_transform,
-            name="radial_embedding",
-        )(dr_vec, Z, idx)
+        sh_irreps = e3nn.Irreps.spherical_harmonics(self.max_ell)
+        sh_irreps_str = str(sh_irreps)
         sph = e3nn.spherical_harmonics(
-            e3nn.Irreps.spherical_harmonics(self.max_ell),
+            sh_irreps,
             dr_vec,
             normalize=True,
             normalization="component",
         )
-        if self.apply_mask:
-            radial = radial * pair_mask[..., None]
 
-        # Compute the full multi-irrep target (matches torch-mace + mace-jax):
-        # interaction_irreps = (sh_irreps × num_features).sort().simplify()
-        sh_irreps = e3nn.Irreps.spherical_harmonics(self.max_ell)
-        sh_irreps_str = str(sh_irreps)
         hidden_irreps = e3nn.Irreps(self.hidden_irreps)
-        # Validate up-front so the error matches the legacy contract test.
         _scalar_irreps_only(self.hidden_irreps)
         num_features = hidden_irreps.count(e3nn.Irrep(0, 1))
         interaction_irreps = (sh_irreps * num_features).sort().irreps.simplify()
@@ -156,12 +113,10 @@ class MaceRepresentation(nn.Module):
         node_attrs_irreps_str = f"{self.num_elements}x0e"
         init_node_irreps_str = f"{num_features}x0e"
 
-        # Initial node features: scalars only (LinearNodeEmbedding(num_features x 0e)).
         node_feats = LinearNodeEmbedding(
             num_elements=self.num_elements,
             irreps_out=init_node_irreps_str,
         )(Z)
-        # One-hot element attributes for the per-element skip in InteractionBlock.
         Z_one_hot = e3nn.IrrepsArray(
             node_attrs_irreps_str,
             jax.nn.one_hot(Z, self.num_elements).astype(dtype),
@@ -169,15 +124,13 @@ class MaceRepresentation(nn.Module):
 
         prev_irreps_str = init_node_irreps_str
         per_layer_scalars = []
-        for k in range(self.num_interactions):
-            is_last = k == self.num_interactions - 1
+        n_layers = len(self.interactions)
+        for k, inter_cfg in enumerate(self.interactions):
+            is_last = k == n_layers - 1
             this_hidden_str = (
                 str(e3nn.Irreps([hidden_irreps[0]])) if is_last else self.hidden_irreps
             )
-            Block = _INTERACTION_BLOCK_CLS[per_layer_cls[k]]
-            # Pass ``name=`` explicitly so the converter sees a uniform
-            # ``InteractionBlock_{k}`` path regardless of which variant class
-            # is used; otherwise Linen names the block after the class.
+            Block = _INTERACTION_BLOCK_CLS[inter_cfg["name"]]
             message, sc = Block(
                 node_feats_irreps=prev_irreps_str,
                 node_attrs_irreps=node_attrs_irreps_str,
@@ -193,7 +146,6 @@ class MaceRepresentation(nn.Module):
                 target_irreps=this_hidden_str,
                 correlation=self.correlation,
                 num_elements=self.num_elements,
-                # Density (non-residual) variant returns sc=None.
                 use_sc=(sc is not None),
                 use_cueq=self.use_cueq,
                 layer_idx=k,

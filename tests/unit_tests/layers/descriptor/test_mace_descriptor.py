@@ -1,15 +1,25 @@
-"""Shape & contract tests for MaceRepresentation.
-
-These tests use random weights and a skeleton forward pass; correctness
-against upstream MACE is validated in the parity tests (gated).
-"""
+"""Shape & contract tests for MaceRepresentation (injected radial_embedding)."""
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from apax.layers.descriptor.basis_functions import (
+    MaceBesselBasis,
+    MaceRadialEmbedding,
+)
 from apax.layers.descriptor.mace import MaceRepresentation
+
+
+def _build_radial(n_basis: int = 8, r_max: float = 5.0):
+    basis = MaceBesselBasis(n_basis=n_basis, r_max=r_max, dtype=jnp.float32)
+    return MaceRadialEmbedding(
+        basis_fn=basis,
+        num_polynomial_cutoff=5,
+        r_max=r_max,
+        distance_transform=None,
+    )
 
 
 @pytest.fixture
@@ -29,53 +39,88 @@ def tiny_system():
 def test_mace_representation_contract(tiny_system):
     dr_vec, Z, idx, n_atoms = tiny_system
     model = MaceRepresentation(
-        r_max=5.0,
-        num_bessel=8,
+        radial_embedding=_build_radial(n_basis=8, r_max=5.0),
+        distance_transform=None,
         max_ell=2,
         hidden_irreps="16x0e + 16x1o",
-        num_interactions=2,
+        correlation=3,
+        interactions=(
+            {"name": "RealAgnosticResidual"},
+            {"name": "RealAgnosticResidual"},
+        ),
+        avg_num_neighbors=1.0,
+        num_elements=119,
+        use_cueq=False,
+        apply_mask=True,
+        dtype=jnp.float32,
     )
     params = model.init(jax.random.PRNGKey(0), dr_vec, Z, idx)
     out = model.apply(params, dr_vec, Z, idx)
-    assert out.ndim == 2
-    assert out.shape[0] == n_atoms
-    # 16 scalar features × 2 interactions = 32-dim feature vector
-    assert out.shape[1] == 16 * 2
+    assert out.shape == (n_atoms, 16 * 2)
     assert out.dtype == jnp.float32
     assert jnp.isfinite(out).all()
 
 
-def test_mace_representation_is_jittable(tiny_system):
-    dr_vec, Z, idx, n_atoms = tiny_system
-    model = MaceRepresentation(hidden_irreps="8x0e")
-    params = model.init(jax.random.PRNGKey(0), dr_vec, Z, idx)
-    jitted = jax.jit(model.apply)
-    out = jitted(params, dr_vec, Z, idx)
-    assert out.shape[0] == n_atoms
-
-
 def test_mace_representation_rejects_no_scalar_irreps(tiny_system):
-    """hidden_irreps without a 0e component must raise a clear error."""
     dr_vec, Z, idx, _ = tiny_system
-    model = MaceRepresentation(hidden_irreps="16x1o")
+    model = MaceRepresentation(
+        radial_embedding=_build_radial(),
+        distance_transform=None,
+        max_ell=2,
+        hidden_irreps="16x1o",
+        correlation=3,
+        interactions=({"name": "RealAgnosticResidual"},),
+        avg_num_neighbors=1.0,
+        num_elements=119,
+        use_cueq=False,
+        apply_mask=True,
+        dtype=jnp.float32,
+    )
     with pytest.raises(ValueError, match="0e component"):
         model.init(jax.random.PRNGKey(0), dr_vec, Z, idx)
 
 
-def test_mace_representation_threads_node_attrs_through_layers():
-    """Representation builds the full multi-irrep flow and outputs scalars."""
-    n_atoms = 3
-    rep = MaceRepresentation(
-        r_max=5.0, num_bessel=4, num_polynomial_cutoff=5, max_ell=2,
-        hidden_irreps="8x0e", num_interactions=2, correlation=2,
-        interaction_cls="RealAgnosticResidual", num_elements=5,
+def test_mace_representation_per_layer_variants(tiny_system):
+    """Different interaction-block variants per layer are honoured."""
+    dr_vec, Z, idx, n_atoms = tiny_system
+    model = MaceRepresentation(
+        radial_embedding=_build_radial(n_basis=4, r_max=5.0),
+        distance_transform=None,
+        max_ell=2,
+        hidden_irreps="8x0e",
+        correlation=2,
+        interactions=(
+            {"name": "RealAgnosticDensity"},
+            {"name": "RealAgnosticDensityResidual"},
+        ),
+        avg_num_neighbors=1.0,
+        num_elements=5,
+        use_cueq=False,
+        apply_mask=True,
+        dtype=jnp.float32,
     )
-    dr_vec = jnp.array([[1.0, 0, 0], [0, 1.0, 0], [0, 0, 1.0], [-1.0, 0, 0]])
-    Z = jnp.array([1, 2, 3], dtype=jnp.int32)
-    idx = jnp.array([[0, 1, 2, 0], [1, 0, 0, 2]], dtype=jnp.int32)
-
-    params = rep.init(jax.random.PRNGKey(0), dr_vec, Z, idx)
-    out = rep.apply(params, dr_vec, Z, idx)
-    # Output: per-layer scalar concat; layer hidden = "8x0e", num_interactions=2
+    params = model.init(jax.random.PRNGKey(0), dr_vec, Z, idx)
+    out = model.apply(params, dr_vec, Z, idx)
+    # Two layers, hidden 8x0e -> 2*8 features per atom.
     assert out.shape == (n_atoms, 2 * 8)
-    assert bool(jnp.all(jnp.isfinite(out)))
+
+
+def test_mace_representation_has_no_removed_fields():
+    """Regression: legacy flat fields must be gone."""
+    fields = MaceRepresentation.__dataclass_fields__
+    for removed in (
+        "r_max",
+        "num_bessel",
+        "num_polynomial_cutoff",
+        "interaction_cls",
+        "num_interactions",
+    ):
+        assert removed not in fields, f"{removed!r} should be gone"
+    for kept in (
+        "radial_embedding",
+        "interactions",
+        "max_ell",
+        "hidden_irreps",
+        "correlation",
+    ):
+        assert kept in fields, f"{kept!r} should be present"

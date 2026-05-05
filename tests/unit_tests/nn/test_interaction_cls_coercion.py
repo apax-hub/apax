@@ -1,17 +1,13 @@
-"""I6 — MaceBuilder coerces config['interaction_cls'] list to tuple before
-passing to MaceRepresentation, which is typed as ``str | tuple[str, ...]``.
+"""MaceBuilder coerces flat interaction_cls config into the descriptor's
+``interactions`` field of typed dicts.
 """
+
 import pytest
 
 
-def test_mace_builder_coerces_interaction_cls_list_to_tuple(tmp_path):
-    """A list ``interaction_cls`` config (as emitted by YAML) becomes a tuple
-    by the time it reaches ``MaceRepresentation``.
-
-    Parameters
-    ----------
-    tmp_path : pathlib.Path
-        Pytest fixture (unused; reserved if config-on-disk needs to be exercised).
+def test_mace_builder_translates_interaction_cls_to_interactions(tmp_path):
+    """A list ``interaction_cls`` config becomes a tuple of dicts on the
+    descriptor side.
     """
     pytest.importorskip("e3nn_jax")
     pytest.importorskip("cuequivariance_jax")
@@ -39,18 +35,15 @@ def test_mace_builder_coerces_interaction_cls_list_to_tuple(tmp_path):
         distance_transform=None,
     ).model_dump()
 
-    # interaction_cls survives as a list through Pydantic's union acceptance.
-    assert isinstance(cfg["interaction_cls"], list)
-
     builder = MaceBuilder(cfg, n_species=119)
     descriptor = builder.build_descriptor(apply_mask=False)
 
-    assert isinstance(descriptor.interaction_cls, tuple), (
-        f"interaction_cls passed to MaceRepresentation must be tuple, "
-        f"got {type(descriptor.interaction_cls).__name__}: "
-        f"{descriptor.interaction_cls!r}"
+    assert isinstance(descriptor.interactions, tuple), (
+        f"interactions on MaceRepresentation must be tuple, "
+        f"got {type(descriptor.interactions).__name__}: "
+        f"{descriptor.interactions!r}"
     )
-    assert descriptor.interaction_cls == (
-        "RealAgnosticDensity",
-        "RealAgnosticDensityResidual",
+    assert descriptor.interactions == (
+        {"name": "RealAgnosticDensity"},
+        {"name": "RealAgnosticDensityResidual"},
     )

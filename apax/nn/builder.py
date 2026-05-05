@@ -329,6 +329,7 @@ class MaceBuilder(ModelBuilder):
         self,
         apply_mask,
     ):
+        from apax.layers.descriptor.basis_functions import MaceRadialEmbedding
         from apax.layers.descriptor.mace import MaceRepresentation
 
         dt_cfg = self.config.get("distance_transform")
@@ -346,27 +347,47 @@ class MaceBuilder(ModelBuilder):
                 f"distance_transform {dt_cfg['name']!r} not supported"
             )
 
-        descriptor = MaceRepresentation(
+        # Build the radial basis externally so MaceRepresentation matches the
+        # GMNN / EquivMP / So3krates injection pattern. Task 1 added variant
+        # dispatch in build_basis_function(); MACE always wants the standard
+        # (torch-mace) form so we construct MaceBesselBasis directly here
+        # until Task 4 cuts over to model.basis.
+        from apax.layers.descriptor.basis_functions import MaceBesselBasis
+
+        basis_fn = MaceBesselBasis(
+            n_basis=self.config["num_bessel"],
             r_max=self.config["r_max"],
-            num_bessel=self.config["num_bessel"],
+            dtype=self.config["descriptor_dtype"],
+        )
+        radial_embedding = MaceRadialEmbedding(
+            basis_fn=basis_fn,
             num_polynomial_cutoff=self.config["num_polynomial_cutoff"],
+            r_max=self.config["r_max"],
+            distance_transform=distance_transform,
+        )
+
+        # Translate flat ``interaction_cls`` (str, list, or tuple) into the
+        # discriminated-dict tuple the descriptor expects. Schema reshape in
+        # Task 4 will make this straight pass-through.
+        ic = self.config["interaction_cls"]
+        if isinstance(ic, str):
+            per_layer = [ic] * self.config["num_interactions"]
+        else:
+            per_layer = list(ic)
+        interactions = tuple({"name": v} for v in per_layer)
+
+        descriptor = MaceRepresentation(
+            radial_embedding=radial_embedding,
+            distance_transform=distance_transform,
             max_ell=self.config["max_ell"],
             hidden_irreps=self.config["hidden_irreps"],
-            num_interactions=self.config["num_interactions"],
             correlation=self.config["correlation"],
-            # Linen dataclass rejects list-typed fields; YAML emits list,
-            # descriptor expects tuple.
-            interaction_cls=(
-                tuple(self.config["interaction_cls"])
-                if isinstance(self.config["interaction_cls"], list)
-                else self.config["interaction_cls"]
-            ),
+            interactions=interactions,
+            avg_num_neighbors=self.config.get("avg_num_neighbors", 1.0),
             num_elements=self.n_species,
             use_cueq=self.config["use_cueq"],
             apply_mask=apply_mask,
             dtype=self.config["descriptor_dtype"],
-            avg_num_neighbors=self.config.get("avg_num_neighbors", 1.0),
-            distance_transform=distance_transform,
         )
         return descriptor
 
