@@ -343,7 +343,11 @@ class MaceBuilder(ModelBuilder):
             hidden_irreps=self.config["hidden_irreps"],
             num_interactions=self.config["num_interactions"],
             correlation=self.config["correlation"],
-            interaction_cls=self.config["interaction_cls"],
+            interaction_cls=(
+                tuple(self.config["interaction_cls"])
+                if isinstance(self.config["interaction_cls"], list)
+                else self.config["interaction_cls"]
+            ),
             num_elements=self.n_species,
             use_cueq=self.config["use_cueq"],
             apply_mask=apply_mask,

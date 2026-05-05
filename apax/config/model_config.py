@@ -412,7 +412,7 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
         Number of (interaction, product) layer pairs.
     correlation : PositiveInt, default = 3
         Symmetric-contraction correlation order.
-    interaction_cls : str or list[str], default = "RealAgnosticResidual"
+    interaction_cls : str or list[str] or tuple[str, ...], default = "RealAgnosticResidual"
         Which MACE interaction block variant to use. Either a single
         ``Literal`` (broadcast to every layer) or a per-layer list. Implemented
         variants:
@@ -425,7 +425,10 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
 
         ``RealAgnostic`` (non-residual non-density) remains unimplemented;
         adding it is purely additive. Foundation models that mix variants
-        across layers (mpa-0 / matpes) emit a list.
+        across layers (mpa-0 / matpes) emit a list. Accepted as ``list`` or
+        ``tuple`` from YAML; coerced to ``tuple`` in :class:`MaceBuilder`
+        before reaching the descriptor (Linen's mutable-default protection
+        rejects list-typed fields).
     use_cueq : bool, default = False
         Dispatch to cuequivariance-jax kernels where available.
     readout_kind : Literal["mace", "standard"], default = "mace"
@@ -470,6 +473,14 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
                 "RealAgnosticDensity",
                 "RealAgnosticDensityResidual",
             ]
+        ],
+        tuple[
+            Literal[
+                "RealAgnosticResidual",
+                "RealAgnosticDensity",
+                "RealAgnosticDensityResidual",
+            ],
+            ...,
         ],
     ] = "RealAgnosticResidual"
     use_cueq: bool = False
