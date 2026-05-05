@@ -104,6 +104,7 @@ def test_interaction_block_shape_and_finite():
         edge_attrs_irreps=sph_irreps,
         target_irreps=target_irreps,
         hidden_irreps=hidden_irreps,
+        layer_idx=0,
     )
     params = block.init(
         jax.random.PRNGKey(0),
@@ -135,6 +136,7 @@ def test_product_block_shape_and_finite():
         correlation=3,
         num_elements=10,
         use_sc=False,
+        layer_idx=0,
     )
     params = block.init(jax.random.PRNGKey(0), node_feats, None, Z)
     out = block.apply(params, node_feats, None, Z)
@@ -158,6 +160,7 @@ def test_product_block_weight_param_shape():
         correlation=correlation,
         num_elements=num_elements,
         use_sc=False,
+        layer_idx=0,
     )
     params = block.init(jax.random.PRNGKey(0), node_feats, None, Z)
     weight = params["params"]["weight"]
@@ -181,6 +184,7 @@ def test_product_block_z_changes_output():
         correlation=3,
         num_elements=10,
         use_sc=False,
+        layer_idx=0,
     )
     Z_a = jnp.array([0, 1, 2, 3], dtype=jnp.int32)
     Z_b = jnp.array([5, 6, 7, 8], dtype=jnp.int32)
@@ -285,6 +289,7 @@ def test_interaction_block_emits_target_irreps_and_skip():
         edge_attrs_irreps=edge_attrs_irreps,
         target_irreps=target_irreps,
         hidden_irreps=hidden_irreps,
+        layer_idx=0,
     )
     rng = jax.random.PRNGKey(0)
     node_feats = e3nn.IrrepsArray(
@@ -328,6 +333,7 @@ def test_product_block_emits_target_irreps_with_skip():
         correlation=2,
         num_elements=5,
         use_sc=True,
+        layer_idx=0,
     )
     node_feats = e3nn.IrrepsArray(
         node_feats_irreps,
@@ -419,6 +425,7 @@ def test_interaction_block_density_shape_and_finite():
         edge_attrs_irreps=ctx["sph_irreps"],
         target_irreps=ctx["target_irreps"],
         hidden_irreps=ctx["hidden_irreps"],  # unused
+        layer_idx=0,
     )
     params = block.init(
         jax.random.PRNGKey(0),
@@ -446,6 +453,7 @@ def test_interaction_block_density_residual_shape_and_finite():
         edge_attrs_irreps=ctx["sph_irreps"],
         target_irreps=ctx["target_irreps"],
         hidden_irreps=ctx["hidden_irreps"],
+        layer_idx=0,
     )
     params = block.init(
         jax.random.PRNGKey(0),
@@ -479,6 +487,7 @@ def test_interaction_scaffold_param_names_match_torch():
         edge_attrs_irreps=ctx["sph_irreps"],
         target_irreps=ctx["target_irreps"],
         hidden_irreps=ctx["hidden_irreps"],
+        layer_idx=0,
     )
     params = block.init(
         jax.random.PRNGKey(0),
@@ -498,6 +507,7 @@ def test_interaction_block_density_param_tree_has_density_fn():
         edge_attrs_irreps=ctx["sph_irreps"],
         target_irreps=ctx["target_irreps"],
         hidden_irreps=ctx["hidden_irreps"],
+        layer_idx=0,
     )
     params = block.init(
         jax.random.PRNGKey(0),

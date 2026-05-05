@@ -391,12 +391,16 @@ class InteractionBlockResidual(nn.Module):
     hidden_irreps: str
     radial_mlp: tuple = (64, 64, 64)
     avg_num_neighbors: float = 1.0
-    layer_idx: int = 0  # Set by the parent module for sow naming.
+    layer_idx: int = -1  # Must be set by the parent module for sow naming.
 
     @nn.compact
     def __call__(
         self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders,
     ):
+        if self.layer_idx < 0:
+            raise ValueError(
+                f"{type(self).__name__} requires layer_idx to be set by the parent module"
+            )
         node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
         edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
         target_irreps = e3nn.Irreps(self.target_irreps)
@@ -462,12 +466,16 @@ class InteractionBlockDensity(nn.Module):
     hidden_irreps: str = ""
     radial_mlp: tuple = (64, 64, 64)
     avg_num_neighbors: float = 1.0  # ignored; mirrors torch (no /avg)
-    layer_idx: int = 0  # Set by the parent module for sow naming.
+    layer_idx: int = -1  # Must be set by the parent module for sow naming.
 
     @nn.compact
     def __call__(
         self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders,
     ):
+        if self.layer_idx < 0:
+            raise ValueError(
+                f"{type(self).__name__} requires layer_idx to be set by the parent module"
+            )
         node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
         edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
         target_irreps = e3nn.Irreps(self.target_irreps)
@@ -519,12 +527,16 @@ class InteractionBlockDensityResidual(nn.Module):
     hidden_irreps: str
     radial_mlp: tuple = (64, 64, 64)
     avg_num_neighbors: float = 1.0  # ignored; mirrors torch (no /avg)
-    layer_idx: int = 0  # Set by the parent module for sow naming.
+    layer_idx: int = -1  # Must be set by the parent module for sow naming.
 
     @nn.compact
     def __call__(
         self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders,
     ):
+        if self.layer_idx < 0:
+            raise ValueError(
+                f"{type(self).__name__} requires layer_idx to be set by the parent module"
+            )
         node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
         edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
         target_irreps = e3nn.Irreps(self.target_irreps)
@@ -718,10 +730,14 @@ class ProductBlock(nn.Module):
     num_elements: int = 119
     use_sc: bool = True
     use_cueq: bool = False
-    layer_idx: int = 0  # Set by the parent module for sow naming.
+    layer_idx: int = -1  # Must be set by the parent module for sow naming.
 
     @nn.compact
     def __call__(self, node_feats, sc, Z):
+        if self.layer_idx < 0:
+            raise ValueError(
+                f"{type(self).__name__} requires layer_idx to be set by the parent module"
+            )
         if self.use_cueq:
             raise NotImplementedError(
                 "use_cueq=True is reserved for P2 (cuequivariance CUDA dispatch); "

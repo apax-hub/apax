@@ -153,16 +153,17 @@ def run_torch(model_path, atoms):
 
         handles.append(model.pair_repulsion_fn.register_forward_hook(_zbl_hook))
 
-    a = atoms.copy()
-    a.calc = calc
-    energy = float(a.get_potential_energy())
-    forces = np.asarray(a.get_forces())
-
-    caps = dict(_TORCH_CAPS)
-    _TORCH_CAPS.clear()
-    for h in handles:
-        h.remove()
-    return energy, forces, caps
+    try:
+        a = atoms.copy()
+        a.calc = calc
+        energy = float(a.get_potential_energy())
+        forces = np.asarray(a.get_forces())
+        caps = dict(_TORCH_CAPS)
+        return energy, forces, caps
+    finally:
+        _TORCH_CAPS.clear()
+        for h in handles:
+            h.remove()
 
 
 def run_apax(apax_dir, atoms):
@@ -193,9 +194,7 @@ def run_apax(apax_dir, atoms):
     """
     import jax
     import jax.numpy as jnp
-    import numpy as _np
     from flax.core.frozen_dict import freeze, unfreeze
-    from vesin import NeighborList
 
     from apax.md.ase_calc import ASECalculator
 
@@ -204,7 +203,7 @@ def run_apax(apax_dir, atoms):
     a.calc = calc
     # Trigger initialisation + a normal forward (energy + forces).
     energy = float(a.get_potential_energy())
-    forces = _np.asarray(a.get_forces())
+    forces = np.asarray(a.get_forces())
 
     # Now build a parallel non-derivative ``EnergyModel`` so we can drive
     # ``apply`` with ``mutable=['debug']`` and harvest sow outputs.  Mirrors
@@ -215,7 +214,7 @@ def run_apax(apax_dir, atoms):
     box = jnp.asarray(atoms.cell.array, dtype=jnp.float64).T
     energy_model = builder.build_energy_model(
         apply_mask=True,
-        init_box=_np.array(box),
+        init_box=np.array(box),
         inference_disp_fn=None,
     )
 
@@ -242,7 +241,7 @@ def run_apax(apax_dir, atoms):
     # For periodic systems the EnergyModel internally transforms
     # positions to fractional coordinates; the calculator's normal
     # ``step_fn`` does this transform up front.  Mirror it here.
-    if _np.any(atoms.cell.array > 1e-6):
+    if np.any(atoms.cell.array > 1e-6):
         from jax_md import space  # local import — only needed periodic.
 
         inv_box = jnp.linalg.inv(box_jax)
@@ -276,7 +275,7 @@ def run_apax(apax_dir, atoms):
     # masking zeroes out — torch's NL skips them entirely.  Stash a mask
     # of "real" edges so the diff table can drop padding rows from
     # per-edge captures (radial_embedding, conv_tp).
-    edge_mask = _np.asarray(idx_jax[0] != idx_jax[1])
+    edge_mask = np.asarray(idx_jax[0] != idx_jax[1])
     debug = sown.get("debug", {})
 
     flat: dict[str, np.ndarray] = {}
@@ -295,8 +294,8 @@ def run_apax(apax_dir, atoms):
         # automatically, but switching the production path is out of
         # scope for this harness.
         if hasattr(val, "val") and hasattr(val, "batch_dim"):
-            return _np.asarray(val.val)
-        return _np.asarray(val)
+            return np.asarray(val.val)
+        return np.asarray(val)
 
     def _walk(prefix, node):
         if isinstance(node, dict):
@@ -310,22 +309,22 @@ def run_apax(apax_dir, atoms):
     # Drop self-pair padding rows from per-edge captures so the leading
     # edge-count axis aligns with the torch NL.
     n_edges_apax = int(edge_mask.shape[0])
-    for raw, val in list(flat.items()):
+    for key, val in list(flat.items()):
         if val.ndim >= 1 and val.shape[0] == n_edges_apax:
-            flat[raw] = val[edge_mask]
+            flat[key] = val[edge_mask]
 
     # Strip the ``InteractionBlock_{k}`` / ``ProductBlock_{k}`` /
     # ``readout_{k}`` Linen module prefixes so the names match the torch
     # hook keys exactly.
     aliased: dict[str, np.ndarray] = {}
-    for raw, val in flat.items():
+    for key, val in flat.items():
         # Normalise the trailing slot, e.g.
         # "representation/InteractionBlock_0/interactions[0].linear_up" ->
         # "interactions[0].linear_up"; "representation/ProductBlock_0/products[0]"
         # -> "products[0]"; "readout/readouts[0]" -> "readouts[0]";
         # "representation/radial_embedding/radial_embedding" ->
         # "radial_embedding"; "scale_shift_out" -> "scale_shift_out".
-        slot = raw.split("/")[-1]
+        slot = key.split("/")[-1]
         aliased[slot] = val
     return float(energy_apax), forces, aliased
 

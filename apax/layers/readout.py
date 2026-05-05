@@ -121,6 +121,11 @@ class MaceReadout(nn.Module):
                     n_out=n_out,
                     name=f"readout_{k}",
                 )(feat)
+            # NOTE: this sow runs inside jax.vmap (EnergyModel calls
+            # jax.vmap(self.readout)); consumers of the "debug" collection must
+            # unwrap BatchTracer.val to recover the underlying batched array.
+            # Switching to flax.linen.vmap would lift sow natively, but that's
+            # a production-path change.
             self.sow("debug", f"readouts[{k}]", contrib)
             E = E + contrib
         return E
