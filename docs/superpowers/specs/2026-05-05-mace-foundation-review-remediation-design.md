@@ -13,41 +13,21 @@ models from scratch and (b) consumes pretrained MACE foundation models
 (e.g. `mace-mpa-0-medium`) by converting torch weights into apax's
 JAX/Flax parameter tree.
 
-A code review against `origin/main..HEAD` flagged six Critical and several
-Important findings. On second look, three of the Critical findings (C3,
-C5, C6) turned out to be artifacts of a stale comparison base — they
-showed as branch-side deletions only because `main` had moved on with
-PR #532 (hessian + vibrational analysis) and with a `stress_ensemble`
-typo fix the branch never had. Confirmed by comparing the merge-base
-`df2b8084` to each side independently:
+This spec covers the work needed to bring the branch to a mergeable
+state against current `main`: synchronise with main, fix two real
+defects, and root-cause the s22 parity gap with systematic debugging.
 
-- Branch (merge-base → HEAD) only touched the MACE work plus minor
-  edits to `apax_app.py`, `builder.py`, `model_config.py`,
-  `basis_functions.py`, `empirical.py`, `readout.py`,
-  `get_optimizer.py`, `checkpoints.py`, `pyproject.toml`, `uv.lock`,
-  and one test file.
-- Main (merge-base → `origin/main`) added the full hessian subsystem,
-  flat-schema CLI, and unrelated changes to `ase_calc.py`, `loss.py`,
-  `models.py`, `masking.py`, the docs page, the example notebook, and
-  the hessian tests.
+## 2. Work items
 
-The remediation plan therefore reduces to: **merge main, fix the real
-findings, and root-cause the parity gap with systematic debugging.**
-
-## 2. Findings — final classification
-
-| ID | Description | Real on branch? | Resolution |
-|----|-------------|-----------------|------------|
-| C1 | s22 single-point energy parity max \|ΔE\| = 3.56e-2 eV vs reference MACE on the same `.model` (target ≤ 1e-5 eV) | yes | Phase 1 (systematic debugging) |
-| C2 | `apax convert-mace --head 'mp'` default crashes on models whose only head is `default` | yes | Phase 0.2 |
-| C3 | `make_ensemble` overwrites `stress_ensemble` from `forces_ensemble` (`apax/md/ase_calc.py:86-89`) | no — main fixed it | Resolved by Phase 0.1 |
-| C4 | `pyproject.toml` pins `mace-jax` by absolute local path (`/Users/fzills/tools/mace-jax`) | yes | Phase 0.3 |
-| C5 | Hessian / vibrational analysis subsystem deleted | no — main added it via PR #532; branch is behind | Resolved by Phase 0.1 |
-| C6 | Schema/validate CLI features (`flat_schema.py`, `schema_navigation.py`, `--template`) deleted | no — main added them; branch is behind | Resolved by Phase 0.1 |
-| I2 | Parity tests use only 3-atom systems; can't catch size-scaling bugs | yes | Phase 2.F |
-| I4 | `_scatter_o3_linear_blocks` slot-key ↔ torch instruction-order assumption untested for multi-irrep linear blocks | yes | Phase 2.G |
-| I6 | `MaceModelConfig.interaction_cls` accepts `list`, `MaceRepresentation` expects `tuple`; no coercion in builder | yes | Phase 2.H |
-| I7 | ZBL `output_scale` assumes a single global scalar — silently miscomputes for any per-element scale model | yes | Phase 2.H |
+| ID | Description | Resolution |
+|----|-------------|------------|
+| C1 | s22 single-point energy parity max \|ΔE\| = 3.56e-2 eV vs reference MACE on the same `.model` (target ≤ 1e-5 eV) | Phase 1 (systematic debugging) |
+| C2 | `apax convert-mace --head 'mp'` default crashes on models whose only head is `default` | Phase 0.2 |
+| C4 | `pyproject.toml` pins `mace-jax` by absolute local path (`/Users/fzills/tools/mace-jax`) | Phase 0.3 |
+| I2 | Parity tests use only 3-atom systems; can't catch size-scaling bugs | Phase 2.F |
+| I4 | `_scatter_o3_linear_blocks` slot-key ↔ torch instruction-order assumption untested for multi-irrep linear blocks | Phase 2.G |
+| I6 | `MaceModelConfig.interaction_cls` accepts `list`, `MaceRepresentation` expects `tuple`; no coercion in builder | Phase 2.H |
+| I7 | ZBL `output_scale` assumes a single global scalar — silently miscomputes for any per-element scale model | Phase 2.H |
 
 ## 3. Goals and non-goals
 
@@ -77,9 +57,8 @@ findings, and root-cause the parity gap with systematic debugging.**
 
 ## 4. Phase 0 — Sync with `main` and trivial Critical fixes
 
-These three steps are independent within the spirit of "small,
-reviewable commits." 0.1 must come first because the merge resolves the
-false regressions and unblocks the rest.
+Each step is its own small, reviewable commit. 0.1 must come first
+because it changes line numbers that 0.2 and 0.3 then edit.
 
 ### 0.1 Merge `origin/main` into the branch
 
@@ -112,9 +91,6 @@ Post-merge sanity:
 - `uv run pytest tests/integration_tests/mace -x` (must still pass).
 - `uv run pytest tests/unit_tests/layers/descriptor/test_mace_blocks.py
   -x` (must still pass).
-- C3 (`stress_ensemble`) and the hessian / schema-CLI subsystems are
-  now present and correct. No code changes required from this branch
-  for them.
 
 ### 0.2 Fix `--head` default in `convert-mace`
 
@@ -157,12 +133,11 @@ branch unbuildable on any other machine.
 
 ## 5. Phase 1 — Systematic debugging for C1 (parity gap)
 
-**Iron Law:** no fixes proposed until evidence is gathered. The
-reviewer hypothesised that `_map_distance_transform` is defined but
-never wired (`apax/transfer_learning/mace_foundation.py:970`); their
-own analysis notes that for MPA-0 the torch buffers happen to coincide
-with apax's defaults, which means *that path alone cannot fully
-explain the drift*. Evidence first.
+**Iron Law:** no fixes proposed until layer-by-layer evidence is
+captured. The s22 error pattern (machine precision on small systems,
+1e-3 to 1e-2 eV on dense aromatic stacks) does not point uniquely to
+any single layer; treat every block as a candidate until the harness
+data narrows it down.
 
 ### 5.1 Build a layer-by-layer parity harness
 
@@ -200,7 +175,7 @@ outcomes — each is a hypothesis to be tested only once the evidence
 points there:
 
 - Radial fails first → `_map_distance_transform` wiring or
-  `covalent_radii` mismatch (the reviewer's primary hypothesis).
+  `covalent_radii` mismatch.
 - `interactions[i].linear` fails first → `_scatter_o3_linear_blocks`
   slot-ordering bug for multi-irrep targets.
 - `interactions[i].skip_tp` fails first → `path_weight = 1/sqrt(M_in
@@ -292,8 +267,7 @@ All of the following must pass:
   tests/unit_tests/nn/test_mace_builder.py
   tests/unit_tests/transfer_learning/test_scatter_o3_linear_blocks.py`
   passes.
-- Existing apax test suite (post-merge, including the hessian tests
-  gained from main) still passes: `uv run pytest`.
+- Full apax test suite passes: `uv run pytest`.
 - `apax convert-mace` without `--head` succeeds on the local
   `mace-mpa-0-medium.model`.
 - `pyproject.toml` contains no absolute paths and no `mace-jax`
@@ -329,9 +303,6 @@ parallel after 0.1 lands. Phase 1 is sequential by nature (evidence
   coefficient bug, we will need to re-pull. Mitigation: the vendored
   file's header records the upstream commit SHA, so the diff is
   traceable.
-- **`tmp/main.py` and the `.model` checkpoint are in `tmp/`**, which
-  is already gitignored. No action; noted to forestall a recurrence
-  of the false review finding.
 - **Inference performance.** Out of scope per Section 3, but should
   be mentioned in the PR description so reviewers don't expect
   parity *and* speed in this PR.
