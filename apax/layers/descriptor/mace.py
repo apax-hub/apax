@@ -21,6 +21,12 @@ import jax
 import jax.numpy as jnp
 from flax import linen as nn
 
+from apax.layers.descriptor.mace_blocks import (
+    _INTERACTION_BLOCK_CLS,
+    InteractionBlockDensity,
+    LinearNodeEmbedding,
+    ProductBlock,
+)
 from apax.utils.convert import str_to_dtype
 
 
@@ -57,8 +63,6 @@ class MaceRepresentation(nn.Module):
         Per-message normaliser forwarded to every interaction block.
     num_elements : int
         Size of the chemical-element embedding table.
-    use_cueq : bool
-        If ``True``, use cuequivariance-jax kernels where available.
     apply_mask : bool
         If ``True``, zero out masked atoms in the output.
     dtype : Any
@@ -73,18 +77,11 @@ class MaceRepresentation(nn.Module):
     interactions: tuple
     avg_num_neighbors: float
     num_elements: int
-    use_cueq: bool
     apply_mask: bool
     dtype: Any
 
     @nn.compact
     def __call__(self, dr_vec, Z, idx):
-        from apax.layers.descriptor.mace_blocks import (
-            _INTERACTION_BLOCK_CLS,
-            LinearNodeEmbedding,
-            ProductBlock,
-        )
-
         dtype = str_to_dtype(self.dtype)
         dr_vec = dr_vec.astype(dtype)
         i, j = idx[0], idx[1]
@@ -131,24 +128,24 @@ class MaceRepresentation(nn.Module):
                 str(e3nn.Irreps([hidden_irreps[0]])) if is_last else self.hidden_irreps
             )
             Block = _INTERACTION_BLOCK_CLS[inter_cfg["name"]]
-            message, sc = Block(
+            kwargs = dict(
                 node_feats_irreps=prev_irreps_str,
                 node_attrs_irreps=node_attrs_irreps_str,
                 edge_attrs_irreps=sh_irreps_str,
                 target_irreps=interaction_irreps_str,
-                hidden_irreps=this_hidden_str,
                 avg_num_neighbors=self.avg_num_neighbors,
-                layer_idx=k,
                 name=f"InteractionBlock_{k}",
-            )(node_feats, sph, radial, Z_one_hot, i, j)
+            )
+            if Block is not InteractionBlockDensity:
+                kwargs["hidden_irreps"] = this_hidden_str
+            message, sc = Block(**kwargs)(node_feats, sph, radial, Z_one_hot, i, j)
             node_feats = ProductBlock(
                 node_feats_irreps=interaction_irreps_str,
                 target_irreps=this_hidden_str,
                 correlation=self.correlation,
                 num_elements=self.num_elements,
                 use_sc=(sc is not None),
-                use_cueq=self.use_cueq,
-                layer_idx=k,
+                name=f"ProductBlock_{k}",
             )(message, sc, Z)
             per_layer_scalars.append(node_feats.filter(keep="0e").array)
             prev_irreps_str = this_hidden_str

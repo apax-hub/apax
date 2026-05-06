@@ -17,7 +17,6 @@ from apax.layers.properties import stress_times_vol
 from apax.layers.readout import AtomisticReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.utils.math import fp64_sum
-from apax.utils.parity_debug import is_parity_debug_enabled
 from apax.utils.transform import make_energy_only_model
 
 DisplacementFn = Callable[[Array, Array], Array]
@@ -108,13 +107,6 @@ class EnergyModel(nn.Module):
         g = self.representation(dr_vec, Z, idx)
         h = jax.vmap(self.readout)(g)
         E_i = self.scale_shift(h, Z)
-        # Note: sow name differs from the ``scale_shift`` submodule attribute
-        # because Flax disallows reuse of an attribute name as a sow key.
-        # Gated so the ``debug`` collection only materialises when the
-        # parity harness opens it; otherwise plain ``model.init`` callers
-        # don't get a stray ``debug`` branch in their params pytree.
-        if is_parity_debug_enabled():
-            self.sow("debug", "scale_shift_out", E_i)
 
         if self.mask_atoms:
             E_i = mask_by_atom(E_i, Z)

@@ -3,15 +3,6 @@
 Verifies that the standard apax `TransferLearningConfig` path works on a
 converted MACE backbone - no MACE-specific trainer code is needed. Gated
 by ``mace_parity`` because conversion requires torch + mace-torch.
-
-The fine-tune target keeps ``readout_kind="mace"`` to match the converter
-output's pytree structure; ``black_list_param_transfer`` cannot transfer
-into a head-swapped target (e.g. ``readout_kind="standard"``) because the
-source's ``readout_*`` keys have no slot in the target's
-``dense_*`` head and would error out at the optimizer mask step. Plumbing
-a head-swap through transfer learning would require either reset_layers
-support for source-side keys or a more permissive transfer mode in
-``apax.transfer_learning.parameter_transfer`` - flagged as a follow-up.
 """
 from pathlib import Path
 
@@ -121,12 +112,8 @@ def test_finetune_converted_small_runs_end_to_end(tmp_path):
                     {"name": "RealAgnosticResidual"},
                 ],
                 "avg_num_neighbors": 1.0,
-                "use_cueq": False,
             },
-            # Match the converter output's readout to keep pytrees
-            # structurally identical; head-swapping (readout.kind=standard)
-            # is incompatible with the current black_list_param_transfer.
-            "readout": {"kind": "mace", "MLP_irreps": "16x0e"},
+            "readout": {"MLP_irreps": "16x0e"},
             # Float64 throughout to match the converter dump.
             "descriptor_dtype": "fp64",
             "readout_dtype": "fp64",
@@ -155,7 +142,6 @@ def test_finetune_converted_small_runs_end_to_end(tmp_path):
 
     restored_cfg, restored_params = restore_parameters(ft_dir)
     assert restored_cfg.model.name == "mace"
-    assert restored_cfg.model.readout.kind == "mace"
     assert len(restored_cfg.model.descriptor.interactions) == 2
 
     import jax
@@ -231,9 +217,8 @@ def _mace_finetune_cfg(
                     {"name": "RealAgnosticResidual"},
                 ],
                 "avg_num_neighbors": 1.0,
-                "use_cueq": False,
             },
-            "readout": {"kind": "mace", "MLP_irreps": "16x0e"},
+            "readout": {"MLP_irreps": "16x0e"},
             "ensemble": {
                 "kind": "shallow",
                 "n_members": n_members,

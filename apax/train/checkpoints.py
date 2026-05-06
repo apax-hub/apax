@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 from typing import List, Tuple, Union
 
-import flax
 import jax
 import jax.numpy as jnp
 import orbax.checkpoint as ocp
@@ -21,11 +20,11 @@ def check_for_ensemble(params: FrozenDict) -> int:
     This is the case if all parameters share the same first dimension (parameter batch)
     """
     flat_params = flatten_dict(params)
-    # 0-d scalar leaves (e.g. torch-style scalar buffers like
-    # ``MaceZBLPairRepulsion.a_exp``) have no axis 0; treat them as size 1.
-    # Real ensembles always stack via ``jnp.stack`` which lifts every leaf to
-    # at least 1-d, so the 0-d branch only fires for single-model pytrees.
-    shapes = [v.shape[0] if v.ndim > 0 else 1 for v in flat_params.values()]
+    # Only the trainable ``params`` collection participates in ensembling;
+    # variable collections (``buffers`` etc.) carry static config-like state
+    # whose shape is never lifted by ``jnp.stack`` / ``jax.vmap``.
+    trainable = [v for path, v in flat_params.items() if path[0] == "params"]
+    shapes = [v.shape[0] for v in trainable]
     is_ensemble = len(set(shapes)) == 1
 
     if is_ensemble:
@@ -59,18 +58,14 @@ def create_params(model, rng_key, sample_input: tuple, n_models: int):
 
     log.info(f"Initializing {n_models} model(s)")
 
-    # Drop the ``debug`` collection (used by ``scripts/mace_layer_parity.py``
-    # for layer-by-layer parity diffs); it carries vmap tracers during init
-    # that downstream code can't process and is irrelevant to training.
-    init_mutable = flax.core.DenyList("debug")
     if n_models == 1:
-        params = model.init(model_rng[0], *sample_input, mutable=init_mutable)
+        params = model.init(model_rng[0], *sample_input)
     elif n_models > 1:
         num_args = len(sample_input)
         # vmap only over parameters, not over any data from the input
         in_axes = (0, *[None] * num_args)
         params = jax.vmap(
-            lambda rng, *args: model.init(rng, *args, mutable=init_mutable),
+            lambda rng, *args: model.init(rng, *args),
             in_axes=in_axes,
         )(model_rng, *sample_input)
     else:

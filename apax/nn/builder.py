@@ -1,5 +1,6 @@
 import logging
 
+import e3nn_jax as e3nn
 import numpy as np
 
 from apax.config import ModelConfig
@@ -14,11 +15,13 @@ from apax.layers.descriptor.basis_functions import (
     BesselBasis,
     GaussianBasis,
     MaceBesselBasis,
+    MaceRadialEmbedding,
     RadialFunction,
 )
+from apax.layers.descriptor.mace import MaceRepresentation
 from apax.layers.empirical import all_corrections
 from apax.layers.properties import PropertyHead
-from apax.layers.readout import AtomisticReadout
+from apax.layers.readout import AtomisticReadout, MaceReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.nn.models import (
     EnergyDerivativeModel,
@@ -97,20 +100,6 @@ class ModelBuilder:
     def build_readout(
         self, head_config, is_feature_fn=False, only_use_n_layers: None | int = None
     ):
-        is_energy_head = head_config is self.config
-        if (
-            not is_energy_head
-            and isinstance(head_config, dict)
-            and head_config.get("kind") == "mace"
-        ):
-            raise ValueError(
-                f"property_head '{head_config.get('name')}' uses kind='mace' "
-                f"but the model is {self.config['name']}; MaceReadout requires "
-                "the per-layer-concatenated feature shape that only "
-                "MaceRepresentation produces. "
-                "Set kind='standard' instead, or change the model to MACE."
-            )
-
         has_ensemble = "ensemble" in head_config.keys() and head_config["ensemble"]
         if has_ensemble and head_config["ensemble"]["kind"] == "shallow":
             n_shallow_ensemble = head_config["ensemble"]["n_members"]
@@ -343,9 +332,6 @@ class MaceBuilder(ModelBuilder):
         self,
         apply_mask,
     ):
-        from apax.layers.descriptor.basis_functions import MaceRadialEmbedding
-        from apax.layers.descriptor.mace import MaceRepresentation
-
         re_cfg = self.config["radial_embedding"]
         desc_cfg = self.config["descriptor"]
 
@@ -364,18 +350,12 @@ class MaceBuilder(ModelBuilder):
                 f"distance_transform {dt_cfg['name']!r} not supported"
             )
 
-        # Single basis-dispatch path: build_basis_function() honours
-        # config.basis.variant (Task 1).
-        basis_fn = self.build_basis_function()
         radial_embedding = MaceRadialEmbedding(
-            basis_fn=basis_fn,
+            basis_fn=self.build_basis_function(),
             num_polynomial_cutoff=re_cfg["num_polynomial_cutoff"],
             r_max=self.config["basis"]["r_max"],
             distance_transform=distance_transform,
         )
-
-        # Linen rejects list-typed fields; coerce to tuple here once.
-        interactions = tuple(desc_cfg["interactions"])
 
         descriptor = MaceRepresentation(
             radial_embedding=radial_embedding,
@@ -383,10 +363,9 @@ class MaceBuilder(ModelBuilder):
             max_ell=desc_cfg["max_ell"],
             hidden_irreps=desc_cfg["hidden_irreps"],
             correlation=desc_cfg["correlation"],
-            interactions=interactions,
+            interactions=tuple(desc_cfg["interactions"]),
             avg_num_neighbors=desc_cfg["avg_num_neighbors"],
             num_elements=self.n_species,
-            use_cueq=desc_cfg["use_cueq"],
             apply_mask=apply_mask,
             dtype=self.config["descriptor_dtype"],
         )
@@ -400,57 +379,36 @@ class MaceBuilder(ModelBuilder):
     ):
         is_energy_head = head_config is self.config
 
+        if is_energy_head and is_feature_fn:
+            return super().build_readout(
+                head_config, is_feature_fn, only_use_n_layers
+            )
+
         if is_energy_head:
             readout_cfg = self.config["readout"]
-            if readout_cfg["kind"] != "mace" or is_feature_fn:
-                return super().build_readout(
-                    head_config, is_feature_fn, only_use_n_layers
-                )
-
-            import e3nn_jax as e3nn
-
-            from apax.layers.readout import MaceReadout
-
-            n_shallow_ensemble = 0
-            ens = (
-                head_config.get("ensemble")
-                if isinstance(head_config, dict)
-                else None
+            ens = self.config.get("ensemble") or {}
+            n_shallow_ensemble = (
+                ens["n_members"] if ens.get("kind") == "shallow" else 0
             )
-            if ens and ens.get("kind") == "shallow":
-                n_shallow_ensemble = ens["n_members"]
-
-            desc_cfg = self.config["descriptor"]
-            hidden_dim = e3nn.Irreps(desc_cfg["hidden_irreps"]).filter("0e").dim
-            return MaceReadout(
-                num_interactions=len(desc_cfg["interactions"]),
-                hidden_dim=hidden_dim,
+            return self._build_mace_readout(
                 MLP_irreps=readout_cfg["MLP_irreps"],
                 n_shallow_ensemble=n_shallow_ensemble,
                 dtype=self.config["readout_dtype"],
             )
 
-        # Property-head path: dispatch on the per-head ``kind``.
-        kind = head_config.get("kind", "standard")
-        if kind == "standard":
-            raise ValueError(
-                f"property_head '{head_config.get('name')}' uses kind='standard' "
-                "but the model is MACE; AtomisticReadout doesn't respect MACE's "
-                "per-layer body-order structure. Set kind='mace' explicitly, "
-                "or change the model."
-            )
+        return self._build_mace_readout(
+            MLP_irreps=head_config["MLP_irreps"],
+            n_shallow_ensemble=head_config["n_shallow_members"],
+            dtype=head_config["dtype"],
+        )
 
-        # kind == "mace"
-        import e3nn_jax as e3nn
-
-        from apax.layers.readout import MaceReadout
-
+    def _build_mace_readout(self, *, MLP_irreps, n_shallow_ensemble, dtype):
         desc_cfg = self.config["descriptor"]
         hidden_dim = e3nn.Irreps(desc_cfg["hidden_irreps"]).filter("0e").dim
         return MaceReadout(
             num_interactions=len(desc_cfg["interactions"]),
             hidden_dim=hidden_dim,
-            MLP_irreps=head_config["MLP_irreps"],
-            n_shallow_ensemble=head_config["n_shallow_members"],
-            dtype=head_config["dtype"],
+            MLP_irreps=MLP_irreps,
+            n_shallow_ensemble=n_shallow_ensemble,
+            dtype=dtype,
         )

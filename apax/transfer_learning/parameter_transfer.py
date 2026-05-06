@@ -21,23 +21,20 @@ class TransferLearningShapeMismatchError(ValueError):
     """
 
 
+def _path_to_str(path: tuple) -> str:
+    """Render a flax-traverse path tuple as a ``/``-joined string."""
+    return "/".join(map(str, path))
+
+
 def _is_blacklisted(path: tuple, param_black_list: list) -> bool:
     """Match a leaf path against ``reset_layers`` entries.
 
     A leaf is blacklisted if either the legacy ``p[-2]`` suffix matches an
     entry, or the full ``/``-joined path matches an entry.
-
-    Parameters
-    ----------
-    path
-        Tuple of string path components.
-    param_black_list
-        List of ``reset_layers`` entries (legacy suffixes or full paths).
     """
-    full_path = "/".join(map(str, path))
     return (
         (len(path) >= 2 and path[-2] in param_black_list)
-        or full_path in param_black_list
+        or _path_to_str(path) in param_black_list
     )
 
 
@@ -50,26 +47,14 @@ def _format_combined_error(
     structural: list,
     shape: list,
 ) -> str:
-    """Build the actionable error message body.
-
-    Parameters
-    ----------
-    structural
-        List of ``(parent_tuple, src_orphan_paths, tgt_orphan_paths,
-        src_shapes, tgt_shapes)`` entries — one per parent path with
-        sibling orphans on both sides.
-    shape
-        List of ``(leaf_path_tuple, source_shape, target_shape)`` triples
-        for same-path different-shape mismatches.
-    """
+    """Build the actionable error message body."""
     n_total = sum(len(s[2]) for s in structural) + len(shape)
     lines = [f"Transfer learning mismatch on {n_total} parameter slot(s):", ""]
 
     if structural:
         lines.append("Structural mismatches (source/target diverge under same parent):")
         for parent, src_only, tgt_only, src_shapes, tgt_shapes in structural:
-            parent_str = "/".join(map(str, parent)) + "/"
-            lines.append(f"  {parent_str}")
+            lines.append(f"  {_path_to_str(parent)}/")
             for p in sorted(src_only):
                 lines.append(f"    source: {p[-1]}   shape={src_shapes[p]}")
             for p in sorted(tgt_only):
@@ -79,8 +64,7 @@ def _format_combined_error(
     if shape:
         lines.append("Shape mismatches (same path, different shape):")
         for path, src_shape, tgt_shape in shape:
-            joined = "/".join(map(str, path))
-            lines.append(f"  {joined}")
+            lines.append(f"  {_path_to_str(path)}")
             lines.append(f"    source: {tuple(src_shape)}   target: {tuple(tgt_shape)}")
         lines.append("")
 
@@ -92,11 +76,11 @@ def _format_combined_error(
     lines.append("")
     lines.append("  transfer_learning:")
     lines.append("    reset_layers:")
-    for parent, _src_only, tgt_only, _ss, _ts in structural:
+    for _parent, _src_only, tgt_only, _ss, _ts in structural:
         for p in sorted(tgt_only):
-            lines.append(f"      - {'/'.join(map(str, p))}")
+            lines.append(f"      - {_path_to_str(p)}")
     for path, _src, _tgt in shape:
-        lines.append(f"      - {'/'.join(map(str, path))}")
+        lines.append(f"      - {_path_to_str(path)}")
     return "\n".join(lines)
 
 
@@ -184,10 +168,10 @@ def black_list_param_transfer(
     shape_mismatches: list = []
     for p, v in flat_source.items():
         if _is_blacklisted(p, param_black_list):
-            log.info("Skipping (reset_layers): %s", "/".join(map(str, p)))
+            log.info("Skipping (reset_layers): %s", _path_to_str(p))
             continue
         if p not in flat_target:
-            log.info("Skipping (no target slot): %s", "/".join(map(str, p)))
+            log.info("Skipping (no target slot): %s", _path_to_str(p))
             continue
         src_shape = _shape_of(v)
         tgt_shape = _shape_of(flat_target[p])
@@ -195,7 +179,7 @@ def black_list_param_transfer(
             shape_mismatches.append((p, src_shape, tgt_shape))
             continue
         flat_target[p] = v
-        log.info("Transferring parameter: %s", "/".join(map(str, p)))
+        log.info("Transferring parameter: %s", _path_to_str(p))
 
     # 3) Combined raise
     if structural or shape_mismatches:

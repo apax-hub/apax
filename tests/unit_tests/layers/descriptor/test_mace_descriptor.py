@@ -50,7 +50,6 @@ def test_mace_representation_contract(tiny_system):
         ),
         avg_num_neighbors=1.0,
         num_elements=119,
-        use_cueq=False,
         apply_mask=True,
         dtype=jnp.float32,
     )
@@ -72,7 +71,6 @@ def test_mace_representation_rejects_no_scalar_irreps(tiny_system):
         interactions=({"name": "RealAgnosticResidual"},),
         avg_num_neighbors=1.0,
         num_elements=119,
-        use_cueq=False,
         apply_mask=True,
         dtype=jnp.float32,
     )
@@ -95,7 +93,6 @@ def test_mace_representation_per_layer_variants(tiny_system):
         ),
         avg_num_neighbors=1.0,
         num_elements=5,
-        use_cueq=False,
         apply_mask=True,
         dtype=jnp.float32,
     )

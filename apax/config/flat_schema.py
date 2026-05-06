@@ -2,7 +2,7 @@
 
 import json
 import pathlib
-import types as _types
+import types
 from typing import Literal, Union, get_args, get_origin
 
 from pydantic import BaseModel
@@ -28,7 +28,7 @@ def _is_model(cls):
 
 
 def _is_union(annotation):
-    return get_origin(annotation) is Union or isinstance(annotation, _types.UnionType)
+    return get_origin(annotation) is Union or isinstance(annotation, types.UnionType)
 
 
 def _classify(annotation):

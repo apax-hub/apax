@@ -35,9 +35,7 @@ model:
     interactions:
       - name: RealAgnosticResidual
     avg_num_neighbors: 1.0
-    use_cueq: false
   readout:
-    kind: mace
     MLP_irreps: 16x0e
 
   nn: [16, 16]

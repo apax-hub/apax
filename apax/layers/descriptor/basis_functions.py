@@ -6,9 +6,9 @@ import jax.numpy as jnp
 import numpy as np
 from ase import data
 
+from apax.layers.empirical import DR_FLOOR
 from apax.layers.initializers import uniform_range
 from apax.utils.convert import str_to_dtype
-from apax.utils.parity_debug import is_parity_debug_enabled
 
 
 class GaussianBasis(nn.Module):
@@ -281,37 +281,7 @@ class AgnesiTransform(nn.Module):
     p_init: float = 4.5791
     trainable: bool = False
 
-    def setup(self):
-        self.covalent_radii = self.variable(
-            "buffers",
-            "covalent_radii",
-            lambda: jnp.asarray(data.covalent_radii, dtype=jnp.float64),
-        )
-        if self.trainable:
-            self.a = self.param(
-                "a", lambda rng: jnp.asarray(self.a_init, dtype=jnp.float64)
-            )
-            self.q = self.param(
-                "q", lambda rng: jnp.asarray(self.q_init, dtype=jnp.float64)
-            )
-            self.p = self.param(
-                "p", lambda rng: jnp.asarray(self.p_init, dtype=jnp.float64)
-            )
-        else:
-            self.a = self.variable(
-                "buffers", "a", lambda: jnp.asarray(self.a_init, dtype=jnp.float64)
-            )
-            self.q = self.variable(
-                "buffers", "q", lambda: jnp.asarray(self.q_init, dtype=jnp.float64)
-            )
-            self.p = self.variable(
-                "buffers", "p", lambda: jnp.asarray(self.p_init, dtype=jnp.float64)
-            )
-
-    def _scalar(self, x):
-        """Resolve a scalar parameter (Variable for buffers, Array for params)."""
-        return x.value if hasattr(x, "value") else x
-
+    @nn.compact
     def __call__(self, r, Z, idx):
         """Apply the Agnesi transform to per-edge distances.
 
@@ -330,22 +300,30 @@ class AgnesiTransform(nn.Module):
         jnp.ndarray
             Transformed distances of shape ``(n_edges,)``.
         """
+        cov = self.variable(
+            "buffers", "covalent_radii",
+            lambda: jnp.asarray(data.covalent_radii, dtype=jnp.float64),
+        ).value
+        scalar_collection = "params" if self.trainable else "buffers"
+        a = self.variable(
+            scalar_collection, "a",
+            lambda: jnp.asarray(self.a_init, dtype=jnp.float64),
+        ).value
+        q = self.variable(
+            scalar_collection, "q",
+            lambda: jnp.asarray(self.q_init, dtype=jnp.float64),
+        ).value
+        p = self.variable(
+            scalar_collection, "p",
+            lambda: jnp.asarray(self.p_init, dtype=jnp.float64),
+        ).value
+
         i, j = idx[0], idx[1]
         Z_u, Z_v = Z[i], Z[j]
-        cov = self.covalent_radii.value
-        # Clip r0 away from zero so masked / padding edges (which can carry
-        # ``Z=0`` and dr=0) don't trigger ``0**(q-p)=0**negative=inf`` and
-        # poison gradients via ``inf - inf`` style cancellations. The clip
-        # only fires on the masked branch; physical edges always have
-        # ``r0 >= 0.5*(min covalent_radii)`` which is well above the floor.
-        r0 = jnp.clip(0.5 * (cov[Z_u] + cov[Z_v]), min=0.02)
-        # Clip ``r`` similarly so ``x = r/r0`` is bounded away from zero;
-        # physical edges have ``r > 0`` but jax.where-style masks may carry
-        # ``r = 0`` past the transform.
-        r_safe = jnp.clip(r, min=0.02)
-        a = self._scalar(self.a)
-        q = self._scalar(self.q)
-        p = self._scalar(self.p)
+        # Clip r0 and r away from zero so masked / padding edges (Z=0, dr=0)
+        # don't trigger 0**(q-p) = inf and poison gradients via inf - inf.
+        r0 = jnp.clip(0.5 * (cov[Z_u] + cov[Z_v]), min=DR_FLOOR)
+        r_safe = jnp.clip(r, min=DR_FLOOR)
         x = r_safe / r0
         denom = 1.0 + a * (x**q) / (1.0 + (x ** (q - p)))
         return 1.0 / denom
@@ -421,6 +399,4 @@ class MaceRadialEmbedding(nn.Module):
             r_ij = self.distance_transform(r_ij, Z, idx)
         bessel = self.basis_fn(r_ij)
         radial = (bessel * cutoff[..., None]).astype(dtype)
-        if is_parity_debug_enabled():
-            self.sow("debug", "radial_embedding", radial)
         return radial

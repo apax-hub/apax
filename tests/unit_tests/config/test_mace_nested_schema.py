@@ -29,7 +29,6 @@ def test_mace_model_config_default_subgroups_present():
     assert cfg.descriptor.max_ell == 3
     assert cfg.descriptor.hidden_irreps == "128x0e + 128x1o"
     assert cfg.descriptor.correlation == 3
-    assert cfg.readout.kind == "mace"
     assert cfg.readout.MLP_irreps == "16x0e"
 
 
@@ -61,9 +60,7 @@ descriptor:
     - name: RealAgnosticDensity
     - name: RealAgnosticDensityResidual
   avg_num_neighbors: 62.0
-  use_cueq: false
 readout:
-  kind: mace
   MLP_irreps: 16x0e
 """
     raw = yaml.safe_load(yml)

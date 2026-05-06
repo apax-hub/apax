@@ -16,11 +16,6 @@
 #   3. Re-run; the listed slots stay random-initialized (the classical
 #      "drop scalar head, attach N-output head, train" pattern), every
 #      other slot transfers from the foundation.
-#
-# This is the standard apax mechanism for going from a single-output
-# foundation to an n_members shallow ensemble. The `model:` and
-# `transfer_learning:` blocks below are unchanged across the two runs;
-# only `reset_layers` grows.
 
 n_epochs: 50
 seed: 1
@@ -51,9 +46,7 @@ model:
       - name: RealAgnosticResidual
       - name: RealAgnosticResidual
     avg_num_neighbors: 1.0
-    use_cueq: false
   readout:
-    kind: mace
     MLP_irreps: 16x0e
   ensemble:
     kind: shallow

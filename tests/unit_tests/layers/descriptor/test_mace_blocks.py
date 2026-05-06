@@ -9,50 +9,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from apax.layers.descriptor.mace_blocks import assemble_edge_features
-
-
-def test_assemble_edge_features_shapes():
-    dr = jnp.asarray(np.random.default_rng(0).normal(size=(8, 3))).astype(jnp.float32)
-    radial, sph = assemble_edge_features(
-        dr,
-        r_max=5.0,
-        num_bessel=8,
-        num_poly_cutoff=5,
-        max_ell=2,
-    )
-    # Radial: (n_edges, num_bessel)
-    assert radial.shape == (8, 8)
-    # Spherical harmonics: 0e + 1o + 2e = 1 + 3 + 5 = 9 real components
-    assert sph.array.shape == (8, 9)
-
-
-def test_assemble_edge_features_cutoff_zeroes_far_edges():
-    """Edges beyond r_max get zero radial features (cutoff envelope)."""
-    dr = jnp.asarray([[0.0, 0.0, 10.0]] * 4).astype(jnp.float32)  # |r| = 10 > r_max=5
-    radial, _ = assemble_edge_features(
-        dr,
-        r_max=5.0,
-        num_bessel=4,
-        num_poly_cutoff=5,
-        max_ell=1,
-    )
-    assert jnp.allclose(radial, 0.0, atol=1e-6)
-
-
-def test_assemble_edge_features_dtype_preserved():
-    dr = jnp.asarray(np.random.default_rng(0).normal(size=(4, 3))).astype(jnp.float64)
-    radial, sph = assemble_edge_features(
-        dr,
-        r_max=5.0,
-        num_bessel=4,
-        num_poly_cutoff=5,
-        max_ell=1,
-    )
-    assert radial.dtype == jnp.float64
-    assert sph.array.dtype == jnp.float64
-
-
 from apax.layers.descriptor.mace_blocks import LinearNodeEmbedding
 
 
@@ -69,7 +25,7 @@ def test_linear_node_embedding_scalar_output():
     assert str(out.irreps) == "16x0e"
 
 
-from apax.layers.descriptor.mace_blocks import InteractionBlock
+from apax.layers.descriptor.mace_blocks import InteractionBlockResidual
 
 
 def test_interaction_block_shape_and_finite():
@@ -98,13 +54,12 @@ def test_interaction_block_shape_and_finite():
     i = jnp.asarray(np.random.default_rng(3).integers(0, n_atoms, size=n_edges))
     j = jnp.asarray(np.random.default_rng(4).integers(0, n_atoms, size=n_edges))
 
-    block = InteractionBlock(
+    block = InteractionBlockResidual(
         node_feats_irreps=node_feats_irreps,
         node_attrs_irreps=node_attrs_irreps,
         edge_attrs_irreps=sph_irreps,
         target_irreps=target_irreps,
         hidden_irreps=hidden_irreps,
-        layer_idx=0,
     )
     params = block.init(
         jax.random.PRNGKey(0),
@@ -136,7 +91,6 @@ def test_product_block_shape_and_finite():
         correlation=3,
         num_elements=10,
         use_sc=False,
-        layer_idx=0,
     )
     params = block.init(jax.random.PRNGKey(0), node_feats, None, Z)
     out = block.apply(params, node_feats, None, Z)
@@ -160,7 +114,6 @@ def test_product_block_weight_param_shape():
         correlation=correlation,
         num_elements=num_elements,
         use_sc=False,
-        layer_idx=0,
     )
     params = block.init(jax.random.PRNGKey(0), node_feats, None, Z)
     weight = params["params"]["weight"]
@@ -184,7 +137,6 @@ def test_product_block_z_changes_output():
         correlation=3,
         num_elements=10,
         use_sc=False,
-        layer_idx=0,
     )
     Z_a = jnp.array([0, 1, 2, 3], dtype=jnp.int32)
     Z_b = jnp.array([5, 6, 7, 8], dtype=jnp.int32)
@@ -283,13 +235,12 @@ def test_interaction_block_emits_target_irreps_and_skip():
     target_irreps = "8x0e + 8x1o + 8x2e"           # interaction_irreps
     hidden_irreps = "8x0e"
 
-    block = InteractionBlock(
+    block = InteractionBlockResidual(
         node_feats_irreps=node_feats_irreps,
         node_attrs_irreps=node_attrs_irreps,
         edge_attrs_irreps=edge_attrs_irreps,
         target_irreps=target_irreps,
         hidden_irreps=hidden_irreps,
-        layer_idx=0,
     )
     rng = jax.random.PRNGKey(0)
     node_feats = e3nn.IrrepsArray(
@@ -333,7 +284,6 @@ def test_product_block_emits_target_irreps_with_skip():
         correlation=2,
         num_elements=5,
         use_sc=True,
-        layer_idx=0,
     )
     node_feats = e3nn.IrrepsArray(
         node_feats_irreps,
@@ -424,8 +374,6 @@ def test_interaction_block_density_shape_and_finite():
         node_attrs_irreps=ctx["node_attrs_irreps"],
         edge_attrs_irreps=ctx["sph_irreps"],
         target_irreps=ctx["target_irreps"],
-        hidden_irreps=ctx["hidden_irreps"],  # unused
-        layer_idx=0,
     )
     params = block.init(
         jax.random.PRNGKey(0),
@@ -453,7 +401,6 @@ def test_interaction_block_density_residual_shape_and_finite():
         edge_attrs_irreps=ctx["sph_irreps"],
         target_irreps=ctx["target_irreps"],
         hidden_irreps=ctx["hidden_irreps"],
-        layer_idx=0,
     )
     params = block.init(
         jax.random.PRNGKey(0),
@@ -487,7 +434,6 @@ def test_interaction_scaffold_param_names_match_torch():
         edge_attrs_irreps=ctx["sph_irreps"],
         target_irreps=ctx["target_irreps"],
         hidden_irreps=ctx["hidden_irreps"],
-        layer_idx=0,
     )
     params = block.init(
         jax.random.PRNGKey(0),
@@ -506,8 +452,6 @@ def test_interaction_block_density_param_tree_has_density_fn():
         node_attrs_irreps=ctx["node_attrs_irreps"],
         edge_attrs_irreps=ctx["sph_irreps"],
         target_irreps=ctx["target_irreps"],
-        hidden_irreps=ctx["hidden_irreps"],
-        layer_idx=0,
     )
     params = block.init(
         jax.random.PRNGKey(0),

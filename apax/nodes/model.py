@@ -33,6 +33,9 @@ log = logging.getLogger(__name__)
 
 
 class ApaxBase(zntrack.Node):
+    nl_skin: float = zntrack.params(0.5)
+    disable_cell_list: bool = zntrack.params(False)
+
     def get_calculator(self, **kwargs):
         raise NotImplementedError
 
@@ -58,8 +61,6 @@ class Apax(ApaxBase):
     config: str = zntrack.params_path()
     validation_data: list[ase.Atoms] = zntrack.deps()
     model: t.Optional[ApaxBase] = zntrack.deps(None)
-    nl_skin: float = zntrack.params(0.5)
-    disable_cell_list: bool = zntrack.params(False)
     log_level: str = zntrack.params("info")
 
     model_directory: pathlib.Path = zntrack.outs_path(zntrack.nwd / "apax_model")
@@ -154,7 +155,7 @@ class ApaxApplyTransformation(ApaxBase):
                 model_dir=self.model_directory,
                 dr_threshold=self.model.nl_skin,
                 transformations=self.transformations,
-                disable_cell_list=getattr(self.model, "disable_cell_list", False),
+                disable_cell_list=self.model.disable_cell_list,
             )
             return calc
 
@@ -171,8 +172,6 @@ class ApaxEnsemble(ApaxBase):
     """
 
     models: list[Apax] = zntrack.deps()
-    nl_skin: float = zntrack.params(0.5)
-    disable_cell_list: bool = zntrack.params(False)
 
     def run(self) -> None:
         pass
@@ -270,9 +269,6 @@ class ApaxCalibrate(ApaxBase):
     optimizer_bounds: t.Tuple[float, float] = zntrack.params((1e-2, 1e2))
 
     transformations: t.Optional[list[dict[str, dict]]] = zntrack.params(None)
-
-    nl_skin: float = zntrack.params(0.5)
-    disable_cell_list: bool = zntrack.params(False)
 
     metrics: dict = zntrack.metrics()
 

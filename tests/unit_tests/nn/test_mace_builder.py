@@ -22,9 +22,8 @@ def _minimal_cfg(**overrides):
                 {"name": "RealAgnosticResidual"},
             ],
             "avg_num_neighbors": 1.0,
-            "use_cueq": False,
         },
-        readout={"kind": "mace", "MLP_irreps": "16x0e"},
+        readout={"MLP_irreps": "16x0e"},
         descriptor_dtype="fp32",
         readout_dtype="fp32",
         scale_shift_dtype="fp64",
@@ -42,15 +41,6 @@ def test_mace_builder_uses_mace_readout_by_default():
     assert readout.num_interactions == 2
     assert readout.hidden_dim == 8
     assert readout.MLP_irreps == "16x0e"
-
-
-def test_mace_builder_standard_readout_falls_back():
-    from apax.layers.readout import AtomisticReadout
-
-    cfg = _minimal_cfg(readout={"kind": "standard", "MLP_irreps": "16x0e"})
-    builder = MaceBuilder(cfg, n_species=5)
-    readout = builder.build_readout(builder.config)
-    assert isinstance(readout, AtomisticReadout)
 
 
 def test_mace_builder_shallow_ensemble_plumbs_n_members():

@@ -12,7 +12,6 @@ from apax.layers.descriptor.mace_blocks import (
 )
 from apax.layers.ntk_linear import NTKLinear
 from apax.utils.convert import str_to_dtype
-from apax.utils.parity_debug import is_parity_debug_enabled
 
 
 class AtomisticReadout(nn.Module):
@@ -122,13 +121,5 @@ class MaceReadout(nn.Module):
                     n_out=n_out,
                     name=f"readout_{k}",
                 )(feat)
-            # NOTE: this sow runs inside jax.vmap (EnergyModel calls
-            # jax.vmap(self.readout)); consumers of the "debug" collection must
-            # unwrap BatchTracer.val to recover the underlying batched array.
-            # Switching to flax.linen.vmap would lift sow natively, but that's
-            # a production-path change.
-            # Gated so plain ``model.init`` doesn't sprout a ``debug`` branch.
-            if is_parity_debug_enabled():
-                self.sow("debug", f"readouts[{k}]", contrib)
             E = E + contrib
         return E

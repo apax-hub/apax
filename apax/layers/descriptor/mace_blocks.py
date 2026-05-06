@@ -1,17 +1,11 @@
 """Building blocks for :class:`~apax.layers.descriptor.mace.MaceRepresentation`.
 
-Each block is a Flax linen ``nn.Module`` (or a pure function for stateless
-utilities) and is independently testable. Layer order inside
-``MaceRepresentation`` is::
+Layer order inside ``MaceRepresentation`` is::
 
-    LinearNodeEmbedding → N× (InteractionBlock → ProductBlock) → concat scalar features
+    LinearNodeEmbedding -> N x (InteractionBlock -> ProductBlock) -> concat scalars
 
-Equivariant primitives:
-- Irreps / IrrepsArray / tensor products: ``e3nn_jax``
-- Symmetric contraction: ``cuequivariance`` / ``cuequivariance_jax``
-
-``cuequivariance-jax`` has a pure-JAX path so blocks work on CPU; CUDA kernels
-are an optional acceleration when ``use_cueq=True`` and GPUs are present.
+Equivariant primitives use ``e3nn_jax`` (irreps, tensor products) and
+``cuequivariance`` / ``cuequivariance_jax`` (symmetric contraction).
 """
 
 from __future__ import annotations
@@ -27,8 +21,6 @@ from cuequivariance.group_theory.experimental.mace.symmetric_contractions import
     symmetric_contraction as _cue_mace_symmetric_contraction,
 )
 from flax import linen as nn
-
-from apax.utils.parity_debug import is_parity_debug_enabled
 
 # torch-mace's :class:`e3nn.nn.FullyConnectedNet` wraps every hidden layer's
 # activation in :class:`e3nn.math.normalize2mom`, which estimates the L2 moment
@@ -103,69 +95,6 @@ class _MaceFullyConnectedNet(nn.Module):
             if i < n_layers - 1:
                 x = _silu_torch_normalized(x)
         return x
-
-
-def assemble_edge_features(dr_vec, r_max, num_bessel, num_poly_cutoff, max_ell):
-    """Back-compat shim that wraps :class:`MaceRadialEmbedding` (no transform).
-
-    Existing callers (and tests) construct radial features without a
-    distance transform; this thin wrapper preserves their signature by
-    instantiating :class:`MaceRadialEmbedding` with
-    ``distance_transform=None`` and applying it to ``dr_vec``. The dummy
-    ``Z`` / ``idx`` arrays are never consumed because the no-transform path
-    does not read them.
-
-    Parameters
-    ----------
-    dr_vec : Array, shape (n_edges, 3)
-        Relative position vectors ``r_j - r_i`` for each neighbor pair.
-    r_max : float
-        Interaction cutoff in the same units as ``dr_vec``.
-    num_bessel : int
-        Number of Bessel radial basis functions.
-    num_poly_cutoff : int
-        Polynomial order of the smooth envelope cutoff.
-    max_ell : int
-        Maximum spherical-harmonic degree (inclusive). Output irreps are
-        ``spherical_harmonics(max_ell)`` which is ``0e + 1o + ... + max_ell(e|o)``.
-
-    Returns
-    -------
-    radial : Array, shape (n_edges, num_bessel)
-        Bessel basis multiplied element-wise by the polynomial cutoff envelope.
-        Zero for ``|r| >= r_max``.
-    sph : e3nn_jax.IrrepsArray
-        Spherical harmonics of ``dr_vec``, normalized on the unit sphere with
-        the ``"component"`` normalization that MACE uses.
-
-    Notes
-    -----
-    The dtype of both outputs matches the dtype of ``dr_vec``.
-    """
-    from apax.layers.descriptor.basis_functions import (
-        MaceBesselBasis,
-        MaceRadialEmbedding,
-    )
-
-    basis_fn = MaceBesselBasis(
-        n_basis=num_bessel, r_max=r_max, dtype=dr_vec.dtype,
-    )
-    module = MaceRadialEmbedding(
-        basis_fn=basis_fn,
-        num_polynomial_cutoff=num_poly_cutoff,
-        r_max=r_max,
-        distance_transform=None,
-    )
-    Z_dummy = jnp.zeros((1,), dtype=jnp.int32)
-    idx_dummy = jnp.zeros((2, dr_vec.shape[0]), dtype=jnp.int32)
-    radial = module.apply({}, dr_vec, Z_dummy, idx_dummy)
-    sph = e3nn.spherical_harmonics(
-        e3nn.Irreps.spherical_harmonics(max_ell),
-        dr_vec,
-        normalize=True,
-        normalization="component",
-    )
-    return radial, sph
 
 
 class LinearNodeEmbedding(nn.Module):
@@ -257,7 +186,6 @@ def _interaction_scaffold(
     edge_attrs_irreps: e3nn.Irreps,
     target_irreps: e3nn.Irreps,
     radial_mlp: tuple,
-    sow_fn=None,
 ):
     """Common interaction-block prefix shared by all three variants.
 
@@ -296,8 +224,6 @@ def _interaction_scaffold(
         normalisation.
     """
     x = e3nn.flax.Linear(node_feats_irreps, name="linear_up")(node_feats)
-    if sow_fn is not None:
-        sow_fn("linear_up", x.array)
     irreps_mid, _instructions = tp_out_irreps_with_instructions(
         node_feats_irreps, edge_attrs_irreps, target_irreps,
     )
@@ -312,13 +238,9 @@ def _interaction_scaffold(
         list_neurons=tuple(radial_mlp) + (n_paths,), name="radial_mlp",
     )(edge_feats)
     weighted = tp * weights
-    if sow_fn is not None:
-        sow_fn("conv_tp", weighted.array)
 
     agg = e3nn.scatter_sum(weighted, dst=receivers, output_size=node_feats.shape[0])
     out = e3nn.flax.Linear(target_irreps, name="linear")(agg)
-    if sow_fn is not None:
-        sow_fn("linear", out.array)
     return out
 
 
@@ -404,25 +326,15 @@ class InteractionBlockResidual(nn.Module):
     hidden_irreps: str
     radial_mlp: tuple = (64, 64, 64)
     avg_num_neighbors: float = 1.0
-    layer_idx: int = -1  # Must be set by the parent module for sow naming.
 
     @nn.compact
     def __call__(
         self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders,
     ):
-        if self.layer_idx < 0:
-            raise ValueError(
-                f"{type(self).__name__} requires layer_idx to be set by the parent module"
-            )
         node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
         edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
         target_irreps = e3nn.Irreps(self.target_irreps)
         hidden_irreps = e3nn.Irreps(self.hidden_irreps)
-
-        def _sow(slot, arr):
-            # Gated so plain ``model.init`` doesn't sprout a ``debug`` branch.
-            if is_parity_debug_enabled():
-                self.sow("debug", f"interactions[{self.layer_idx}].{slot}", arr)
 
         message = _interaction_scaffold(
             node_feats, edge_attrs, edge_feats, receivers, senders,
@@ -430,7 +342,6 @@ class InteractionBlockResidual(nn.Module):
             edge_attrs_irreps=edge_attrs_irreps,
             target_irreps=target_irreps,
             radial_mlp=self.radial_mlp,
-            sow_fn=_sow,
         )
         message = message / self.avg_num_neighbors
 
@@ -442,15 +353,7 @@ class InteractionBlockResidual(nn.Module):
         sc = e3nn.flax.Linear(
             hidden_irreps, name="skip_tp", force_irreps_out=True,
         )(skip_input)
-        _sow("skip_tp", sc.array)
         return message, sc
-
-
-# Back-compat alias: the existing ``InteractionBlock`` symbol is referenced by
-# tests, the converter (``rep_params["InteractionBlock_{k}"]``), and external
-# imports. Keep it pointing at the Residual variant so existing param trees
-# round-trip unchanged.
-InteractionBlock = InteractionBlockResidual
 
 
 class InteractionBlockDensity(nn.Module):
@@ -476,29 +379,16 @@ class InteractionBlockDensity(nn.Module):
     node_attrs_irreps: str
     edge_attrs_irreps: str
     target_irreps: str
-    # Unused — kept for parity with InteractionBlockResidual signature so the
-    # MaceRepresentation dispatch can pass identical kwargs to every variant.
-    hidden_irreps: str = ""
     radial_mlp: tuple = (64, 64, 64)
     avg_num_neighbors: float = 1.0  # ignored; mirrors torch (no /avg)
-    layer_idx: int = -1  # Must be set by the parent module for sow naming.
 
     @nn.compact
     def __call__(
         self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders,
     ):
-        if self.layer_idx < 0:
-            raise ValueError(
-                f"{type(self).__name__} requires layer_idx to be set by the parent module"
-            )
         node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
         edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
         target_irreps = e3nn.Irreps(self.target_irreps)
-
-        def _sow(slot, arr):
-            # Gated so plain ``model.init`` doesn't sprout a ``debug`` branch.
-            if is_parity_debug_enabled():
-                self.sow("debug", f"interactions[{self.layer_idx}].{slot}", arr)
 
         pre = _interaction_scaffold(
             node_feats, edge_attrs, edge_feats, receivers, senders,
@@ -506,7 +396,6 @@ class InteractionBlockDensity(nn.Module):
             edge_attrs_irreps=edge_attrs_irreps,
             target_irreps=target_irreps,
             radial_mlp=self.radial_mlp,
-            sow_fn=_sow,
         )
         density = _edge_density(edge_feats, receivers, node_feats.shape[0])
         # density is an IrrepsArray("0e", (n_atoms, 1)); broadcast over message irreps.
@@ -519,7 +408,6 @@ class InteractionBlockDensity(nn.Module):
         message = e3nn.flax.Linear(
             target_irreps, name="skip_tp", force_irreps_out=True,
         )(skip_input)
-        _sow("skip_tp", message.array)
         return message, None
 
 
@@ -544,25 +432,15 @@ class InteractionBlockDensityResidual(nn.Module):
     hidden_irreps: str
     radial_mlp: tuple = (64, 64, 64)
     avg_num_neighbors: float = 1.0  # ignored; mirrors torch (no /avg)
-    layer_idx: int = -1  # Must be set by the parent module for sow naming.
 
     @nn.compact
     def __call__(
         self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders,
     ):
-        if self.layer_idx < 0:
-            raise ValueError(
-                f"{type(self).__name__} requires layer_idx to be set by the parent module"
-            )
         node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
         edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
         target_irreps = e3nn.Irreps(self.target_irreps)
         hidden_irreps = e3nn.Irreps(self.hidden_irreps)
-
-        def _sow(slot, arr):
-            # Gated so plain ``model.init`` doesn't sprout a ``debug`` branch.
-            if is_parity_debug_enabled():
-                self.sow("debug", f"interactions[{self.layer_idx}].{slot}", arr)
 
         # Skip is computed from raw node_feats BEFORE linear_up — same shape
         # and placement as the Residual variant.
@@ -570,7 +448,6 @@ class InteractionBlockDensityResidual(nn.Module):
         sc = e3nn.flax.Linear(
             hidden_irreps, name="skip_tp", force_irreps_out=True,
         )(skip_input)
-        _sow("skip_tp", sc.array)
 
         pre = _interaction_scaffold(
             node_feats, edge_attrs, edge_feats, receivers, senders,
@@ -578,7 +455,6 @@ class InteractionBlockDensityResidual(nn.Module):
             edge_attrs_irreps=edge_attrs_irreps,
             target_irreps=target_irreps,
             radial_mlp=self.radial_mlp,
-            sow_fn=_sow,
         )
         density = _edge_density(edge_feats, receivers, node_feats.shape[0])
         message = pre / (density.array + 1.0)
@@ -729,9 +605,6 @@ class ProductBlock(nn.Module):
         Number of chemical elements (per-species weight table row count).
     use_sc : bool
         Whether to add the parent skip ``sc`` after the post-SC Linear.
-    use_cueq : bool
-        Reserved for P2 (CUDA kernel dispatch). For now, all paths go through
-        :func:`cuex.equivariant_polynomial` with ``method='naive'``.
 
     Notes
     -----
@@ -749,20 +622,9 @@ class ProductBlock(nn.Module):
     correlation: int = 3
     num_elements: int = 119
     use_sc: bool = True
-    use_cueq: bool = False
-    layer_idx: int = -1  # Must be set by the parent module for sow naming.
 
     @nn.compact
     def __call__(self, node_feats, sc, Z):
-        if self.layer_idx < 0:
-            raise ValueError(
-                f"{type(self).__name__} requires layer_idx to be set by the parent module"
-            )
-        if self.use_cueq:
-            raise NotImplementedError(
-                "use_cueq=True is reserved for P2 (cuequivariance CUDA dispatch); "
-                "not yet implemented."
-            )
         irreps_in_e3 = e3nn.Irreps(self.node_feats_irreps)
         irreps_out_e3 = e3nn.Irreps(self.target_irreps)
 
@@ -843,9 +705,6 @@ class ProductBlock(nn.Module):
 
         if self.use_sc and sc is not None:
             out = out + sc
-        # Gated so plain ``model.init`` doesn't sprout a ``debug`` branch.
-        if is_parity_debug_enabled():
-            self.sow("debug", f"products[{self.layer_idx}]", out.array)
         return out
 
 

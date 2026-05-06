@@ -43,20 +43,18 @@ def create_energy_fn(
     n_models,
     shallow=False,
 ):
-    def full_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None, **kwargs):
+    def full_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
         vmodel = jax.vmap(model, (0, None, None, None, None, None, None), 0)
         energies, _ = vmodel(params, R, Z, neighbor, box, offsets, perturbation)
         energy = jnp.mean(energies)
         return energy
 
-    def shallow_ensemble(
-        params, R, Z, neighbor, box, offsets, perturbation=None, **kwargs
-    ):
+    def shallow_ensemble(params, R, Z, neighbor, box, offsets, perturbation=None):
         energies, _ = model(params, R, Z, neighbor, box, offsets, perturbation)
         energy = jnp.mean(energies)
         return energy
 
-    def single_model(params, R, Z, neighbor, box, offsets, perturbation=None, **kwargs):
+    def single_model(params, R, Z, neighbor, box, offsets, perturbation=None):
         energy, _ = model(params, R, Z, neighbor, box, offsets, perturbation)
         return energy
 

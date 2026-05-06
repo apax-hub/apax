@@ -41,12 +41,10 @@ class BesselBasisConfig(BaseModel, extra="forbid"):
     Parameters
     ----------
     variant : Literal["kocer", "standard"], default = "kocer"
-        ``kocer`` selects the Kocer 2019 symmetrised form (apax's legacy
-        :class:`~apax.layers.descriptor.basis_functions.BesselBasis`).
+        ``kocer`` selects the Kocer 2019 symmetrised form
+        (:class:`~apax.layers.descriptor.basis_functions.BesselBasis`).
         ``standard`` selects the textbook spherical-Bessel form used by
         torch-mace (:class:`~apax.layers.descriptor.basis_functions.MaceBesselBasis`).
-        Default ``kocer`` preserves every existing GMNN / EquivMP / So3krates
-        config; MACE configs override to ``standard``.
     n_basis : PositiveInt, default = 16
         Number of uncontracted basis functions.
     r_max : PositiveFloat, default = 5.0
@@ -204,6 +202,11 @@ class PropertyHead(BaseModel, extra="forbid"):
     """
     Configuration for property heads.
 
+    The readout architecture is dictated by the parent model: GMNN / EquivMP /
+    So3krates use :class:`apax.layers.readout.AtomisticReadout` (configured by
+    ``nn``); MACE uses :class:`apax.layers.readout.MaceReadout` (configured by
+    ``MLP_irreps``). The unused field is ignored by the corresponding builder.
+
     Parameters
     ----------
     name : str
@@ -212,21 +215,12 @@ class PropertyHead(BaseModel, extra="forbid"):
         Aggregation method for atomic contributions.
     mode : str, default = "l0"
         Rotation order of the property.
-    kind : Literal["standard", "mace"], default = "standard"
-        Which readout architecture to instantiate. ``"standard"`` selects
-        :class:`apax.layers.readout.AtomisticReadout` (the default for
-        GMNN/EquivMP/So3krates property heads); ``"mace"`` selects
-        :class:`apax.layers.readout.MaceReadout`. MACE users must set this
-        to ``"mace"`` explicitly per property head — the builder errors
-        otherwise.
     nn : List[PositiveInt], default = [128, 128]
-        Number of hidden layers and units in those layers. Used only when
-        ``kind="standard"``.
+        Hidden layers / units for the AtomisticReadout (non-MACE models).
     n_shallow_members : int, default = 0
         Number of shallow ensemble members for this head.
     MLP_irreps : str, default = "16x0e"
-        e3nn irreps string for the MaceReadout's intermediate MLP. Used only
-        when ``kind="mace"``.
+        e3nn irreps string for the MaceReadout's intermediate MLP (MACE only).
     w_init : Literal["normal", "lecun"], default = "lecun"
         Initialization scheme for the neural network weights.
     b_init : Literal["normal", "zeros"], default = "zeros"
@@ -240,8 +234,6 @@ class PropertyHead(BaseModel, extra="forbid"):
     name: str
     aggregation: str = "none"
     mode: str = "l0"
-
-    kind: Literal["standard", "mace"] = "standard"
 
     nn: List[PositiveInt] = [128, 128]
     n_shallow_members: int = 0
@@ -477,8 +469,6 @@ class MaceDescriptorConfig(BaseModel, extra="forbid"):
         ``len(interactions)``; there is no separate ``num_interactions``.
     avg_num_neighbors : PositiveFloat, default = 1.0
         Per-message normaliser used by every interaction block.
-    use_cueq : bool, default = False
-        Dispatch to cuequivariance-jax kernels where available.
     """
 
     max_ell: PositiveInt = 3
@@ -492,47 +482,39 @@ class MaceDescriptorConfig(BaseModel, extra="forbid"):
         min_length=1,
     )
     avg_num_neighbors: PositiveFloat = 1.0
-    use_cueq: bool = False
 
 
 class MaceReadoutConfig(BaseModel, extra="forbid"):
-    """MACE readout group (Literal kind, not a discriminated union).
+    """MACE energy-head readout configuration.
 
     Parameters
     ----------
-    kind : Literal["mace", "standard"], default = "mace"
-        ``"mace"`` selects :class:`apax.layers.readout.MaceReadout`;
-        ``"standard"`` falls back to :class:`AtomisticReadout`.
     MLP_irreps : str, default = "16x0e"
         e3nn irreps string for the MaceReadout's intermediate MLP.
     """
 
-    kind: Literal["mace", "standard"] = "mace"
     MLP_irreps: str = "16x0e"
 
 
 class MaceModelConfig(BaseModelConfig, extra="forbid"):
     """Configuration for a MACE model.
 
-    The MACE schema is grouped into four sub-configs that mirror the forward
-    pass: ``basis -> radial_embedding -> descriptor -> readout``. There are
-    no flat ``r_max``, ``num_bessel``, ``num_interactions``, or
-    ``interaction_cls`` fields: ``model.basis.r_max`` is the single source of
-    truth for the cutoff, ``model.basis.n_basis`` for the bessel count, and
-    ``len(model.descriptor.interactions)`` for the layer count.
+    Grouped into four sub-configs mirroring the forward pass:
+    ``basis -> radial_embedding -> descriptor -> readout``. The cutoff comes
+    from ``model.basis.r_max``, the bessel count from ``model.basis.n_basis``,
+    and the layer count from ``len(model.descriptor.interactions)``.
 
     Parameters
     ----------
     basis : BesselBasisConfig
-        Default overridden to ``(variant="standard", n_basis=8, r_max=5.0)``
-        — torch-mace's bessel formula plus apax's MACE defaults. Other apax
-        models inherit ``variant="kocer"`` from :class:`BaseModelConfig`.
+        Defaults to ``(variant="standard", n_basis=8, r_max=5.0)`` — torch-mace's
+        bessel formula plus apax's MACE defaults.
     radial_embedding : MaceRadialEmbeddingConfig
         Cutoff envelope + optional length transform.
     descriptor : MaceDescriptorConfig
         Message-passing architecture knobs.
     readout : MaceReadoutConfig
-        Readout block kind + MLP irreps.
+        Readout block configuration.
     """
 
     name: Literal["mace"] = "mace"

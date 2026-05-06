@@ -12,7 +12,14 @@ from jax_md import space
 from apax.layers.masking import mask_by_atom, mask_by_neighbor
 from apax.utils.convert import str_to_dtype
 from apax.utils.math import fp64_sum
-from apax.utils.parity_debug import is_parity_debug_enabled
+
+# Bohr radius in Angstrom and Coulomb constant e^2/(4*pi*eps0) in eV*Ang;
+# kept verbatim from torch-mace so converted models match bit-for-bit.
+BOHR_RADIUS_ANG = 0.529
+COULOMB_EV_ANG = 14.3996
+# Lower clip for pair distances; protects 1/dr and (dr/r0)**(q-p) terms from
+# the dr ~= 0 limit on padding edges. Same value as apax's legacy ZBLRepulsion.
+DR_FLOOR = 0.02
 
 
 def inverse_softplus(x):
@@ -60,7 +67,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(dtype)
 
-        dr = jnp.clip(dr, min=0.02, max=self.r_max)
+        dr = jnp.clip(dr, min=DR_FLOOR, max=self.r_max)
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
 
         # Ensure positive parameters
@@ -108,7 +115,7 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
         # dr shape: neighbors
         dr = self.distance(dr_vec).astype(dtype)
 
-        dr = jnp.clip(dr, min=0.02, max=self.r_max)
+        dr = jnp.clip(dr, min=DR_FLOOR, max=self.r_max)
         cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
 
         # Ensure positive parameters
@@ -170,13 +177,11 @@ class LatentEwald(EmpiricalEnergyTerm):
 
 
 class MaceZBLPairRepulsion(EmpiricalEnergyTerm):
-    """Faithful port of torch-mace ``ZBLBasis`` (``mace/modules/radial.py``).
+    """torch-mace ``ZBLBasis`` port: polynomial cutoff with per-pair ``r_max``.
 
-    Distinct from :class:`ZBLRepulsion` (apax's existing ZBL variant): apax's
-    flavour uses a cosine cutoff and softplus-parameterised coefficients while
-    this one uses the polynomial cutoff envelope with **per-pair** ``r_max``
-    derived from ASE covalent radii — matching the parameter format MACE
-    foundation models (MACE-MPA-0, MatPES, OMAT) ship.
+    Used by MACE foundation models (MACE-MPA-0, MatPES, OMAT). Distinct from
+    :class:`ZBLRepulsion`, which is apax's cosine-cutoff softplus-parameterised
+    variant.
 
     Parameters
     ----------
@@ -185,28 +190,13 @@ class MaceZBLPairRepulsion(EmpiricalEnergyTerm):
     apply_mask : bool, default = True
         Mask out padding edges before the per-pair sum.
     trainable : bool, default = False
-        If ``True``, ``a_exp`` and ``a_prefactor`` become trainable parameters
-        (matches torch's ``ZBLBasis(trainable=True)``); otherwise they stay
-        as fixed buffers (matches the foundation models in scope).
+        If ``True``, ``a_exp`` and ``a_prefactor`` are trainable parameters;
+        otherwise they stay as fixed buffers.
     output_scale : float, default = 1.0
         Multiplicative factor applied to the summed pair-repulsion energy.
         Foundation-model conversion sets this to the global ``scale`` of the
-        torch ``ScaleShiftBlock`` so the un-scaled apax buffers (``c``,
-        ``a_exp``, ``a_prefactor``) stay bit-identical to the torch source.
-        Torch-mace folds the ZBL contribution into ``scale_shift`` (it scales
-        ``readout + ZBL`` by the global ``scale``); apax's ``EnergyModel``
-        applies corrections after ``scale_shift``, so we replicate the torch
-        behaviour by scaling the ZBL output here. Default ``1.0`` = no
-        scaling, suitable for a freshly trained apax model that wants ZBL
-        added unscaled.
-
-    Notes
-    -----
-    The hard-coded constants ``0.529`` (Bohr radius in Å) and ``14.3996``
-    (e²/4πε₀ in eV·Å) match torch-mace's source verbatim. The lower clip
-    ``dr >= 0.02`` mirrors apax's existing ``ZBLRepulsion`` behaviour and
-    avoids ``inf`` energies at coincident atoms during initialisation;
-    torch-mace doesn't have this clip but in practice never sees ``dr ≈ 0``.
+        torch ``ScaleShiftBlock`` so the un-scaled apax buffers stay
+        bit-identical to the torch source.
     """
 
     p: int = 6
@@ -214,55 +204,33 @@ class MaceZBLPairRepulsion(EmpiricalEnergyTerm):
     trainable: bool = False
     output_scale: float = 1.0
 
-    def setup(self):
-        # The four fixed ZBL coefficients (universal, not species-dependent).
-        self.c = self.variable(
-            "buffers",
-            "c",
-            lambda: jnp.array([0.1818, 0.5099, 0.2802, 0.02817]),
-        )
-        # ``a_exp``/``a_prefactor`` are scalars — buffers by default,
-        # parameters when ``trainable=True``.
-        if self.trainable:
-            self.a_exp = self.param(
-                "a_exp", lambda rng: jnp.asarray(0.300, dtype=jnp.float64),
-            )
-            self.a_prefactor = self.param(
-                "a_prefactor", lambda rng: jnp.asarray(0.4543, dtype=jnp.float64),
-            )
-        else:
-            self.a_exp = self.variable(
-                "buffers", "a_exp", lambda: jnp.asarray(0.300, dtype=jnp.float64),
-            )
-            self.a_prefactor = self.variable(
-                "buffers",
-                "a_prefactor",
-                lambda: jnp.asarray(0.4543, dtype=jnp.float64),
-            )
-        # ASE covalent radii — 119 entries, indexed by Z directly. Matches
-        # torch-mace's ``register_buffer("covalent_radii", ase.data.covalent_radii)``.
-        self.covalent_radii = self.variable(
-            "buffers",
-            "covalent_radii",
-            lambda: jnp.asarray(data.covalent_radii, dtype=jnp.float64),
-        )
-
-    def _scalar(self, x):
-        """Resolve a scalar parameter (Variable for buffers, Array for params)."""
-        return x.value if hasattr(x, "value") else x
-
+    @nn.compact
     def __call__(self, R, dr_vec, Z, idx, box, properties):
         dtype = str_to_dtype(self.dtype)
         i, j = idx[0], idx[1]
         Z_i, Z_j = Z[i], Z[j]
         dr = jnp.linalg.norm(dr_vec, axis=-1).astype(dtype)
-        dr = jnp.clip(dr, min=0.02)
+        dr = jnp.clip(dr, min=DR_FLOOR)
 
-        a_exp = self._scalar(self.a_exp)
-        a_prefactor = self._scalar(self.a_prefactor)
-        c = self.c.value
+        c = self.variable(
+            "buffers", "c",
+            lambda: jnp.array([0.1818, 0.5099, 0.2802, 0.02817]),
+        ).value
+        covalent_radii = self.variable(
+            "buffers", "covalent_radii",
+            lambda: jnp.asarray(data.covalent_radii, dtype=jnp.float64),
+        ).value
+        scalar_collection = "params" if self.trainable else "buffers"
+        a_exp = self.variable(
+            scalar_collection, "a_exp",
+            lambda: jnp.asarray(0.300, dtype=jnp.float64),
+        ).value
+        a_prefactor = self.variable(
+            scalar_collection, "a_prefactor",
+            lambda: jnp.asarray(0.4543, dtype=jnp.float64),
+        ).value
 
-        a = a_prefactor * 0.529 / (Z_i**a_exp + Z_j**a_exp)
+        a = a_prefactor * BOHR_RADIUS_ANG / (Z_i**a_exp + Z_j**a_exp)
         r_over_a = dr / a
         phi = (
             c[0] * jnp.exp(-3.2 * r_over_a)
@@ -270,9 +238,9 @@ class MaceZBLPairRepulsion(EmpiricalEnergyTerm):
             + c[2] * jnp.exp(-0.4028 * r_over_a)
             + c[3] * jnp.exp(-0.2016 * r_over_a)
         )
-        v_edges = (14.3996 * Z_i * Z_j) / dr * phi
+        v_edges = (COULOMB_EV_ANG * Z_i * Z_j) / dr * phi
 
-        r_max_edge = self.covalent_radii.value[Z_i] + self.covalent_radii.value[Z_j]
+        r_max_edge = covalent_radii[Z_i] + covalent_radii[Z_j]
         x = dr / r_max_edge
         p = self.p
         envelope = (
@@ -287,9 +255,6 @@ class MaceZBLPairRepulsion(EmpiricalEnergyTerm):
         if self.apply_mask:
             v_edges = mask_by_neighbor(v_edges, idx)
         zbl_energy = self.output_scale * fp64_sum(v_edges)
-        # Gated so plain ``model.init`` doesn't sprout a ``debug`` branch.
-        if is_parity_debug_enabled():
-            self.sow("debug", "pair_repulsion", zbl_energy)
         return zbl_energy
 
 
