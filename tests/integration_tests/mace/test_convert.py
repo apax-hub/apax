@@ -144,3 +144,63 @@ def test_torch_to_apax_param_coverage_no_projections(tmp_path):
         f"apax total numel {apax_total} < torch total {torch_total} — "
         "weights are being dropped"
     )
+
+
+def test_convert_medium_mpa0_with_distance_transform(tmp_path):
+    """Convert MACE-MPA-0 medium and verify the AgnesiTransform is wired.
+
+    MPA-0 ships an AgnesiTransform; small does not. The converter must
+    locate the apax distance-transform slot and copy ``a``/``q``/``p``/
+    ``covalent_radii`` into it. Regression test for
+    ``KeyError: 'distance_transform'`` reported when the wired slot path
+    diverged from the actual params-tree path.
+    """
+    pytest.importorskip("torch")
+    pytest.importorskip("mace")
+
+    import numpy as np
+    import torch
+
+    from apax.train.checkpoints import restore_parameters
+    from apax.transfer_learning.mace_foundation import run_conversion
+
+    dst = tmp_path / "mpa-0-medium.apax"
+    run_conversion("medium-mpa-0", dst, head="default", family="mace_mp")
+
+    cfg, params = restore_parameters(dst)
+    assert cfg.model.radial_embedding.distance_transform is not None
+    assert cfg.model.radial_embedding.distance_transform.name == "agnesi"
+
+    # The AgnesiTransform's ``a``/``q``/``p``/``covalent_radii`` must be in
+    # the converted pytree, with values matching the torch source bit-for-bit.
+    src_path = "/Users/fzills/tools/apax/tmp/mace-mpa-0-medium.model"
+    torch_model = torch.load(src_path, map_location="cpu", weights_only=False)
+    dt_torch = torch_model.radial_embedding.distance_transform
+
+    found = {}
+    for path, leaf in _flatten_with_str_path(params):
+        if "distance_transform" in path:
+            tail = path.rsplit("/", 1)[-1]
+            found[tail] = np.asarray(leaf)
+
+    assert found, (
+        "distance_transform slot not present in converted params pytree"
+    )
+    for name in ("a", "q", "p", "covalent_radii"):
+        assert name in found, f"distance_transform/{name} missing from pytree"
+        torch_arr = np.asarray(getattr(dt_torch, name).detach().cpu())
+        np.testing.assert_allclose(found[name], torch_arr, atol=0.0, rtol=0.0)
+
+
+def _flatten_with_str_path(tree):
+    """Yield ``(slash_path, leaf)`` pairs for a nested mapping."""
+    import jax
+
+    for path, leaf in jax.tree_util.tree_flatten_with_path(tree)[0]:
+        keys = []
+        for entry in path:
+            if hasattr(entry, "key"):
+                keys.append(str(entry.key))
+            else:
+                keys.append(str(entry))
+        yield "/".join(keys), leaf

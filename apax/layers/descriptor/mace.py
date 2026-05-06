@@ -38,14 +38,11 @@ class MaceRepresentation(nn.Module):
     radial_embedding : nn.Module
         Pre-built :class:`apax.layers.descriptor.basis_functions.MaceRadialEmbedding`
         instance, constructed by :class:`apax.nn.builder.MaceBuilder` from
-        ``model.basis`` + ``model.radial_embedding`` config groups. Mirrors the
-        injection pattern used by GMNN / EquivMP / So3krates.
-    distance_transform : nn.Module or None
-        Same Linen instance referenced by ``radial_embedding.distance_transform``.
-        Held here as a field so its parameter slot lands at
-        ``representation/distance_transform/...`` in the apax pytree — the
-        slot key the torch→jax converter targets. ``None`` for foundations
-        without a transform (small/medium MP-0).
+        ``model.basis`` + ``model.radial_embedding`` config groups. The
+        radial embedding owns the optional distance transform, so the
+        AgnesiTransform parameters land at
+        ``representation/radial_embedding/distance_transform/...`` in the
+        apax pytree.
     max_ell : int
         Maximum spherical-harmonic degree used for edge features. Spherical
         harmonics are computed inline here (not in the radial submodule).
@@ -70,7 +67,6 @@ class MaceRepresentation(nn.Module):
     """
 
     radial_embedding: Any
-    distance_transform: Any
     max_ell: int
     hidden_irreps: str
     correlation: int

@@ -18,7 +18,6 @@ def _build_radial(n_basis: int = 8, r_max: float = 5.0):
         basis_fn=basis,
         num_polynomial_cutoff=5,
         r_max=r_max,
-        distance_transform=None,
     )
 
 
@@ -40,7 +39,6 @@ def test_mace_representation_contract(tiny_system):
     dr_vec, Z, idx, n_atoms = tiny_system
     model = MaceRepresentation(
         radial_embedding=_build_radial(n_basis=8, r_max=5.0),
-        distance_transform=None,
         max_ell=2,
         hidden_irreps="16x0e + 16x1o",
         correlation=3,
@@ -64,7 +62,6 @@ def test_mace_representation_rejects_no_scalar_irreps(tiny_system):
     dr_vec, Z, idx, _ = tiny_system
     model = MaceRepresentation(
         radial_embedding=_build_radial(),
-        distance_transform=None,
         max_ell=2,
         hidden_irreps="16x1o",
         correlation=3,
@@ -83,7 +80,6 @@ def test_mace_representation_per_layer_variants(tiny_system):
     dr_vec, Z, idx, n_atoms = tiny_system
     model = MaceRepresentation(
         radial_embedding=_build_radial(n_basis=4, r_max=5.0),
-        distance_transform=None,
         max_ell=2,
         hidden_irreps="8x0e",
         correlation=2,

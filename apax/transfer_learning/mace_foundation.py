@@ -898,11 +898,14 @@ def _map_distance_transform(
 ) -> None:
     """Copy torch ``radial_embedding.distance_transform`` into the apax slot.
 
+    The AgnesiTransform is a field of :class:`MaceRadialEmbedding` and is
+    called from inside its ``__call__``, so linen materialises the slot at
+    ``representation/radial_embedding/distance_transform/...``.
+
     Parameters
     ----------
     state : dict of str to np.ndarray
-        Torch ``state_dict`` arrays. The four expected keys are
-        ``radial_embedding.distance_transform.{a,q,p,covalent_radii}``.
+        Torch ``state_dict`` arrays.
     out : dict
         Full apax pytree (mutated in place).
     trainable : bool
@@ -910,13 +913,17 @@ def _map_distance_transform(
         ``a`` / ``q`` / ``p`` scalars live in ``buffers``; when ``True`` they
         live in ``params``. ``covalent_radii`` always stays in ``buffers``.
     """
-    dt_buf = out["buffers"]["energy_model"]["representation"]["distance_transform"]
+    dt_buf = out["buffers"]["energy_model"]["representation"]["radial_embedding"][
+        "distance_transform"
+    ]
     dt_buf["covalent_radii"] = np.asarray(
         state["radial_embedding.distance_transform.covalent_radii"]
     ).astype(dt_buf["covalent_radii"].dtype)
 
     target_slot = (
-        out["params"]["energy_model"]["representation"]["distance_transform"]
+        out["params"]["energy_model"]["representation"]["radial_embedding"][
+            "distance_transform"
+        ]
         if trainable
         else dt_buf
     )

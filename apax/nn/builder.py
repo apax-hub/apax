@@ -359,7 +359,6 @@ class MaceBuilder(ModelBuilder):
 
         descriptor = MaceRepresentation(
             radial_embedding=radial_embedding,
-            distance_transform=distance_transform,
             max_ell=desc_cfg["max_ell"],
             hidden_irreps=desc_cfg["hidden_irreps"],
             correlation=desc_cfg["correlation"],
