@@ -319,7 +319,7 @@ def test_tp_out_irreps_with_instructions_basic():
 
 
 from apax.layers.descriptor.mace_blocks import (
-    _INTERACTION_BLOCK_CLS,
+    INTERACTION_BLOCK_CLS,
     InteractionBlockDensity,
     InteractionBlockDensityResidual,
     InteractionBlockResidual,
@@ -466,11 +466,11 @@ def test_interaction_block_density_param_tree_has_density_fn():
 
 
 def test_interaction_block_dispatch_table_complete():
-    """``_INTERACTION_BLOCK_CLS`` covers every Literal value in MaceModelConfig."""
-    assert _INTERACTION_BLOCK_CLS["RealAgnosticResidual"] is InteractionBlockResidual
-    assert _INTERACTION_BLOCK_CLS["RealAgnosticDensity"] is InteractionBlockDensity
+    """``INTERACTION_BLOCK_CLS`` covers every Literal value in MaceModelConfig."""
+    assert INTERACTION_BLOCK_CLS["RealAgnosticResidual"] is InteractionBlockResidual
+    assert INTERACTION_BLOCK_CLS["RealAgnosticDensity"] is InteractionBlockDensity
     assert (
-        _INTERACTION_BLOCK_CLS["RealAgnosticDensityResidual"]
+        INTERACTION_BLOCK_CLS["RealAgnosticDensityResidual"]
         is InteractionBlockDensityResidual
     )
 

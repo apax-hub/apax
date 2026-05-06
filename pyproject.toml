@@ -69,6 +69,11 @@ mace = [
     "cuequivariance-jax>=0.9.1",
     "cuequivariance>=0.9.1",
 ]
+mace-convert = [
+    "apax[mace]",
+    "torch>=2.1",
+    "mace-torch>=0.3",
+]
 
 [dependency-groups]
 dev = [
@@ -82,14 +87,6 @@ dev = [
 lint = [
     "ruff>=0.9.1",
 ]
-mace-convert = [
-    "torch>=2.1",
-    "mace-torch>=0.3",
-    "mace-jax",
-]
-
-[tool.uv.sources]
-mace-jax = { git = "https://github.com/ACEsuit/mace-jax", rev = "fe19806ad8077a90975eeb83fdd777a9513e9f0c" }
 
 [project.scripts]
 apax = 'apax.cli.apax_app:app'

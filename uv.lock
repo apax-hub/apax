@@ -308,6 +308,13 @@ mace = [
     { name = "cuequivariance-jax" },
     { name = "e3nn-jax" },
 ]
+mace-convert = [
+    { name = "cuequivariance" },
+    { name = "cuequivariance-jax" },
+    { name = "e3nn-jax" },
+    { name = "mace-torch" },
+    { name = "torch" },
+]
 mlflow = [
     { name = "mlflow" },
 ]
@@ -334,20 +341,18 @@ dev = [
 lint = [
     { name = "ruff" },
 ]
-mace-convert = [
-    { name = "mace-jax" },
-    { name = "mace-torch" },
-    { name = "torch" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "ase", specifier = ">=3.24.0" },
     { name = "clu", specifier = ">=0.0.12" },
     { name = "cuequivariance", marker = "extra == 'mace'", specifier = ">=0.9.1" },
+    { name = "cuequivariance", marker = "extra == 'mace-convert'", specifier = ">=0.9.1" },
     { name = "cuequivariance-jax", marker = "extra == 'mace'", specifier = ">=0.9.1" },
+    { name = "cuequivariance-jax", marker = "extra == 'mace-convert'", specifier = ">=0.9.1" },
     { name = "docutils", marker = "extra == 'docs'", specifier = "<0.21" },
     { name = "e3nn-jax", marker = "extra == 'mace'", specifier = ">=0.21.0" },
+    { name = "e3nn-jax", marker = "extra == 'mace-convert'", specifier = ">=0.21.0" },
     { name = "e3x", specifier = ">=1.0.2" },
     { name = "einops", specifier = ">=0.8.0" },
     { name = "flax", specifier = ">=0.10.6" },
@@ -358,6 +363,7 @@ requires-dist = [
     { name = "jax", extras = ["cuda"], marker = "extra == 'cuda'" },
     { name = "jax-md", specifier = ">=0.2.28" },
     { name = "lazy-loader", specifier = ">=0.4" },
+    { name = "mace-torch", marker = "extra == 'mace-convert'", specifier = ">=0.3" },
     { name = "mlflow", marker = "extra == 'mlflow'", specifier = ">=2.19.0" },
     { name = "molify", specifier = ">=0.2.3" },
     { name = "myst-parser", marker = "extra == 'docs'", specifier = ">=2.0.0" },
@@ -375,6 +381,7 @@ requires-dist = [
     { name = "sphinx-copybutton", marker = "extra == 'docs'", specifier = ">=0.5.2" },
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=1.3.0" },
     { name = "tensorflow", specifier = ">=2.18.0" },
+    { name = "torch", marker = "extra == 'mace-convert'", specifier = ">=2.1" },
     { name = "typer", specifier = ">=0.13.0" },
     { name = "umap-learn", marker = "extra == 'umap'", specifier = ">=0.5.9.post2" },
     { name = "uncertainty-toolbox", specifier = ">=0.1.1" },
@@ -382,7 +389,7 @@ requires-dist = [
     { name = "zndraw", specifier = "==0.7.0a8" },
     { name = "znh5md", specifier = ">=0.4.8" },
 ]
-provides-extras = ["cuda", "docs", "ipsuite", "mace", "mlflow", "openmm", "optuna", "umap"]
+provides-extras = ["cuda", "docs", "ipsuite", "mace", "mace-convert", "mlflow", "openmm", "optuna", "umap"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -394,11 +401,6 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.7.0" },
 ]
 lint = [{ name = "ruff", specifier = ">=0.9.1" }]
-mace-convert = [
-    { name = "mace-jax", git = "https://github.com/ACEsuit/mace-jax?rev=fe19806ad8077a90975eeb83fdd777a9513e9f0c" },
-    { name = "mace-torch", specifier = ">=0.3" },
-    { name = "torch", specifier = ">=2.1" },
-]
 
 [[package]]
 name = "appdirs"
@@ -909,23 +911,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/7a/1d/29d32e0fb40864b1f878c7f5a0b343ae676c6e2b271a2d55cc3a152391da/charset_normalizer-3.4.7-cp314-cp314t-win_amd64.whl", hash = "sha256:03853ed82eeebbce3c2abfdbc98c96dc205f32a79627688ac9a27370ea61a49c", size = 174168, upload-time = "2026-04-02T09:27:49.795Z" },
     { url = "https://files.pythonhosted.org/packages/de/32/d92444ad05c7a6e41fb2036749777c163baf7a0301a040cb672d6b2b1ae9/charset_normalizer-3.4.7-cp314-cp314t-win_arm64.whl", hash = "sha256:c35abb8bfff0185efac5878da64c45dafd2b37fb0383add1be155a763c1f083d", size = 153018, upload-time = "2026-04-02T09:27:51.116Z" },
     { url = "https://files.pythonhosted.org/packages/db/8f/61959034484a4a7c527811f4721e75d02d653a35afb0b6054474d8185d4c/charset_normalizer-3.4.7-py3-none-any.whl", hash = "sha256:3dce51d0f5e7951f8bb4900c257dad282f49190fdbebecd4ba99bcc41fef404d", size = 61958, upload-time = "2026-04-02T09:28:37.794Z" },
-]
-
-[[package]]
-name = "chex"
-version = "0.1.91"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "absl-py" },
-    { name = "jax" },
-    { name = "jaxlib" },
-    { name = "numpy" },
-    { name = "toolz" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/5b/7d/812f01e7b2ddf28a0caa8dde56bd951a2c8f691c9bbfce38d469458d1502/chex-0.1.91.tar.gz", hash = "sha256:65367a521415ada905b8c0222b0a41a68337fcadf79a1fb6fc992dbd95dd9f76", size = 90302, upload-time = "2025-09-01T21:49:32.834Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/12/0c/96102c01dd02ae740d4afc3644d5c7d7fc51d3feefd67300a2aa1ddbf7cb/chex-0.1.91-py3-none-any.whl", hash = "sha256:6fc4cbfc22301c08d4a7ef706045668410100962eba8ba6af03fa07f4e5dcf9b", size = 100965, upload-time = "2025-09-01T21:49:31.141Z" },
 ]
 
 [[package]]
@@ -2269,15 +2254,6 @@ wheels = [
 ]
 
 [[package]]
-name = "gin-config"
-version = "0.5.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b9/c4/5aaf77a77e7a2a1446f20580f8493adea9dcd3befcf61faf7ba5de65d7fc/gin-config-0.5.0.tar.gz", hash = "sha256:0c6ea5026ded927c8c93c990b01c695257c1df446e45e549a158cfbc79e19ed6", size = 56185, upload-time = "2021-11-03T08:11:34.812Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/11/8f/9f1894efa1bb15e98613244b24dfbacfe2309e0ac3cfc27d4c608c2270d2/gin_config-0.5.0-py3-none-any.whl", hash = "sha256:bddb7ca221ea2b46cdb59321e79fecf02d6e3b728906047fcd4076c297609fd6", size = 61327, upload-time = "2021-11-03T08:11:33.435Z" },
-]
-
-[[package]]
 name = "gitdb"
 version = "4.0.12"
 source = { registry = "https://pypi.org/simple" }
@@ -3396,32 +3372,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/32/a2/4ac7eb32a4d997dd352c32c32399aae27b3f268d440e6f9cfa405b575d2f/lxml-6.1.0-pp311-pypy311_pp73-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:07f98f5496f96bf724b1e3c933c107f0cbf2745db18c03d2e13a291c3afd2635", size = 4251124, upload-time = "2026-04-18T04:36:09.056Z" },
     { url = "https://files.pythonhosted.org/packages/33/ef/d6abd850bb4822f9b720cfe36b547a558e694881010ff7d012191e8769c6/lxml-6.1.0-pp311-pypy311_pp73-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:4642e04449a1e164b5ff71ffd901ddb772dfabf5c9adf1b7be5dffe1212bc037", size = 4401758, upload-time = "2026-04-18T04:36:11.803Z" },
     { url = "https://files.pythonhosted.org/packages/40/44/3ee09a5b60cb44c4f2fbc1c9015cfd6ff5afc08f991cab295d3024dcbf2d/lxml-6.1.0-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:7da13bb6fbadfafb474e0226a30570a3445cfd47c86296f2446dafbd77079ace", size = 3508860, upload-time = "2026-04-18T04:32:48.619Z" },
-]
-
-[[package]]
-name = "mace-jax"
-version = "0.2.0"
-source = { git = "https://github.com/ACEsuit/mace-jax?rev=fe19806ad8077a90975eeb83fdd777a9513e9f0c#fe19806ad8077a90975eeb83fdd777a9513e9f0c" }
-dependencies = [
-    { name = "ase" },
-    { name = "chex" },
-    { name = "configargparse" },
-    { name = "cuequivariance" },
-    { name = "cuequivariance-jax" },
-    { name = "e3nn" },
-    { name = "e3nn-jax" },
-    { name = "flax" },
-    { name = "gin-config" },
-    { name = "h5py" },
-    { name = "jax" },
-    { name = "jraph" },
-    { name = "matscipy" },
-    { name = "numpy" },
-    { name = "optax" },
-    { name = "pyyaml" },
-    { name = "roundmantissa" },
-    { name = "tqdm" },
-    { name = "unique-names-generator" },
 ]
 
 [[package]]
@@ -6338,15 +6288,6 @@ wheels = [
 ]
 
 [[package]]
-name = "roundmantissa"
-version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/23/b9/033a3e1d79cef5400cce2a7dab2f1aec2563dee71a1d0ac2dca578109a17/roundmantissa-0.2.1.tar.gz", hash = "sha256:92b6bda5ab5f0dac437a0b270f228adfb39971668eff9dd9cb06460cf37af935", size = 3376, upload-time = "2022-11-16T06:38:22.372Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/86/5c/8a79ad38d8521ce0f6955ae2c4db6efcaefd63c15bc8e217a3fc74b34f27/roundmantissa-0.2.1-py3-none-any.whl", hash = "sha256:646b48a0f9ba29211ed485a794dad8430dad9449a0eaddfd52ebf9d9cb3c18ca", size = 4219, upload-time = "2022-11-16T06:38:20.896Z" },
-]
-
-[[package]]
 name = "rpds-py"
 version = "0.30.0"
 source = { registry = "https://pypi.org/simple" }
@@ -7467,15 +7408,6 @@ wheels = [
 ]
 
 [[package]]
-name = "toolz"
-version = "1.1.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/11/d6/114b492226588d6ff54579d95847662fc69196bdeec318eb45393b24c192/toolz-1.1.0.tar.gz", hash = "sha256:27a5c770d068c110d9ed9323f24f1543e83b2f300a687b7891c1a6d56b697b5b", size = 52613, upload-time = "2025-10-17T04:03:21.661Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/12/5911ae3eeec47800503a238d971e51722ccea5feb8569b735184d5fcdbc0/toolz-1.1.0-py3-none-any.whl", hash = "sha256:15ccc861ac51c53696de0a5d6d4607f99c210739caf987b5d2054f3efed429d8", size = 58093, upload-time = "2025-10-17T04:03:20.435Z" },
-]
-
-[[package]]
 name = "torch"
 version = "2.11.0"
 source = { registry = "https://pypi.org/simple" }
@@ -7715,15 +7647,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/38/fc/0cd4e9fa54fef09aec94d03df79f9103aeddf2351415250629882bb2f325/uncertainty-toolbox-0.1.1.tar.gz", hash = "sha256:d9389112bd431edc8b6e44c5b12405dea8f86063ff9b79f0bb178e5ac76bcfa5", size = 656128, upload-time = "2023-01-18T02:33:16.046Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/40/d3/ec5faa64fc6b0c4c81488939439cb9c49af4e37262778d0758cb1a909c45/uncertainty_toolbox-0.1.1-py3-none-any.whl", hash = "sha256:9aebd0ab174f15a06f1c63c6172dd24ace2b7a4ba5610c3ee5a186bf5669cf24", size = 24809, upload-time = "2023-01-18T02:33:05.99Z" },
-]
-
-[[package]]
-name = "unique-names-generator"
-version = "1.0.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/8a/c7/d30a4d79f7ae47a20543cdfa28613c6405c3c29b03abe120eb8e33294149/unique-names-generator-1.0.2.tar.gz", hash = "sha256:1f8fcc95b27ae5f065b3df8ab62d5e749e9fd383ff7748607e63a10345248e7a", size = 29155, upload-time = "2021-09-21T13:39:55.859Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/3e/f1a29edc94af8dec3843c1e1fb6e4b7f19e242f36544202b01f3aadf77f8/unique_names_generator-1.0.2-py2.py3-none-any.whl", hash = "sha256:ea3c7ba5e1d2926e82b183a306bbef924980b007fe7492a8f64b62b052de1b77", size = 27861, upload-time = "2021-09-21T13:39:53.509Z" },
 ]
 
 [[package]]

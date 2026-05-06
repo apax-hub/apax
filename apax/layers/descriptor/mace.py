@@ -22,7 +22,7 @@ import jax.numpy as jnp
 from flax import linen as nn
 
 from apax.layers.descriptor.mace_blocks import (
-    _INTERACTION_BLOCK_CLS,
+    INTERACTION_BLOCK_CLS,
     InteractionBlockDensity,
     LinearNodeEmbedding,
     ProductBlock,
@@ -57,7 +57,7 @@ class MaceRepresentation(nn.Module):
     interactions : tuple[dict, ...]
         Per-layer interaction-block configs. Each element is a discriminated
         dict keyed by ``"name"``; the dispatch table
-        :data:`~apax.layers.descriptor.mace_blocks._INTERACTION_BLOCK_CLS`
+        :data:`~apax.layers.descriptor.mace_blocks.INTERACTION_BLOCK_CLS`
         resolves the name to a Linen block class.
     avg_num_neighbors : float
         Per-message normaliser forwarded to every interaction block.
@@ -127,7 +127,7 @@ class MaceRepresentation(nn.Module):
             this_hidden_str = (
                 str(e3nn.Irreps([hidden_irreps[0]])) if is_last else self.hidden_irreps
             )
-            Block = _INTERACTION_BLOCK_CLS[inter_cfg["name"]]
+            Block = INTERACTION_BLOCK_CLS[inter_cfg["name"]]
             kwargs = dict(
                 node_feats_irreps=prev_irreps_str,
                 node_attrs_irreps=node_attrs_irreps_str,

@@ -465,7 +465,7 @@ class InteractionBlockDensityResidual(nn.Module):
 # Linen module. Single source of truth used by :class:`MaceRepresentation`
 # dispatch. New variants are added here and to the discriminated
 # :data:`InteractionConfig` union in :mod:`apax.config.model_config`.
-_INTERACTION_BLOCK_CLS = {
+INTERACTION_BLOCK_CLS = {
     "RealAgnosticResidual": InteractionBlockResidual,
     "RealAgnosticDensity": InteractionBlockDensity,
     "RealAgnosticDensityResidual": InteractionBlockDensityResidual,

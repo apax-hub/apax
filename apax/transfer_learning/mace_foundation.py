@@ -935,28 +935,11 @@ def _map_products(
 ) -> None:
     """Map ``products.k.*`` into apax ``ProductBlock_k`` (SC + post-Linear).
 
-    Two slots per layer:
-
-    1. ``ProductBlock_k.weight`` — symmetric-contraction per-element weight
-       tensor of shape ``(num_elements_apax, basis_dim, mul)``. The torch
-       native module stores its weights per-contraction and per-degree
-       (``contractions.{c}.weights_max`` for the top correlation order plus
-       ``contractions.{c}.weights.{m}`` for the lower degrees). Reshaping
-       these into the cue descriptor's canonical basis requires the
-       full-CG transform, which is expensive to derive on the fly. We
-       delegate to mace-jax's reference adapter
-       :func:`mace_jax.adapters.cuequivariance.symmetric_contraction._convert_native_weights`
-       — it's the same code path mace-jax uses for its own torch→jax import.
-
-       The adapter returns a ``(num_elements_torch, basis_dim, mul)`` tensor
-       in the cue descriptor's canonical basis, which we then scatter row-wise
-       into the apax slot using ``torch_atomic_numbers`` so physical Z values
-       index the table. Rows for missing species stay at their init value.
-
-    2. ``ProductBlock_k.linear`` — post-SC ``e3nn.o3.Linear(target_irreps →
-       target_irreps)`` whose weight is a single ``(M, M)`` block (the
-       small/medium MP-0 ``target_irreps == "128x0e"``). Direct flat reshape;
-       see :func:`_scatter_o3_linear_blocks` for the multi-block contract.
+    Two slots per layer: ``weight`` (per-element symmetric-contraction tensor
+    of shape ``(num_elements_apax, basis_dim, mul)``) and ``linear`` (post-SC
+    e3nn Linear). The SC weight requires a non-trivial change-of-basis from
+    torch's native layout to the cue descriptor's canonical basis; the work
+    is delegated to :func:`apax.transfer_learning.torch_sc_adapter.convert_native_weights`.
 
     Parameters
     ----------
@@ -969,12 +952,13 @@ def _map_products(
     config : MaceModelConfig
         Used for ``num_interactions``.
     torch_model : torch.nn.Module
-        Live torch foundation model. ``products[k].symmetric_contractions`` is
-        passed to mace-jax's adapter to handle the full-CG transform.
+        Live torch foundation model whose ``products[k].symmetric_contractions``
+        is passed to the adapter.
     """
     import jax.numpy as jnp  # noqa: PLC0415
-    from mace_jax.adapters.cuequivariance.symmetric_contraction import (  # noqa: PLC0415
-        _convert_native_weights,
+
+    from apax.transfer_learning.torch_sc_adapter import (  # noqa: PLC0415
+        convert_native_weights,
     )
 
     n_torch = len(torch_atomic_numbers)
@@ -991,7 +975,7 @@ def _map_products(
             (n_torch, basis_dim, mul), dtype=target.dtype
         )
         converted = np.asarray(
-            _convert_native_weights(torch_sc, target_template=native_template)
+            convert_native_weights(torch_sc, target_template=native_template)
         )
         if converted.shape != (n_torch, basis_dim, mul):
             raise ValueError(
