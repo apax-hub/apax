@@ -87,6 +87,28 @@ def test_mace_model_config_rejects_unknown_variant_name():
         )
 
 
+def test_distance_transform_is_discriminated_union():
+    """distance_transform is a name-discriminated union (consistent with the
+    sibling InteractionConfig), and the discriminator surfaces in the schema."""
+    from apax.config.model_config import AgnesiTransformConfig
+
+    cfg = MaceRadialEmbeddingConfig(
+        num_polynomial_cutoff=5,
+        distance_transform={"name": "agnesi", "a": 2.0},
+    )
+    assert isinstance(cfg.distance_transform, AgnesiTransformConfig)
+    assert cfg.distance_transform.a == 2.0
+
+    schema = MaceRadialEmbeddingConfig.model_json_schema()
+    assert "discriminator" in str(schema)
+
+    with pytest.raises(Exception, match="name"):
+        MaceRadialEmbeddingConfig(
+            num_polynomial_cutoff=5,
+            distance_transform={"name": "not-a-transform"},
+        )
+
+
 def test_mace_model_config_rejects_empty_interactions_list():
     with pytest.raises(Exception):
         MaceModelConfig(descriptor={"interactions": []})

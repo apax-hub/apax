@@ -103,6 +103,40 @@ def test_mace_build_feature_model_returns_descriptor_features():
     assert "representation" in params["params"]
 
 
+def test_mace_builder_uses_mace_bessel_basis():
+    """MACE owns the 'standard' bessel variant; the builder returns the
+    torch-mace-faithful MaceBesselBasis."""
+    from apax.layers.descriptor.basis_functions import MaceBesselBasis
+
+    builder = MaceBuilder(_minimal_cfg(), n_species=5)
+    basis = builder.build_basis_function()
+    assert isinstance(basis, MaceBesselBasis)
+
+
+def test_base_builder_does_not_handle_mace_bessel_variant():
+    """The shared base builder must not know about MACE-specific bases; the
+    'standard' variant is rejected so the leak stays inside MaceBuilder."""
+    import pytest
+
+    from apax.nn.builder import ModelBuilder
+
+    cfg = {
+        "basis": {"name": "bessel", "variant": "standard", "n_basis": 4, "r_max": 5.0},
+        "descriptor_dtype": "fp32",
+    }
+    with pytest.raises(ValueError):
+        ModelBuilder(cfg, n_species=5).build_basis_function()
+
+
+def test_converter_threads_builder_default_n_species():
+    """The foundation converter uses the builder's canonical element-table size,
+    not a private duplicate constant."""
+    from apax.nn import builder
+    from apax.transfer_learning import mace_foundation
+
+    assert mace_foundation.DEFAULT_N_SPECIES == builder.DEFAULT_N_SPECIES == 119
+
+
 def test_mace_builder_end_to_end_energy_derivative_model():
     cfg = _minimal_cfg()
     builder = MaceBuilder(cfg, n_species=5)

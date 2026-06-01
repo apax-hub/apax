@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any, Union
 
 import numpy as np
 
+from apax.nn.builder import DEFAULT_N_SPECIES
+
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from apax.config.train_config import Config
 
@@ -28,8 +30,9 @@ _TORCH_TO_APAX_INTERACTION = {
     "RealAgnosticDensityResidualInteractionBlock": "RealAgnosticDensityResidual",
 }
 
-# Z=0 is reserved for padding; physical Z values are scattered into [1, _N_SPECIES - 1].
-_N_SPECIES = 119
+# Z=0 is reserved for padding; physical Z values are scattered into
+# [1, DEFAULT_N_SPECIES - 1]. Sourced from the builder so there is one
+# canonical element-table size across apax.
 
 
 def run_conversion(
@@ -83,7 +86,7 @@ def run_conversion(
     full_cfg = _synthesize_full_config(mace_cfg_fields, dst)
 
     builder_cls = full_cfg.model.get_builder()
-    builder = builder_cls(full_cfg.model.model_dump(), n_species=_N_SPECIES)
+    builder = builder_cls(full_cfg.model.model_dump(), n_species=DEFAULT_N_SPECIES)
     energy_derivative_model = builder.build_energy_derivative_model()
 
     R_dummy = jnp.zeros((2, 3))
@@ -516,7 +519,7 @@ def _map_node_embedding(
 
     Torch stores the weight as a flat tensor of size ``num_torch_elements * hidden``
     in row-major ``(in, out)`` order (same as ``e3nn.flax.Linear``). The apax
-    embedding table is ``(_N_SPECIES, hidden)``; rows for chemical species not
+    embedding table is ``(DEFAULT_N_SPECIES, hidden)``; rows for chemical species not
     in the torch table stay at their init value (zero-mean Gaussian).
 
     Torch's ``e3nn.o3.Linear`` applies a ``path_weight = 1/sqrt(num_elements)``

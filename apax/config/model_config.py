@@ -156,7 +156,10 @@ class MaceZBLPairRepulsion(Correction, extra="forbid"):
 
 
 EmpiricalCorrection = Union[
-    ZBLRepulsion, ExponentialRepulsion, LatentEwald, MaceZBLPairRepulsion,
+    ZBLRepulsion,
+    ExponentialRepulsion,
+    LatentEwald,
+    MaceZBLPairRepulsion,
 ]
 
 
@@ -195,7 +198,9 @@ class AgnesiTransformConfig(DistanceTransform, extra="forbid"):
     trainable: bool = False
 
 
-DistanceTransformConfig = Union[AgnesiTransformConfig]
+DistanceTransformConfig = Annotated[
+    Union[AgnesiTransformConfig], Field(discriminator="name")
+]
 
 
 class PropertyHead(BaseModel, extra="forbid"):
@@ -521,7 +526,9 @@ class MaceModelConfig(BaseModelConfig, extra="forbid"):
 
     basis: BesselBasisConfig = Field(
         default_factory=lambda: BesselBasisConfig(
-            variant="standard", n_basis=8, r_max=5.0,
+            variant="standard",
+            n_basis=8,
+            r_max=5.0,
         ),
         discriminator="name",
     )

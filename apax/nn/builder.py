@@ -32,9 +32,12 @@ from apax.nn.models import (
 
 log = logging.getLogger(__name__)
 
+#: Default number of element slots (full periodic table; Z=0 reserved for padding).
+DEFAULT_N_SPECIES = 119
+
 
 class ModelBuilder:
-    def __init__(self, model_config: ModelConfig, n_species: int = 119):
+    def __init__(self, model_config: ModelConfig, n_species: int = DEFAULT_N_SPECIES):
         self.config = model_config
         self.n_species = n_species
 
@@ -52,20 +55,17 @@ class ModelBuilder:
             )
         elif name == "bessel":
             variant = basis_config.get("variant", "kocer")
-            if variant == "kocer":
-                basis_fn = BesselBasis(
-                    n_basis=basis_config["n_basis"],
-                    r_max=basis_config["r_max"],
-                    dtype=self.config["descriptor_dtype"],
+            if variant != "kocer":
+                raise ValueError(
+                    f"bessel variant {variant!r} is not handled by the base "
+                    "builder; a model-specific builder must override "
+                    "build_basis_function()"
                 )
-            elif variant == "standard":
-                basis_fn = MaceBesselBasis(
-                    n_basis=basis_config["n_basis"],
-                    r_max=basis_config["r_max"],
-                    dtype=self.config["descriptor_dtype"],
-                )
-            else:
-                raise ValueError(f"unknown bessel variant: {variant!r}")
+            basis_fn = BesselBasis(
+                n_basis=basis_config["n_basis"],
+                r_max=basis_config["r_max"],
+                dtype=self.config["descriptor_dtype"],
+            )
         else:
             raise ValueError("unknown basis requested")
         return basis_fn
@@ -328,6 +328,18 @@ class So3kratesBuilder(ModelBuilder):
 
 
 class MaceBuilder(ModelBuilder):
+    def build_basis_function(self):
+        basis_config = self.config["basis"]
+        if basis_config["name"] == "bessel" and (
+            basis_config.get("variant") == "standard"
+        ):
+            return MaceBesselBasis(
+                n_basis=basis_config["n_basis"],
+                r_max=basis_config["r_max"],
+                dtype=self.config["descriptor_dtype"],
+            )
+        return super().build_basis_function()
+
     def build_descriptor(
         self,
         apply_mask,
