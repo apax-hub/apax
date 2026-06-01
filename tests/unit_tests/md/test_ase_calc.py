@@ -1,6 +1,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import jax.numpy as jnp
+
 from apax.config.model_config import (
     FullEnsembleConfig,
     GMNNConfig,
@@ -8,7 +10,7 @@ from apax.config.model_config import (
     ShallowEnsembleConfig,
 )
 from apax.config.train_config import Config
-from apax.md.ase_calc import ASECalculator
+from apax.md.ase_calc import ASECalculator, make_ensemble
 
 
 def get_mock_config(
@@ -184,3 +186,38 @@ def test_shallow_and_property_head_ensemble():
         "dipole_ensemble",
     ]
     assert sorted(calc.implemented_properties) == sorted(expected_properties)
+
+
+def test_make_ensemble_uses_sample_std():
+    """make_ensemble (deep ensemble) must report the Bessel-corrected
+    sample std 1/(N-1), consistent with the shallow ensemble and
+    PropertyHead paths -- not the 1/N population std."""
+    energy_ens = jnp.asarray([1.0, 2.0, 4.0, 7.0])  # N = 4 stacked models
+    forces_ens = jnp.asarray(
+        [
+            [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]],
+            [[1.0, 0.0, 2.0], [0.0, 2.0, 1.0]],
+            [[2.0, 1.0, 0.0], [3.0, 0.0, 2.0]],
+            [[0.0, 3.0, 1.0], [1.0, 1.0, 4.0]],
+        ]
+    )
+
+    def stacked_model(positions, Z, idx, box, offsets):
+        return {"energy": energy_ens, "forces": forces_ens}
+
+    ensemble_fn = make_ensemble(stacked_model)
+    results = ensemble_fn(None, None, None, None, None)
+
+    expected_energy_unc = jnp.std(energy_ens, axis=0, ddof=1)
+    population_energy_unc = jnp.std(energy_ens, axis=0)  # ddof=0
+
+    # Reported uncertainty must equal the sample std ...
+    assert jnp.allclose(results["energy_uncertainty"], expected_energy_unc)
+    # ... and must NOT equal the population std (guards against regression).
+    assert not jnp.allclose(results["energy_uncertainty"], population_energy_unc)
+
+    expected_forces_unc = jnp.std(forces_ens, axis=0, ddof=1)
+    assert jnp.allclose(results["forces_uncertainty"], expected_forces_unc)
+
+    # Mean must be unchanged by the estimator switch.
+    assert jnp.allclose(results["energy"], jnp.mean(energy_ens, axis=0))
