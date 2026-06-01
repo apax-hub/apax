@@ -137,6 +137,26 @@ def test_converter_threads_builder_default_n_species():
     assert mace_foundation.DEFAULT_N_SPECIES == builder.DEFAULT_N_SPECIES == 119
 
 
+def test_mace_hidden_irreps_without_scalars_raises():
+    """MACE node features require a 0e (scalar) component; a hidden_irreps with
+    no scalars must raise a clear ValueError rather than fail obscurely."""
+    import pytest
+
+    cfg = _minimal_cfg()
+    cfg["descriptor"]["hidden_irreps"] = "8x1o"  # no 0e
+    builder = MaceBuilder(cfg, n_species=5)
+    model = builder.build_energy_derivative_model()
+
+    R = jnp.array([[0.0, 0.0, 0.0], [1.5, 0.0, 0.0], [3.0, 0.0, 0.0]])
+    Z = jnp.array([1, 2, 3], dtype=jnp.int32)
+    neighbor = jnp.array([[0, 1], [1, 2]], dtype=jnp.int32).T
+    box = jnp.zeros((3,))
+    offsets = jnp.zeros((neighbor.shape[1], 3))
+
+    with pytest.raises(ValueError):
+        model.init(jax.random.PRNGKey(0), R, Z, neighbor, box, offsets)
+
+
 def test_mace_builder_end_to_end_energy_derivative_model():
     cfg = _minimal_cfg()
     builder = MaceBuilder(cfg, n_species=5)

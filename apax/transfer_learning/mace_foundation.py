@@ -250,8 +250,12 @@ def _extract_config_from_torch(model, head: str | None) -> dict:
         if cls_name not in _TORCH_TO_APAX_INTERACTION:
             raise NotImplementedError(
                 f"Foundation uses interaction block {cls_name!r}; apax supports "
-                f"{sorted(_TORCH_TO_APAX_INTERACTION)}. Other variants need "
-                "their apax port before they can be converted."
+                f"{sorted(_TORCH_TO_APAX_INTERACTION)}. In particular the "
+                "non-residual first-layer block 'RealAgnosticInteractionBlock' is "
+                "intentionally not ported: every MACE foundation in scope "
+                "(small/medium/MPA-0) is Residual-first, so the math is unused "
+                "(YAGNI). Port the block and add it to _TORCH_TO_APAX_INTERACTION "
+                "before converting such a model."
             )
         interactions.append({"name": _TORCH_TO_APAX_INTERACTION[cls_name]})
 
@@ -1097,48 +1101,6 @@ def _map_readouts(
 # ---------------------------------------------------------------------------
 # Misc helpers
 # ---------------------------------------------------------------------------
-
-
-def _extract_norm_consts() -> dict[str, float]:
-    """Fetch torch ``normalize2mom`` constants for common gates (fail fast).
-
-    Parity relies on reusing the exact ``normalize2mom`` constants that torch
-    precomputed for its activation wrappers. If they cannot be obtained we raise
-    instead of silently recomputing a different value.
-
-    Returns
-    -------
-    dict of str to float
-        Mapping of activation name to ``normalize2mom`` constant,
-        e.g. ``{"silu": 1.7868..., "swish": 1.7868...}``.
-
-    Raises
-    ------
-    ImportError
-        If torch or e3nn are not available.
-    RuntimeError
-        If the constant cannot be computed from the loaded torch modules.
-    """
-    try:
-        import torch  # noqa: PLC0415
-        from e3nn.math._normalize_activation import (  # noqa: PLC0415
-            normalize2mom as torch_norm,
-        )
-    except ImportError as exc:
-        raise ImportError(
-            "Torch e3nn (and torch) are required to import activation "
-            "normalization constants; parity cannot be guaranteed without them."
-        ) from exc
-
-    try:
-        const = float(torch_norm(torch.nn.functional.silu).cst)
-    except (AttributeError, RuntimeError) as exc:
-        raise RuntimeError(
-            "Unable to compute normalize2mom constant for torch.nn.functional.silu "
-            "during import; parity cannot be guaranteed."
-        ) from exc
-
-    return {"silu": const, "swish": const}
 
 
 def _validate_no_nan(pytree: Any) -> None:

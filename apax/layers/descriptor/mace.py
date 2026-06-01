@@ -91,6 +91,12 @@ class MaceRepresentation(nn.Module):
 
         sh_irreps = e3nn.Irreps.spherical_harmonics(self.max_ell)
         sh_irreps_str = str(sh_irreps)
+        # NOTE: apax's edge vectors use dr_vec = R_sender - R_receiver, the
+        # opposite sign of torch-mace (R_receiver - R_sender). This flips the
+        # sign of odd-l spherical harmonics, but the per-layer scalar readout is
+        # invariant under that inversion, so energies/forces match torch-mace to
+        # ~1e-7 eV (verified by the MACE parity tests). Do not "fix" the sign
+        # without re-checking parity.
         sph = e3nn.spherical_harmonics(
             sh_irreps,
             dr_vec,
@@ -99,8 +105,12 @@ class MaceRepresentation(nn.Module):
         )
 
         hidden_irreps = e3nn.Irreps(self.hidden_irreps)
-        _scalar_irreps_only(self.hidden_irreps)
         num_features = hidden_irreps.count(e3nn.Irrep(0, 1))
+        if num_features == 0:
+            raise ValueError(
+                f"hidden_irreps {self.hidden_irreps!r} has no 0e component "
+                "(scalar); MACE node features require scalars."
+            )
         interaction_irreps = (sh_irreps * num_features).sort().irreps.simplify()
         interaction_irreps_str = str(interaction_irreps)
         node_attrs_irreps_str = f"{self.num_elements}x0e"
@@ -124,14 +134,14 @@ class MaceRepresentation(nn.Module):
                 str(e3nn.Irreps([hidden_irreps[0]])) if is_last else self.hidden_irreps
             )
             Block = INTERACTION_BLOCK_CLS[inter_cfg["name"]]
-            kwargs = dict(
-                node_feats_irreps=prev_irreps_str,
-                node_attrs_irreps=node_attrs_irreps_str,
-                edge_attrs_irreps=sh_irreps_str,
-                target_irreps=interaction_irreps_str,
-                avg_num_neighbors=self.avg_num_neighbors,
-                name=f"InteractionBlock_{k}",
-            )
+            kwargs = {
+                "node_feats_irreps": prev_irreps_str,
+                "node_attrs_irreps": node_attrs_irreps_str,
+                "edge_attrs_irreps": sh_irreps_str,
+                "target_irreps": interaction_irreps_str,
+                "avg_num_neighbors": self.avg_num_neighbors,
+                "name": f"InteractionBlock_{k}",
+            }
             if Block is not InteractionBlockDensity:
                 kwargs["hidden_irreps"] = this_hidden_str
             message, sc = Block(**kwargs)(node_feats, sph, radial, Z_one_hot, i, j)
@@ -183,28 +193,3 @@ def _get_neighbor_mask(idx):
         1 where ``idx[0] != idx[1]``, else 0, as ``int16``.
     """
     return ((idx[0] - idx[1]) != 0).astype(jnp.int16)
-
-
-def _scalar_irreps_only(irreps_str: str) -> str:
-    """Return the 0e subset of an irreps string.
-
-    Parameters
-    ----------
-    irreps_str : str
-        Full irreps string, e.g. ``"128x0e + 128x1o"``.
-
-    Returns
-    -------
-    str
-        Only the ``0e`` component(s), e.g. ``"128x0e"``.
-
-    Raises
-    ------
-    ValueError
-        If no ``0e`` component is present.
-    """
-    parts = [p.strip() for p in irreps_str.split("+")]
-    scalar = [p for p in parts if p.endswith("x0e")]
-    if not scalar:
-        raise ValueError(f"No 0e component in irreps {irreps_str!r}")
-    return " + ".join(scalar)
