@@ -129,7 +129,7 @@
         <ul>
           <li>Single readout, wide output: <code>LinearReadoutBlock</code> / <code>NonLinearReadoutBlock</code> emit <code>n_out &times; 0e</code>; <code>MaceReadout</code> sums per-layer contributions.</li>
           <li>Auto-detect: <code>EnergyModel.__call__</code> checks <code>E_i.shape[1] &gt; 1</code> and switches to per-ensemble totals; no explicit committee flag.</li>
-          <li>Forces / forward: a <em>single</em> JAX autodiff pass differentiates the whole <code>(n_atoms, n_ensemble)</code> tensor through <code>vmap</code>; mean/std taken in <code>make_ensemble</code> post-hoc.</li>
+          <li>Forces / forward: a <code>jax.jacrev</code> over the <code>(n_ensemble,)</code> energy vector (O(n_ensemble) VJPs, vectorized/JIT-fused over a <em>shared</em> descriptor forward, optionally chunked via <code>chunk_size</code>); mean/std taken in <code>make_ensemble</code> post-hoc.</li>
           <li>Loss: per-property pluggable <code>nll_loss</code> or <code>crps_loss</code> driven by <code>&lt;name&gt;_uncertainty</code> channel.</li>
           <li>Foundation integration: <code>apax convert mace medium-mpa-0 ...</code> remaps a torch-mace state-dict into an apax orbax checkpoint; finetune via <code>TransferLearningConfig</code> + <code>reset_layers</code>.</li>
           <li>Data: heads share the train set; diversity comes from independent random init (and selective reset of readout/property-head leaves on transfer).</li>
@@ -502,9 +502,9 @@
             <!-- Linear with instructions -->
             <rect x="240" y="20" width="240" height="100" rx="8" fill="#e7f0fe" stroke="#1f6feb"/>
             <text x="360" y="40" text-anchor="middle" font-size="11" font-weight="700" fill="#1f6feb">e3nn.Linear with instructions</text>
-            <text x="360" y="60" text-anchor="middle" font-size="11" font-family="ui-monospace, monospace" fill="#1f2330">irreps_out = num_heads &times; (n_out &times; 0e)</text>
-            <text x="360" y="79" text-anchor="middle" font-size="10" fill="#4a5060">instructions = [(i, i) for i in range(num_heads)]</text>
-            <text x="360" y="96" text-anchor="middle" font-size="10" fill="#4a5060">&rarr; chunk-i feeds head-i only</text>
+            <text x="360" y="60" text-anchor="middle" font-size="11" font-family="ui-monospace, monospace" fill="#1f2330">irreps_out = num_heads &times; 0e</text>
+            <text x="360" y="79" text-anchor="middle" font-size="10" fill="#4a5060">instructions_1 = [(0, i) for i in range(num_heads)]</text>
+            <text x="360" y="96" text-anchor="middle" font-size="10" fill="#4a5060">&rarr; one input chunk fans out to all heads</text>
             <text x="360" y="112" text-anchor="middle" font-size="9" fill="#b45309" font-style="italic">cuEquivariance unsupported: asserts instructions is None</text>
 
             <!-- input arrow -->
@@ -614,10 +614,10 @@
 
             <!-- single jax.grad -->
             <rect x="40" y="306" width="320" height="94" rx="8" fill="#fff3e0" stroke="#d97706"/>
-            <text x="200" y="326" text-anchor="middle" font-size="11" font-weight="700" fill="#d97706">single jax.grad / vmap pass</text>
+            <text x="200" y="326" text-anchor="middle" font-size="11" font-weight="700" fill="#d97706">vmapped jacrev pass</text>
             <text x="200" y="348" text-anchor="middle" font-size="11" font-family="ui-monospace, monospace" fill="#1f2330">forces.shape = (N_atoms, 3, n_ensemble)</text>
             <text x="200" y="368" text-anchor="middle" font-size="11" fill="#6b7390">whole ensemble axis differentiated</text>
-            <text x="200" y="384" text-anchor="middle" font-size="10" fill="#1f9d55" font-style="italic">at JIT-cost ~ 1 backward pass total</text>
+            <text x="200" y="384" text-anchor="middle" font-size="10" fill="#1f9d55" font-style="italic">vmapped jacrev: O(n_ensemble) VJPs, JIT-fused</text>
 
             <!-- make_ensemble -->
             <rect x="380" y="306" width="320" height="94" rx="8" fill="#fff" stroke="#c8cee0"/>
@@ -629,7 +629,7 @@
 
             <!-- callout -->
             <rect x="40" y="420" width="660" height="30" rx="6" fill="#e8f7ee" stroke="#1f9d55" stroke-dasharray="3,3"/>
-            <text x="370" y="440" text-anchor="middle" font-size="11" fill="#1f9d55" font-weight="600">trade-off: shared backbone diversity &middot; win: one backward through whole ensemble</text>
+            <text x="370" y="440" text-anchor="middle" font-size="11" fill="#1f9d55" font-weight="600">trade-off: shared backbone diversity &middot; win: vectorized jacrev, no Python per-head loop</text>
           </svg>
         </div>
       </div>
@@ -814,7 +814,7 @@ class MaceReadout(nn.Module):
             <text x="336" y="146" font-size="11" font-family="ui-monospace, monospace" fill="#1f2330">)(positions, ...)</text>
             <text x="336" y="170" font-size="11" font-family="ui-monospace, monospace" fill="#1f2330"># vmapped over n_ensemble</text>
             <text x="336" y="188" font-size="11" font-family="ui-monospace, monospace" fill="#1f2330"># by jax automatically</text>
-            <text x="450" y="220" text-anchor="middle" font-size="11" fill="#1f9d55" font-weight="600">one traced/JIT'd backward pass</text>
+            <text x="450" y="220" text-anchor="middle" font-size="11" fill="#1f9d55" font-weight="600">jacrev over the ensemble axis: O(n_ensemble) VJPs</text>
             <text x="450" y="240" text-anchor="middle" font-size="10" fill="#6b7390" font-style="italic">heavy intermediates allocated once</text>
 
             <line x1="580" y1="150" x2="618" y2="150" stroke="#d97706" stroke-width="1.5" marker-end="url(#arr6-o)"/>
@@ -830,9 +830,9 @@ class MaceReadout(nn.Module):
 
             <!-- bottom: cost annotation -->
             <rect x="40" y="280" width="660" height="80" rx="8" fill="#e8f7ee" stroke="#1f9d55" stroke-dasharray="3,3"/>
-            <text x="370" y="302" text-anchor="middle" font-size="11" fill="#1f9d55" font-weight="600">grad cost: O(backward) + small ensemble fan-out at the last linear</text>
-            <text x="370" y="320" text-anchor="middle" font-size="11" fill="#4a5060">the descriptor is computed once, its VJP is computed once</text>
-            <text x="370" y="338" text-anchor="middle" font-size="11" fill="#4a5060">the &lsquo;loop over members&rsquo; is absorbed into the trailing axis of the readout</text>
+            <text x="370" y="302" text-anchor="middle" font-size="11" fill="#1f9d55" font-weight="600">grad cost: O(n_ensemble) VJPs via vmapped jacrev (optionally chunked)</text>
+            <text x="370" y="320" text-anchor="middle" font-size="11" fill="#4a5060">the shared descriptor forward is computed once; the VJP runs per member</text>
+            <text x="370" y="338" text-anchor="middle" font-size="11" fill="#4a5060">vectorized / JIT-fused over members; chunk_size trades memory for a Python loop</text>
           </svg>
         </div>
       </div>
@@ -985,7 +985,7 @@ class MaceReadout(nn.Module):
         <tr>
           <td class="axis">Forces / gradients</td>
           <td>Python loop in <code>get_outputs_committee</code> calls <code>autograd.grad</code> per head with <code>retain_graph=True</code>. PR description flags this as costlier than ideal.</td>
-          <td>One JAX backward through the whole <code>(N, n_ensemble)</code> tensor; force stack falls out naturally with <code>vmap</code>.</td>
+          <td><code>jax.jacrev</code> over the <code>(n_ensemble,)</code> energy vector: O(n_ensemble) VJPs, but vectorized/JIT-fused over a shared descriptor forward (optionally chunked) rather than a Python per-head loop.</td>
         </tr>
         <tr>
           <td class="axis">Uncertainty loss</td>
@@ -1037,7 +1037,7 @@ class MaceReadout(nn.Module):
         <header><span class="tag apax">Pick apax feat/mace-foundation-integration when</span></header>
         <ul>
           <li>You want to take a published MACE foundation (MACE-MP-0, MPA-0, ...) and only train a small ensemble head on your downstream data.</li>
-          <li>You want forces and stresses through the ensemble for ~free (one JAX backward, not one per head).</li>
+          <li>You want forces and stresses through the ensemble cheaply (a vectorized/JIT-fused <code>jacrev</code> over a shared descriptor forward, not a Python per-head autograd loop).</li>
           <li>You want to mix uncertainty into MD / active learning through the existing apax stack (ASE calculator, BAL, ZnDraw).</li>
           <li>You want the loss to be a knob per property, not a single hard-coded combination.</li>
         </ul>
