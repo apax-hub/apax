@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Design Spec · MACE integration fixes (apax)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css" />
+<style>
+  :root{
+    --bg:#f6f8fc; --panel:#fff; --ink:#1c2230; --soft:#4a5366; --muted:#788196;
+    --line:#e3e7f0; --accent:#4f46e5; --accent-soft:#eef0ff; --teal:#0d9488;
+    --teal-soft:#e2f6f2; --amber:#b45309; --amber-soft:#fdf3e3; --rose:#be123c;
+    --rose-soft:#fde8ec; --code:#f6f7f9;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.6;font-size:15.5px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 28px 100px}
+  h1{font-size:30px;letter-spacing:-.02em;margin:0 0 4px}
+  h2{font-size:21px;letter-spacing:-.01em;margin:38px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;margin:22px 0 6px}
+  .sub{color:var(--soft);font-size:15px;margin:0 0 8px}
+  code{font-family:var(--mono);font-size:.86em;background:#eef1f6;border:1px solid var(--line);
+    border-radius:5px;padding:1px 5px;color:#3b2db8}
+  pre[class*=language-]{border:1px solid var(--line);border-radius:10px;font-size:12.8px;background:var(--code)}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#fafbfe;font-weight:650;font-size:12.5px;color:var(--soft)}
+  tr:last-child td{border-bottom:none}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:14px 0;
+    box-shadow:0 1px 2px rgba(20,28,50,.04)}
+  .call{border-radius:10px;padding:12px 16px;margin:14px 0;border:1px solid;font-size:14.5px}
+  .note{background:var(--accent-soft);border-color:#d7daff;color:#312e81}
+  .tip{background:var(--teal-soft);border-color:#bfeee6;color:#0f5e54}
+  .warn{background:var(--amber-soft);border-color:#f4dca8;color:#7c4a08}
+  .tag{display:inline-block;font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:6px;
+    background:#eef1f6;border:1px solid var(--line);color:var(--soft)}
+  .tag.low{background:var(--teal-soft);border-color:#bfeee6;color:var(--teal)}
+  .tag.med{background:var(--amber-soft);border-color:#f4dca8;color:var(--amber)}
+  .tag.done{background:var(--teal-soft);border-color:#bfeee6;color:var(--teal)}
+  .tag.def{background:var(--rose-soft);border-color:#f6c6d2;color:var(--rose)}
+  .meta{color:var(--muted);font-size:13px;margin-top:2px}
+  ul{margin:6px 0 6px 0;padding-left:20px}
+  li{margin:3px 0}
+  .file{font-family:var(--mono);font-size:.92em;color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>MACE integration fixes — design spec</h1>
+  <p class="sub">apax · branch <code>feat/mace-foundation-integration</code> · delivered as phased <b>direct commits</b> on that branch (no PRs).</p>
+  <p class="meta">Date 2026-06-01 · Scope decided: buckets A (done, separate) + B + C + E, with bucket D deferred to loud guards (Approach 2, phased).</p>
+
+  <h2>1 · Context &amp; goal</h2>
+  <p>An audit of how MACE was added to apax surfaced issues on three axes: (1) framework-wide uncertainty math, (2) consistency with apax's documented four-layer model-extension pattern, (3) mathematical parity with the reference MACE repos. The math path is verified correct end-to-end (foundation energy parity <b>1.6e-7 eV</b> vs torch MPA-0); the real work is convention/structure hardening plus restoring the MACE feature path.</p>
+
+  <div class="call tip"><b>Bucket A (general UQ) — already shipped separately.</b> The <code>PropertyHead</code> variance-vs-std bug and the <code>make_ensemble</code> <code>1/N</code>→<code>1/(N−1)</code> estimator were framework-wide (not MACE), so they landed in <b>PR #561 against <code>main</code></b> (<span class="tag done">done</span>). This spec covers only the MACE-specific buckets on the feature branch.</p></div>
+
+  <h2>2 · Phasing &amp; delivery</h2>
+  <table>
+    <thead><tr><th>Phase</th><th>Contents</th><th>Risk</th><th>Gate before next phase</th></tr></thead>
+    <tbody>
+      <tr><td><b>Phase 1</b><br><span class="tag low">low risk</span></td>
+        <td>B (feature path) · C-hardening (converter slot-discovery, base-builder leak, <code>n_species</code> threading, union tidy, dead-code) · D-guards · E (doc-deck fixes)</td>
+        <td>Math path untouched</td>
+        <td>MACE parity suite stays 1.6e-7 + new feature-path test green</td></tr>
+      <tr><td><b>Phase 2</b><br><span class="tag med">medium risk</span></td>
+        <td>Decouple <code>MaceReadout</code> from descriptor internals; proper MACE feature extraction on the new contract</td>
+        <td>descriptor↔readout↔builder seam</td>
+        <td>Parity suite reproduces 1.6e-7 <em>before</em> committing</td></tr>
+      <tr><td><b>Phase 3</b></td>
+        <td>Document the structured per-layer feature contract in <code>docs/adding_new_models.html</code></td>
+        <td>None</td><td>—</td></tr>
+    </tbody>
+  </table>
+  <p>Within Phase 1, one commit per concern (reviewable history). Each phase ends by running the MACE parity tests so a regression is caught at the boundary it was introduced.</p>
+
+  <h2>3 · Phase 1 — commits</h2>
+
+  <div class="card">
+    <h3>Commit 1 — B: fix the MACE feature / BAL path</h3>
+    <p><b>Problem.</b> <code>MaceBuilder.build_readout(is_feature_fn=True)</code> (<span class="file">builder.py:381-384</span>) routes to <code>super().build_readout</code>, which builds an <code>AtomisticReadout([256,256])</code> from the inherited (unused) <code>nn</code> field. The converter/training only ever populate <code>MaceReadout</code> params, so feature extraction hits a param-tree mismatch or runs an untrained random MLP. ASE <code>get_descriptors</code> and BAL are broken for MACE.</p>
+    <p><b>Fix.</b> Return <code>None</code> for the MACE feature readout. <code>FeatureModel.__call__</code> does <code>if self.readout: features = jax.vmap(self.readout)(features)</code>, so <code>None</code> yields the real, trained descriptor features <code>(n_atoms, num_interactions·hidden_dim)</code>. Raise a clear <code>NotImplementedError</code> if <code>only_use_n_layers is not None</code> (partial-layer features deferred to Phase 2).</p>
+    <p class="meta">Test: <code>build_feature_model().init/apply</code> on a tiny MACE config → finite features of expected width; partial-layer request raises the documented error.</p>
+  </div>
+
+  <div class="card">
+    <h3>Commit 2 — C: converter resilience to module-name drift</h3>
+    <p><b>Problem.</b> <code>mace_foundation.py</code> hard-codes Flax auto-names (<code>InteractionBlock_{k}</code>, <code>ProductBlock_{k}</code>, <code>LinearNodeEmbedding_0</code>, <code>readout_{k}</code>); renaming any submodule breaks conversion with a deep <code>KeyError</code>.</p>
+    <p><b>Fix.</b> Replace brittle string indexing with structural slot-discovery (extend the pattern already in <code>_map_readouts</code>, ~<span class="file">:1029-1041</span>): enumerate submodule keys present in the pytree, map by position/role, raise an actionable error if the expected count/shape is absent. Preserves loud-failure behavior, removes silent-drift hazard.</p>
+  </div>
+
+  <div class="card">
+    <h3>Commit 3 — C: base-builder leak, n_species threading, union tidy</h3>
+    <ul>
+      <li>Move the <code>basis_config.get("variant")</code> / <code>MaceBesselBasis</code> branch out of <code>ModelBuilder.build_basis_function</code> (<span class="file">builder.py:53-68</span>) into <code>MaceBuilder</code> — the shared base no longer knows about MACE.</li>
+      <li>Replace converter module-constant <code>_N_SPECIES = 119</code> (<span class="file">mace_foundation.py:31</span>) by threading the builder's <code>n_species</code>.</li>
+      <li><code>DistanceTransformConfig = Union[AgnesiTransformConfig]</code> → <code>Annotated[Union[...], Field(discriminator="name")]</code> (<span class="file">model_config.py:198</span>), matching sibling <code>InteractionConfig</code>.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Commit 4 — D-guards + dead-code removal <span class="tag def">D deferred</span></h3>
+    <ul>
+      <li>Loud <code>NotImplementedError</code> in the converter for a non-Residual first interaction block (<code>_TORCH_TO_APAX_INTERACTION</code>, <span class="file">mace_foundation.py:25-27 / 248-253</span>), naming the unsupported block and that it is intentionally unimplemented (no shipped foundation needs it).</li>
+      <li>Comment at the <code>dr_vec</code> sign site (<span class="file">distances.py:61</span> / <span class="file">mace.py</span>) documenting that the opposite edge-vector convention vs torch-MACE is absorbed by the scalar readout's inversion symmetry (verified by parity).</li>
+      <li>Delete dead code: <code>_extract_norm_consts</code> (<span class="file">mace_foundation.py:1049-1088</span>) and the discarded <code>_scalar_irreps_only</code> result (<span class="file">mace.py:102</span>).</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>Commit 5 — E: doc-deck fixes in <code>mace_pr800_vs_apax_uncertainty.html</code></h3>
+    <ul>
+      <li>Slide 4: <code>instructions_1</code> is <code>[(0,i) …]</code>, not <code>[(i,i) …]</code>.</li>
+      <li>Slide 4: drop the apax-only <code>n_out</code> factor from the MACE <code>irreps_out</code> description (PR #800 heads emit a single <code>0e</code>).</li>
+      <li>Slides 4 &amp; 6: soften the "single backward pass" claim — apax uses <code>jax.jacrev</code> + an optional chunk-loop, i.e. O(n_ensemble) VJPs, vectorized/JIT'd (not one VJP).</li>
+    </ul>
+  </div>
+
+  <h2>4 · Phase 2 — decouple the readout</h2>
+  <p><b>Problem (B1).</b> <code>MaceReadout</code> reshapes the flat descriptor blob back into per-layer chunks using <code>num_interactions</code>/<code>hidden_dim</code> passed from config (<span class="file">readout.py:110-115</span>, <span class="file">builder.py:404-413</span>) — an implicit, undocumented packing contract that couples readout to descriptor internals.</p>
+  <p><b>Design.</b></p>
+  <ul>
+    <li><code>MaceRepresentation</code> emits an explicit per-layer feature array <code>(n_atoms, n_layers, hidden_dim)</code> instead of a flattened <code>(n_atoms, n_layers·hidden_dim)</code> blob. This becomes a documented "structured per-layer feature" variant of the descriptor contract.</li>
+    <li><code>MaceReadout</code> derives <code>n_layers</code> and <code>hidden_dim</code> from <code>x.shape</code> (vmapped per atom it sees <code>(n_layers, hidden_dim)</code>), dropping the <code>num_interactions</code>/<code>hidden_dim</code> config arguments. Renaming/resizing the descriptor can no longer desync the readout — the shape carries the info.</li>
+    <li>Builder stops passing the two coupling args to <code>_build_mace_readout</code>.</li>
+    <li>Feature extraction (Commit 1) naturally exposes the structured features; partial-layer features (<code>only_use_n_layers</code>) become a simple slice on the layer axis — closes the Phase-1 deferral.</li>
+  </ul>
+  <div class="call warn"><b>Parity is the gate.</b> This touches the descriptor→readout→builder seam and the converter's readout mapping (per-layer weights must still land correctly). Re-run <code>test_mace_parity.py</code> / <code>test_mace_s22_parity.py</code> and reproduce 1.6e-7 eV <em>before</em> committing. If the converter relied on the flat layout, update its readout slot-discovery (Commit 2) accordingly.</div>
+
+  <h2>5 · Phase 3 — docs</h2>
+  <p>Update <code>docs/adding_new_models.html</code> to document the structured per-layer feature contract as a first-class supported variant (alongside the existing flat <code>(n_atoms, n_features)</code> contract), so a future per-layer-readout model has a sanctioned pattern to follow rather than re-deriving MACE's coupling.</p>
+
+  <h2>6 · Deferred (out of scope) — bucket D math</h2>
+  <p>The non-residual first interaction block and the <code>interaction_irreps_first</code> vs <code>interaction_irreps</code> distinction cannot fire on any shipped MACE foundation (all Residual-first, no odd-parity scalar hidden irreps). We implement only the loud guard (Commit 4), not the math — YAGNI until a target foundation requires it.</p>
+
+  <h2>7 · Conventions &amp; gates</h2>
+  <ul>
+    <li>All commands via <code>uv run</code> / <code>uvx</code>; numpy-style docstrings; never modify <code>@pytest.mark.protected</code> tests.</li>
+    <li>TDD per concern: write the failing test first, then the change.</li>
+    <li><code>uvx prek --all-files</code> clean before each commit.</li>
+    <li>Phase boundary = MACE parity suite green (skips cleanly when local foundation files are absent; run where available).</li>
+  </ul>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+</body>
+</html>
