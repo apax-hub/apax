@@ -1,15 +1,16 @@
 """BesselBasisConfig.variant + ModelBuilder.build_basis_function dispatch."""
+
 import jax
 import jax.numpy as jnp
 import pytest
 
 from apax.config.model_config import BesselBasisConfig
 from apax.layers.descriptor.basis_functions import BesselBasis, MaceBesselBasis
-from apax.nn.builder import ModelBuilder
+from apax.nn.builder import MaceBuilder, ModelBuilder
 
 
-def _builder_with_basis(variant: str, n_basis: int = 4, r_max: float = 5.0):
-    cfg = {
+def _basis_cfg(variant: str, n_basis: int, r_max: float) -> dict:
+    return {
         "basis": {
             "name": "bessel",
             "variant": variant,
@@ -18,6 +19,14 @@ def _builder_with_basis(variant: str, n_basis: int = 4, r_max: float = 5.0):
         },
         "descriptor_dtype": "fp32",
     }
+
+
+def _builder_with_basis(variant: str, n_basis: int = 4, r_max: float = 5.0):
+    # The base builder handles the apax-native "kocer" bessel; the MACE-specific
+    # "standard" variant is owned by MaceBuilder.build_basis_function.
+    cfg = _basis_cfg(variant, n_basis, r_max)
+    if variant == "standard":
+        return MaceBuilder(cfg, n_species=5)
     return ModelBuilder(cfg, n_species=5)
 
 

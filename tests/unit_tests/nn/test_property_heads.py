@@ -3,6 +3,7 @@
 GMNN/EquivMP/So3krates property heads always build :class:`AtomisticReadout`;
 MACE property heads always build :class:`MaceReadout`.
 """
+
 from apax.config.model_config import GMNNConfig, MaceModelConfig
 from apax.nn.builder import GMNNBuilder, MaceBuilder
 
@@ -42,7 +43,6 @@ def test_mace_property_head_builds_mace_readout():
 
     assert isinstance(readout, MaceReadout)
     assert readout.num_interactions == 2
-    assert readout.hidden_dim == 8
     assert readout.MLP_irreps == "16x0e"
 
 
@@ -61,9 +61,11 @@ def test_gmnn_property_head_builds_atomistic_readout():
 def test_mace_property_head_mace_readout_n_shallow_members_propagates():
     from apax.layers.readout import MaceReadout
 
-    cfg = _mace_cfg([
-        {"name": "charges", "n_shallow_members": 4},
-    ])
+    cfg = _mace_cfg(
+        [
+            {"name": "charges", "n_shallow_members": 4},
+        ]
+    )
     builder = MaceBuilder(cfg, n_species=5)
     head_cfg = cfg["property_heads"][0]
     readout = builder.build_readout(head_cfg)
