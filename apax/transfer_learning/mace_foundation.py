@@ -7,6 +7,7 @@ directory in apax's standard training-output layout that loads through
 torch / mace are imported lazily so this module is safe to import without
 those optional deps installed.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -99,9 +100,7 @@ def run_conversion(
         offsets_dummy,
     )
 
-    state = {
-        k: v.detach().cpu().numpy() for k, v in torch_model.state_dict().items()
-    }
+    state = {k: v.detach().cpu().numpy() for k, v in torch_model.state_dict().items()}
     extra_scalars = {
         "scale": float(torch_model.scale_shift.scale.detach().cpu()),
         "shift": float(torch_model.scale_shift.shift.detach().cpu()),
@@ -484,7 +483,8 @@ def _map_state_to_pytree(
     )
     if hasattr(torch_model, "pair_repulsion_fn"):
         correction_index, zbl_cfg = next(
-            (i, c) for i, c in enumerate(config.empirical_corrections)
+            (i, c)
+            for i, c in enumerate(config.empirical_corrections)
             if c.name == "mace_zbl"
         )
         _map_pair_repulsion(
@@ -596,12 +596,52 @@ def _map_scale_shift(
     for torch_idx, Z in enumerate(torch_atomic_numbers):
         if 0 <= Z < n_species:
             shift[Z, 0] = global_shift + float(ae[torch_idx])
-    ss_params["scale_per_element"] = scale.astype(
-        ss_params["scale_per_element"].dtype
-    )
-    ss_params["shift_per_element"] = shift.astype(
-        ss_params["shift_per_element"].dtype
-    )
+    ss_params["scale_per_element"] = scale.astype(ss_params["scale_per_element"].dtype)
+    ss_params["shift_per_element"] = shift.astype(ss_params["shift_per_element"].dtype)
+
+
+def _require_slots(params: dict, prefix: str, count: int, *, context: str) -> list:
+    """Return the ``count`` submodule dicts named ``f"{prefix}{i}"``.
+
+    The converter maps torch weights into auto-generated Flax module slots
+    (``InteractionBlock_k``, ``ProductBlock_k``, ``readout_k``). This helper
+    resolves those slots by position and raises an actionable error naming the
+    missing slot and the keys that *are* present, instead of letting a bare
+    ``KeyError`` surface deep inside a mapping loop when the apax module layout
+    drifts.
+
+    Parameters
+    ----------
+    params : dict
+        Parameter sub-tree expected to contain the numbered slots.
+    prefix : str
+        Slot name prefix, e.g. ``"InteractionBlock_"``.
+    count : int
+        Number of consecutive slots expected, indexed ``0 .. count - 1``.
+    context : str
+        Short description of the mapping step, used in the error message.
+
+    Returns
+    -------
+    list
+        The ``count`` slot dicts in index order (the same objects stored in
+        ``params``, so in-place mutation by callers still applies).
+
+    Raises
+    ------
+    KeyError
+        If any expected slot is absent from ``params``.
+    """
+    missing = [f"{prefix}{i}" for i in range(count) if f"{prefix}{i}" not in params]
+    if missing:
+        present = sorted(k for k in params if k.startswith(prefix))
+        raise KeyError(
+            f"{context}: expected module slots {missing} in the apax parameter "
+            f"tree but found only {present}. The MACE module layout in "
+            f"apax/layers/descriptor (auto-generated Flax names) likely changed; "
+            f"update the foundation converter mapping to match."
+        )
+    return [params[f"{prefix}{i}"] for i in range(count)]
 
 
 def _map_interactions(
@@ -660,18 +700,23 @@ def _map_interactions(
     n_torch = len(torch_atomic_numbers)
     per_layer_cls = [i.name for i in config.descriptor.interactions]
 
+    blocks = _require_slots(
+        rep_params, "InteractionBlock_", len(per_layer_cls), context="interactions"
+    )
     for k in range(len(per_layer_cls)):
-        block = rep_params[f"InteractionBlock_{k}"]
+        block = blocks[k]
         prefix = f"interactions.{k}."
 
         # 1. linear_up : plain e3nn.o3.Linear in shared irreps.
         _scatter_o3_linear_blocks(
-            block["linear_up"], state[prefix + "linear_up.weight"],
+            block["linear_up"],
+            state[prefix + "linear_up.weight"],
         )
 
         # 2. linear : multi-irrep e3nn.o3.Linear flat → per-irrep apax slots.
         _scatter_o3_linear_blocks(
-            block["linear"], state[prefix + "linear.weight"],
+            block["linear"],
+            state[prefix + "linear.weight"],
         )
 
         # 3. skip_tp : torch FCTP → apax Linear(tensor_product(in, attrs)).
@@ -690,16 +735,14 @@ def _map_interactions(
         radial = block["radial_mlp"]
         for layer_idx in range(4):
             target = radial[f"Dense_{layer_idx}"]["kernel"]
-            torch_w = state[
-                prefix + f"conv_tp_weights.layer{layer_idx}.weight"
-            ]
+            torch_w = state[prefix + f"conv_tp_weights.layer{layer_idx}.weight"]
             if torch_w.shape != target.shape:
                 raise ValueError(
                     f"radial_mlp Dense_{layer_idx} shape mismatch: "
                     f"torch {torch_w.shape} vs apax {target.shape}"
                 )
-            radial[f"Dense_{layer_idx}"]["kernel"] = (
-                np.asarray(torch_w).astype(target.dtype)
+            radial[f"Dense_{layer_idx}"]["kernel"] = np.asarray(torch_w).astype(
+                target.dtype
             )
 
         # 5. density_fn (Density variants only).
@@ -712,8 +755,8 @@ def _map_interactions(
                     f"density_fn shape mismatch for block {k}: torch "
                     f"{torch_w.shape} vs apax {target.shape}"
                 )
-            block["density_fn"]["Dense_0"]["kernel"] = (
-                np.asarray(torch_w).astype(target.dtype)
+            block["density_fn"]["Dense_0"]["kernel"] = np.asarray(torch_w).astype(
+                target.dtype
             )
 
 
@@ -824,7 +867,7 @@ def _scatter_skip_tp_blocks(
     if sample.shape != (mul_in1 * n_species_apax, mul_out):
         raise ValueError(
             f"skip_tp slot shape {sample.shape} not consistent with "
-            f"(mul_in1*n_species_apax={mul_in1*n_species_apax}, "
+            f"(mul_in1*n_species_apax={mul_in1 * n_species_apax}, "
             f"mul_out={mul_out})."
         )
 
@@ -875,16 +918,12 @@ def _map_pair_repulsion(
     """
     slot_key = f"corrections_{correction_index}"
     buf_slot = out["buffers"]["energy_model"][slot_key]
-    buf_slot["c"] = np.asarray(state["pair_repulsion_fn.c"]).astype(
-        buf_slot["c"].dtype
-    )
+    buf_slot["c"] = np.asarray(state["pair_repulsion_fn.c"]).astype(buf_slot["c"].dtype)
     buf_slot["covalent_radii"] = np.asarray(
         state["pair_repulsion_fn.covalent_radii"]
     ).astype(buf_slot["covalent_radii"].dtype)
 
-    target_slot = (
-        out["params"]["energy_model"][slot_key] if trainable else buf_slot
-    )
+    target_slot = out["params"]["energy_model"][slot_key] if trainable else buf_slot
     for name in ("a_exp", "a_prefactor"):
         torch_arr = np.asarray(state[f"pair_repulsion_fn.{name}"])
         target_slot[name] = torch_arr.astype(target_slot[name].dtype)
@@ -969,8 +1008,14 @@ def _map_products(
     )
 
     n_torch = len(torch_atomic_numbers)
+    blocks = _require_slots(
+        rep_params,
+        "ProductBlock_",
+        len(config.descriptor.interactions),
+        context="products",
+    )
     for k in range(len(config.descriptor.interactions)):
-        block = rep_params[f"ProductBlock_{k}"]
+        block = blocks[k]
         target = block["weight"]
         n_species_apax, basis_dim, mul = target.shape
 
@@ -978,9 +1023,7 @@ def _map_products(
         # adapter; ``target_template`` only carries the desired (basis, mul)
         # shape and dtype, never values.
         torch_sc = torch_model.products[k].symmetric_contractions
-        native_template = jnp.zeros(
-            (n_torch, basis_dim, mul), dtype=target.dtype
-        )
+        native_template = jnp.zeros((n_torch, basis_dim, mul), dtype=target.dtype)
         converted = np.asarray(
             convert_native_weights(torch_sc, target_template=native_template)
         )
@@ -998,7 +1041,8 @@ def _map_products(
 
         # Post-SC Linear: mirrors interactions.linear handling.
         _scatter_o3_linear_blocks(
-            block["linear"], state[f"products.{k}.linear.weight"],
+            block["linear"],
+            state[f"products.{k}.linear.weight"],
         )
 
 
@@ -1026,18 +1070,24 @@ def _map_readouts(
     num_interactions : int
         Total number of interaction layers; equals number of readouts.
     """
+    subs = _require_slots(
+        readout_params, "readout_", num_interactions, context="readouts"
+    )
     for k in range(num_interactions):
-        sub = readout_params[f"readout_{k}"]
+        sub = subs[k]
         if k < num_interactions - 1:
             _scatter_o3_linear_blocks(
-                sub["linear"], state[f"readouts.{k}.linear.weight"],
+                sub["linear"],
+                state[f"readouts.{k}.linear.weight"],
             )
         else:
             _scatter_o3_linear_blocks(
-                sub["linear_1"], state[f"readouts.{k}.linear_1.weight"],
+                sub["linear_1"],
+                state[f"readouts.{k}.linear_1.weight"],
             )
             _scatter_o3_linear_blocks(
-                sub["linear_2"], state[f"readouts.{k}.linear_2.weight"],
+                sub["linear_2"],
+                state[f"readouts.{k}.linear_2.weight"],
             )
 
 
@@ -1111,9 +1161,7 @@ def _validate_no_nan(pytree: Any) -> None:
         if np.issubdtype(arr.dtype, np.floating) and np.isnan(arr).any():
             bad.append("/".join(str(k) for k in path))
     if bad:
-        raise ValueError(
-            "NaN leaves after conversion:\n  - " + "\n  - ".join(bad)
-        )
+        raise ValueError("NaN leaves after conversion:\n  - " + "\n  - ".join(bad))
 
 
 def _torch_mace_version() -> str:
