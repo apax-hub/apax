@@ -70,6 +70,13 @@ class ModelBuilder:
         return basis_fn
 
     def build_radial_function(self):
+        if "n_radial" not in self.config or "emb_init" not in self.config:
+            raise NotImplementedError(
+                "build_radial_function needs n_radial/emb_init (the GMNN-style "
+                "RadialFunction); this model config defines neither. A model that "
+                "does not use RadialFunction must build its radial path in its own "
+                "builder (e.g. MaceBuilder builds MaceRadialEmbedding directly)."
+            )
         basis_fn = self.build_basis_function()
 
         if self.config["basis"]["name"] == "gaussian":

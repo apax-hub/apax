@@ -542,7 +542,10 @@ def _map_node_embedding(
     torch_atomic_numbers : tuple of int
         Maps each torch row to its physical Z value.
     """
-    target = rep_params["LinearNodeEmbedding_0"]["weight"]
+    emb_block = _require_slots(
+        rep_params, "LinearNodeEmbedding_", 1, context="node embedding"
+    )[0]
+    target = emb_block["weight"]
     n_torch = len(torch_atomic_numbers)
     hidden = target.shape[1]
     flat = state["node_embedding.linear.weight"]
@@ -558,7 +561,7 @@ def _map_node_embedding(
     for torch_idx, Z in enumerate(torch_atomic_numbers):
         if 0 <= Z < new.shape[0]:
             new[Z] = matrix[torch_idx]
-    rep_params["LinearNodeEmbedding_0"]["weight"] = new.astype(target.dtype)
+    emb_block["weight"] = new.astype(target.dtype)
 
 
 def _map_scale_shift(
@@ -649,6 +652,43 @@ def _require_slots(params: dict, prefix: str, count: int, *, context: str) -> li
             f"update the foundation converter mapping to match."
         )
     return [params[f"{prefix}{i}"] for i in range(count)]
+
+
+def _require_key(mapping: dict, key: str, *, context: str):
+    """Return ``mapping[key]`` or raise an actionable error.
+
+    The converter walks fixed-name slots in the apax pytree (e.g.
+    ``distance_transform``). This raises a message naming the missing key and the
+    keys that are present — pointing at the converter mapping — instead of a bare
+    ``KeyError`` when the apax module layout drifts.
+
+    Parameters
+    ----------
+    mapping : dict
+        Parameter sub-tree expected to contain ``key``.
+    key : str
+        The expected key.
+    context : str
+        Short description of the mapping step, used in the error message.
+
+    Returns
+    -------
+    Any
+        ``mapping[key]``.
+
+    Raises
+    ------
+    KeyError
+        If ``key`` is absent from ``mapping``.
+    """
+    if key not in mapping:
+        raise KeyError(
+            f"{context}: expected key {key!r} in the apax parameter tree but found "
+            f"only {sorted(mapping)}. The MACE module layout in "
+            f"apax/layers/descriptor (auto-generated Flax names) likely changed; "
+            f"update the foundation converter mapping to match."
+        )
+    return mapping[key]
 
 
 def _map_interactions(
@@ -959,9 +999,10 @@ def _map_distance_transform(
         ``a`` / ``q`` / ``p`` scalars live in ``buffers``; when ``True`` they
         live in ``params``. ``covalent_radii`` always stays in ``buffers``.
     """
-    dt_buf = out["buffers"]["energy_model"]["representation"]["radial_embedding"][
-        "distance_transform"
-    ]
+    re_buf = out["buffers"]["energy_model"]["representation"]["radial_embedding"]
+    dt_buf = _require_key(
+        re_buf, "distance_transform", context="distance transform buffer"
+    )
     dt_buf["covalent_radii"] = np.asarray(
         state["radial_embedding.distance_transform.covalent_radii"]
     ).astype(dt_buf["covalent_radii"].dtype)

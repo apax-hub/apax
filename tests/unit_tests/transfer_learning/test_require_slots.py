@@ -7,7 +7,20 @@ fail with a message naming the missing slot, not a bare KeyError deep in a loop.
 
 import pytest
 
-from apax.transfer_learning.mace_foundation import _require_slots
+from apax.transfer_learning.mace_foundation import _require_key, _require_slots
+
+
+def test_require_key_returns_value():
+    d = {"distance_transform": {"a": 1}, "other": 2}
+    assert _require_key(d, "distance_transform", context="distance transform") == {"a": 1}
+
+
+def test_require_key_raises_actionable_error_on_missing_key():
+    with pytest.raises(KeyError) as exc:
+        _require_key({"other": 1}, "distance_transform", context="distance transform")
+    msg = str(exc.value)
+    assert "distance_transform" in msg
+    assert "converter" in msg.lower()
 
 
 def test_require_slots_returns_ordered_blocks():

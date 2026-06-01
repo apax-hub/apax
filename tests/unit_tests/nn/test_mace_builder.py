@@ -118,6 +118,17 @@ def test_mace_build_feature_model_returns_descriptor_features():
     assert "representation" in params["params"]
 
 
+def test_mace_builder_build_radial_function_raises_clear_error():
+    """MACE builds its radial path directly (MaceRadialEmbedding); the GMNN-style
+    base build_radial_function needs n_radial/emb_init, which MaceModelConfig does
+    not define. Calling it must fail with a clear error, not a bare KeyError."""
+    import pytest
+
+    builder = MaceBuilder(_minimal_cfg(), n_species=5)
+    with pytest.raises(NotImplementedError):
+        builder.build_radial_function()
+
+
 def test_mace_builder_uses_mace_bessel_basis():
     """MACE owns the 'standard' bessel variant; the builder returns the
     torch-mace-faithful MaceBesselBasis."""
