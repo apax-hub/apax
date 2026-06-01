@@ -59,12 +59,48 @@ def test_mace_builder_shallow_ensemble_plumbs_n_members():
     assert readout.n_shallow_ensemble == 4
 
 
-def test_mace_builder_feature_fn_uses_atomistic_readout():
-    from apax.layers.readout import AtomisticReadout
-
+def test_mace_builder_feature_fn_returns_none():
+    """The MACE feature path must use the raw (trained) descriptor features,
+    not a fresh AtomisticReadout whose params the converter/training never fill.
+    ``FeatureModel`` skips the readout when it is falsy, so ``None`` yields the
+    descriptor output directly."""
     builder = MaceBuilder(_minimal_cfg(), n_species=5)
     readout = builder.build_readout(builder.config, is_feature_fn=True)
-    assert isinstance(readout, AtomisticReadout)
+    assert readout is None
+
+
+def test_mace_builder_feature_fn_partial_layers_raises():
+    """Partial-layer feature extraction is not yet supported for MACE and must
+    fail loudly rather than silently returning wrong features."""
+    import pytest
+
+    builder = MaceBuilder(_minimal_cfg(), n_species=5)
+    with pytest.raises(NotImplementedError):
+        builder.build_readout(builder.config, is_feature_fn=True, only_use_n_layers=1)
+
+
+def test_mace_build_feature_model_returns_descriptor_features():
+    """build_feature_model must produce the per-atom descriptor features
+    (n_atoms, num_interactions * hidden_dim) with no extra readout params."""
+    builder = MaceBuilder(_minimal_cfg(), n_species=5)
+    model = builder.build_feature_model(should_average=False)
+
+    n_atoms = 3
+    R = jnp.array([[0.0, 0.0, 0.0], [1.5, 0.0, 0.0], [3.0, 0.0, 0.0]])
+    Z = jnp.array([1, 2, 3], dtype=jnp.int32)
+    neighbor = jnp.array([[0, 1], [1, 2]], dtype=jnp.int32).T
+    box = jnp.zeros((3,))
+    offsets = jnp.zeros((neighbor.shape[1], 3))
+
+    params = model.init(jax.random.PRNGKey(0), R, Z, neighbor, box, offsets)
+    features = model.apply(params, R, Z, neighbor, box, offsets)
+
+    # 2 interactions * hidden_dim 8 (8x0e) = 16 scalar features per atom
+    assert features.shape == (n_atoms, 16)
+    assert np.all(np.isfinite(np.asarray(features)))
+    # readout=None -> the feature model carries only the descriptor params
+    assert "readout" not in params["params"]
+    assert "representation" in params["params"]
 
 
 def test_mace_builder_end_to_end_energy_derivative_model():

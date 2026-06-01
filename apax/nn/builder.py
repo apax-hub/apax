@@ -379,16 +379,23 @@ class MaceBuilder(ModelBuilder):
         is_energy_head = head_config is self.config
 
         if is_energy_head and is_feature_fn:
-            return super().build_readout(
-                head_config, is_feature_fn, only_use_n_layers
-            )
+            # MACE features are the trained per-atom descriptor output
+            # (n_atoms, num_interactions * hidden_dim). Returning ``None`` makes
+            # ``FeatureModel`` skip the readout and emit those directly, instead
+            # of building a fresh AtomisticReadout whose params training and the
+            # foundation converter never populate.
+            if only_use_n_layers is not None:
+                raise NotImplementedError(
+                    "Partial-layer feature extraction (only_use_n_layers) is not "
+                    "supported for MACE descriptors yet; the per-layer feature "
+                    "contract is introduced in a later change."
+                )
+            return None
 
         if is_energy_head:
             readout_cfg = self.config["readout"]
             ens = self.config.get("ensemble") or {}
-            n_shallow_ensemble = (
-                ens["n_members"] if ens.get("kind") == "shallow" else 0
-            )
+            n_shallow_ensemble = ens["n_members"] if ens.get("kind") == "shallow" else 0
             return self._build_mace_readout(
                 MLP_irreps=readout_cfg["MLP_irreps"],
                 n_shallow_ensemble=n_shallow_ensemble,
