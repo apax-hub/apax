@@ -39,7 +39,6 @@ def test_mace_builder_uses_mace_readout_by_default():
     readout = builder.build_readout(builder.config)
     assert isinstance(readout, MaceReadout)
     assert readout.num_interactions == 2
-    assert readout.hidden_dim == 8
     assert readout.MLP_irreps == "16x0e"
 
 

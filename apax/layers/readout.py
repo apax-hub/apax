@@ -86,7 +86,6 @@ class MaceReadout(nn.Module):
     """
 
     num_interactions: int
-    hidden_dim: int
     MLP_irreps: str = "16x0e"
     n_shallow_ensemble: int = 0
     dtype: Any = jnp.float32
@@ -95,24 +94,43 @@ class MaceReadout(nn.Module):
     def __call__(self, x):
         """Return a per-atom energy summed across MACE layers.
 
+        The per-layer scalar width (``hidden_dim``) is derived from the input
+        width rather than configured, so the readout cannot desync from the
+        descriptor's actual per-layer feature layout.
+
         Parameters
         ----------
         x : jnp.ndarray, shape ``(num_interactions * hidden_dim,)``
-            Flat per-atom feature vector after vmap.
+            Flat per-atom feature vector after vmap. The width must be an exact
+            multiple of ``num_interactions``.
 
         Returns
         -------
         jnp.ndarray, shape ``(1,)`` or ``(n_shallow_ensemble,)``
             Per-atom scalar (or ensemble of scalars).
+
+        Raises
+        ------
+        ValueError
+            If the input width is not divisible by ``num_interactions`` (a
+            descriptor/readout layout mismatch).
         """
         dtype = str_to_dtype(self.dtype)
         x = x.astype(dtype)
-        layers = x.reshape(self.num_interactions, self.hidden_dim)
+        total_width = x.shape[-1]
+        hidden_dim, remainder = divmod(total_width, self.num_interactions)
+        if remainder != 0:
+            raise ValueError(
+                f"MaceReadout feature width {total_width} is not divisible by "
+                f"num_interactions={self.num_interactions}; the descriptor and "
+                "readout per-layer layouts disagree."
+            )
+        layers = x.reshape(self.num_interactions, hidden_dim)
         n_out = self.n_shallow_ensemble if self.n_shallow_ensemble > 0 else 1
 
         E = jnp.zeros((n_out,), dtype=dtype)
         for k in range(self.num_interactions):
-            feat = e3nn.IrrepsArray(f"{self.hidden_dim}x0e", layers[k])
+            feat = e3nn.IrrepsArray(f"{hidden_dim}x0e", layers[k])
             if k < self.num_interactions - 1:
                 contrib = LinearReadoutBlock(n_out=n_out, name=f"readout_{k}")(feat)
             else:

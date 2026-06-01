@@ -1,6 +1,5 @@
 import logging
 
-import e3nn_jax as e3nn
 import numpy as np
 
 from apax.config import ModelConfig
@@ -422,10 +421,11 @@ class MaceBuilder(ModelBuilder):
 
     def _build_mace_readout(self, *, MLP_irreps, n_shallow_ensemble, dtype):
         desc_cfg = self.config["descriptor"]
-        hidden_dim = e3nn.Irreps(desc_cfg["hidden_irreps"]).filter("0e").dim
+        # hidden_dim is derived inside MaceReadout from the actual per-atom
+        # feature width, so it is not passed here (it cannot then desync from
+        # the descriptor's emitted layout).
         return MaceReadout(
             num_interactions=len(desc_cfg["interactions"]),
-            hidden_dim=hidden_dim,
             MLP_irreps=MLP_irreps,
             n_shallow_ensemble=n_shallow_ensemble,
             dtype=dtype,
