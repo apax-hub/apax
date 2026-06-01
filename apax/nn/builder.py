@@ -7,6 +7,7 @@ from apax.layers.activation import get_activation_fn
 from apax.layers.descriptor import (
     EquivMPRepresentation,
     GaussianMomentDescriptor,
+    MaceRepresentation,
     So3kratesRepresentation,
 )
 from apax.layers.descriptor.basis_functions import (
@@ -17,7 +18,6 @@ from apax.layers.descriptor.basis_functions import (
     MaceRadialEmbedding,
     RadialFunction,
 )
-from apax.layers.descriptor.mace import MaceRepresentation
 from apax.layers.empirical import all_corrections
 from apax.layers.properties import PropertyHead
 from apax.layers.readout import AtomisticReadout, MaceReadout
@@ -387,7 +387,12 @@ class MaceBuilder(ModelBuilder):
         is_feature_fn: bool = False,
         only_use_n_layers: int | None = None,
     ):
-        is_energy_head = head_config is self.config
+        # The energy head is configured by the top-level model config (which
+        # carries the nested ``readout`` group); property heads pass their own
+        # flat config dict (with ``MLP_irreps``/``n_shallow_members``) and have
+        # no ``readout`` key. Dispatch structurally rather than by object
+        # identity so an equal-but-copied config still routes correctly.
+        is_energy_head = "readout" in head_config
 
         if is_energy_head and is_feature_fn:
             # MACE features are the trained per-atom descriptor output

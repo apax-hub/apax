@@ -42,6 +42,22 @@ def test_mace_builder_uses_mace_readout_by_default():
     assert readout.MLP_irreps == "16x0e"
 
 
+def test_mace_builder_energy_readout_dispatch_is_structural_not_identity():
+    """The energy-head readout is selected structurally (presence of the nested
+    'readout' config), not by `head_config is self.config` object identity, so an
+    equal-but-not-identical config dict still routes to the energy branch."""
+    from apax.layers.readout import MaceReadout
+
+    builder = MaceBuilder(_minimal_cfg(), n_species=5)
+    # shallow copy: same content, different object. The old identity check
+    # (`head_config is self.config`) would misroute this to the property branch
+    # and raise KeyError on the missing top-level 'MLP_irreps'.
+    cfg_copy = dict(builder.config)
+    readout = builder.build_readout(cfg_copy)
+    assert isinstance(readout, MaceReadout)
+    assert readout.MLP_irreps == cfg_copy["readout"]["MLP_irreps"]
+
+
 def test_mace_builder_shallow_ensemble_plumbs_n_members():
     from apax.layers.readout import MaceReadout
 
