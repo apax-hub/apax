@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>apax · Onboarding: Adding New Models</title>
+
+<!-- Prism (light theme) for code highlighting -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css" />
+<!-- KaTeX for the few UQ formulas -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+
+<style>
+  :root{
+    --bg:#f5f7fb;
+    --panel:#ffffff;
+    --ink:#1c2230;
+    --ink-soft:#4a5366;
+    --muted:#788196;
+    --line:#e6e9f0;
+    --line-strong:#d3d8e4;
+    --accent:#4f46e5;       /* indigo */
+    --accent-soft:#eef0ff;
+    --teal:#0d9488;
+    --teal-soft:#e2f6f2;
+    --amber:#b45309;
+    --amber-soft:#fdf3e3;
+    --rose:#be123c;
+    --code-bg:#f6f7f9;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(20,28,50,.04), 0 8px 24px rgba(20,28,50,.06);
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Inter",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:var(--sans);line-height:1.62;font-size:16px;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* ---------- Layout ---------- */
+  .shell{display:grid;grid-template-columns:280px minmax(0,1fr);gap:0;max-width:1500px;margin:0 auto;}
+  .sidebar{
+    position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;
+    padding:30px 22px 60px;border-right:1px solid var(--line);background:var(--panel);
+  }
+  .content{padding:46px 56px 120px;min-width:0;}
+  @media (max-width:1040px){
+    .shell{grid-template-columns:1fr}
+    .sidebar{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line)}
+    .content{padding:32px 22px 80px}
+  }
+
+  /* ---------- Sidebar ---------- */
+  .brand{display:flex;align-items:center;gap:11px;margin-bottom:6px}
+  .brand .logo{width:38px;height:38px;flex:0 0 auto}
+  .brand h1{font-size:19px;margin:0;letter-spacing:-.02em;font-weight:700}
+  .brand .sub{font-size:12px;color:var(--muted);margin-top:1px}
+  .toc{margin-top:26px;font-size:14px}
+  .toc .grp{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:20px 0 8px;font-weight:700}
+  .toc a{display:block;color:var(--ink-soft);padding:5px 10px;border-radius:8px;border-left:2px solid transparent;margin-bottom:1px}
+  .toc a:hover{background:var(--accent-soft);text-decoration:none;color:var(--accent)}
+  .toc a.active{background:var(--accent-soft);color:var(--accent);border-left-color:var(--accent);font-weight:600}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    background:linear-gradient(135deg,#4f46e5 0%,#6d28d9 55%,#0d9488 130%);
+    color:#fff;border-radius:18px;padding:38px 40px;margin-bottom:34px;box-shadow:var(--shadow);
+    position:relative;overflow:hidden;
+  }
+  .hero::after{content:"";position:absolute;right:-60px;top:-60px;width:280px;height:280px;
+    background:radial-gradient(circle at center,rgba(255,255,255,.16),transparent 62%);}
+  .hero .kicker{font-size:12px;letter-spacing:.16em;text-transform:uppercase;opacity:.85;font-weight:600}
+  .hero h2{font-size:33px;margin:8px 0 12px;letter-spacing:-.025em;line-height:1.15;font-weight:750}
+  .hero p{margin:0;max-width:74ch;opacity:.95;font-size:15.5px}
+  .hero .pills{margin-top:20px;display:flex;flex-wrap:wrap;gap:8px}
+  .hero .pill{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);
+    padding:5px 12px;border-radius:999px;font-size:12.5px;font-family:var(--mono)}
+
+  /* ---------- Sections ---------- */
+  section{margin:0 0 44px;scroll-margin-top:24px}
+  h3.sec{font-size:23px;letter-spacing:-.02em;margin:0 0 6px;font-weight:730;display:flex;align-items:baseline;gap:11px}
+  h3.sec .n{font-family:var(--mono);font-size:14px;color:var(--accent);background:var(--accent-soft);
+    border-radius:8px;padding:3px 9px;font-weight:700}
+  .lede{color:var(--ink-soft);font-size:16px;margin:0 0 20px;max-width:82ch}
+  h4{font-size:16.5px;margin:28px 0 8px;font-weight:680;letter-spacing:-.01em}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px 24px;box-shadow:var(--shadow);margin:16px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media (max-width:820px){.grid2,.grid3{grid-template-columns:1fr}}
+
+  /* ---------- Code ---------- */
+  pre[class*="language-"]{
+    border:1px solid var(--line-strong);border-radius:12px;margin:14px 0;font-size:13.3px;
+    background:var(--code-bg);box-shadow:inset 0 1px 2px rgba(0,0,0,.02);
+  }
+  code[class*="language-"]{font-family:var(--mono);font-size:13.3px}
+  :not(pre)>code{
+    background:#eef1f6;border:1px solid var(--line);border-radius:6px;padding:1px 6px;
+    font-family:var(--mono);font-size:13px;color:#3b2db8;
+  }
+  .codecap{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin:12px 0 -8px;
+    display:flex;align-items:center;gap:7px}
+  .codecap::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--accent)}
+
+  /* ---------- Tables ---------- */
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#fafbfe;font-weight:650;font-size:12.5px;letter-spacing:.02em;color:var(--ink-soft)}
+  tr:last-child td{border-bottom:none}
+  td code{white-space:nowrap}
+
+  /* ---------- Callouts ---------- */
+  .callout{border-radius:12px;padding:14px 18px;margin:16px 0;font-size:14.5px;border:1px solid;display:flex;gap:12px}
+  .callout .ic{flex:0 0 auto;font-size:17px;line-height:1.5}
+  .callout.note{background:var(--accent-soft);border-color:#d7daff;color:#312e81}
+  .callout.tip{background:var(--teal-soft);border-color:#bfeee6;color:#0f5e54}
+  .callout.warn{background:var(--amber-soft);border-color:#f4dca8;color:#7c4a08}
+  .callout b{font-weight:680}
+
+  /* ---------- Pills / badges ---------- */
+  .tag{display:inline-block;font-family:var(--mono);font-size:11.5px;padding:2px 8px;border-radius:6px;
+    background:#eef1f6;border:1px solid var(--line);color:var(--ink-soft);white-space:nowrap}
+  .tag.req{background:#fde8ec;border-color:#f6c6d2;color:var(--rose)}
+  .tag.opt{background:var(--teal-soft);border-color:#bfeee6;color:var(--teal)}
+  .tag.file{background:#f1f0fe;border-color:#ddd9fb;color:#4f46e5}
+
+  /* ---------- Mermaid ---------- */
+  .mermaid{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px;margin:16px 0;text-align:center;box-shadow:var(--shadow)}
+
+  /* ---------- Steps ---------- */
+  .steps{counter-reset:step;margin:18px 0;padding:0;list-style:none}
+  .steps>li{position:relative;padding:0 0 4px 50px;margin-bottom:20px}
+  .steps>li::before{counter-increment:step;content:counter(step);
+    position:absolute;left:0;top:-2px;width:34px;height:34px;border-radius:10px;
+    background:var(--accent);color:#fff;font-weight:700;font-family:var(--mono);
+    display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:var(--shadow)}
+  .steps>li h4{margin:4px 0 4px}
+  .steps>li.opt::before{background:var(--teal)}
+
+  .filemap{font-family:var(--mono);font-size:13px;line-height:1.95;color:var(--ink-soft)}
+  .filemap .d{color:var(--muted)}
+  .filemap b{color:var(--accent);font-weight:600}
+
+  .kbd{font-family:var(--mono);background:#fff;border:1px solid var(--line-strong);
+    border-bottom-width:2px;border-radius:6px;padding:1px 7px;font-size:12.5px}
+
+  hr{border:none;border-top:1px solid var(--line);margin:34px 0}
+  .footer{color:var(--muted);font-size:13px;margin-top:50px;border-top:1px solid var(--line);padding-top:20px}
+  .lvl{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:650;color:#fff;
+    padding:3px 10px;border-radius:999px;font-family:var(--mono)}
+  .lvl.cfg{background:#4f46e5}.lvl.bld{background:#0d9488}.lvl.mdl{background:#9333ea}.lvl.lyr{background:#b45309}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="24" cy="24" r="6" fill="#4f46e5"/>
+        <circle cx="9" cy="13" r="3.4" fill="#0d9488"/>
+        <circle cx="39" cy="13" r="3.4" fill="#9333ea"/>
+        <circle cx="9" cy="35" r="3.4" fill="#b45309"/>
+        <circle cx="39" cy="35" r="3.4" fill="#0d9488"/>
+        <g stroke="#c3c8d6" stroke-width="1.6">
+          <line x1="11.6" y1="14.8" x2="20.5" y2="21"/>
+          <line x1="36.4" y1="14.8" x2="27.5" y2="21"/>
+          <line x1="11.6" y1="33.2" x2="20.5" y2="27"/>
+          <line x1="36.4" y1="33.2" x2="27.5" y2="27"/>
+        </g>
+      </svg>
+      <div>
+        <h1>apax</h1>
+        <div class="sub">Onboarding · adding models</div>
+      </div>
+    </div>
+
+    <nav class="toc" id="toc">
+      <div class="grp">Orientation</div>
+      <a href="#overview">Overview &amp; philosophy</a>
+      <a href="#bigpicture">The big picture</a>
+      <a href="#layers">The four layers</a>
+
+      <div class="grp">How it works</div>
+      <a href="#pydantic">Pydantic configures models</a>
+      <a href="#builder">The builder assembly line</a>
+      <a href="#models">The flax models</a>
+      <a href="#readout">Energy vs. UQ readout heads</a>
+
+      <div class="grp">Extending apax</div>
+      <a href="#recipe">Add your own model</a>
+      <a href="#lifecycle">End-to-end lifecycle</a>
+      <a href="#conventions">Conventions &amp; gotchas</a>
+      <a href="#reference">File reference map</a>
+    </nav>
+  </aside>
+
+  <!-- ============ CONTENT ============ -->
+  <main class="content">
+
+    <div class="hero">
+      <div class="kicker">Developer Onboarding</div>
+      <h2>Adding new models to apax</h2>
+      <p>apax is an atomistic machine-learning potential framework built on JAX &amp; Flax. Its model
+         system is deliberately modular: a model is the composition of a <b>descriptor</b>, a
+         <b>readout</b>, a <b>scale/shift</b>, optional <b>property heads</b> and <b>empirical
+         corrections</b> — all wired together by a <b>builder</b> that is selected by a <b>Pydantic
+         config</b>. This guide traces those parts through the codebase and shows you exactly how to
+         add a new one.</p>
+      <div class="pills">
+        <span class="pill">config → get_builder() → builder → model</span>
+        <span class="pill">descriptor + readout + scale_shift</span>
+        <span class="pill">jax · flax.linen · pydantic v2</span>
+      </div>
+    </div>
+
+    <!-- ====================================================== OVERVIEW -->
+    <section id="overview">
+      <h3 class="sec"><span class="n">01</span> Overview &amp; design philosophy</h3>
+      <p class="lede">apax separates <em>what a model is</em> (declarative config) from <em>how it is
+        assembled</em> (a builder) from <em>how it computes</em> (flax modules). Adding a model means
+        slotting new pieces into these seams — almost never editing the core.</p>
+
+      <div class="grid2">
+        <div class="card">
+          <h4 style="margin-top:0">The contract in one breath</h4>
+          <p style="margin:0">A <span class="lvl cfg">config</span> is a Pydantic model that knows
+            which <span class="lvl bld">builder</span> to return. The builder assembles a
+            <span class="lvl mdl">flax model</span> out of reusable <span class="lvl lyr">layers</span>.
+            Training, MD and the ASE calculator all go through the <em>same</em> builder, so a new
+            model gets forces, stress, ensembles, property heads and checkpointing for free.</p>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0">The single mandatory override</h4>
+          <p style="margin:0">To add a model you implement <b>one abstract method</b> —
+            <code>ModelBuilder.build_descriptor()</code> — plus a Pydantic config class and a Flax
+            descriptor module. Everything else (readout, UQ, MD, checkpointing) is inherited. You
+            override more <em>only</em> when your architecture genuinely needs it.</p>
+        </div>
+      </div>
+
+      <div class="callout note">
+        <span class="ic">📌</span>
+        <div><b>Reference models.</b> apax ships three models — <b>GMNN</b> (Gaussian Moment NN),
+          <b>EquivMP</b> (equivariant message passing) and <b>So3krates</b>. They all live in the same
+          config / builder / descriptor seams described here, so the quickest way to scaffold a new model
+          is to copy the closest existing one and adapt its descriptor.</div>
+      </div>
+    </section>
+
+    <!-- ====================================================== BIG PICTURE -->
+    <section id="bigpicture">
+      <h3 class="sec"><span class="n">02</span> The big picture</h3>
+      <p class="lede">From a YAML file to a running potential. The keystone is
+        <code>config.model.get_builder()</code>: the config <em>chooses</em> the builder, the builder
+        <em>assembles</em> the flax module, Flax <em>initialises</em> the parameters, and the same path
+        is replayed at inference time after restoring a checkpoint.</p>
+
+      <pre class="mermaid">
+flowchart TB
+  YAML["train.yaml<br/><span>model:</span> name: gmnn …"] -->|"parse_config() → Config.model_validate()"| CFG["<b>Config</b> (pydantic)<br/>Config.model : ModelConfig"]
+  CFG -->|"config.model.get_builder()"| BCLS["Builder <i>class</i><br/>GMNNBuilder / EquivMPBuilder / …"]
+  BCLS -->|"Builder(config.model.model_dump(), n_species=119)"| BI["builder instance"]
+  BI -->|"build_energy_derivative_model(scale, shift)"| M["flax nn.Module<br/>EnergyDerivativeModel / ShallowEnsembleModel"]
+  M -->|"model.init(rng, sample_input)"| P["params (FrozenDict)"]
+  P -->|"train loop + orbax CheckpointManager"| CK["checkpoint<br/>config.yaml + params"]
+  CK -->|"restore_parameters(dir)"| INF["get_builder → build_* → model.apply(params, …)"]
+  INF --> USE["ASE Calculator · JAX-MD · eval · BAL active learning"]
+  classDef cfg fill:#eef0ff,stroke:#4f46e5,color:#312e81;
+  classDef bld fill:#e2f6f2,stroke:#0d9488,color:#0f5e54;
+  classDef mdl fill:#f3e8ff,stroke:#9333ea,color:#5b21b6;
+  class CFG,YAML cfg; class BCLS,BI bld; class M,P,CK,INF mdl;
+      </pre>
+
+      <div class="callout tip">
+        <span class="ic">🧭</span>
+        <div><b>Where <code>get_builder()</code> is called.</b> Training (<code>train/run.py</code>),
+          MD setup (<code>md/simulate.py</code>), the ASE calculator (<code>md/ase_calc.py</code>),
+          evaluation (<code>train/eval.py</code>), batch active learning (<code>bal/api.py</code>) and
+          the CLI (<code>cli/apax_app.py</code>). All of them rebuild the model the same way — which is
+          why a correctly-wired new model "just works" everywhere.</div>
+      </div>
+    </section>
+
+    <!-- ====================================================== FOUR LAYERS -->
+    <section id="layers">
+      <h3 class="sec"><span class="n">03</span> The four layers</h3>
+      <p class="lede">Four directories, four responsibilities. Keep the boundaries clean and your model
+        composes with everything else.</p>
+
+      <table>
+        <thead><tr><th>Layer</th><th>Directory / file</th><th>Responsibility</th><th>You add…</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="lvl cfg">config</span></td>
+            <td><code>apax/config/model_config.py</code></td>
+            <td>Declarative, validated description of a model. Pydantic discriminated unions; one class per model.</td>
+            <td>a <code>…Config</code> class + a Union entry</td>
+          </tr>
+          <tr>
+            <td><span class="lvl bld">builder</span></td>
+            <td><code>apax/nn/builder.py</code></td>
+            <td>Turns a config dict into assembled flax modules. Holds all the "how to wire it" logic.</td>
+            <td>a <code>…Builder(ModelBuilder)</code> subclass</td>
+          </tr>
+          <tr>
+            <td><span class="lvl mdl">model</span></td>
+            <td><code>apax/nn/models.py</code></td>
+            <td>The flax <code>nn.Module</code>s that actually compute energy, forces, stress, UQ.</td>
+            <td>usually <em>nothing</em> — reuse <code>EnergyModel</code></td>
+          </tr>
+          <tr>
+            <td><span class="lvl lyr">layers</span></td>
+            <td><code>apax/layers/…</code></td>
+            <td>Reusable building blocks: descriptors, readouts, scaling, property heads, corrections.</td>
+            <td>a descriptor module (+ optional readout)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="filemap card">
+        apax/<br/>
+        ├─ config/<br/>
+        │&nbsp;&nbsp;├─ <b>model_config.py</b> <span class="d"># Pydantic model configs + ModelConfig Union ← edit</span><br/>
+        │&nbsp;&nbsp;├─ train_config.py <span class="d"># Config.model : ModelConfig (discriminated, default GMNN)</span><br/>
+        │&nbsp;&nbsp;└─ common.py <span class="d"># parse_config(): YAML → Config.model_validate()</span><br/>
+        ├─ nn/<br/>
+        │&nbsp;&nbsp;├─ <b>builder.py</b> <span class="d"># ModelBuilder + GMNN/EquivMP/So3krates builders ← edit</span><br/>
+        │&nbsp;&nbsp;└─ models.py <span class="d"># EnergyModel, EnergyDerivativeModel, FeatureModel, ShallowEnsembleModel</span><br/>
+        └─ layers/<br/>
+        &nbsp;&nbsp;&nbsp;├─ <b>descriptor/</b> <span class="d"># GaussianMoment, EquivMP, So3krates representations ← add yours</span><br/>
+        &nbsp;&nbsp;&nbsp;├─ readout.py <span class="d"># AtomisticReadout (the default MLP head)</span><br/>
+        &nbsp;&nbsp;&nbsp;├─ properties.py <span class="d"># PropertyHead (charges, dipoles, …) + stress_times_vol</span><br/>
+        &nbsp;&nbsp;&nbsp;├─ scaling.py <span class="d"># PerElementScaleShift</span><br/>
+        &nbsp;&nbsp;&nbsp;└─ empirical.py <span class="d"># ZBL / Exponential / LatentEwald + all_corrections registry</span>
+      </div>
+    </section>
+
+    <!-- ====================================================== PYDANTIC -->
+    <section id="pydantic">
+      <h3 class="sec"><span class="n">04</span> How Pydantic configures models</h3>
+      <p class="lede">Configuration is not a dict of strings — it is a tree of validated Pydantic v2
+        models. The central trick is the <b>discriminated union</b>: a tag field (<code>name</code> or
+        <code>kind</code>) selects which subclass a YAML block parses into.</p>
+
+      <h4>Discriminated unions everywhere</h4>
+      <p>Each "pluggable choice" in a config is a <code>Union</code> discriminated by a literal tag.
+        Adding an option = adding a class with a new literal and appending it to the union.</p>
+      <table>
+        <thead><tr><th>Union</th><th>Members</th><th>Discriminator</th></tr></thead>
+        <tbody>
+          <tr><td><code>ModelConfig</code></td><td>GMNNConfig · EquivMPConfig · So3kratesConfig</td><td><code>name</code></td></tr>
+          <tr><td><code>BasisConfig</code></td><td>GaussianBasisConfig · BesselBasisConfig</td><td><code>name</code></td></tr>
+          <tr><td><code>EnsembleConfig</code></td><td>FullEnsembleConfig · ShallowEnsembleConfig</td><td><code>kind</code></td></tr>
+          <tr><td><code>EmpiricalCorrection</code></td><td>ZBLRepulsion · ExponentialRepulsion · LatentEwald</td><td><code>name</code></td></tr>
+        </tbody>
+      </table>
+
+      <div class="codecap">apax/config/model_config.py — a model config = shared base + own fields + name + get_builder()</div>
+      <pre><code class="language-python">class BaseModelConfig(BaseModel, extra="forbid"):      # extra="forbid" ⇒ typos raise
+    basis: BasisConfig = Field(BesselBasisConfig(name="bessel"), discriminator="name")
+    nn: List[PositiveInt] = [256, 256]
+    activation_fn: str = "variance_preserving_swish"
+    ensemble: Optional[EnsembleConfig] = None          # ← UQ lives here (see §07)
+    property_heads: list[PropertyHead] = []            # ← extra outputs (charges, dipole…)
+    empirical_corrections: list[EmpiricalCorrection] = []
+    calc_stress: bool = False
+    descriptor_dtype: Literal["fp32", "fp64"] = "fp32"
+    readout_dtype: Literal["fp32", "fp64"]   = "fp32"
+    scale_shift_dtype: Literal["fp32", "fp64"] = "fp64"
+
+
+class GMNNConfig(BaseModelConfig, extra="forbid"):
+    name: Literal["gmnn"] = "gmnn"                      # ← the discriminator tag
+    n_radial: PositiveInt = 5
+    n_contr: int = 8
+    emb_init: Optional[str] = "uniform"
+
+    def get_builder(self):                             # ← config knows its builder
+        from apax.nn.builder import GMNNBuilder        #    (lazy import avoids a circular dep)
+        return GMNNBuilder
+
+
+ModelConfig = Union[GMNNConfig, EquivMPConfig, So3kratesConfig]   # ← register here</code></pre>
+
+      <div class="codecap">apax/config/train_config.py — the top-level Config selects a model by tag</div>
+      <pre><code class="language-python">class Config(BaseModel, extra="forbid"):
+    model: ModelConfig = Field(GMNNConfig(name="gmnn"), discriminator="name")
+    # data, optimizer, loss, metrics, callbacks, …</code></pre>
+
+      <div class="grid2">
+        <div class="card">
+          <h4 style="margin-top:0">From YAML to a validated object</h4>
+          <div class="codecap">apax/config/common.py</div>
+          <pre><code class="language-python">def parse_config(config, mode="train"):
+    if isinstance(config, (str, os.PathLike)):
+        with open(config) as s:
+            config = yaml.safe_load(s)
+    if mode == "train":
+        config = Config.model_validate(config)  # ← validate + pick subclass
+    return config</code></pre>
+          <p style="margin:0">A YAML block <code>model: {name: so3krates, …}</code> is routed to
+            <code>So3kratesConfig</code> automatically by the <code>name</code> discriminator.
+            Unknown keys raise (<code>extra="forbid"</code>) — your best friend against silent typos.</p>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0">Two things the rest of the code relies on</h4>
+          <p><span class="tag">model_dump()</span> The builder consumes a <b>plain dict</b>, not the
+            Pydantic object: <code>Builder(config.model.model_dump(), n_species=119)</code>. Inside a
+            builder you therefore use <code>self.config["n_contr"]</code>, not attribute access.</p>
+          <p style="margin-bottom:0"><span class="tag">model_json_schema()</span> <code>apax schema</code>
+            calls <code>Config.model_json_schema()</code> and writes
+            <code>apaxtrain.schema.json</code> for VS Code YAML autocompletion. Your new fields and
+            docstrings show up in editors for free.</p>
+        </div>
+      </div>
+
+      <div class="callout tip"><span class="ic">💡</span><div><b>Nested variant configs.</b> For a model
+        with sub-choices (e.g. several block or basis variants), nest another discriminated union:
+        <code>Annotated[Union[BlockA, BlockB], Field(discriminator="name")]</code> — the same pattern as
+        <code>BasisConfig</code>, one level deeper.</div></div>
+    </section>
+
+    <!-- ====================================================== BUILDER -->
+    <section id="builder">
+      <h3 class="sec"><span class="n">05</span> The builder: an assembly line</h3>
+      <p class="lede"><code>ModelBuilder</code> is a small factory. Its <code>build_energy_model()</code>
+        calls a handful of <code>build_*</code> helpers and snaps the results into an
+        <code>EnergyModel</code>. Subclasses normally override <b>just one</b> of those helpers.</p>
+
+      <pre class="mermaid">
+flowchart LR
+  subgraph BUILD["builder.build_energy_model(scale, shift)"]
+    direction TB
+    D["build_descriptor(apply_mask)<br/><b>* abstract — override me</b>"]
+    R["build_readout(self.config)<br/>→ AtomisticReadout"]
+    S["build_scale_shift(scale, shift)<br/>→ PerElementScaleShift"]
+    PH["build_property_heads()<br/>→ [PropertyHead, …]"]
+    C["build_corrections()<br/>→ [ZBL, LatentEwald, …]"]
+  end
+  D --> EM["EnergyModel (flax nn.Module)"]
+  R --> EM
+  S --> EM
+  PH --> EM
+  C --> EM
+  EM --> EDM["build_energy_derivative_model()<br/>wraps for forces / stress / UQ"]
+  classDef hot fill:#fde8ec,stroke:#be123c,color:#7a0c25;
+  class D hot;
+      </pre>
+
+      <table>
+        <thead><tr><th>Method</th><th>Returns</th><th>Override?</th></tr></thead>
+        <tbody>
+          <tr><td><code>build_basis_function()</code></td><td>Gaussian / Bessel radial basis</td><td>inherited (reusable helper)</td></tr>
+          <tr><td><code>build_radial_function()</code></td><td><code>RadialFunction</code> over the basis</td><td>inherited</td></tr>
+          <tr><td><code>build_descriptor(apply_mask)</code></td><td>your representation module</td><td><span class="tag req">REQUIRED</span> — base raises <code>NotImplementedError</code></td></tr>
+          <tr><td><code>build_readout(head_config, …)</code></td><td><code>AtomisticReadout</code></td><td><span class="tag opt">optional</span> — only if the default MLP head is wrong</td></tr>
+          <tr><td><code>build_scale_shift(scale, shift)</code></td><td><code>PerElementScaleShift</code></td><td>inherited</td></tr>
+          <tr><td><code>build_property_heads()</code></td><td><code>[PropertyHead, …]</code></td><td>inherited</td></tr>
+          <tr><td><code>build_corrections()</code></td><td><code>[EmpiricalEnergyTerm, …]</code></td><td>inherited</td></tr>
+          <tr><td><code>build_energy_model(…)</code></td><td><code>EnergyModel</code></td><td>inherited (the assembly)</td></tr>
+          <tr><td><code>build_energy_derivative_model(…)</code></td><td><code>EnergyDerivativeModel</code> / <code>ShallowEnsembleModel</code></td><td>inherited</td></tr>
+          <tr><td><code>build_feature_model(…)</code></td><td><code>FeatureModel</code> (descriptors for active learning)</td><td>inherited</td></tr>
+        </tbody>
+      </table>
+
+      <div class="codecap">apax/nn/builder.py — the abstract seam and three real subclasses (one method each!)</div>
+      <pre><code class="language-python">class ModelBuilder:
+    def __init__(self, model_config: ModelConfig, n_species: int = 119):
+        self.config = model_config          # a plain dict (model_dump())
+        self.n_species = n_species
+
+    def build_descriptor(self, apply_mask):
+        raise NotImplementedError("use a subclass to facilitate this")
+
+
+class GMNNBuilder(ModelBuilder):
+    def build_descriptor(self, apply_mask):
+        radial_fn = self.build_radial_function()          # reuse the base helper
+        return GaussianMomentDescriptor(
+            radial_fn=radial_fn, n_contr=self.config["n_contr"],
+            dtype=self.config["descriptor_dtype"], apply_mask=apply_mask,
+        )
+
+class EquivMPBuilder(ModelBuilder):
+    def build_descriptor(self, apply_mask):
+        return EquivMPRepresentation(
+            features=self.config["features"], max_degree=self.config["max_degree"],
+            num_iterations=self.config["num_iterations"],
+            basis_fn=self.build_basis_function(),
+            dtype=self.config["descriptor_dtype"], apply_mask=apply_mask,
+        )
+
+class So3kratesBuilder(ModelBuilder):
+    def build_descriptor(self, apply_mask):
+        return So3kratesRepresentation(basis_fn=self.build_basis_function(),
+            num_layers=self.config["num_layers"], max_degree=self.config["max_degree"],
+            num_features=self.config["num_features"], num_heads=self.config["num_heads"],
+            dtype=self.config["descriptor_dtype"], ...)</code></pre>
+
+      <p>That is the whole story for a "normal" model: <b>one method.</b> The builder's
+        <code>build_energy_model()</code> then composes your descriptor with the inherited readout,
+        scale/shift, property heads and corrections.</p>
+    </section>
+
+    <!-- ====================================================== MODELS -->
+    <section id="models">
+      <h3 class="sec"><span class="n">06</span> The flax models &amp; the contracts</h3>
+      <p class="lede">You usually never touch <code>apax/nn/models.py</code> — but you must respect the
+        two contracts it imposes on the pieces you supply: the <b>descriptor contract</b> and the
+        <b>readout contract</b>.</p>
+
+      <pre class="mermaid">
+flowchart LR
+  IN["R, Z, neighbors, box, offsets"] --> DIST["compute_distances()<br/>→ dr_vec, idx"]
+  DIST --> REP["representation(dr_vec, Z, idx)<br/><b>descriptor</b> → (n_atoms, n_features)"]
+  REP --> RO["jax.vmap(readout)(g)<br/><b>readout</b> per atom → (n_atoms, 1 | M)"]
+  RO --> SS["scale_shift(h, Z)<br/>per-element E_i"]
+  SS --> SUM["Σ over atoms → energy"]
+  REP --> PH["property_heads<br/>charges · dipole · …"]
+  SUM --> COR["+ empirical corrections"]
+  COR --> OUT["(energy, properties)"]
+  PH --> OUT
+  classDef hot fill:#fde8ec,stroke:#be123c,color:#7a0c25;
+  class REP,RO hot;
+      </pre>
+
+      <div class="grid2">
+        <div class="card">
+          <h4 style="margin-top:0"><span class="tag req">Contract A</span> Descriptor</h4>
+          <pre><code class="language-python">def __call__(self, dr_vec, Z, idx) -> Array:
+    # dr_vec : (n_neighbors, 3)  pair vectors
+    # Z      : (n_atoms,)        atomic numbers
+    # idx    : (2, n_neighbors)  (center, neighbor)
+    ...
+    return features   # MUST be (n_atoms, n_features)</code></pre>
+          <p style="margin:0">Distances are precomputed for you. Return <b>plain scalar features</b>
+            (not an <code>IrrepsArray</code>) at this boundary so the default readout can consume them.
+            Honour <code>apply_mask</code> for padded atoms.</p>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0"><span class="tag req">Contract B</span> Readout</h4>
+          <pre><code class="language-python">def __call__(self, x):     # vmapped over atoms
+    # x : (n_features,) for ONE atom
+    ...
+    return h               # (1,)  or  (n_members,) for UQ</code></pre>
+          <p style="margin:0">The model does <code>jax.vmap(self.readout)(g)</code>, so your readout
+            only ever sees a single atom's feature vector. Output width <code>1</code> = energy;
+            width <code>M &gt; 1</code> = a shallow ensemble (see §07).</p>
+        </div>
+      </div>
+
+      <div class="codecap">apax/nn/models.py — EnergyModel core (abridged): the two contracts in action</div>
+      <pre><code class="language-python">g   = self.representation(dr_vec, Z, idx)   # descriptor  → (n_atoms, n_features)
+h   = jax.vmap(self.readout)(g)             # readout     → (n_atoms, 1) or (n_atoms, M)
+E_i = self.scale_shift(h, Z)                # per-element scale & shift
+
+is_shallow_ensemble = E_i.shape[1] > 1      # UQ is detected purely from the readout width
+energy = fp64_sum(E_i, axis=0) if is_shallow_ensemble else fp64_sum(E_i)
+
+for property_head in self.property_heads:   # charges, dipole, custom …
+    properties.update(property_head(g, R, dr_vec, Z, idx, box))
+for correction in self.corrections:         # ZBL, LatentEwald, …
+    energy = energy + correction(R, dr_vec, Z, idx, box, properties)
+return energy, properties</code></pre>
+
+      <table>
+        <thead><tr><th>flax model</th><th>What it adds</th><th>Built by</th></tr></thead>
+        <tbody>
+          <tr><td><code>EnergyModel</code></td><td>descriptor→readout→scale/shift→Σ + heads + corrections ⇒ <code>(energy, properties)</code></td><td><code>build_energy_model</code></td></tr>
+          <tr><td><code>EnergyDerivativeModel</code></td><td><code>jax.value_and_grad</code> ⇒ adds <code>forces</code> (and <code>stress</code> via box perturbation)</td><td><code>build_energy_derivative_model</code></td></tr>
+          <tr><td><code>ShallowEnsembleModel</code></td><td>mean + <code>energy_uncertainty</code> / <code>forces_uncertainty</code> from an ensemble readout</td><td><code>build_energy_derivative_model</code> (when <code>ensemble.kind="shallow"</code>)</td></tr>
+          <tr><td><code>FeatureModel</code></td><td>descriptor (+ partial readout) ⇒ per-atom / per-structure feature extraction (e.g. ASE <code>get_descriptors</code>)</td><td><code>build_feature_model</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ====================================================== READOUT / UQ -->
+    <section id="readout">
+      <h3 class="sec"><span class="n">07</span> Exchanging readout heads: energy vs. UQ</h3>
+      <p class="lede">This is the question that motivates the whole modular design. There are
+        <b>two independent axes</b> on which you can swap the "head": the <em>readout module</em>
+        (a code-level choice in the builder) and the <em>uncertainty mode</em> (a pure config toggle).</p>
+
+      <pre class="mermaid">
+flowchart TB
+  subgraph CFG["model: config (no model code changes)"]
+    A["(default)<br/>no ensemble"]
+    Bk["ensemble:<br/>kind: shallow<br/>n_members: M"]
+    Ck["ensemble:<br/>kind: full<br/>n_members: N"]
+  end
+  A -->|"readout last layer width = 1"| E1["EnergyDerivativeModel<br/>energy, forces, stress"]
+  Bk -->|"readout last layer width = M"| E2["ShallowEnsembleModel<br/>+ energy_uncertainty<br/>+ forces_uncertainty"]
+  Ck -->|"vmap init over N parameter sets"| E3["Full ensemble<br/>spread across members = UQ"]
+  classDef cfg fill:#eef0ff,stroke:#4f46e5,color:#312e81;
+  classDef uq fill:#e2f6f2,stroke:#0d9488,color:#0f5e54;
+  class A,Bk,Ck cfg; class E2,E3 uq;
+      </pre>
+
+      <h4>Axis 1 — Uncertainty is a config toggle (no code)</h4>
+      <p>The default <code>AtomisticReadout</code> appends a final layer of width <code>1</code>. When a
+        shallow-ensemble config is present, that final width becomes <code>n_members</code> — and the
+        downstream model code <em>automatically</em> detects the extra dimension and switches to the UQ
+        path. You change uncertainty behaviour <b>entirely from YAML.</b></p>
+
+      <div class="codecap">apax/layers/readout.py — AtomisticReadout sizes its last layer from the ensemble config</div>
+      <pre><code class="language-python">def setup(self):
+    units = list(self.units)
+    if not self.is_feature_fn:
+        readout_unit = [1]
+        if self.n_shallow_ensemble > 0:
+            readout_unit = [self.n_shallow_ensemble]   # ← widen → shallow ensemble
+        units += readout_unit
+    ...</code></pre>
+
+      <div class="grid3">
+        <div class="card"><h4 style="margin-top:0">Energy</h4>
+          <pre><code class="language-yaml">model:
+  name: gmnn
+  # no ensemble:
+  # readout width = 1</code></pre>
+          <p style="margin:0;font-size:14px">→ <code>EnergyDerivativeModel</code>, single energy + forces.</p>
+        </div>
+        <div class="card"><h4 style="margin-top:0">Shallow ensemble (cheap UQ)</h4>
+          <pre><code class="language-yaml">model:
+  name: gmnn
+  ensemble:
+    kind: shallow
+    n_members: 8
+    force_variance: true</code></pre>
+          <p style="margin:0;font-size:14px">→ <code>ShallowEnsembleModel</code>: one forward pass yields mean + calibrated uncertainty.</p>
+        </div>
+        <div class="card"><h4 style="margin-top:0">Full ensemble</h4>
+          <pre><code class="language-yaml">model:
+  name: gmnn
+  ensemble:
+    kind: full
+    n_members: 4</code></pre>
+          <p style="margin:0;font-size:14px">→ N independent parameter sets, <code>vmap</code>-initialised; spread = uncertainty.</p>
+        </div>
+      </div>
+
+      <div class="codecap">apax/nn/models.py — ShallowEnsembleModel turns an ensemble of energies into mean + uncertainty</div>
+      <pre><code class="language-python">energy_ens, properties = self.energy_model(R, Z, neighbor, box, offsets)  # shape (n_members,)
+energy_mean     = jnp.mean(energy_ens)
+energy_variance = (1 / (n_ens - 1)) * fp64_sum((energy_ens - energy_mean) ** 2)
+prediction = {
+    "energy": energy_mean,
+    "energy_ensemble": energy_ens,
+    "energy_uncertainty": jnp.sqrt(energy_variance),   # ← uncertainty falls out
+}</code></pre>
+      <p>The variance follows the unbiased estimator
+        <span class="math">\(\sigma_E^2 = \tfrac{1}{M-1}\sum_{k=1}^{M}\,(E_k-\bar{E})^2\)</span>,
+        and forces get the same treatment via a per-member Jacobian.</p>
+
+      <h4>Axis 2 — Swapping the readout <em>module</em> (override <code>build_readout</code>)</h4>
+      <p>When your features don't fit a plain MLP head — say your descriptor emits a structured or
+        per-layer feature layout — override <code>build_readout</code> in your builder to return a
+        different module. As long as the new readout honours the per-atom <code>vmap</code> contract and
+        the <code>n_shallow_ensemble</code> width convention, shallow-ensemble UQ keeps working
+        unchanged.</p>
+
+      <div class="callout tip"><span class="ic">🧱</span><div><b>Per-layer readout models (e.g. MACE).</b>
+        A model whose readout is applied <em>per interaction layer</em> still emits a single flat
+        <code>(n_atoms, n_features)</code> descriptor — it just packs the per-layer scalars in layer
+        order (<code>n_features = num_interactions × hidden_dim</code>). Its custom readout (e.g.
+        <code>MaceReadout</code>) then <b>derives</b> the per-layer split from the input width
+        (<code>hidden_dim = x.shape[-1] // num_interactions</code>) rather than taking a separately-configured
+        width — so the readout can never desync from the descriptor's actual layout, and a layout
+        mismatch fails loudly. Pass only genuine architectural constants (like <code>num_interactions</code>)
+        to such a readout; never a width that merely duplicates what the descriptor already determines.</div></div>
+
+      <h4><code>PropertyHead</code> — extra outputs get UQ for free</h4>
+      <p>Beyond energy, a <code>PropertyHead</code> reads the descriptor features <code>g</code> and
+        emits any per-atom or aggregated property. It is symmetry-aware
+        (<code>mode</code>: <code>l0</code> scalar, <code>l1</code> vector,
+        <code>symmetric_l2</code> / <code>symmetric_traceless_l2</code> tensors) and, crucially,
+        <b>auto-detects an ensemble dimension</b> and emits <code>&lt;name&gt;_uncertainty</code>
+        alongside the mean — the same UQ machinery, reused.</p>
+      <div class="codecap">apax/layers/properties.py — PropertyHead emits mean + uncertainty when fed ensemble features</div>
+      <pre><code class="language-python">output = {self.pname: result}
+if is_ensemble:                              # detected from the readout width
+    mean = jnp.mean(result, axis=0)
+    uncertainty = (1/(n_ens-1)) * fp64_sum((mean - result) ** 2, axis=0)
+    output[self.pname] = mean
+    output[self.pname + "_uncertainty"] = uncertainty
+return output</code></pre>
+
+      <div class="callout note"><span class="ic">🧩</span><div><b>Takeaway.</b> "Energy readout vs. UQ
+        readout" is usually <b>not</b> a different class — it is the same readout asked to produce a
+        wider output, plus a thin model wrapper, all selected by config. Reach for a custom readout
+        <em>module</em> only when the feature layout itself is different.</div></div>
+    </section>
+
+    <!-- ====================================================== RECIPE -->
+    <section id="recipe">
+      <h3 class="sec"><span class="n">08</span> Add your own model — checklist &amp; skeleton</h3>
+      <p class="lede">Here is the minimal path for a hypothetical model <code>Foo</code>. Copy, rename,
+        fill in the physics.</p>
+
+      <table>
+        <thead><tr><th>#</th><th>File</th><th>Action</th><th>Required?</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>config/model_config.py</code></td><td>add <code>FooConfig(BaseModelConfig)</code> with <code>name</code> + fields + <code>get_builder()</code>; append to <code>ModelConfig</code> union</td><td><span class="tag req">required</span></td></tr>
+          <tr><td>2</td><td><code>nn/builder.py</code></td><td>add <code>FooBuilder(ModelBuilder)</code> overriding <code>build_descriptor</code></td><td><span class="tag req">required</span></td></tr>
+          <tr><td>3</td><td><code>layers/descriptor/foo.py</code></td><td>add <code>FooRepresentation(nn.Module)</code> honouring the descriptor contract</td><td><span class="tag req">required</span></td></tr>
+          <tr><td>4</td><td><code>layers/descriptor/__init__.py</code></td><td>re-export <code>FooRepresentation</code> (or import it directly in the builder)</td><td><span class="tag opt">tidy</span></td></tr>
+          <tr><td>5</td><td><code>layers/readout.py</code></td><td>add a custom readout + override <code>build_readout</code> — only if the MLP head doesn't fit</td><td><span class="tag opt">optional</span></td></tr>
+          <tr><td>6</td><td><code>layers/empirical.py</code></td><td>add a correction + register in <code>all_corrections</code> + the <code>EmpiricalCorrection</code> union</td><td><span class="tag opt">optional</span></td></tr>
+          <tr><td>7</td><td><code>tests/unit_tests/…</code></td><td>config defaults/rejection + builder <code>init</code>/<code>apply</code> end-to-end</td><td><span class="tag req">required</span></td></tr>
+        </tbody>
+      </table>
+
+      <div class="grid2">
+        <div>
+          <div class="codecap">1 · config/model_config.py</div>
+          <pre><code class="language-python">class FooConfig(BaseModelConfig, extra="forbid"):
+    name: Literal["foo"] = "foo"
+    hidden_dim: PositiveInt = 64
+    num_layers: PositiveInt = 3
+
+    def get_builder(self):
+        from apax.nn.builder import FooBuilder
+        return FooBuilder
+
+# append to the union ↓
+ModelConfig = Union[
+    GMNNConfig, EquivMPConfig, So3kratesConfig, FooConfig,
+]</code></pre>
+        </div>
+        <div>
+          <div class="codecap">2 · nn/builder.py</div>
+          <pre><code class="language-python">class FooBuilder(ModelBuilder):
+    def build_descriptor(self, apply_mask):
+        from apax.layers.descriptor.foo import FooRepresentation
+        return FooRepresentation(
+            hidden_dim=self.config["hidden_dim"],
+            num_layers=self.config["num_layers"],
+            basis_fn=self.build_basis_function(),   # reuse base helpers
+            dtype=self.config["descriptor_dtype"],
+            apply_mask=apply_mask,
+        )</code></pre>
+        </div>
+      </div>
+
+      <div class="codecap">3 · layers/descriptor/foo.py — the only piece of real physics</div>
+      <pre><code class="language-python">import flax.linen as nn
+import jax.numpy as jnp
+from typing import Any
+
+class FooRepresentation(nn.Module):
+    hidden_dim: int = 64
+    num_layers: int = 3
+    basis_fn: nn.Module = None
+    apply_mask: bool = True
+    dtype: Any = jnp.float32
+
+    @nn.compact
+    def __call__(self, dr_vec, Z, idx):
+        # dr_vec (n_neighbors, 3) · Z (n_atoms,) · idx (2, n_neighbors)
+        # ... your message passing / descriptor here ...
+        return features            # MUST be (n_atoms, n_features), plain scalars</code></pre>
+
+      <div class="callout tip"><span class="ic">✅</span><div><b>Validate without training.</b>
+        <code>uv run python -c "from apax.config import parse_config; parse_config({'... minimal foo config ...'})"</code>
+        confirms the union routes correctly, then a tiny <code>model.init</code>/<code>model.apply</code>
+        test confirms shapes. Regenerate IDE autocomplete with <code class="kbd">apax schema</code>.</div></div>
+
+      <div class="callout warn"><span class="ic">🚫</span><div>The repo enforces
+        <b>uv</b> (run things with <code class="kbd">uv run …</code>), <b>numpy-style docstrings</b>, and
+        never modify tests marked <code>@pytest.mark.protected</code>. Run hooks with
+        <code class="kbd">uvx prek --all-files</code>.</div></div>
+    </section>
+
+    <!-- ====================================================== LIFECYCLE -->
+    <section id="lifecycle">
+      <h3 class="sec"><span class="n">09</span> End-to-end lifecycle (where your model is used)</h3>
+      <p class="lede">The same builder is replayed in every context; the only difference is <em>which</em>
+        <code>build_*</code> method each caller invokes.</p>
+
+      <table>
+        <thead><tr><th>Phase</th><th>Entry point</th><th>Build method</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Train init</td><td><code>train/run.py</code></td><td><code>build_energy_derivative_model(scale, shift)</code></td><td>scale/shift from data statistics; <code>create_params()</code> → <code>model.init()</code></td></tr>
+          <tr><td>Checkpoint</td><td><code>train/checkpoints.py</code></td><td>—</td><td>orbax <code>CheckpointManager</code> stores config + params (<code>best/</code>, <code>latest/</code>)</td></tr>
+          <tr><td>Restore</td><td><code>restore_parameters(dir)</code></td><td>—</td><td>returns <code>(Config, params)</code>; used by ASE/MD/eval</td></tr>
+          <tr><td>ASE calc</td><td><code>md/ase_calc.py</code></td><td><code>build_energy_derivative_model</code> · <code>build_feature_model</code></td><td>energy/forces/stress; features for descriptors</td></tr>
+          <tr><td>JAX-MD</td><td><code>md/simulate.py</code></td><td><code>build_energy_model</code> (+ derivative for logging)</td><td>energy fn drives the integrator</td></tr>
+          <tr><td>Active learning</td><td><code>bal/api.py</code></td><td><code>build_energy_model</code></td><td>feature maps derived from the energy model drive kernel-based batch selection</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout note"><span class="ic">🔁</span><div><b>The symmetry that makes this robust:</b>
+        a checkpoint stores the <em>config</em>, so inference rebuilds your model with the identical
+        <code>get_builder() → build_*</code> path used at training time. Wire the config + builder
+        correctly once, and every consumer is covered.</div></div>
+    </section>
+
+    <!-- ====================================================== CONVENTIONS -->
+    <section id="conventions">
+      <h3 class="sec"><span class="n">10</span> Conventions &amp; gotchas</h3>
+      <div class="grid2">
+        <div class="card">
+          <h4 style="margin-top:0">Config side</h4>
+          <ul style="margin:0;padding-left:18px">
+            <li><b><code>extra="forbid"</code></b> on every config — unknown keys are errors, not ignored.</li>
+            <li><b>Lazy import inside <code>get_builder()</code></b> — config ↔ nn would otherwise be circular.</li>
+            <li>Adding a model needs <b>no <code>__init__.pyi</code> edit</b>; it's reachable through the <code>ModelConfig</code> union (re-exported via <code>apax.config</code>).</li>
+            <li>Use precise pydantic types (<code>PositiveInt</code>, <code>Literal[…]</code>) — they become schema constraints and editor hints.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4 style="margin-top:0">Builder / model side</h4>
+          <ul style="margin:0;padding-left:18px">
+            <li>Builder sees a <b>dict</b> (<code>model_dump()</code>): use <code>self.config["x"]</code>.</li>
+            <li>Default <code>n_species = 119</code> (full periodic table) drives per-element params.</li>
+            <li>Descriptor must return <b>scalar features</b> <code>(n_atoms, n_features)</code> — discard high-ℓ irreps at the boundary.</li>
+            <li>Respect <b>dtypes</b>: <code>descriptor_dtype</code>/<code>readout_dtype</code> default fp32, <code>scale_shift_dtype</code> fp64 (energy reductions stay fp64).</li>
+            <li>Honour <code>apply_mask</code> for padded atoms/neighbours (fixed-shape batching).</li>
+            <li>Keep the readout's <code>n_shallow_ensemble</code> width convention so UQ keeps working.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout tip"><span class="ic">🔗</span><div><b>Cross-component dependencies are explicit.</b>
+        e.g. the <code>latent_ewald</code> correction needs a <code>charges</code> property head and raises
+        a clear <code>KeyError</code> if it's missing. Prefer loud failures over silent zeros.</div></div>
+    </section>
+
+    <!-- ====================================================== REFERENCE -->
+    <section id="reference">
+      <h3 class="sec"><span class="n">11</span> File reference map</h3>
+      <table>
+        <thead><tr><th>File</th><th>Holds</th><th>Touch when adding a model?</th></tr></thead>
+        <tbody>
+          <tr><td><code>config/model_config.py</code></td><td>model configs, <code>PropertyHead</code>, unions</td><td><span class="tag req">yes</span></td></tr>
+          <tr><td><code>config/train_config.py</code></td><td><code>Config.model : ModelConfig</code></td><td>no (uses the union)</td></tr>
+          <tr><td><code>config/common.py</code></td><td><code>parse_config()</code> (YAML → validate)</td><td>no</td></tr>
+          <tr><td><code>nn/builder.py</code></td><td><code>ModelBuilder</code> + subclasses</td><td><span class="tag req">yes</span></td></tr>
+          <tr><td><code>nn/models.py</code></td><td>Energy / Derivative / Feature / ShallowEnsemble</td><td>rarely</td></tr>
+          <tr><td><code>layers/descriptor/</code></td><td>representation modules</td><td><span class="tag req">yes</span></td></tr>
+          <tr><td><code>layers/readout.py</code></td><td><code>AtomisticReadout</code></td><td><span class="tag opt">if custom head</span></td></tr>
+          <tr><td><code>layers/properties.py</code></td><td><code>PropertyHead</code>, stress</td><td>no</td></tr>
+          <tr><td><code>layers/scaling.py</code></td><td><code>PerElementScaleShift</code></td><td>no</td></tr>
+          <tr><td><code>layers/empirical.py</code></td><td>corrections + <code>all_corrections</code></td><td><span class="tag opt">if new correction</span></td></tr>
+        </tbody>
+      </table>
+
+      <h4>Docs &amp; commands</h4>
+      <ul>
+        <li><span class="tag file">docs/source/modules/{model,layers,config}.rst</span> — Sphinx autodoc of the public API surface you're extending.</li>
+        <li><span class="tag file">docs/source/configs/full_configs.rst</span> — the annotated full training/MD config templates.</li>
+        <li><code class="kbd">apax template train --full</code> · <code class="kbd">apax schema</code> · <code class="kbd">apax train config.yaml</code> · <code class="kbd">apax docs</code></li>
+      </ul>
+
+      <div class="footer">
+        Generated for apax onboarding · branch <code>main</code> · models: GMNN, EquivMP, So3krates.
+        All file paths are relative to the repository root. Verify against the source before relying on a
+        specific line — the codebase evolves.
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============ SCRIPTS ============ -->
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+<script>
+  // load language grammars from the same CDN
+  if (window.Prism && Prism.plugins && Prism.plugins.autoloader) {
+    Prism.plugins.autoloader.languages_path =
+      "https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/";
+  }
+</script>
+
+<!-- KaTeX auto-render -->
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script defer>
+  window.addEventListener("DOMContentLoaded", () => {
+    if (window.renderMathInElement) {
+      renderMathInElement(document.body, {
+        delimiters: [
+          { left: "\\(", right: "\\)", display: false },
+          { left: "$$", right: "$$", display: true },
+        ],
+      });
+    }
+  });
+</script>
+
+<!-- Mermaid (ESM, light theme) -->
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "neutral",
+    flowchart: { htmlLabels: true, curve: "basis" },
+    themeVariables: { fontFamily: "ui-sans-serif, system-ui, sans-serif", fontSize: "14px" },
+  });
+</script>
+
+<!-- Active-section highlight in the TOC -->
+<script>
+  const links = [...document.querySelectorAll("#toc a")];
+  const map = new Map(links.map(a => [a.getAttribute("href").slice(1), a]));
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove("active"));
+        const a = map.get(e.target.id);
+        if (a) a.classList.add("active");
+      }
+    });
+  }, { rootMargin: "-10% 0px -80% 0px", threshold: 0 });
+  document.querySelectorAll("section[id]").forEach(s => obs.observe(s));
+</script>
+</body>
+</html>
