@@ -8,6 +8,7 @@ Validates the faithful port at machine precision: for a single dimer at a
 sweep of separations, the apax energy must match the torch reference to
 ``rtol=1e-12, atol=1e-12``.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -62,7 +63,7 @@ def test_mace_zbl_pair_repulsion_matches_torch_on_dimer(Z_pair):
         Z_jnp,
         idx,
         jnp.zeros((3, 3)),  # box
-        {},                 # properties
+        {},  # properties
     )
 
     for r in drs:

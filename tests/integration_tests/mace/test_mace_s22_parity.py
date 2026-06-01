@@ -8,6 +8,7 @@ Tolerances:
 - energy: atol = 1e-5 eV  (foundation models are float64; this is a few ULPs).
 - forces: atol = 1e-4 eV/Ang.
 """
+
 from pathlib import Path
 
 import numpy as np
@@ -112,11 +113,15 @@ def test_s22_energy_force_parity(idx, torch_calc, apax_calc):
     f_a = np.asarray(atoms_a.get_forces())
 
     np.testing.assert_allclose(
-        e_a, e_t, atol=1e-5,
+        e_a,
+        e_t,
+        atol=1e-5,
         err_msg=f"system idx={idx} ({atoms_t.get_chemical_formula()}): "
-                f"E_apax={e_a:.10f}, E_torch={e_t:.10f}, diff={e_a - e_t:.3e}",
+        f"E_apax={e_a:.10f}, E_torch={e_t:.10f}, diff={e_a - e_t:.3e}",
     )
     np.testing.assert_allclose(
-        f_a, f_t, atol=1e-4,
+        f_a,
+        f_t,
+        atol=1e-4,
         err_msg=f"system idx={idx}: max |Δf| = {np.abs(f_a - f_t).max():.3e}",
     )

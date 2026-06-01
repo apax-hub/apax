@@ -4,6 +4,7 @@ Verifies that the standard apax `TransferLearningConfig` path works on a
 converted MACE backbone - no MACE-specific trainer code is needed. Gated
 by ``mace_parity`` because conversion requires torch + mace-torch.
 """
+
 from pathlib import Path
 
 import numpy as np
@@ -332,8 +333,7 @@ def test_finetune_foundation_to_ensemble_succeeds_with_suggested_reset_layers(
         flags=re.MULTILINE,
     )
     assert suggested, (
-        f"error message did not include yaml-ready bullet list; got:\n"
-        f"{excinfo.value}"
+        f"error message did not include yaml-ready bullet list; got:\n{excinfo.value}"
     )
 
     # Second run: paste the suggested keys and train one epoch.

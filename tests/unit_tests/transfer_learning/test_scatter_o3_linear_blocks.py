@@ -10,6 +10,7 @@ This test locks the contract by constructing both Linears with multi-irrep
 input and output, scattering torch weights into apax via the converter
 helper, and asserting both produce identical output for the same input.
 """
+
 import numpy as np
 import pytest
 

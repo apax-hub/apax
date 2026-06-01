@@ -4,6 +4,7 @@ Trains a tiny MACE model (skeleton features) for 1 epoch on MD22 stachyose.
 Correctness is not checked — only that the entire pipeline runs: config
 validation → builder → data pipeline → trainer → checkpoint writing.
 """
+
 import pathlib
 import uuid
 

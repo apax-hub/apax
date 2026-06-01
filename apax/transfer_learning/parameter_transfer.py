@@ -32,10 +32,9 @@ def _is_blacklisted(path: tuple, param_black_list: list) -> bool:
     A leaf is blacklisted if either the legacy ``p[-2]`` suffix matches an
     entry, or the full ``/``-joined path matches an entry.
     """
-    return (
-        (len(path) >= 2 and path[-2] in param_black_list)
-        or _path_to_str(path) in param_black_list
-    )
+    return (len(path) >= 2 and path[-2] in param_black_list) or _path_to_str(
+        path
+    ) in param_black_list
 
 
 def _shape_of(leaf) -> tuple:
@@ -157,8 +156,12 @@ def black_list_param_transfer(
         src_set = src_by_parent.get(parent, set())
         tgt_set = tgt_by_parent.get(parent, set())
         common = src_set & tgt_set
-        src_only = {p for p in src_set - common if not _is_blacklisted(p, param_black_list)}
-        tgt_only = {p for p in tgt_set - common if not _is_blacklisted(p, param_black_list)}
+        src_only = {
+            p for p in src_set - common if not _is_blacklisted(p, param_black_list)
+        }
+        tgt_only = {
+            p for p in tgt_set - common if not _is_blacklisted(p, param_black_list)
+        }
         if src_only and tgt_only:
             src_shapes = {p: _shape_of(flat_source[p]) for p in src_only}
             tgt_shapes = {p: _shape_of(flat_target[p]) for p in tgt_only}

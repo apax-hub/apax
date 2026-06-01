@@ -63,7 +63,12 @@ def test_interaction_block_shape_and_finite():
     )
     params = block.init(
         jax.random.PRNGKey(0),
-        node_feats, edge_attrs, edge_feats, node_attrs, i, j,
+        node_feats,
+        edge_attrs,
+        edge_feats,
+        node_attrs,
+        i,
+        j,
     )
     message, sc = block.apply(
         params, node_feats, edge_attrs, edge_feats, node_attrs, i, j
@@ -231,8 +236,8 @@ def test_interaction_block_emits_target_irreps_and_skip():
     n_atoms, n_edges = 4, 6
     node_feats_irreps = "8x0e"
     node_attrs_irreps = "5x0e"
-    edge_attrs_irreps = "1x0e + 1x1o + 1x2e"      # max_ell=2
-    target_irreps = "8x0e + 8x1o + 8x2e"           # interaction_irreps
+    edge_attrs_irreps = "1x0e + 1x1o + 1x2e"  # max_ell=2
+    target_irreps = "8x0e + 8x1o + 8x2e"  # interaction_irreps
     hidden_irreps = "8x0e"
 
     block = InteractionBlockResidual(
@@ -312,7 +317,9 @@ def test_tp_out_irreps_with_instructions_basic():
     irreps_in2 = e3nn.Irreps("1x0e + 1x1o + 1x2e + 1x3o")
     target = e3nn.Irreps("8x0e + 8x1o + 8x2e + 8x3o")
     irreps_mid, instructions = tp_out_irreps_with_instructions(
-        irreps_in1, irreps_in2, target,
+        irreps_in1,
+        irreps_in2,
+        target,
     )
     assert e3nn.Irreps(irreps_mid).dim > 0
     assert all(isinstance(i, tuple) for i in instructions)
@@ -346,7 +353,8 @@ def _make_density_inputs(seed: int = 0):
     )
     radial = jnp.asarray(rng.normal(size=(n_edges, 8)))
     Z_one_hot = e3nn.IrrepsArray(
-        node_attrs_irreps, jax.nn.one_hot(jnp.arange(n_atoms) % 10, 10),
+        node_attrs_irreps,
+        jax.nn.one_hot(jnp.arange(n_atoms) % 10, 10),
     )
     receivers = jnp.asarray(rng.integers(0, n_atoms, size=n_edges))
     senders = jnp.asarray(rng.integers(0, n_atoms, size=n_edges))
@@ -377,13 +385,21 @@ def test_interaction_block_density_shape_and_finite():
     )
     params = block.init(
         jax.random.PRNGKey(0),
-        ctx["node_feats"], ctx["sph"], ctx["radial"], ctx["Z_one_hot"],
-        ctx["receivers"], ctx["senders"],
+        ctx["node_feats"],
+        ctx["sph"],
+        ctx["radial"],
+        ctx["Z_one_hot"],
+        ctx["receivers"],
+        ctx["senders"],
     )
     message, sc = block.apply(
         params,
-        ctx["node_feats"], ctx["sph"], ctx["radial"], ctx["Z_one_hot"],
-        ctx["receivers"], ctx["senders"],
+        ctx["node_feats"],
+        ctx["sph"],
+        ctx["radial"],
+        ctx["Z_one_hot"],
+        ctx["receivers"],
+        ctx["senders"],
     )
     assert sc is None
     assert isinstance(message, e3nn.IrrepsArray)
@@ -404,13 +420,21 @@ def test_interaction_block_density_residual_shape_and_finite():
     )
     params = block.init(
         jax.random.PRNGKey(0),
-        ctx["node_feats"], ctx["sph"], ctx["radial"], ctx["Z_one_hot"],
-        ctx["receivers"], ctx["senders"],
+        ctx["node_feats"],
+        ctx["sph"],
+        ctx["radial"],
+        ctx["Z_one_hot"],
+        ctx["receivers"],
+        ctx["senders"],
     )
     message, sc = block.apply(
         params,
-        ctx["node_feats"], ctx["sph"], ctx["radial"], ctx["Z_one_hot"],
-        ctx["receivers"], ctx["senders"],
+        ctx["node_feats"],
+        ctx["sph"],
+        ctx["radial"],
+        ctx["Z_one_hot"],
+        ctx["receivers"],
+        ctx["senders"],
     )
     assert sc is not None
     assert e3nn.Irreps(message.irreps) == e3nn.Irreps(ctx["target_irreps"])
@@ -437,8 +461,12 @@ def test_interaction_scaffold_param_names_match_torch():
     )
     params = block.init(
         jax.random.PRNGKey(0),
-        ctx["node_feats"], ctx["sph"], ctx["radial"], ctx["Z_one_hot"],
-        ctx["receivers"], ctx["senders"],
+        ctx["node_feats"],
+        ctx["sph"],
+        ctx["radial"],
+        ctx["Z_one_hot"],
+        ctx["receivers"],
+        ctx["senders"],
     )
     keys = set(params["params"].keys())
     assert keys == {"linear_up", "radial_mlp", "linear", "skip_tp"}
@@ -455,8 +483,12 @@ def test_interaction_block_density_param_tree_has_density_fn():
     )
     params = block.init(
         jax.random.PRNGKey(0),
-        ctx["node_feats"], ctx["sph"], ctx["radial"], ctx["Z_one_hot"],
-        ctx["receivers"], ctx["senders"],
+        ctx["node_feats"],
+        ctx["sph"],
+        ctx["radial"],
+        ctx["Z_one_hot"],
+        ctx["receivers"],
+        ctx["senders"],
     )
     keys = set(params["params"].keys())
     assert keys == {"linear_up", "radial_mlp", "linear", "skip_tp", "density_fn"}
@@ -491,8 +523,7 @@ def test_nonlinear_readout_block_applies_silu_normalization():
     out_default = block.apply(params, feat)
 
     # With silu_normalization=1.0, the post-gate activation is plain SiLU.
-    block_ref = NonLinearReadoutBlock(MLP_irreps="4x0e", n_out=1,
-                                       silu_normalization=1.0)
+    block_ref = NonLinearReadoutBlock(MLP_irreps="4x0e", n_out=1, silu_normalization=1.0)
     out_ref = block_ref.apply(params, feat)
 
     # Default differs from unnormalised — the constant is actually wired in.

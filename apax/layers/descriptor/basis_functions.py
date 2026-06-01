@@ -301,20 +301,24 @@ class AgnesiTransform(nn.Module):
             Transformed distances of shape ``(n_edges,)``.
         """
         cov = self.variable(
-            "buffers", "covalent_radii",
+            "buffers",
+            "covalent_radii",
             lambda: jnp.asarray(data.covalent_radii, dtype=jnp.float64),
         ).value
         scalar_collection = "params" if self.trainable else "buffers"
         a = self.variable(
-            scalar_collection, "a",
+            scalar_collection,
+            "a",
             lambda: jnp.asarray(self.a_init, dtype=jnp.float64),
         ).value
         q = self.variable(
-            scalar_collection, "q",
+            scalar_collection,
+            "q",
             lambda: jnp.asarray(self.q_init, dtype=jnp.float64),
         ).value
         p = self.variable(
-            scalar_collection, "p",
+            scalar_collection,
+            "p",
             lambda: jnp.asarray(self.p_init, dtype=jnp.float64),
         ).value
 
@@ -392,9 +396,7 @@ class MaceRadialEmbedding(nn.Module):
         """
         dtype = dr_vec.dtype
         r_ij = jnp.linalg.norm(dr_vec, axis=-1)
-        cutoff = PolynomialCutoff(
-            p=self.num_polynomial_cutoff, r_max=self.r_max
-        )(r_ij)
+        cutoff = PolynomialCutoff(p=self.num_polynomial_cutoff, r_max=self.r_max)(r_ij)
         if self.distance_transform is not None:
             r_ij = self.distance_transform(r_ij, Z, idx)
         bessel = self.basis_fn(r_ij)

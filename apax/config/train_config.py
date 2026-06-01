@@ -147,9 +147,7 @@ class DataConfig(BaseModel, extra="forbid"):
     valid_batch_size: PositiveInt = 10
 
     shift_method: str = "per_element_regression_shift"
-    shift_options: dict = Field(
-        default_factory=lambda: {"energy_regularisation": 1.0}
-    )
+    shift_options: dict = Field(default_factory=lambda: {"energy_regularisation": 1.0})
 
     scale_method: str = "per_element_force_rms_scale"
     scale_options: dict = Field(default_factory=dict)

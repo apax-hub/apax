@@ -6,6 +6,7 @@ when a source leaf cannot be written into the target without changing shape,
 and ``reset_layers`` entries may be either the legacy ``p[-2]`` suffix or the
 full ``/``-joined leaf path.
 """
+
 import re
 
 import numpy as np
@@ -57,9 +58,9 @@ def test_mismatched_shapes_raise_with_actionable_message():
     assert "(128, 1)" in msg
     assert "(128, 8)" in msg
     assert "reset_layers:" in msg
-    assert re.search(
-        r"-\s*params/readout/readout_0/linear/kernel", msg
-    ), f"missing yaml-ready bullet in error message:\n{msg}"
+    assert re.search(r"-\s*params/readout/readout_0/linear/kernel", msg), (
+        f"missing yaml-ready bullet in error message:\n{msg}"
+    )
 
 
 def test_full_leaf_path_in_reset_layers_skips_transfer():
@@ -67,9 +68,7 @@ def test_full_leaf_path_in_reset_layers_skips_transfer():
     tgt = _params({"params/readout/readout_0/linear/kernel": (128, 8)})
     tgt["params"]["readout"]["readout_0"]["linear"]["kernel"][:] = 99.0
 
-    out = black_list_param_transfer(
-        src, tgt, ["params/readout/readout_0/linear/kernel"]
-    )
+    out = black_list_param_transfer(src, tgt, ["params/readout/readout_0/linear/kernel"])
 
     leaf = np.asarray(out["params"]["readout"]["readout_0"]["linear"]["kernel"])
     assert leaf.shape == (128, 8)
@@ -90,16 +89,20 @@ def test_legacy_suffix_in_reset_layers_skips_transfer():
 
 
 def test_multiple_mismatches_collected_in_one_error():
-    src = _params({
-        "params/a/kernel": (4, 1),
-        "params/b/kernel": (8, 1),
-        "params/c/kernel": (16, 1),
-    })
-    tgt = _params({
-        "params/a/kernel": (4, 4),
-        "params/b/kernel": (8, 4),
-        "params/c/kernel": (16, 4),
-    })
+    src = _params(
+        {
+            "params/a/kernel": (4, 1),
+            "params/b/kernel": (8, 1),
+            "params/c/kernel": (16, 1),
+        }
+    )
+    tgt = _params(
+        {
+            "params/a/kernel": (4, 4),
+            "params/b/kernel": (8, 4),
+            "params/c/kernel": (16, 4),
+        }
+    )
 
     with pytest.raises(TransferLearningShapeMismatchError) as excinfo:
         black_list_param_transfer(src, tgt, [])
@@ -134,9 +137,9 @@ def test_structural_mismatch_raises_with_target_paths_in_snippet():
     assert "w 8x0e,4x0e" in msg
     # Suggested reset_layers entry must be the TARGET path (so the target
     # slot stays random-init when pasted).
-    assert re.search(
-        r"-\s*params/readout_0/linear/w\s+8x0e,4x0e", msg
-    ), f"missing target path in yaml-ready bullet:\n{msg}"
+    assert re.search(r"-\s*params/readout_0/linear/w\s+8x0e,4x0e", msg), (
+        f"missing target path in yaml-ready bullet:\n{msg}"
+    )
 
 
 def test_target_path_in_reset_layers_suppresses_structural_mismatch():
@@ -145,9 +148,7 @@ def test_target_path_in_reset_layers_suppresses_structural_mismatch():
     tgt = _params({"params/readout_0/linear/w 8x0e,4x0e": (8, 4)})
     tgt["params"]["readout_0"]["linear"]["w 8x0e,4x0e"][:] = 99.0
 
-    out = black_list_param_transfer(
-        src, tgt, ["params/readout_0/linear/w 8x0e,4x0e"]
-    )
+    out = black_list_param_transfer(src, tgt, ["params/readout_0/linear/w 8x0e,4x0e"])
 
     # Target stays random-init (still 99.0); source orphan is dropped silently.
     leaf = np.asarray(out["params"]["readout_0"]["linear"]["w 8x0e,4x0e"])
@@ -161,10 +162,12 @@ def test_pure_source_only_orphan_does_not_trigger_structural_mismatch():
     behavior of silently skipping source-only keys must not regress into a
     spurious structural error.
     """
-    src = _params({
-        "params/dense/kernel": (4, 8),
-        "params/deprecated/old_param": (3,),
-    })
+    src = _params(
+        {
+            "params/dense/kernel": (4, 8),
+            "params/deprecated/old_param": (3,),
+        }
+    )
     tgt = _params({"params/dense/kernel": (4, 8)})
     src["params"]["dense"]["kernel"][:] = 1.0
 
@@ -181,10 +184,12 @@ def test_pure_target_only_orphan_does_not_trigger_structural_mismatch():
     the new slot stays as initialized.
     """
     src = _params({"params/dense/kernel": (4, 8)})
-    tgt = _params({
-        "params/dense/kernel": (4, 8),
-        "params/new_head/kernel": (8, 1),
-    })
+    tgt = _params(
+        {
+            "params/dense/kernel": (4, 8),
+            "params/new_head/kernel": (8, 1),
+        }
+    )
     src["params"]["dense"]["kernel"][:] = 1.0
     tgt["params"]["new_head"]["kernel"][:] = 99.0
 
@@ -196,14 +201,18 @@ def test_pure_target_only_orphan_does_not_trigger_structural_mismatch():
 
 def test_combined_structural_and_shape_mismatch_in_one_error():
     """Both mismatch categories fire → one raise listing both."""
-    src = _params({
-        "params/readout/w 8x0e,1x0e": (8, 1),
-        "params/dense/kernel": (4, 1),
-    })
-    tgt = _params({
-        "params/readout/w 8x0e,4x0e": (8, 4),
-        "params/dense/kernel": (4, 4),
-    })
+    src = _params(
+        {
+            "params/readout/w 8x0e,1x0e": (8, 1),
+            "params/dense/kernel": (4, 1),
+        }
+    )
+    tgt = _params(
+        {
+            "params/readout/w 8x0e,4x0e": (8, 4),
+            "params/dense/kernel": (4, 4),
+        }
+    )
 
     with pytest.raises(TransferLearningShapeMismatchError) as excinfo:
         black_list_param_transfer(src, tgt, [])

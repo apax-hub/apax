@@ -213,20 +213,24 @@ class MaceZBLPairRepulsion(EmpiricalEnergyTerm):
         dr = jnp.clip(dr, min=DR_FLOOR)
 
         c = self.variable(
-            "buffers", "c",
+            "buffers",
+            "c",
             lambda: jnp.array([0.1818, 0.5099, 0.2802, 0.02817]),
         ).value
         covalent_radii = self.variable(
-            "buffers", "covalent_radii",
+            "buffers",
+            "covalent_radii",
             lambda: jnp.asarray(data.covalent_radii, dtype=jnp.float64),
         ).value
         scalar_collection = "params" if self.trainable else "buffers"
         a_exp = self.variable(
-            scalar_collection, "a_exp",
+            scalar_collection,
+            "a_exp",
             lambda: jnp.asarray(0.300, dtype=jnp.float64),
         ).value
         a_prefactor = self.variable(
-            scalar_collection, "a_prefactor",
+            scalar_collection,
+            "a_prefactor",
             lambda: jnp.asarray(0.4543, dtype=jnp.float64),
         ).value
 

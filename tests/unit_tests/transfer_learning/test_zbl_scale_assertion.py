@@ -5,6 +5,7 @@ The ZBL fold (``apax/transfer_learning/mace_foundation.py``) reads
 scale tensors this silently uses only the first element. Pin the
 assumption: raise ``NotImplementedError`` on per-element scales.
 """
+
 from types import SimpleNamespace
 
 import pytest
@@ -53,9 +54,7 @@ def test_extract_config_rejects_per_element_scale():
         products=[
             SimpleNamespace(
                 linear=SimpleNamespace(irreps_out="32x0e"),
-                symmetric_contractions=SimpleNamespace(
-                    contractions=[SimpleNamespace()]
-                ),
+                symmetric_contractions=SimpleNamespace(contractions=[SimpleNamespace()]),
             )
         ],
         spherical_harmonics=SimpleNamespace(irreps_out="1x0e + 1x1o"),

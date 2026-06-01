@@ -8,6 +8,7 @@ Two tests verify that :func:`apax.transfer_learning.mace_foundation.run_conversi
 produces a directory in apax's standard training-output layout and that the
 output round-trips through :func:`apax.train.checkpoints.restore_parameters`.
 """
+
 from __future__ import annotations
 
 import json
@@ -111,9 +112,7 @@ def test_torch_to_apax_param_coverage_no_projections(tmp_path):
     offsets = jnp.zeros((neigh.shape[1], 3))
     template = energy_model.init(jax.random.PRNGKey(0), R, Z, neigh, box, offsets)
 
-    state = {
-        k: v.detach().cpu().numpy() for k, v in torch_model.state_dict().items()
-    }
+    state = {k: v.detach().cpu().numpy() for k, v in torch_model.state_dict().items()}
     extra_scalars = {
         "scale": float(torch_model.scale_shift.scale.detach().cpu()),
         "shift": float(torch_model.scale_shift.shift.detach().cpu()),
@@ -132,8 +131,7 @@ def test_torch_to_apax_param_coverage_no_projections(tmp_path):
     )
 
     apax_total = sum(
-        int(np.prod(v.shape))
-        for _, v in jax.tree_util.tree_flatten_with_path(params)[0]
+        int(np.prod(v.shape)) for _, v in jax.tree_util.tree_flatten_with_path(params)[0]
     )
     torch_total = sum(
         int(np.prod(v.shape)) for v in state.values() if v.dtype.kind == "f"
@@ -183,9 +181,7 @@ def test_convert_medium_mpa0_with_distance_transform(tmp_path):
             tail = path.rsplit("/", 1)[-1]
             found[tail] = np.asarray(leaf)
 
-    assert found, (
-        "distance_transform slot not present in converted params pytree"
-    )
+    assert found, "distance_transform slot not present in converted params pytree"
     for name in ("a", "q", "p", "covalent_radii"):
         assert name in found, f"distance_transform/{name} missing from pytree"
         torch_arr = np.asarray(getattr(dt_torch, name).detach().cpu())

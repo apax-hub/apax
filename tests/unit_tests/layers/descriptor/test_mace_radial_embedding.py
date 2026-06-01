@@ -1,4 +1,5 @@
 """MaceRadialEmbedding: radial-only contract + injected basis_fn."""
+
 import jax
 import jax.numpy as jnp
 import numpy as np

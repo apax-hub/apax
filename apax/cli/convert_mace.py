@@ -6,6 +6,7 @@ Notes
 either is missing, the command exits with a typer error and a hint to install
 the ``mace-convert`` dependency group.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -33,7 +34,7 @@ def convert_mace(
     family: str = typer.Option(
         "mace_mp",
         help="Foundation-model family: 'mace_mp' covers MPA-0 and MP-0/0b/0b2/0b3. "
-             "Others (mace_off, mace_anicc) are deferred.",
+        "Others (mace_off, mace_anicc) are deferred.",
     ),
 ) -> None:
     """Convert a torch-mace foundation model into an apax-native directory.

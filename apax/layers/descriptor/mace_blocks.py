@@ -225,7 +225,9 @@ def _interaction_scaffold(
     """
     x = e3nn.flax.Linear(node_feats_irreps, name="linear_up")(node_feats)
     irreps_mid, _instructions = tp_out_irreps_with_instructions(
-        node_feats_irreps, edge_attrs_irreps, target_irreps,
+        node_feats_irreps,
+        edge_attrs_irreps,
+        target_irreps,
     )
     x_j = x[senders]
     tp = e3nn.tensor_product(x_j, edge_attrs, filter_ir_out=irreps_mid)
@@ -235,7 +237,8 @@ def _interaction_scaffold(
     # MultiLayerPerceptron so the silu normalisation constant matches torch.
     n_paths = tp.irreps.num_irreps
     weights = _MaceFullyConnectedNet(
-        list_neurons=tuple(radial_mlp) + (n_paths,), name="radial_mlp",
+        list_neurons=tuple(radial_mlp) + (n_paths,),
+        name="radial_mlp",
     )(edge_feats)
     weighted = tp * weights
 
@@ -271,7 +274,9 @@ def _edge_density(edge_feats, receivers, n_atoms):
         _MaceFullyConnectedNet(list_neurons=(1,), name="density_fn")(edge_feats) ** 2
     )
     return e3nn.scatter_sum(
-        e3nn.IrrepsArray("0e", edge_density), dst=receivers, output_size=n_atoms,
+        e3nn.IrrepsArray("0e", edge_density),
+        dst=receivers,
+        output_size=n_atoms,
     )
 
 
@@ -329,7 +334,13 @@ class InteractionBlockResidual(nn.Module):
 
     @nn.compact
     def __call__(
-        self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders,
+        self,
+        node_feats,
+        edge_attrs,
+        edge_feats,
+        node_attrs,
+        receivers,
+        senders,
     ):
         node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
         edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
@@ -337,7 +348,11 @@ class InteractionBlockResidual(nn.Module):
         hidden_irreps = e3nn.Irreps(self.hidden_irreps)
 
         message = _interaction_scaffold(
-            node_feats, edge_attrs, edge_feats, receivers, senders,
+            node_feats,
+            edge_attrs,
+            edge_feats,
+            receivers,
+            senders,
             node_feats_irreps=node_feats_irreps,
             edge_attrs_irreps=edge_attrs_irreps,
             target_irreps=target_irreps,
@@ -351,7 +366,9 @@ class InteractionBlockResidual(nn.Module):
         # zero-pads channels not reachable from the input.
         skip_input = e3nn.tensor_product(node_feats, node_attrs)
         sc = e3nn.flax.Linear(
-            hidden_irreps, name="skip_tp", force_irreps_out=True,
+            hidden_irreps,
+            name="skip_tp",
+            force_irreps_out=True,
         )(skip_input)
         return message, sc
 
@@ -384,14 +401,24 @@ class InteractionBlockDensity(nn.Module):
 
     @nn.compact
     def __call__(
-        self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders,
+        self,
+        node_feats,
+        edge_attrs,
+        edge_feats,
+        node_attrs,
+        receivers,
+        senders,
     ):
         node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
         edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
         target_irreps = e3nn.Irreps(self.target_irreps)
 
         pre = _interaction_scaffold(
-            node_feats, edge_attrs, edge_feats, receivers, senders,
+            node_feats,
+            edge_attrs,
+            edge_feats,
+            receivers,
+            senders,
             node_feats_irreps=node_feats_irreps,
             edge_attrs_irreps=edge_attrs_irreps,
             target_irreps=target_irreps,
@@ -406,7 +433,9 @@ class InteractionBlockDensity(nn.Module):
         # ``sc`` returned.
         skip_input = e3nn.tensor_product(message, node_attrs)
         message = e3nn.flax.Linear(
-            target_irreps, name="skip_tp", force_irreps_out=True,
+            target_irreps,
+            name="skip_tp",
+            force_irreps_out=True,
         )(skip_input)
         return message, None
 
@@ -435,7 +464,13 @@ class InteractionBlockDensityResidual(nn.Module):
 
     @nn.compact
     def __call__(
-        self, node_feats, edge_attrs, edge_feats, node_attrs, receivers, senders,
+        self,
+        node_feats,
+        edge_attrs,
+        edge_feats,
+        node_attrs,
+        receivers,
+        senders,
     ):
         node_feats_irreps = e3nn.Irreps(self.node_feats_irreps)
         edge_attrs_irreps = e3nn.Irreps(self.edge_attrs_irreps)
@@ -446,11 +481,17 @@ class InteractionBlockDensityResidual(nn.Module):
         # and placement as the Residual variant.
         skip_input = e3nn.tensor_product(node_feats, node_attrs)
         sc = e3nn.flax.Linear(
-            hidden_irreps, name="skip_tp", force_irreps_out=True,
+            hidden_irreps,
+            name="skip_tp",
+            force_irreps_out=True,
         )(skip_input)
 
         pre = _interaction_scaffold(
-            node_feats, edge_attrs, edge_feats, receivers, senders,
+            node_feats,
+            edge_attrs,
+            edge_feats,
+            receivers,
+            senders,
             node_feats_irreps=node_feats_irreps,
             edge_attrs_irreps=edge_attrs_irreps,
             target_irreps=target_irreps,
@@ -573,12 +614,8 @@ class ScaleShift(nn.Module):
 
     @nn.compact
     def __call__(self, x):
-        scale = self.param(
-            "scale", lambda rng: jnp.array(self.scale_init, dtype=x.dtype)
-        )
-        shift = self.param(
-            "shift", lambda rng: jnp.array(self.shift_init, dtype=x.dtype)
-        )
+        scale = self.param("scale", lambda rng: jnp.array(self.scale_init, dtype=x.dtype))
+        shift = self.param("shift", lambda rng: jnp.array(self.shift_init, dtype=x.dtype))
         return scale * x + shift
 
 
@@ -715,7 +752,9 @@ class ProductBlock(nn.Module):
 
 @lru_cache(maxsize=64)
 def _get_symmetric_contraction_descriptor(
-    input_irreps_str: str, output_irreps_str: str, correlation: int,
+    input_irreps_str: str,
+    output_irreps_str: str,
+    correlation: int,
 ):
     """Cache the MACE symmetric-contraction descriptor build.
 

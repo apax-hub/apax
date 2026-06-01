@@ -9,6 +9,7 @@ cuequivariance descriptor that apax already builds.
 Required at conversion time only — torch and mace-torch are still needed to
 read the source state-dict and compute the reduced-CG projection.
 """
+
 from __future__ import annotations
 
 from functools import cache
@@ -69,12 +70,16 @@ def convert_native_weights(torch_module, *, target_template: jnp.ndarray) -> jnp
     cue_irreps_out = cue.Irreps(cue.O3, str(irreps_out))
     degrees = tuple(range(1, correlation + 1))
     _, reduced_projection = mace_symmetric_contraction_proj(
-        cue_irreps_in, cue_irreps_out, degrees,
+        cue_irreps_in,
+        cue_irreps_out,
+        degrees,
     )
     reduced_projection = np.asarray(reduced_projection, dtype=native_weight.dtype)
 
     _, descriptor_projection = cue_mace_symmetric_contraction(
-        cue_irreps_in, cue_irreps_out, degrees,
+        cue_irreps_in,
+        cue_irreps_out,
+        degrees,
     )
     descriptor_projection = np.asarray(descriptor_projection, dtype=native_weight.dtype)
 
@@ -85,14 +90,20 @@ def convert_native_weights(torch_module, *, target_template: jnp.ndarray) -> jnp
     if basis_dim == reduced_dim:
         if native_dim == reduced_dim:
             converted = np.einsum(
-                "zau,ab->zbu", native_weight, reduced_projection, optimize=True,
+                "zau,ab->zbu",
+                native_weight,
+                reduced_projection,
+                optimize=True,
             )
         elif native_dim == full_dim:
             transform = _full_cg_transform(irreps_in, irreps_out, correlation)
             transform = np.asarray(transform, dtype=native_weight.dtype)
             canonical = np.einsum("ab,zbu->zau", transform, native_weight, optimize=True)
             converted = np.einsum(
-                "zau,ab->zbu", canonical, descriptor_projection, optimize=True,
+                "zau,ab->zbu",
+                canonical,
+                descriptor_projection,
+                optimize=True,
             )
         else:
             raise ValueError(
@@ -105,7 +116,8 @@ def convert_native_weights(torch_module, *, target_template: jnp.ndarray) -> jnp
             converted = np.einsum("ab,zbu->zau", transform, native_weight, optimize=True)
         elif native_dim == reduced_dim:
             lift = np.linalg.pinv(descriptor_projection, rcond=1e-12).astype(
-                native_weight.dtype, copy=False,
+                native_weight.dtype,
+                copy=False,
             )
             converted = np.einsum("zau,ab->zbu", native_weight, lift, optimize=True)
         else:
@@ -166,7 +178,9 @@ def _gather_native_reduced_weights(
 
 
 def _full_cg_transform(
-    irreps_in: Irreps, irreps_out: Irreps, correlation: int,
+    irreps_in: Irreps,
+    irreps_out: Irreps,
+    correlation: int,
 ) -> np.ndarray:
     """Native -> canonical change-of-basis for full-CG weights."""
     base_in = Irreps(str(irreps_in)).set_mul(1)
@@ -176,7 +190,9 @@ def _full_cg_transform(
 
 @cache
 def _cached_full_cg_transform(
-    irreps_in_str: str, irreps_out_str: str, correlation: int,
+    irreps_in_str: str,
+    irreps_out_str: str,
+    correlation: int,
 ) -> np.ndarray:
     """Solve for the native -> canonical change-of-basis via design matrices.
 
@@ -212,7 +228,9 @@ def _cached_full_cg_transform(
     cue_irreps_out = cue.Irreps(cue.O3, irreps_out_str)
     degrees = tuple(range(1, correlation + 1))
     descriptor, descriptor_projection = cue_mace_symmetric_contraction(
-        cue_irreps_in, cue_irreps_out, degrees,
+        cue_irreps_in,
+        cue_irreps_out,
+        degrees,
     )
     descriptor_projection = np.asarray(descriptor_projection)
     weight_irreps = descriptor.inputs[0].irreps
@@ -224,7 +242,10 @@ def _cached_full_cg_transform(
     canonical_dim = descriptor_projection.shape[0]
 
     native_dim = _gather_native_reduced_weights(
-        torch_module, correlation=correlation, mul_dim=mul, num_elements=1,
+        torch_module,
+        correlation=correlation,
+        mul_dim=mul,
+        num_elements=1,
     ).shape[1]
 
     batch = max(canonical_dim, native_dim)
@@ -291,7 +312,10 @@ def _canonical_design_matrix(
         selected = jnp.broadcast_to(jnp.asarray(w_flat), (batch, weight_numel))
         weight_rep = cuex.RepArray(weight_irreps, selected, cue.ir_mul)
         out_rep = cuex.equivariant_polynomial(
-            descriptor, [weight_rep, x_rep], math_dtype=inputs.dtype, method="naive",
+            descriptor,
+            [weight_rep, x_rep],
+            math_dtype=inputs.dtype,
+            method="naive",
         )
         out_ir_mul = out_rep.change_layout(cue.ir_mul).array
         out_mul_ir = _ir_mul_to_mul_ir(out_ir_mul, irreps_out_o3)
@@ -300,7 +324,11 @@ def _canonical_design_matrix(
 
 
 def _native_design_matrix(
-    torch_module, *, correlation: int, basis_dim: int, inputs_np: np.ndarray,
+    torch_module,
+    *,
+    correlation: int,
+    basis_dim: int,
+    inputs_np: np.ndarray,
 ) -> np.ndarray:
     import torch  # noqa: PLC0415
 
@@ -320,7 +348,10 @@ def _native_design_matrix(
 
 
 def _assign_native_basis(
-    torch_module, *, basis_vector: np.ndarray, correlation: int,
+    torch_module,
+    *,
+    basis_vector: np.ndarray,
+    correlation: int,
 ) -> None:
     import torch  # noqa: PLC0415
 

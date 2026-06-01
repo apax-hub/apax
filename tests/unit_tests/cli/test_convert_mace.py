@@ -1,4 +1,5 @@
 """Converter CLI unit tests that don't require torch."""
+
 import sys
 
 import pytest
@@ -11,6 +12,7 @@ def test_convert_mace_missing_torch_fails_gracefully(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "mace", None)
 
     from apax.cli.apax_app import app
+
     runner = CliRunner()
     res = runner.invoke(app, ["convert-mace", "medium", str(tmp_path / "out.apax")])
     assert res.exit_code != 0
@@ -22,6 +24,7 @@ def test_convert_mace_accepts_canonical_name_and_file_path():
     import inspect
 
     from apax.cli.convert_mace import convert_mace
+
     sig = inspect.signature(convert_mace)
     assert "source" in sig.parameters
 

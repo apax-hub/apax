@@ -3,6 +3,7 @@
 Gated by mace_parity. Requires:
     uv sync --group mace-convert --extra mace
 """
+
 from pathlib import Path
 
 import numpy as np
@@ -39,6 +40,7 @@ def ase_water():
         positions; no PBC.
     """
     from ase import Atoms
+
     return Atoms(
         symbols=["O", "H", "H"],
         positions=[[0.0, 0.0, 0.0], [0.96, 0.0, 0.0], [-0.24, 0.93, 0.0]],
@@ -64,6 +66,7 @@ def _torch_energy_forces(name, atoms):
         Forces in eV/Angstrom.
     """
     from mace.calculators.foundations_models import mace_mp
+
     calc = mace_mp(name, default_dtype="float64", device="cpu")
     atoms.calc = calc
     return float(atoms.get_potential_energy()), np.asarray(atoms.get_forces())
@@ -87,6 +90,7 @@ def _apax_energy_forces(apax_dir, atoms):
         Forces in eV/Angstrom.
     """
     from apax.md.ase_calc import ASECalculator
+
     calc = ASECalculator(apax_dir)
     atoms.calc = calc
     return float(atoms.get_potential_energy()), np.asarray(atoms.get_forces())
@@ -102,9 +106,11 @@ def test_energy_force_parity_water(tmp_path, foundation_name, ase_water):
     run_conversion(foundation_name, dst, head="default", family="mace_mp")
 
     e_torch, f_torch = _torch_energy_forces(foundation_name, ase_water.copy())
-    e_apax,  f_apax  = _apax_energy_forces(dst, ase_water.copy())
+    e_apax, f_apax = _apax_energy_forces(dst, ase_water.copy())
 
-    print(f"\nE_torch = {e_torch:.6f}, E_apax = {e_apax:.6f}, diff = {e_apax - e_torch:.3e}")
+    print(
+        f"\nE_torch = {e_torch:.6f}, E_apax = {e_apax:.6f}, diff = {e_apax - e_torch:.3e}"
+    )
     print(f"F_torch:\n{f_torch}\nF_apax:\n{f_apax}\nF_diff:\n{f_apax - f_torch}")
 
     np.testing.assert_allclose(e_apax, e_torch, rtol=1e-4, atol=1e-5)
@@ -130,9 +136,13 @@ def test_force_consistency_via_finite_difference(tmp_path, foundation_name, ase_
     f_numeric = np.zeros_like(f_analytic)
     for i in range(len(atoms)):
         for d in range(3):
-            a = atoms.copy(); a.positions[i, d] += h; a.calc = calc
+            a = atoms.copy()
+            a.positions[i, d] += h
+            a.calc = calc
             ep = a.get_potential_energy()
-            a = atoms.copy(); a.positions[i, d] -= h; a.calc = calc
+            a = atoms.copy()
+            a.positions[i, d] -= h
+            a.calc = calc
             em = a.get_potential_energy()
             f_numeric[i, d] = -(ep - em) / (2 * h)
 
@@ -229,10 +239,14 @@ def test_energy_force_parity_matpes_omat_ft(tmp_path_factory, ase_periodic_sio2)
     # isn't in mace_mp_names, so build the MACECalculator directly from
     # the .model path.
     from mace.calculators.mace import MACECalculator
+
     torch_calc = MACECalculator(
-        model_paths=str(model_path), default_dtype="float64", device="cpu",
+        model_paths=str(model_path),
+        default_dtype="float64",
+        device="cpu",
     )
-    a = ase_periodic_sio2.copy(); a.calc = torch_calc
+    a = ase_periodic_sio2.copy()
+    a.calc = torch_calc
     e_torch = float(a.get_potential_energy())
     f_torch = np.asarray(a.get_forces())
     e_apax, f_apax = _apax_energy_forces(dst, ase_periodic_sio2.copy())
