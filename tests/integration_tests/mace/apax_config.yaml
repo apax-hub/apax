@@ -38,9 +38,6 @@ model:
   readout:
     MLP_irreps: 16x0e
 
-  nn: [16, 16]
-
-  b_init: zeros
   descriptor_dtype: fp32
   readout_dtype: fp32
   scale_shift_dtype: fp64

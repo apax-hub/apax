@@ -87,6 +87,30 @@ def test_mace_model_config_rejects_unknown_variant_name():
         )
 
 
+def test_mace_config_rejects_atomistic_readout_fields():
+    """MACE uses MaceReadout, not AtomisticReadout, so the MLP-readout fields
+    (nn/w_init/b_init/use_ntk) are not part of MaceModelConfig's schema and are
+    rejected (extra=forbid) rather than silently ignored."""
+    for field, value in [
+        ("nn", [64, 64]),
+        ("w_init", "normal"),
+        ("b_init", "normal"),
+        ("use_ntk", True),
+    ]:
+        with pytest.raises(Exception):
+            MaceModelConfig(**{field: value})
+
+
+def test_mlp_readout_models_keep_atomistic_readout_fields():
+    """GMNN (and the other AtomisticReadout models) still expose the MLP-readout
+    fields via the shared MLPReadoutModelConfig base."""
+    from apax.config.model_config import GMNNConfig
+
+    cfg = GMNNConfig(nn=[64, 64], use_ntk=True, w_init="normal", b_init="normal")
+    assert cfg.nn == [64, 64]
+    assert cfg.use_ntk is True
+
+
 def test_distance_transform_is_discriminated_union():
     """distance_transform is a name-discriminated union (consistent with the
     sibling InteractionConfig), and the discriminator surfaces in the schema."""

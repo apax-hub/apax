@@ -257,19 +257,11 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     ----------
     basis : BasisConfig, default = GaussianBasisConfig()
         Configuration for primitive basis functions.
-    nn : List[PositiveInt], default = [256, 256]
-        Number of hidden layers and units in those layers.
-    w_init : Literal["normal", "lecun"], default = "lecun"
-        Initialization scheme for the neural network weights.
-    b_init : Literal["normal", "zeros"], default = "zeros"
-        Initialization scheme for the neural network biases.
     activation_fn: str, default = "variance_preserving_swish"
         Activation function to use. Options are those shown at
         https://docs.jax.dev/en/latest/jax.nn.html and `variance_preserving_swish`,
         which is a variant of swish that preserves the second moment of the
         input.
-    use_ntk : bool, default = False
-        Whether or not to use NTK parametrization.
     ensemble : Optional[EnsembleConfig], default = None
         What kind of model ensemble to use (optional).
     property_heads : list[PropertyHead], default = []
@@ -290,11 +282,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
 
     basis: BasisConfig = Field(BesselBasisConfig(name="bessel"), discriminator="name")
 
-    nn: List[PositiveInt] = [256, 256]
-    w_init: Literal["normal", "lecun"] = "lecun"
-    b_init: Literal["normal", "zeros"] = "zeros"
     activation_fn: str = "variance_preserving_swish"
-    use_ntk: bool = False
 
     ensemble: Optional[EnsembleConfig] = None
 
@@ -311,7 +299,34 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     scale_shift_dtype: Literal["fp32", "fp64"] = "fp64"
 
 
-class GMNNConfig(BaseModelConfig, extra="forbid"):
+class MLPReadoutModelConfig(BaseModelConfig, extra="forbid"):
+    """Base for models whose readout is the :class:`AtomisticReadout` MLP head.
+
+    Adds the MLP-readout hyperparameters shared by GMNN, EquivMP and So3krates.
+    MACE uses its own :class:`~apax.layers.readout.MaceReadout` (configured by
+    ``readout.MLP_irreps``), so :class:`MaceModelConfig` extends
+    :class:`BaseModelConfig` directly and rejects these fields rather than
+    silently ignoring them.
+
+    Parameters
+    ----------
+    nn : List[PositiveInt], default = [256, 256]
+        Number of hidden layers and units in those layers.
+    w_init : Literal["normal", "lecun"], default = "lecun"
+        Initialization scheme for the neural network weights.
+    b_init : Literal["normal", "zeros"], default = "zeros"
+        Initialization scheme for the neural network biases.
+    use_ntk : bool, default = False
+        Whether or not to use NTK parametrization.
+    """
+
+    nn: List[PositiveInt] = [256, 256]
+    w_init: Literal["normal", "lecun"] = "lecun"
+    b_init: Literal["normal", "zeros"] = "zeros"
+    use_ntk: bool = False
+
+
+class GMNNConfig(MLPReadoutModelConfig, extra="forbid"):
     """
     Configuration for the model.
 
@@ -337,7 +352,7 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
         return GMNNBuilder
 
 
-class EquivMPConfig(BaseModelConfig, extra="forbid"):
+class EquivMPConfig(MLPReadoutModelConfig, extra="forbid"):
     """
     Configuration for the model.
 
@@ -363,7 +378,7 @@ class EquivMPConfig(BaseModelConfig, extra="forbid"):
         return EquivMPBuilder
 
 
-class So3kratesConfig(BaseModelConfig, extra="forbid"):
+class So3kratesConfig(MLPReadoutModelConfig, extra="forbid"):
     """
     Configuration for the model.
 
