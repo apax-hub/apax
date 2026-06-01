@@ -1,10 +1,12 @@
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 import einops
 import flax.linen as nn
 import jax.numpy as jnp
 import numpy as np
+from ase import data
 
+from apax.layers.empirical import DR_FLOOR
 from apax.layers.initializers import uniform_range
 from apax.utils.convert import str_to_dtype
 
@@ -77,6 +79,83 @@ class BesselBasis(nn.Module):
         s2 = jnp.sinc((self.n + 2) * dr / self.r_max)
         basis = a * b * (s1 + s2)
         return basis
+
+
+class MaceBesselBasis(nn.Module):
+    """Bessel basis used by torch-mace foundation models.
+
+    Implements the radial basis from
+    ``mace.modules.radial.BesselBasis`` (the form due to Kocer et al. as
+    adapted by MACE):
+
+    .. math::
+
+        b_n(r) = \\sqrt{\\frac{2}{r_\\mathrm{max}}} \\,\\frac{\\sin(n \\pi r / r_\\mathrm{max})}{r}, \\quad n = 1, \\dots, N
+
+    Distinct from :class:`BesselBasis` (Kocer's symmetrised form), which apax
+    keeps for legacy users; use this class to reproduce torch-mace exactly.
+
+    Parameters
+    ----------
+    n_basis : int
+        Number of basis functions (``num_basis`` in torch-mace).
+    r_max : float
+        Cutoff distance.
+    dtype : Any
+        Floating-point dtype.
+    """
+
+    n_basis: int = 8
+    r_max: float = 6.0
+    dtype: Any = jnp.float32
+
+    def setup(self):
+        dtype = str_to_dtype(self.dtype)
+        # bessel_weights = pi/r_max * [1, 2, ..., n_basis]
+        self.bessel_weights = jnp.asarray(
+            np.pi / self.r_max * np.arange(1, self.n_basis + 1, dtype=np.float64),
+            dtype=dtype,
+        )
+        self.prefactor = jnp.asarray(np.sqrt(2.0 / self.r_max), dtype=dtype)
+
+    def __call__(self, dr):
+        x = einops.repeat(dr, "neighbors -> neighbors 1")
+        numerator = jnp.sin(self.bessel_weights * x)
+        return self.prefactor * (numerator / x)
+
+
+class PolynomialCutoff(nn.Module):
+    """MACE-style polynomial envelope cutoff.
+
+    Implements the smooth cutoff function from Klicpera et al. 2020, used by MACE:
+
+        f(r) = 1 - ((p + 1)(p + 2) / 2) x^p
+                 + p(p + 2) x^(p+1)
+                 - (p(p + 1) / 2) x^(p+2)            for r <= r_max
+        f(r) = 0                                       for r >  r_max
+    with x = r / r_max.
+
+    Parameters
+    ----------
+    p : int, default 5
+        Polynomial order; controls smoothness at r_max.
+    r_max : float, default 6.0
+        Distance at which the cutoff becomes 0.
+    """
+
+    p: int = 5
+    r_max: float = 6.0
+
+    def __call__(self, r):
+        x = r / self.r_max
+        p = self.p
+        envelope = (
+            1.0
+            - ((p + 1.0) * (p + 2.0) / 2.0) * x**p
+            + p * (p + 2.0) * x ** (p + 1)
+            - (p * (p + 1.0) / 2.0) * x ** (p + 2)
+        )
+        return jnp.where(r <= self.r_max, envelope, 0.0)
 
 
 def cosine_cutoff(dr, dr_max: float):
@@ -156,3 +235,170 @@ class RadialFunction(nn.Module):
         assert radial_function.dtype == dtype
 
         return radial_function
+
+
+class AgnesiTransform(nn.Module):
+    """Faithful port of ``mace.modules.radial.AgnesiTransform``.
+
+    Per-pair length transform driven by element-pair covalent radii.
+
+    .. math::
+
+        r_0 &= 0.5 \\, (\\mathrm{cov}[Z_u] + \\mathrm{cov}[Z_v]) \\\\
+        T(r) &= \\frac{1}{1 + a \\, (r/r_0)^q / (1 + (r/r_0)^{q-p})}
+
+    All three scalars (``a``, ``q``, ``p``) are stored as buffers when
+    ``trainable=False`` (foundation-model regime) and as parameters when
+    ``trainable=True`` (so a future fresh-training run can fine-tune them).
+    The ``covalent_radii`` table is always a buffer.
+
+    Parameters
+    ----------
+    a_init : float, default = 1.0805
+        Initial value for ``a``.
+    q_init : float, default = 0.9183
+        Initial value for ``q``.
+    p_init : float, default = 4.5791
+        Initial value for ``p``.
+    trainable : bool, default = False
+        If ``True``, ``a``/``q``/``p`` become trainable parameters; otherwise
+        they stay as fixed buffers.
+
+    Notes
+    -----
+    The ``idx`` argument follows apax's convention
+    (``idx[0]=receivers``, ``idx[1]=senders``), which is the **opposite** of
+    torch-mace's ``edge_index`` ordering (sender first, receiver second).
+    The transform is symmetric in ``Z_u``/``Z_v`` (their sum appears in
+    ``r_0``), so this convention difference does not change values.
+
+    The default values for ``a``/``q``/``p`` match the buffers shipped with
+    the MACE-MPA-0 and MatPES-r2scan-omat-ft foundation models.
+    """
+
+    a_init: float = 1.0805
+    q_init: float = 0.9183
+    p_init: float = 4.5791
+    trainable: bool = False
+
+    @nn.compact
+    def __call__(self, r, Z, idx):
+        """Apply the Agnesi transform to per-edge distances.
+
+        Parameters
+        ----------
+        r : jnp.ndarray
+            Per-edge distances of shape ``(n_edges,)``.
+        Z : jnp.ndarray
+            Atomic numbers of shape ``(n_atoms,)``.
+        idx : jnp.ndarray
+            Edge index array of shape ``(2, n_edges)`` with
+            ``idx[0]=receivers``, ``idx[1]=senders``.
+
+        Returns
+        -------
+        jnp.ndarray
+            Transformed distances of shape ``(n_edges,)``.
+        """
+        cov = self.variable(
+            "buffers",
+            "covalent_radii",
+            lambda: jnp.asarray(data.covalent_radii, dtype=jnp.float64),
+        ).value
+        scalar_collection = "params" if self.trainable else "buffers"
+        a = self.variable(
+            scalar_collection,
+            "a",
+            lambda: jnp.asarray(self.a_init, dtype=jnp.float64),
+        ).value
+        q = self.variable(
+            scalar_collection,
+            "q",
+            lambda: jnp.asarray(self.q_init, dtype=jnp.float64),
+        ).value
+        p = self.variable(
+            scalar_collection,
+            "p",
+            lambda: jnp.asarray(self.p_init, dtype=jnp.float64),
+        ).value
+
+        i, j = idx[0], idx[1]
+        Z_u, Z_v = Z[i], Z[j]
+        # Clip r0 and r away from zero so masked / padding edges (Z=0, dr=0)
+        # don't trigger 0**(q-p) = inf and poison gradients via inf - inf.
+        r0 = jnp.clip(0.5 * (cov[Z_u] + cov[Z_v]), min=DR_FLOOR)
+        r_safe = jnp.clip(r, min=DR_FLOOR)
+        x = r_safe / r0
+        denom = 1.0 + a * (x**q) / (1.0 + (x ** (q - p)))
+        return 1.0 / denom
+
+
+class MaceRadialEmbedding(nn.Module):
+    """Composable radial embedding: basis(r) x cutoff(r) with optional transform.
+
+    Mirrors torch-mace's :class:`RadialEmbeddingBlock`. The basis function is
+    **injected** by the builder; this submodule no longer owns ``n_basis`` or
+    the choice between Kocer / standard Bessel. Spherical harmonics moved
+    out — they are angular features and live on :class:`MaceRepresentation`.
+
+    The optional ``distance_transform`` is applied between ``cutoff_fn`` and
+    the basis and consumes per-edge atomic numbers. The forward returns the
+    radial features::
+
+        radial = basis(T(r)) * cutoff(r)        # transform configured
+        radial = basis(r)    * cutoff(r)        # no transform
+
+    Critically the cutoff is computed on the **original** ``r``; only the
+    basis sees the transformed value. Reordering breaks parity with torch.
+
+    Parameters
+    ----------
+    basis_fn : nn.Module
+        Pre-built radial basis Linen module (e.g. :class:`MaceBesselBasis`
+        for torch-mace parity, or :class:`BesselBasis` for the Kocer form).
+        Constructed by :meth:`apax.nn.builder.ModelBuilder.build_basis_function`.
+    num_polynomial_cutoff : int
+        Polynomial order of the smooth envelope cutoff.
+    r_max : float
+        Interaction cutoff in the same units as ``dr_vec``. Must equal
+        ``basis_fn.r_max`` (both sourced from ``model.basis.r_max``).
+    distance_transform : Any, optional
+        Either ``None`` or a Linen ``nn.Module`` instance with signature
+        ``__call__(r, Z, idx) -> r_transformed``. Typed :class:`Any` because
+        the runtime type is dynamic and Linen field types do not constrain
+        injected modules.
+    """
+
+    basis_fn: Any
+    num_polynomial_cutoff: int
+    r_max: float
+    distance_transform: Optional[Any] = None
+
+    @nn.compact
+    def __call__(self, dr_vec, Z, idx):
+        """Compute per-edge radial features.
+
+        Parameters
+        ----------
+        dr_vec : jnp.ndarray
+            Edge displacement vectors of shape ``(n_edges, 3)``.
+        Z : jnp.ndarray
+            Atomic numbers of shape ``(n_atoms,)``.
+        idx : jnp.ndarray
+            Edge index array of shape ``(2, n_edges)`` with
+            ``idx[0]=receivers``, ``idx[1]=senders``.
+
+        Returns
+        -------
+        jnp.ndarray
+            Basis multiplied element-wise by the polynomial cutoff envelope,
+            shape ``(n_edges, n_basis)``.
+        """
+        dtype = dr_vec.dtype
+        r_ij = jnp.linalg.norm(dr_vec, axis=-1)
+        cutoff = PolynomialCutoff(p=self.num_polynomial_cutoff, r_max=self.r_max)(r_ij)
+        if self.distance_transform is not None:
+            r_ij = self.distance_transform(r_ij, Z, idx)
+        bessel = self.basis_fn(r_ij)
+        radial = (bessel * cutoff[..., None]).astype(dtype)
+        return radial

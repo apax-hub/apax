@@ -147,12 +147,10 @@ class DataConfig(BaseModel, extra="forbid"):
     valid_batch_size: PositiveInt = 10
 
     shift_method: str = "per_element_regression_shift"
-    shift_options: Optional[dict] = Field(
-        default_factory=lambda: {"energy_regularisation": 1.0}
-    )
+    shift_options: dict = Field(default_factory=lambda: {"energy_regularisation": 1.0})
 
     scale_method: str = "per_element_force_rms_scale"
-    scale_options: Optional[dict] = Field(default_factory=dict)
+    scale_options: dict = Field(default_factory=dict)
 
     pos_unit: Optional[str] = "Ang"
     energy_unit: Optional[str] = "eV"
@@ -178,7 +176,6 @@ class DataConfig(BaseModel, extra="forbid"):
 
         cases = zip(method_lists, requested_methods, requested_options)
         for method_list, requested_method, requested_params in cases:
-            requested_params = requested_params or {}
             methods = {method.name: method for method in method_list}
 
             # check if method exists
@@ -258,7 +255,7 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     schedule: Union[LinearLR, CyclicCosineLR] = Field(
         LinearLR(name="linear"), discriminator="name"
     )
-    kwargs: Optional[dict[str, Any]] = Field(default_factory=dict)
+    kwargs: dict[str, Any] = Field(default_factory=dict)
 
 
 class MetricsConfig(BaseModel, extra="forbid"):
@@ -306,7 +303,7 @@ class LossConfig(BaseModel, extra="forbid"):
     loss_type: str = "mse"
     weight: NonNegativeFloat = 1.0
     atoms_exponent: NonNegativeFloat = 1
-    parameters: Optional[dict[str, Any]] = Field(default_factory=dict)
+    parameters: dict[str, Any] = Field(default_factory=dict)
 
 
 class CSVCallback(BaseModel, frozen=True, extra="forbid"):
@@ -407,16 +404,8 @@ class TransferLearningConfig(BaseModel, extra="forbid"):
     """
 
     base_model_checkpoint: Optional[str] = None
-    reset_layers: Optional[List[str]] = Field(default_factory=list)
-    freeze_layers: Optional[List[str]] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def normalize_null(self):
-        if self.reset_layers is None:
-            self.reset_layers = []
-        if self.freeze_layers is None:
-            self.freeze_layers = []
-        return self
+    reset_layers: List[str] = Field(default_factory=list)
+    freeze_layers: List[str] = Field(default_factory=list)
 
 
 class WeightAverage(BaseModel, extra="forbid"):

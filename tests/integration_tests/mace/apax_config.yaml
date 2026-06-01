@@ -1,0 +1,78 @@
+n_epochs: 1
+seed: 0
+
+data:
+  directory: models/
+  experiment: mace_smoke
+
+  data_path: <PATH>
+
+  n_train: 50
+  n_valid: 10
+
+  batch_size: 4
+  valid_batch_size: 10
+
+  shift_method: "per_element_regression_shift"
+  shift_options: {"energy_regularisation": 1.0}
+
+  pos_unit: Ang
+  energy_unit: eV
+
+model:
+  name: mace
+  basis:
+    name: bessel
+    variant: standard
+    n_basis: 4
+    r_max: 5.0
+  radial_embedding:
+    num_polynomial_cutoff: 5
+  descriptor:
+    max_ell: 1
+    hidden_irreps: "8x0e"
+    correlation: 2
+    interactions:
+      - name: RealAgnosticResidual
+    avg_num_neighbors: 1.0
+  readout:
+    MLP_irreps: 16x0e
+
+  descriptor_dtype: fp32
+  readout_dtype: fp32
+  scale_shift_dtype: fp64
+
+metrics:
+  - name: energy
+    reductions:
+      - mae
+  - name: forces
+    reductions:
+      - mae
+
+loss:
+  - name: energy
+    atoms_exponent: 1
+    weight: 1.0
+  - name: forces
+    atoms_exponent: 1
+    weight: 1.0
+
+optimizer:
+  name: adam
+  kwargs: {}
+  emb_lr: 0.01
+  nn_lr: 0.01
+  scale_lr: 0.001
+  shift_lr: 0.03
+  zbl_lr: 0.001
+  schedule:
+    name: linear
+
+callbacks:
+  - name: csv
+
+ckpt_interval: 1
+
+progress_bar:
+  disable_epoch_pbar: true

@@ -151,6 +151,7 @@ def get_opt(
         "weights_V": nn_opt,
         "scale": scale_opt,
         "frozen": frozen_opt,
+        "default": nn_opt,
     }
 
     param_groups = list(partition_optimizers.keys())

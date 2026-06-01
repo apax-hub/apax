@@ -7,16 +7,20 @@ from apax.layers.activation import get_activation_fn
 from apax.layers.descriptor import (
     EquivMPRepresentation,
     GaussianMomentDescriptor,
+    MaceRepresentation,
     So3kratesRepresentation,
 )
 from apax.layers.descriptor.basis_functions import (
+    AgnesiTransform,
     BesselBasis,
     GaussianBasis,
+    MaceBesselBasis,
+    MaceRadialEmbedding,
     RadialFunction,
 )
 from apax.layers.empirical import all_corrections
 from apax.layers.properties import PropertyHead
-from apax.layers.readout import AtomisticReadout
+from apax.layers.readout import AtomisticReadout, MaceReadout
 from apax.layers.scaling import PerElementScaleShift
 from apax.nn.models import (
     EnergyDerivativeModel,
@@ -27,9 +31,12 @@ from apax.nn.models import (
 
 log = logging.getLogger(__name__)
 
+#: Default number of element slots (full periodic table; Z=0 reserved for padding).
+DEFAULT_N_SPECIES = 119
+
 
 class ModelBuilder:
-    def __init__(self, model_config: ModelConfig, n_species: int = 119):
+    def __init__(self, model_config: ModelConfig, n_species: int = DEFAULT_N_SPECIES):
         self.config = model_config
         self.n_species = n_species
 
@@ -46,6 +53,13 @@ class ModelBuilder:
                 spacing=basis_config["spacing"],
             )
         elif name == "bessel":
+            variant = basis_config.get("variant", "kocer")
+            if variant != "kocer":
+                raise ValueError(
+                    f"bessel variant {variant!r} is not handled by the base "
+                    "builder; a model-specific builder must override "
+                    "build_basis_function()"
+                )
             basis_fn = BesselBasis(
                 n_basis=basis_config["n_basis"],
                 r_max=basis_config["r_max"],
@@ -56,6 +70,13 @@ class ModelBuilder:
         return basis_fn
 
     def build_radial_function(self):
+        if "n_radial" not in self.config or "emb_init" not in self.config:
+            raise NotImplementedError(
+                "build_radial_function needs n_radial/emb_init (the GMNN-style "
+                "RadialFunction); this model config defines neither. A model that "
+                "does not use RadialFunction must build its radial path in its own "
+                "builder (e.g. MaceBuilder builds MaceRadialEmbedding directly)."
+            )
         basis_fn = self.build_basis_function()
 
         if self.config["basis"]["name"] == "gaussian":
@@ -310,3 +331,114 @@ class So3kratesBuilder(ModelBuilder):
             dtype=self.config["descriptor_dtype"],
         )
         return descriptor
+
+
+class MaceBuilder(ModelBuilder):
+    def build_basis_function(self):
+        basis_config = self.config["basis"]
+        if basis_config["name"] == "bessel" and (
+            basis_config.get("variant") == "standard"
+        ):
+            return MaceBesselBasis(
+                n_basis=basis_config["n_basis"],
+                r_max=basis_config["r_max"],
+                dtype=self.config["descriptor_dtype"],
+            )
+        return super().build_basis_function()
+
+    def build_descriptor(
+        self,
+        apply_mask,
+    ):
+        re_cfg = self.config["radial_embedding"]
+        desc_cfg = self.config["descriptor"]
+
+        dt_cfg = re_cfg.get("distance_transform")
+        if dt_cfg is None:
+            distance_transform = None
+        elif dt_cfg["name"] == "agnesi":
+            distance_transform = AgnesiTransform(
+                a_init=dt_cfg["a"],
+                q_init=dt_cfg["q"],
+                p_init=dt_cfg["p"],
+                trainable=dt_cfg["trainable"],
+            )
+        else:
+            raise NotImplementedError(
+                f"distance_transform {dt_cfg['name']!r} not supported"
+            )
+
+        radial_embedding = MaceRadialEmbedding(
+            basis_fn=self.build_basis_function(),
+            num_polynomial_cutoff=re_cfg["num_polynomial_cutoff"],
+            r_max=self.config["basis"]["r_max"],
+            distance_transform=distance_transform,
+        )
+
+        descriptor = MaceRepresentation(
+            radial_embedding=radial_embedding,
+            max_ell=desc_cfg["max_ell"],
+            hidden_irreps=desc_cfg["hidden_irreps"],
+            correlation=desc_cfg["correlation"],
+            interactions=tuple(desc_cfg["interactions"]),
+            avg_num_neighbors=desc_cfg["avg_num_neighbors"],
+            num_elements=self.n_species,
+            apply_mask=apply_mask,
+            dtype=self.config["descriptor_dtype"],
+        )
+        return descriptor
+
+    def build_readout(
+        self,
+        head_config,
+        is_feature_fn: bool = False,
+        only_use_n_layers: int | None = None,
+    ):
+        # The energy head is configured by the top-level model config (which
+        # carries the nested ``readout`` group); property heads pass their own
+        # flat config dict (with ``MLP_irreps``/``n_shallow_members``) and have
+        # no ``readout`` key. Dispatch structurally rather than by object
+        # identity so an equal-but-copied config still routes correctly.
+        is_energy_head = "readout" in head_config
+
+        if is_energy_head and is_feature_fn:
+            # MACE features are the trained per-atom descriptor output
+            # (n_atoms, num_interactions * hidden_dim). Returning ``None`` makes
+            # ``FeatureModel`` skip the readout and emit those directly, instead
+            # of building a fresh AtomisticReadout whose params training and the
+            # foundation converter never populate.
+            if only_use_n_layers is not None:
+                raise NotImplementedError(
+                    "Partial-layer feature extraction (only_use_n_layers) is not "
+                    "supported for MACE descriptors yet; the per-layer feature "
+                    "contract is introduced in a later change."
+                )
+            return None
+
+        if is_energy_head:
+            readout_cfg = self.config["readout"]
+            ens = self.config.get("ensemble") or {}
+            n_shallow_ensemble = ens["n_members"] if ens.get("kind") == "shallow" else 0
+            return self._build_mace_readout(
+                MLP_irreps=readout_cfg["MLP_irreps"],
+                n_shallow_ensemble=n_shallow_ensemble,
+                dtype=self.config["readout_dtype"],
+            )
+
+        return self._build_mace_readout(
+            MLP_irreps=head_config["MLP_irreps"],
+            n_shallow_ensemble=head_config["n_shallow_members"],
+            dtype=head_config["dtype"],
+        )
+
+    def _build_mace_readout(self, *, MLP_irreps, n_shallow_ensemble, dtype):
+        desc_cfg = self.config["descriptor"]
+        # hidden_dim is derived inside MaceReadout from the actual per-atom
+        # feature width, so it is not passed here (it cannot then desync from
+        # the descriptor's emitted layout).
+        return MaceReadout(
+            num_interactions=len(desc_cfg["interactions"]),
+            MLP_irreps=MLP_irreps,
+            n_shallow_ensemble=n_shallow_ensemble,
+            dtype=dtype,
+        )

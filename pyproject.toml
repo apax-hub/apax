@@ -20,6 +20,7 @@ dependencies = [
     "jax>=0.7.0",
     "jax-md>=0.2.28",
     "lazy-loader>=0.4",
+    "molify>=0.2.3",
     "numpy>=2.0.0",
     "optax>=0.2.4",
     "orbax-checkpoint>=0.11.0",
@@ -28,6 +29,7 @@ dependencies = [
     "typer>=0.13.0",
     "uncertainty-toolbox>=0.1.1",
     "vesin>=0.3.0",
+    "zndraw==0.7.0a8",
     "znh5md>=0.4.8",
 ]
 
@@ -61,6 +63,16 @@ optuna = [
 ]
 openmm = [
     "openmm>=8.5.0b0",
+]
+mace = [
+    "e3nn-jax>=0.21.0",
+    "cuequivariance-jax>=0.9.1",
+    "cuequivariance>=0.9.1",
+]
+mace-convert = [
+    "apax[mace]",
+    "torch>=2.1",
+    "mace-torch>=0.3",
 ]
 
 [dependency-groups]
@@ -123,7 +135,8 @@ show_missing = true
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::FutureWarning:jax.*scatter",]
 markers = [
-    "slow: mark a test as slow and should only run explicitly"
+    "slow: mark a test as slow and should only run explicitly",
+    "mace_parity: requires torch + mace-torch; opt-in parity tests against upstream",
 ]
 
 [project.entry-points.'zntrack.nodes']

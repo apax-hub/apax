@@ -20,7 +20,11 @@ def check_for_ensemble(params: FrozenDict) -> int:
     This is the case if all parameters share the same first dimension (parameter batch)
     """
     flat_params = flatten_dict(params)
-    shapes = [v.shape[0] for v in flat_params.values()]
+    # Only the trainable ``params`` collection participates in ensembling;
+    # variable collections (``buffers`` etc.) carry static config-like state
+    # whose shape is never lifted by ``jnp.stack`` / ``jax.vmap``.
+    trainable = [v for path, v in flat_params.items() if path[0] == "params"]
+    shapes = [v.shape[0] for v in trainable]
     is_ensemble = len(set(shapes)) == 1
 
     if is_ensemble:
@@ -60,7 +64,10 @@ def create_params(model, rng_key, sample_input: tuple, n_models: int):
         num_args = len(sample_input)
         # vmap only over parameters, not over any data from the input
         in_axes = (0, *[None] * num_args)
-        params = jax.vmap(model.init, in_axes=in_axes)(model_rng, *sample_input)
+        params = jax.vmap(
+            lambda rng, *args: model.init(rng, *args),
+            in_axes=in_axes,
+        )(model_rng, *sample_input)
     else:
         raise ValueError(f"n_models should be a positive integer, found {n_models}")
 

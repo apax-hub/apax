@@ -86,27 +86,6 @@ def build_energy_neighbor_fns(
     return energy_fn, neighbor_fn
 
 
-def build_hessian_neighbor_fns(
-    atoms: ase.Atoms,
-    config: Config,
-    params,
-    dr_threshold: float,
-    neigbor_from_jax: bool,
-    calc_stress: bool | None = None,
-    force_variance: bool | None = None,
-):
-    return build_energy_neighbor_fns(
-        atoms,
-        config,
-        params,
-        dr_threshold,
-        neigbor_from_jax,
-        calc_stress=calc_stress,
-        calc_hessian=True,
-        force_variance=force_variance,
-    )
-
-
 def make_ensemble(model):
     def ensemble(positions, Z, idx, box, offsets):
         results = model(positions, Z, idx, box, offsets)
@@ -367,13 +346,14 @@ class ASECalculator(Calculator):
             self.padded_length = int(len(idxs_i) * self.padding_factor)
 
     def _initialize_hessian(self, atoms):
-        hessian_model, _ = build_hessian_neighbor_fns(
+        hessian_model, _ = build_energy_neighbor_fns(
             atoms,
             self.model_config,
             self.params,
             self.dr_threshold,
             self.neigbor_from_jax,
             calc_stress=self.calc_stress,
+            calc_hessian=True,
             force_variance=self.force_variance,
         )
         hessian_model = self._wrap_model(hessian_model)
