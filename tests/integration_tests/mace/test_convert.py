@@ -157,7 +157,6 @@ def test_convert_medium_mpa0_with_distance_transform(tmp_path):
     pytest.importorskip("mace")
 
     import numpy as np
-    import torch
 
     from apax.train.checkpoints import restore_parameters
     from apax.transfer_learning.mace_foundation import run_conversion
@@ -171,8 +170,11 @@ def test_convert_medium_mpa0_with_distance_transform(tmp_path):
 
     # The AgnesiTransform's ``a``/``q``/``p``/``covalent_radii`` must be in
     # the converted pytree, with values matching the torch source bit-for-bit.
-    src_path = "/Users/fzills/tools/apax/tmp/mace-mpa-0-medium.model"
-    torch_model = torch.load(src_path, map_location="cpu", weights_only=False)
+    # Load the same torch foundation the converter used (resolved/cached by
+    # mace_mp) rather than a machine-specific local path.
+    from apax.transfer_learning.mace_foundation import _load_torch_foundation_model
+
+    torch_model, _ = _load_torch_foundation_model("medium-mpa-0", family="mace_mp")
     dt_torch = torch_model.radial_embedding.distance_transform
 
     found = {}
