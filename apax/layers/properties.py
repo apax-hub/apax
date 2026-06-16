@@ -128,7 +128,13 @@ class PropertyHead(nn.Module):
                 result = jnp.swapaxes(result, 0, 1)
 
             mean = jnp.mean(result, axis=0)
-            uncertainty = divisor * fp64_sum((mean - result) ** 2, axis=0)
+            # Bessel-corrected ensemble variance, then converted to a standard
+            # deviation. The `<name>_uncertainty` key is a standard deviation
+            # (sigma) throughout apax: energy/forces store `jnp.sqrt(variance)`
+            # in `apax/nn/models.py`, and `nll_loss`/`crps_loss` in
+            # `apax/train/loss.py` consume the key as sigma.
+            variance = divisor * fp64_sum((mean - result) ** 2, axis=0)
+            uncertainty = jnp.sqrt(variance)
             output[self.pname] = mean
             output[self.pname + "_uncertainty"] = uncertainty
 

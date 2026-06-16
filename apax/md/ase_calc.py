@@ -110,7 +110,15 @@ def build_hessian_neighbor_fns(
 def make_ensemble(model):
     def ensemble(positions, Z, idx, box, offsets):
         results = model(positions, Z, idx, box, offsets)
-        uncertainty = {k + "_uncertainty": jnp.std(v, axis=0) for k, v in results.items()}
+        # Use the Bessel-corrected sample std 1/(N-1) to stay consistent with
+        # the shallow ensemble (apax/nn/models.py) and PropertyHead paths.
+        # make_ensemble is only wired in when n_models > 1, but guard the
+        # single-model case so ddof=1 cannot divide by zero -> NaN.
+        ddof = {k: 1 if jnp.shape(v)[0] > 1 else 0 for k, v in results.items()}
+        uncertainty = {
+            k + "_uncertainty": jnp.std(v, axis=0, ddof=ddof[k])
+            for k, v in results.items()
+        }
         ensemble = {k + "_ensemble": v for k, v in results.items()}
         results = {k: jnp.mean(v, axis=0) for k, v in results.items()}
         if "forces_ensemble" in ensemble.keys():

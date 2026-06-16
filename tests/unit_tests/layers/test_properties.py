@@ -98,3 +98,46 @@ def test_property_head(setup_data):
     output = property_head.apply(params, g, R, dr_vec, Z, idx, box)
     assert "property" in output.keys()
     assert "property_uncertainty" in output
+
+
+def test_property_head_uncertainty_is_std(setup_data):
+    """The `<name>_uncertainty` output must be a standard deviation.
+
+    The rest of apax (energy/forces in ``apax/nn/models.py`` and the
+    ``nll_loss``/``crps_loss`` consumers in ``apax/train/loss.py``) treats the
+    ``<name>_uncertainty`` key as a standard deviation (sigma), not a variance.
+    This regression test pins ``PropertyHead`` to that convention using the
+    Bessel-corrected (``1/(n_ens - 1)``) estimator.
+    """
+    g, R, dr_vec, Z, idx, box = setup_data
+
+    n_ens = 10
+    property_head = PropertyHead(
+        pname="property",
+        readout=AtomisticReadout(n_shallow_ensemble=n_ens),
+        mode="l0",
+        apply_mask=False,
+        aggregation="mean",
+    )
+    params = property_head.init(jax.random.PRNGKey(0), g, R, dr_vec, Z, idx, box)
+    output = property_head.apply(params, g, R, dr_vec, Z, idx, box)
+
+    # Reproduce the per-ensemble-member predictions (aggregation="mean") so we
+    # can compute the expected std independently of the head's reduction.
+    readout_params = {"params": params["params"]["readout"]}
+    h = jax.vmap(lambda x: property_head.readout.apply(readout_params, x))(
+        g
+    )  # (n_atoms, n_ens)
+    scale = params["params"]["scale_per_element"]
+    shift = params["params"]["shift_per_element"]
+    p_i = h * scale[Z] + shift[Z]  # (n_atoms, n_ens)
+    members = jnp.mean(p_i, axis=0)  # (n_ens,), aggregation="mean"
+
+    mean = jnp.mean(members)
+    variance = (1 / (n_ens - 1)) * jnp.sum((mean - members) ** 2)
+    expected_std = jnp.sqrt(variance)
+
+    uncertainty = output["property_uncertainty"]
+    # Must equal the std, NOT the variance.
+    assert jnp.allclose(uncertainty, expected_std)
+    assert not jnp.allclose(uncertainty, variance)
