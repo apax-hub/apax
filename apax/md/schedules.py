@@ -4,8 +4,8 @@ from ase import units
 
 
 class TSchedule:
-    def __init__(self, T0: int):
-        self.T0 = T0
+    def __init__(self, T0: int | float):
+        self.T0 = float(T0)
 
     def __call__(self, step) -> float:
         raise NotImplementedError
@@ -17,8 +17,8 @@ class ConstantTSchedule(TSchedule):
 
 
 class PieceWiseLinearTSchedule(TSchedule):
-    def __init__(self, T0: int, temperatures: list[float], durations: list[int]):
-        self.T0 = T0
+    def __init__(self, T0: int | float, temperatures: list[float], durations: list[int]):
+        self.T0 = float(T0)
         self.temperatures = jnp.array(temperatures)
         steps = np.cumsum(durations)
         self.steps = jnp.array(steps)
@@ -33,13 +33,13 @@ class PieceWiseLinearTSchedule(TSchedule):
 class OscillatingRampTSchedule(TSchedule):
     def __init__(
         self,
-        T0: int,
+        T0: int | float,
         Tend: float,
         amplitude: float,
         num_oscillations: int,
         total_steps: int,
     ):
-        self.T0 = T0
+        self.T0 = float(T0)
         self.Tend = Tend
         self.amplitude = amplitude
         self.num_oscillations = num_oscillations

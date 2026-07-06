@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import orbax.checkpoint as ocp
-from ase import units
+from ase import Atoms, units
 from ase.io import read
 from jax.experimental import io_callback
 from jax_md import partition, quantity, simulate, space
@@ -32,6 +32,7 @@ from apax.train.checkpoints import (
     restore_parameters,
 )
 from apax.train.run import setup_logging
+from apax.utils.helpers import get_masses
 
 log = logging.getLogger(__name__)
 
@@ -484,7 +485,9 @@ def md_setup(model_config: Config, md_config: MDConfig):
         Shift function for the integrator.
     """
     log.info("reading structure")
-    atoms = read(md_config.initial_structure)
+    atoms: Atoms = read(md_config.initial_structure)
+    atoms.set_masses(masses=get_masses(md_config.custom_element_masses, atoms))
+
     system = System.from_atoms(atoms)
 
     r_max = model_config.model.basis.r_max

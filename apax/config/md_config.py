@@ -323,6 +323,11 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     extra_capacity : int, default = 0
         | JaxMD allocates a maximal number of neighbors. This argument lets you add
         | additional capacity to avoid recompilation. The default is usually fine.
+    custom_element_masses : dict[str, float | str], default = {}
+        | Dictionary of custom atomic masses, with the keys being the elements,
+        | and the values either being numbers to indicate its mass, or strings
+        | to indicate that this the element indicated by the key has the same mass as
+        | the default mass of the element indicated by the value.
 
     biases : list[BiasEnergy]
         | List of bias energies. Currently a spherical wall potential is available.
@@ -367,6 +372,7 @@ class MDConfig(BaseModel, frozen=True, extra="forbid"):
     dr_threshold: PositiveFloat = 0.5
     extra_capacity: NonNegativeInt = 0
     disable_cell_list: bool = False
+    custom_element_masses: dict[str, float | str] = {}
 
     biases: list[BiasEnergy] = []
     dynamics_checks: list[DynamicsCheck] = []
