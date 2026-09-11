@@ -21,6 +21,7 @@ def load_nlh_coeffs(path, n_species: int | None = None):
     b[z1, z2] = b[z2, z1] = d[:, [3, 5, 7]]
     return a, b
 
+
 from apax.config import ModelConfig
 from apax.layers.activation import get_activation_fn
 from apax.layers.descriptor import (

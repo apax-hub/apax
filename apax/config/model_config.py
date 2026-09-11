@@ -135,9 +135,7 @@ class NLHRepulsion(Correction, extra="forbid"):
     coeffs_file: Optional[str] = None
 
 
-EmpiricalCorrection = Union[
-    ZBLRepulsion, ExponentialRepulsion, LatentEwald, NLHRepulsion
-]
+EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion, LatentEwald, NLHRepulsion]
 
 
 class PropertyHead(BaseModel, extra="forbid"):
