@@ -24,6 +24,9 @@ class EmpiricalEnergyTerm(nn.Module):
 
 class ZBLRepulsion(EmpiricalEnergyTerm):
     r_max: float = 2.0
+    # Coulomb constant e^2/(4*pi*eps0) = 14.4 eV*Ang; the physical prefactor for
+    # the screened Z_i*Z_j/r nuclear repulsion (=1 in Hartree/Bohr units).
+    initial_rep_scale: float = 14.4
     apply_mask: bool = True
 
     def setup(self):
@@ -31,7 +34,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
 
         coeffs = jnp.array([0.18175, 0.50986, 0.28022, 0.02817])[:, None]
         coeffs_isp = inverse_softplus(coeffs)
-        rep_scale_isp = inverse_softplus(0.1)
+        rep_scale_isp = inverse_softplus(self.initial_rep_scale)
 
         self.a_exp = 0.23
         self.a_num = 0.46850
@@ -168,8 +171,50 @@ class LatentEwald(EmpiricalEnergyTerm):
         return E_lr
 
 
+class NLHRepulsion(EmpiricalEnergyTerm):
+    """Triple-exponential screened nuclear repulsion.
+
+    V_ij(r) = 14.4 * Z_i Z_j / r * phi_ij(r),
+    phi_ij(r) = sum_k a[Z_i,Z_j,k] * exp(-b[Z_i,Z_j,k] * r),  k = 1..3.
+
+    Per-pair coefficients `a`, `b` (shape (n_species, n_species, 3)) are
+    injected by the builder (dependency injection); non-trainable for now.
+    """
+
+    a: Any = None  # (n_species, n_species, 3), injected
+    b: Any = None
+    r_max: float = 6.0
+    rep_scale: float = 14.4  # e^2/(4 pi eps0) in eV*Ang
+    apply_mask: bool = True
+
+    def setup(self):
+        dtype = str_to_dtype(self.dtype)
+        self.distance = vmap(space.distance, 0, 0)
+        self._a = jnp.asarray(self.a, dtype=dtype)  # inject at module dtype (fp32)
+        self._b = jnp.asarray(self.b, dtype=dtype)
+
+    def __call__(self, R, dr_vec, Z, idx, box, properties):
+        dtype = str_to_dtype(self.dtype)
+        idx_i, idx_j = idx[0], idx[1]
+        Z_i, Z_j = Z[idx_i, ...], Z[idx_j, ...]
+
+        dr = self.distance(dr_vec).astype(dtype)
+        dr = jnp.clip(dr, min=0.02, max=self.r_max)
+        cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
+
+        a_ij = self._a[Z_i, Z_j]  # (neighbors, 3)
+        b_ij = self._b[Z_i, Z_j]
+        phi = jnp.sum(a_ij * jnp.exp(-b_ij * dr[:, None]), axis=-1)  # (neighbors,)
+
+        E_ij = self.rep_scale * Z_i * Z_j / dr * phi * cos_cutoff
+        if self.apply_mask:
+            E_ij = mask_by_neighbor(E_ij, idx)
+        return 0.5 * fp64_sum(E_ij)
+
+
 all_corrections = {
     "zbl": ZBLRepulsion,
     "exponential": ExponentialRepulsion,
     "latent_ewald": LatentEwald,
+    "nlh": NLHRepulsion,
 }

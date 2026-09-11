@@ -4,9 +4,41 @@ import einops
 import flax.linen as nn
 import jax.numpy as jnp
 import numpy as np
+from ase.data import covalent_radii
 
 from apax.layers.initializers import uniform_range
 from apax.utils.convert import str_to_dtype
+
+
+class IdentityRadialTransform(nn.Module):
+    """Passthrough transform: featurize the physical distance unchanged.
+
+    This is the default, preserving the original (untransformed) behavior.
+    """
+
+    def __call__(self, dr, Z_i, Z_j):
+        return dr
+
+
+class CovalentRadialTransform(nn.Module):
+    """Maps r -> r2 = 0.5 r + 0.5 r tanh(alpha (r - r0)) before featurization.
+
+    Decays to 0 near r=0 much faster than r (flat well below r0) and
+    approaches r for r >> r0, where r0 is the sum of the covalent radii of
+    the two elements at distance r.
+    """
+
+    alpha: float = 4.0
+    r0_scale: float = 1.0
+    dtype: Any = jnp.float32
+
+    def setup(self):
+        dtype = str_to_dtype(self.dtype)
+        self.covalent_radii = jnp.asarray(covalent_radii, dtype=dtype)
+
+    def __call__(self, dr, Z_i, Z_j):
+        r0 = self.r0_scale * (self.covalent_radii[Z_i] + self.covalent_radii[Z_j])
+        return 0.5 * dr * (1.0 + jnp.tanh(self.alpha * (dr - r0)))
 
 
 class GaussianBasis(nn.Module):
@@ -88,6 +120,7 @@ def cosine_cutoff(dr, dr_max: float):
 class RadialFunction(nn.Module):
     n_radial: int = 5
     basis_fn: nn.Module = GaussianBasis()
+    radial_transform: nn.Module = IdentityRadialTransform()
     n_species: int = 119
     emb_init: str = "uniform"
     use_embed_norm: bool = True
@@ -129,8 +162,10 @@ class RadialFunction(nn.Module):
     def __call__(self, dr, Z_i, Z_j):
         dtype = str_to_dtype(self.dtype)
         dr = dr.astype(dtype)
+        # transformed distance for featurization; cutoff still uses physical dr
+        dr_feat = self.radial_transform(dr, Z_i, Z_j)
         # basis shape: neighbors x n_basis
-        basis = self.basis_fn(dr)
+        basis = self.basis_fn(dr_feat)
 
         if self.emb_init is None:
             radial_function = basis

@@ -99,6 +99,7 @@ version-file = "apax/_version.py"
 [tool.hatch.build.targets.wheel]
 artifacts = [
   "apax/cli/templates/**/*.yaml",
+  "apax/data/*.dat",
 ]
 
 [tool.ruff]
