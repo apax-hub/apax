@@ -232,8 +232,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     activation_fn: str = "variance_preserving_swish"
     use_ntk: bool = False
     use_bias: bool = False
-    self_attention: bool = False
-    readout_activation: Literal["identity", "shifted_softplus", "swish"] = "swish"
+    readout_activation: Literal["identity", "swish", "elu"] = "swish"
 
     ensemble: Optional[EnsembleConfig] = None
 

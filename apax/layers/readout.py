@@ -3,16 +3,16 @@ from typing import Any, Callable, List
 
 import flax.linen as nn
 import jax.numpy as jnp
-from jax.nn import softplus, swish
+from jax.nn import elu, swish
 
 from apax.layers.ntk_linear import NTKLinear
 from apax.utils.convert import str_to_dtype
 
 OUTPUT_ACTIVATIONS = {
     "identity": lambda x: x,
-    # shifted so it passes through the origin, matching identity/swish at x=0
-    "shifted_softplus": lambda x: softplus(x) - jnp.log(2.0),
     "swish": swish,
+    # 0 at 0, -> x for large x, saturate gently to -1 for large negative x
+    "elu": elu,
 }
 
 
