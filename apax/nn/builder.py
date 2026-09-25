@@ -1,6 +1,37 @@
 import logging
+from pathlib import Path
 
 import numpy as np
+
+# bundled triple-exponential repulsion coefficients
+DEFAULT_NLH_COEFFS = Path(__file__).parent.parent / "data" / "nlh_coeffs.dat"
+
+
+def load_nlh_coeffs(path, n_species: int | None = None):
+    """Load triple-exponential repulsion coeffs into (n_species, n_species, 3)
+    arrays a, b, symmetric in the two atomic numbers. Sized to the data
+    (max Z + 1) unless n_species is given. File rows: Z1 Z2 a1 b1 a2 b2 a3 b3."""
+    d = np.loadtxt(path, usecols=range(8), ndmin=2)
+    z1, z2 = d[:, 0].astype(int), d[:, 1].astype(int)
+    max_covered_z = int(max(z1.max(), z2.max()))
+    if n_species is None:
+        n_species = max_covered_z + 1  # 93 for the bundled Z<=92 set
+    elif n_species - 1 > max_covered_z:
+        # Elements above max_covered_z have no coefficients and are left at
+        # zero (no repulsion) rather than clamped to the last covered row's
+        # coefficients, which JAX would otherwise do silently.
+        log.warning(
+            "NLH coefficients only cover elements up to Z=%d; elements up to "
+            "the model's supported Z=%d will have zero NLH repulsion.",
+            max_covered_z,
+            n_species - 1,
+        )
+    a = np.zeros((n_species, n_species, 3))
+    b = np.zeros((n_species, n_species, 3))
+    a[z1, z2] = a[z2, z1] = d[:, [2, 4, 6]]
+    b[z1, z2] = b[z2, z1] = d[:, [3, 5, 7]]
+    return a, b
+
 
 from apax.config import ModelConfig
 from apax.layers.activation import get_activation_fn
@@ -11,7 +42,9 @@ from apax.layers.descriptor import (
 )
 from apax.layers.descriptor.basis_functions import (
     BesselBasis,
+    CovalentRadialTransform,
     GaussianBasis,
+    IdentityRadialTransform,
     RadialFunction,
 )
 from apax.layers.empirical import all_corrections
@@ -55,8 +88,18 @@ class ModelBuilder:
             raise ValueError("unknown basis requested")
         return basis_fn
 
+    def build_radial_transform(self):
+        name = self.config.get("radial_transform", "identity")
+        if name == "identity":
+            return IdentityRadialTransform()
+        elif name == "covalent":
+            return CovalentRadialTransform(dtype=self.config["descriptor_dtype"])
+        else:
+            raise ValueError(f"unknown radial transform requested: {name}")
+
     def build_radial_function(self):
         basis_fn = self.build_basis_function()
+        radial_transform = self.build_radial_transform()
 
         if self.config["basis"]["name"] == "gaussian":
             use_embed_norm = True
@@ -68,6 +111,7 @@ class ModelBuilder:
         radial_fn = RadialFunction(
             n_radial=self.config["n_radial"],
             basis_fn=basis_fn,
+            radial_transform=radial_transform,
             n_species=self.n_species,
             emb_init=self.config["emb_init"],
             use_embed_norm=use_embed_norm,
@@ -113,6 +157,8 @@ class ModelBuilder:
             b_init=head_config["b_init"],
             w_init=head_config["w_init"],
             use_ntk=head_config["use_ntk"],
+            use_bias=head_config.get("use_bias", False),
+            output_activation=head_config.get("readout_activation", "swish"),
             is_feature_fn=is_feature_fn,
             n_shallow_ensemble=n_shallow_ensemble,
             dtype=dtype,
@@ -132,6 +178,11 @@ class ModelBuilder:
     def build_property_heads(self, apply_mask: bool = True):
         property_heads = []
         for head in self.config["property_heads"]:
+            head = {
+                "use_bias": self.config["use_bias"],
+                "readout_activation": self.config["readout_activation"],
+                **head,
+            }
             readout = self.build_readout(head)
             phead = PropertyHead(
                 pname=head["name"],
@@ -148,6 +199,11 @@ class ModelBuilder:
         for correction in self.config["empirical_corrections"]:
             correction = correction.copy()
             name = correction.pop("name")
+            if name == "nlh":
+                # dependency injection: load per-pair coeffs into arrays here
+                path = correction.pop("coeffs_file", None) or DEFAULT_NLH_COEFFS
+                a, b = load_nlh_coeffs(path, n_species=self.n_species)
+                correction["a"], correction["b"] = a, b
             Correction = all_corrections[name]
             corr = Correction(
                 **correction,

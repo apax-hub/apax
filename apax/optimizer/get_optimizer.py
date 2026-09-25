@@ -72,16 +72,22 @@ class OptimizerFactory:
         self.kwargs = kwargs
         self.schedule = schedule
 
-    def create(self, lr):
+    def create(self, lr, no_weight_decay=False):
         if lr <= 1e-7:
             optimizer = optax.set_to_zero()
         else:
             schedule = get_schedule(
                 lr, self.n_epochs, self.steps_per_epoch, self.schedule
             )
+            kwargs = self.kwargs
+            # weight decay acts on a param even when its loss-gradient is ~0
+            # (e.g. ZBL rep_scale), which would silently decay the repulsion
+            # wall away. Let selected groups opt out.
+            if no_weight_decay and "weight_decay" in kwargs:
+                kwargs = {**kwargs, "weight_decay": 0.0}
             optimizer = optax.chain(
                 optax.clip(self.gradient_clipping),
-                self.opt(schedule, **self.kwargs),
+                self.opt(schedule, **kwargs),
                 optax.zero_nans(),
             )
         return optimizer
@@ -127,9 +133,9 @@ def get_opt(
     emb_opt = opt_fac.create(emb_lr)
     scale_opt = opt_fac.create(scale_lr)
     shift_opt = opt_fac.create(shift_lr)
-    zbl_opt = opt_fac.create(zbl_lr)
-    rep_scale_opt = opt_fac.create(rep_scale_lr)
-    rep_prefactor_opt = opt_fac.create(rep_prefactor_lr)
+    zbl_opt = opt_fac.create(zbl_lr, no_weight_decay=True)
+    rep_scale_opt = opt_fac.create(rep_scale_lr, no_weight_decay=True)
+    rep_prefactor_opt = opt_fac.create(rep_prefactor_lr, no_weight_decay=True)
 
     partition_optimizers = {
         "w": nn_opt,
