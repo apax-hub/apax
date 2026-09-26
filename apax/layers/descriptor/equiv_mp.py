@@ -42,7 +42,7 @@ class EquivMPRepresentation(nn.Module):
         )
 
         if self.apply_mask:
-            basis = mask_by_neighbor(basis, neighbor_idxs)
+            basis = mask_by_neighbor(basis, neighbor_idxs, dr_vec)
 
         # 3. Embed atomic numbers in feature space, x has shape (num_atoms, 1, 1, features).
         x = e3x.nn.Embed(

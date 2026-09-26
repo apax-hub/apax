@@ -79,7 +79,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
 
         E_ij = Z_i * Z_j / dr * f * cos_cutoff
         if self.apply_mask:
-            E_ij = mask_by_neighbor(E_ij, idx)
+            E_ij = mask_by_neighbor(E_ij, idx, dr_vec)
         E = 0.5 * rep_scale * fp64_sum(E_ij)
         return E
 
@@ -124,7 +124,7 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
 
         E_ij = f * cos_cutoff
         if self.apply_mask:
-            E_ij = mask_by_neighbor(E_ij, idx)
+            E_ij = mask_by_neighbor(E_ij, idx, dr_vec)
         E = fp64_sum(E_ij)
         return E
 
@@ -208,7 +208,7 @@ class NLHRepulsion(EmpiricalEnergyTerm):
 
         E_ij = self.rep_scale * Z_i * Z_j / dr * phi * cos_cutoff
         if self.apply_mask:
-            E_ij = mask_by_neighbor(E_ij, idx)
+            E_ij = mask_by_neighbor(E_ij, idx, dr_vec)
         return 0.5 * fp64_sum(E_ij)
 
 
