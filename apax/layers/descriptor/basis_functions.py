@@ -270,7 +270,19 @@ class FactorizedRadialFunction(nn.Module):
             w = self.nbr_emb[Z_i]
         else:
             raise ValueError(f"unknown factor_mode: {self.factor_mode}")
-        # single einsum instead of flat basis @ core + reshape (that GEMM became a custom call on GPU)
+        # Contraction order matters for speed (sum over k = rank, b = basis, r = radial):
+        #   1. basis @ core per pair -> (P, k, r), then rank sum with w: flat GEMM became
+        #      a GPU custom call and writes a k*r-per-pair intermediate (112 MB, 582k pairs).
+        #   2. w @ core per pair -> (P, b, r), then basis sum: same FLOPs, intermediate b*r
+        #      independent of rank (opt_einsum picks this for rank >= 32; below that its
+        #      choice varies, hence one einsum here rather than a fixed path).
+        #   3. Faster on GPU (tested): build the element-pair table once,
+        #      table[a, b] = (1/rank) * (u[a] * v[b]) @ core  (~8 MFLOP, independent of P),
+        #      then per pair gather table[Z_j, Z_i] and contract with basis as in
+        #      RadialFunction (fused reduction, no matmul/TF32); per-pair cost drops by ~rank.
+        #      Caveat: its backward is a scatter-add of P*b*r into few rows (heavy atomic
+        #      contention when few species are present) - profile a full training step;
+        #      build the table only for present species.
         radial_function = self.norm * jnp.einsum(
             "pb,bkr,pk->pr", basis, core, w, precision=jax.lax.Precision.HIGHEST
         )
