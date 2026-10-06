@@ -236,7 +236,7 @@ class FactorizedRadialFunction(nn.Module):
             self.nbr_emb = self.param(
                 "pair_emb_nbr", emb_init, (self.n_species, self.rank), dtype
             )
-        # stored flat so basis @ core is a single dense GEMM
+        # stored flat (checkpoint layout); viewed as (n_basis, rank, n_radial) in __call__
         self.core = self.param(
             "pair_core",
             core_init,
@@ -259,8 +259,7 @@ class FactorizedRadialFunction(nn.Module):
         # basis shape: neighbors x n_basis
         basis = self.basis_fn(dr_feat)
 
-        proj = jnp.dot(basis, self.core, precision=jax.lax.Precision.HIGHEST)
-        proj = proj.reshape(-1, self.rank, self.n_radial)
+        core = self.core.reshape(-1, self.rank, self.n_radial)
 
         # Z_j is the centre atom, matching RadialFunction's embeddings[Z_j, Z_i]
         if self.factor_mode == "cp":
@@ -271,8 +270,9 @@ class FactorizedRadialFunction(nn.Module):
             w = self.nbr_emb[Z_i]
         else:
             raise ValueError(f"unknown factor_mode: {self.factor_mode}")
+        # single einsum instead of flat basis @ core + reshape (that GEMM became a custom call on GPU)
         radial_function = self.norm * jnp.einsum(
-            "pk,pkr->pr", w, proj, precision=jax.lax.Precision.HIGHEST
+            "pb,bkr,pk->pr", basis, core, w, precision=jax.lax.Precision.HIGHEST
         )
         if self.residual:
             radial_function = radial_function + jnp.einsum(
