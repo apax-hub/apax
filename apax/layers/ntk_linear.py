@@ -1,4 +1,5 @@
 import flax.linen as nn
+import jax
 import jax.numpy as jnp
 
 from apax.utils.convert import str_to_dtype
@@ -38,7 +39,8 @@ class NTKLinear(nn.Module):
         w = self.param("w", w_initializer, (inputs.shape[0], self.units), dtype)
         b = self.param("b", b_initializer, [self.units], dtype) if self.use_bias else 0.0
 
-        wx = jnp.dot(inputs, w)
+        # pinned: default matmul precision is TF32 on Ampere+ GPUs
+        wx = jnp.dot(inputs, w, precision=jax.lax.Precision.HIGHEST)
 
         if self.use_ntk:
             bias_factor = 0.1
