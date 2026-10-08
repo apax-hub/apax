@@ -101,7 +101,7 @@ def nbr_update_options_npt(state):
     return {"box": box}
 
 
-def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
+def get_ensemble(ensemble: Integrator, sim_fns, mobile_mask=None):
     energy, shift = sim_fns.energy_fn, sim_fns.shift_fn
 
     dt = ensemble.dt * units.fs
@@ -109,7 +109,9 @@ def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
 
     kT = ensemble.temperature_schedule.get_schedule()
     if ensemble.name == "nve":
-        init_fn, apply_fn = simulate.nve(energy, shift, kT(0), dt)
+        init_fn, apply_fn = simulate.nve(
+            energy, shift, kT(0), dt, mobile_mask=mobile_mask
+        )
     elif ensemble.name == "nvt":
         thermostat_chain = dict(ensemble.thermostat_chain)
         thermostat_chain["tau"] *= dt
@@ -119,11 +121,11 @@ def get_ensemble(ensemble: Integrator, sim_fns, constaint_idxs=None):
             shift,
             dt,
             kT(0),
-            constrained_idxs=constaint_idxs,
+            mobile_mask=mobile_mask,
         )
 
     elif ensemble.name == "npt":
-        if constaint_idxs:
+        if mobile_mask is not None and not jnp.all(mobile_mask):
             raise NotImplementedError(
                 "Constraining atoms in NPT simulations is not implemented."
             )
@@ -298,9 +300,15 @@ def run_sim(
         constraints,
         system,
     )
+    num_atoms = jnp.shape(system.positions)[0]
+    mobile_mask = jnp.full(num_atoms, True)
+    mobile_mask.at[constrained_idxs].set(False)
 
     log.info("initializing simulation")
-    init_fn, apply_fn, kT, nbr_options = get_ensemble(ensemble, sim_fns, constrained_idxs)
+
+    init_fn, apply_fn, kT, nbr_options = get_ensemble(
+        ensemble, sim_fns, mobile_mask=mobile_mask
+    )
 
     neighbor = sim_fns.neighbor_fn.allocate(
         system.positions, extra_capacity=extra_capacity
@@ -378,7 +386,10 @@ def run_sim(
             0, n_inner, body_fn, (state, outer_step, neighbor, all_checks_passed)
         )
         current_temperature = (
-            quantity.temperature(velocity=state.velocity, mass=state.mass) / units.kB
+            quantity.temperature(
+                velocity=state.velocity, mass=state.mass, mobile_mask=mobile_mask
+            )
+            / units.kB
         )
 
         return state, neighbor, current_temperature, all_checks_passed
