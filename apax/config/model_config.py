@@ -255,6 +255,10 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
     ----------
     n_radial : PositiveInt, default = 5
         Number of contracted basis functions.
+    n_radial_tensor : Optional[PositiveInt], default = None
+        If set, the l>0 moments use this many radial channels, a learned linear
+        combination of the `n_radial` channels (applied per pair). The l=0 moment
+        keeps all `n_radial`.
     n_contr : int, default = 8
         How many gaussian moment contractions to use.
     emb_init : Optional[str], default = "uniform"
@@ -267,6 +271,7 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
     name: Literal["gmnn"] = "gmnn"
 
     n_radial: PositiveInt = 5
+    n_radial_tensor: Optional[PositiveInt] = None
     n_contr: int = 8
     emb_init: Optional[str] = "uniform"
     radial_rank: Optional[PositiveInt] = None

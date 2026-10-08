@@ -339,6 +339,7 @@ class GMNNBuilder(ModelBuilder):
         descriptor = GaussianMomentDescriptor(
             radial_fn=radial_fn,
             n_contr=self.config["n_contr"],
+            n_radial_tensor=self.config["n_radial_tensor"],
             dtype=self.config["descriptor_dtype"],
             apply_mask=apply_mask,
         )
