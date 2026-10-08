@@ -302,7 +302,7 @@ def run_sim(
     )
     num_atoms = jnp.shape(system.positions)[0]
     mobile_mask = jnp.full(num_atoms, True)
-    mobile_mask = mobile_mask.at[constrained_idxs].set(False)
+    mobile_mask = mobile_mask.at[jnp.array(constrained_idxs)].set(False)
 
     log.info("initializing simulation")
 
