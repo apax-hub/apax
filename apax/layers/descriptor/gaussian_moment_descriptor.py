@@ -67,7 +67,9 @@ class GaussianMomentDescriptor(nn.Module):
             radial_function = mask_by_neighbor(radial_function, neighbor_idxs, dr_vec)
 
         if self.n_radial_tensor:
-            moments = geometric_moments(self.radial_compression(radial_function), dn, idx_j, n_atoms)
+            moments = geometric_moments(
+                self.radial_compression(radial_function), dn, idx_j, n_atoms
+            )
             moments[0] = jax.ops.segment_sum(radial_function, idx_j, n_atoms)
         else:
             moments = geometric_moments(radial_function, dn, idx_j, n_atoms)

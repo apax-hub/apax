@@ -38,12 +38,20 @@ SHAPES = {
     "monoclinic": _deformed([[1, 0, 0.25], [0, 1, 0], [0, 0, 1]]),
     "triclinic": _deformed([[1, 0.15, 0.2], [0.05, 1, 0.1], [0.12, 0.07, 1]]),
     "skewed": _deformed([[1, 0.5, 0.4], [0, 1, 0.45], [0, 0, 1]]),
-    "hexagonal": lambda rep: bulk("Cu", "hcp", a=2.55, c=4.17).repeat((rep, rep, max(1, rep - 1))),
-    "rhombohedral": lambda rep: bulk("Cu", "fcc", a=3.6).repeat(rep),  # primitive fcc, 60 degree angles
+    "hexagonal": lambda rep: bulk("Cu", "hcp", a=2.55, c=4.17).repeat(
+        (rep, rep, max(1, rep - 1))
+    ),
+    "rhombohedral": lambda rep: bulk("Cu", "fcc", a=3.6).repeat(
+        rep
+    ),  # primitive fcc, 60 degree angles
 }
 # repeats giving a thin cell (min height < 2 r_max) and a thick one (>= 2 r_max)
 SIZES = {"hexagonal": (2, 5), "rhombohedral": (3, 6), "skewed": (2, 4)}
-CASES = [(s, size, rep) for s in SHAPES for size, rep in zip(("thin", "thick"), SIZES.get(s, (2, 3)))]
+CASES = [
+    (s, size, rep)
+    for s in SHAPES
+    for size, rep in zip(("thin", "thick"), SIZES.get(s, (2, 3)))
+]
 
 
 def _min_height(cell):
@@ -99,7 +107,11 @@ def _calculator(cfg, params):
 
 def _fd_stress(energy, atoms, h=1e-5):
     """Central differences of E under a homogeneous cell strain, symmetrised, divided by volume."""
-    cell, frac, fd = atoms.cell.array.copy(), atoms.get_scaled_positions(), np.zeros((3, 3))
+    cell, frac, fd = (
+        atoms.cell.array.copy(),
+        atoms.get_scaled_positions(),
+        np.zeros((3, 3)),
+    )
     for i in range(3):
         for j in range(3):
             e = []
@@ -151,9 +163,13 @@ _VERY_SKEWED = _deformed([[1, 1.0, 0.8], [0, 1, 0.9], [0, 0, 1]])
 _SKEWED = _deformed([[1, 0.5, 0.4], [0, 1, 0.45], [0, 0, 1]])
 THICK_CELLS = [
     pytest.param(_deformed(np.eye(3)), 3, id="cubic"),
-    pytest.param(_deformed([[1, 0.15, 0.2], [0.05, 1, 0.1], [0.12, 0.07, 1]]), 3, id="triclinic"),
+    pytest.param(
+        _deformed([[1, 0.15, 0.2], [0.05, 1, 0.1], [0.12, 0.07, 1]]), 3, id="triclinic"
+    ),
     pytest.param(_SKEWED, 4, id="skewed"),
-    pytest.param(_deformed([[1, 0, 0], [0.9, 1, 0], [0.7, 0.8, 1]]), 5, id="lower-triangular"),
+    pytest.param(
+        _deformed([[1, 0, 0], [0.9, 1, 0], [0.7, 0.8, 1]]), 5, id="lower-triangular"
+    ),
     pytest.param(SHAPES["hexagonal"], 5, id="hexagonal"),
     pytest.param(SHAPES["rhombohedral"], 6, id="rhombohedral"),
     pytest.param(_VERY_SKEWED, 5, id="very-skewed"),
@@ -164,7 +180,9 @@ THICK_CELLS = [
 def _thick_atoms(make, rep):
     atoms = make(rep)
     atoms.rattle(0.05, seed=1)
-    assert _min_height(atoms.cell.array) > 2 * R_MAX  # ASECalculator takes the jax_md path
+    assert (
+        _min_height(atoms.cell.array) > 2 * R_MAX
+    )  # ASECalculator takes the jax_md path
     return atoms
 
 
