@@ -94,7 +94,11 @@ class ModelBuilder:
         if name == "identity":
             return IdentityRadialTransform()
         elif name == "covalent":
-            return CovalentRadialTransform(dtype=self.config["descriptor_dtype"])
+            return CovalentRadialTransform(
+                r_max=self.config["basis"]["r_max"],
+                r0_scale=self.config.get("covalent_r0_scale", 1.0),
+                dtype=self.config["descriptor_dtype"],
+            )
         else:
             raise ValueError(f"unknown radial transform requested: {name}")
 

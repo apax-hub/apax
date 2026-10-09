@@ -190,6 +190,9 @@ class BaseModelConfig(BaseModel, extra="forbid"):
         behavior). `"covalent"` applies a per-element-pair tanh transform
         centered at the sum of covalent radii, reallocating basis resolution
         toward the bonding region.
+    covalent_r0_scale : PositiveFloat, default = 1.0
+        Centre of the covalent transform as a multiple of the summed covalent radii; the descriptor is flat in r
+        below roughly this distance minus 0.5 Å.
     nn : List[PositiveInt], default = [256, 256]
         Number of hidden layers and units in those layers.
     w_init : Literal["normal", "lecun"], default = "lecun"
@@ -223,6 +226,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
 
     basis: BasisConfig = Field(BesselBasisConfig(name="bessel"), discriminator="name")
     radial_transform: Literal["identity", "covalent"] = "identity"
+    covalent_r0_scale: PositiveFloat = 1.0
 
     nn: List[PositiveInt] = [256, 256]
     w_init: Literal["normal", "lecun"] = "lecun"
