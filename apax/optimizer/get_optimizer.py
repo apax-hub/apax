@@ -104,6 +104,7 @@ def get_opt(
     zbl_lr: float = 0.001,
     rep_scale_lr: float = 0.001,
     rep_prefactor_lr: float = 0.0001,
+    residual_wd: float = 0.0,
     gradient_clipping=1000.0,
     freeze_layers: list[str] = [],
     name: str = "adam",
@@ -136,11 +137,25 @@ def get_opt(
     zbl_opt = opt_fac.create(zbl_lr, no_weight_decay=True)
     rep_scale_opt = opt_fac.create(rep_scale_lr, no_weight_decay=True)
     rep_prefactor_opt = opt_fac.create(rep_prefactor_lr, no_weight_decay=True)
+    # per-pair residual: Adam + its own decoupled decay, independent of `name`
+    residual_opt = optax.chain(
+        optax.clip(gradient_clipping),
+        optax.scale_by_adam(),
+        optax.add_decayed_weights(residual_wd),
+        optax.scale_by_learning_rate(
+            get_schedule(emb_lr, n_epochs, steps_per_epoch, schedule)
+        ),
+        optax.zero_nans(),
+    )
 
     partition_optimizers = {
         "w": nn_opt,
         "b": nn_opt,
         "atomic_type_embedding": emb_opt,
+        "pair_emb_centre": emb_opt,
+        "pair_emb_nbr": emb_opt,
+        "pair_core": emb_opt,
+        "pair_residual": residual_opt,
         "scale_per_element": scale_opt,
         "shift_per_element": shift_opt,
         "a_exp": zbl_opt,

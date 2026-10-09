@@ -255,17 +255,29 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
     ----------
     n_radial : PositiveInt, default = 5
         Number of contracted basis functions.
+    n_radial_tensor : Optional[PositiveInt], default = None
+        If set, the l>0 moments use this many radial channels, a learned linear
+        combination of the `n_radial` channels (applied per pair). The l=0 moment
+        keeps all `n_radial`.
     n_contr : int, default = 8
         How many gaussian moment contractions to use.
     emb_init : Optional[str], default = "uniform"
         Initialization scheme for embedding layer weights.
+    radial_rank : Optional[PositiveInt], default = None
+        If set, replaces the dense species-pair radial coefficient table with a
+        rank-`radial_rank` CP factorization over per-element embeddings.
     """
 
     name: Literal["gmnn"] = "gmnn"
 
     n_radial: PositiveInt = 5
+    n_radial_tensor: Optional[PositiveInt] = None
     n_contr: int = 8
     emb_init: Optional[str] = "uniform"
+    radial_rank: Optional[PositiveInt] = None
+    radial_emb_jitter: NonNegativeFloat = 0.1
+    radial_factor_mode: Literal["cp", "centre", "nbr"] = "cp"
+    radial_residual: bool = False
 
     def get_builder(self):
         from apax.nn.builder import GMNNBuilder

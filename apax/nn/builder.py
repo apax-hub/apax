@@ -43,6 +43,7 @@ from apax.layers.descriptor import (
 from apax.layers.descriptor.basis_functions import (
     BesselBasis,
     CovalentRadialTransform,
+    FactorizedRadialFunction,
     GaussianBasis,
     IdentityRadialTransform,
     RadialFunction,
@@ -107,6 +108,20 @@ class ModelBuilder:
         else:
             use_embed_norm = False
             one_sided_dist = True
+
+        rank = self.config.get("radial_rank")
+        if rank is not None:
+            return FactorizedRadialFunction(
+                n_radial=self.config["n_radial"],
+                rank=rank,
+                basis_fn=basis_fn,
+                radial_transform=radial_transform,
+                n_species=self.n_species,
+                emb_jitter=self.config.get("radial_emb_jitter", 0.1),
+                factor_mode=self.config.get("radial_factor_mode", "cp"),
+                residual=self.config.get("radial_residual", False),
+                dtype=self.config["descriptor_dtype"],
+            )
 
         radial_fn = RadialFunction(
             n_radial=self.config["n_radial"],
@@ -324,6 +339,7 @@ class GMNNBuilder(ModelBuilder):
         descriptor = GaussianMomentDescriptor(
             radial_fn=radial_fn,
             n_contr=self.config["n_contr"],
+            n_radial_tensor=self.config["n_radial_tensor"],
             dtype=self.config["descriptor_dtype"],
             apply_mask=apply_mask,
         )

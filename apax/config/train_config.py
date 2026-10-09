@@ -235,6 +235,9 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
         LR for the length scale of these exponential repulsion potential.
     rep_prefactor_lr : NonNegativeFloat, default = 0.0001
         LR for the strength of the exponential repulsion potential.
+    residual_wd : NonNegativeFloat, default = 0.0
+        Decoupled weight decay on the factorized radial function's dense
+        per-pair residual (`pair_residual`); trained with `emb_lr` and Adam.
     gradient_clipping: NonNegativeFloat, default = 1000.0
         Per element Gradient clipping value.
         Default is so high that it effectively disabled.
@@ -252,6 +255,7 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     zbl_lr: NonNegativeFloat = 0.0001
     rep_scale_lr: NonNegativeFloat = 0.001
     rep_prefactor_lr: NonNegativeFloat = 0.0001
+    residual_wd: NonNegativeFloat = 0.0
 
     gradient_clipping: NonNegativeFloat = 1000.0
 
