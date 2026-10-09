@@ -109,9 +109,7 @@ def get_ensemble(ensemble: Integrator, sim_fns, mobile_mask=None):
 
     kT = ensemble.temperature_schedule.get_schedule()
     if ensemble.name == "nve":
-        init_fn, apply_fn = simulate.nve(
-            energy, shift, kT(0), dt, mobile_mask=mobile_mask
-        )
+        init_fn, apply_fn = simulate.nve(energy, shift, dt=dt, mobile_mask=mobile_mask)
     elif ensemble.name == "nvt":
         thermostat_chain = dict(ensemble.thermostat_chain)
         thermostat_chain["tau"] *= dt
@@ -122,6 +120,7 @@ def get_ensemble(ensemble: Integrator, sim_fns, mobile_mask=None):
             dt,
             kT(0),
             mobile_mask=mobile_mask,
+            **thermostat_chain,
         )
 
     elif ensemble.name == "npt":
@@ -387,7 +386,7 @@ def run_sim(
         )
         current_temperature = (
             quantity.temperature(
-                velocity=state.velocity, mass=state.mass, mobile_mask=mobile_mask
+                momentum=state.momentum, mass=state.mass, mobile_mask=mobile_mask
             )
             / units.kB
         )

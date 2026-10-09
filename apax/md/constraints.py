@@ -15,7 +15,7 @@ class ConstraintBase(BaseModel):
     the constraint during simulations.
     """
 
-    def create(self, system) -> Callable:
+    def create(self, system) -> tuple[Callable, jnp.ndarray]:
         pass
 
 
@@ -23,7 +23,7 @@ class FixAtoms(ConstraintBase, extra="forbid"):
     name: Literal["fixatoms"] = "fixatoms"
     indices: list[int]
 
-    def create(self, system: System) -> Callable:
+    def create(self, system: System) -> tuple[Callable, jnp.ndarray]:
         indices = jnp.array(self.indices, dtype=jnp.int64)
 
         ref_position = system.positions[indices]
@@ -50,7 +50,7 @@ class FixCenterOfMass(ConstraintBase, extra="forbid"):
     name: Literal["fixcenterofmass"] = "fixcenterofmass"
     position: Union[Literal["initial", "origin"], list[float]] = "initial"
 
-    def create(self, system: System) -> Callable:
+    def create(self, system: System) -> tuple[Callable, jnp.ndarray]:
         if isinstance(self.position, str):
             if self.position.lower() == "initial":
                 ref_com = center_of_mass(system.positions, system.masses)
@@ -83,13 +83,13 @@ class FixCenterOfMass(ConstraintBase, extra="forbid"):
 
         # We return 0 as a constrained idx, to make sure that the
         # integrator knows that we have 3 dof less.
-        return fn, [0]
+        return fn, jnp.array([0])
 
 
 class FixRotation(ConstraintBase, extra="forbid"):
     name: Literal["fixrotation"] = "fixrotation"
 
-    def create(self, system: System) -> Callable:
+    def create(self, system: System) -> tuple[Callable, jnp.ndarray]:
         raise NotImplementedError()
 
 
@@ -100,7 +100,7 @@ class FixLayer(ConstraintBase, extra="forbid"):
     upper_limit: float
     lower_limit: float
 
-    def create(self, system) -> Callable:
+    def create(self, system) -> tuple[Callable, jnp.ndarray]:
         if jnp.any(system.box > 10e-4):
             cart_pos = system.positions @ system.box
 
