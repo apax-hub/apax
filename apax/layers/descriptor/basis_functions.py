@@ -2,11 +2,44 @@ from typing import Any, Literal
 
 import einops
 import flax.linen as nn
+import jax
 import jax.numpy as jnp
 import numpy as np
+from ase.data import covalent_radii
 
 from apax.layers.initializers import uniform_range
 from apax.utils.convert import str_to_dtype
+
+
+class IdentityRadialTransform(nn.Module):
+    """Passthrough transform: featurize the physical distance unchanged.
+
+    This is the default, preserving the original (untransformed) behavior.
+    """
+
+    def __call__(self, dr, Z_i, Z_j):
+        return dr
+
+
+class CovalentRadialTransform(nn.Module):
+    """Maps r -> r2 = 0.5 r + 0.5 r tanh(alpha (r - r0)) before featurization.
+
+    Decays to 0 near r=0 much faster than r (flat well below r0) and
+    approaches r for r >> r0, where r0 is the sum of the covalent radii of
+    the two elements at distance r.
+    """
+
+    alpha: float = 4.0
+    r0_scale: float = 1.0
+    dtype: Any = jnp.float32
+
+    def setup(self):
+        dtype = str_to_dtype(self.dtype)
+        self.covalent_radii = jnp.asarray(covalent_radii, dtype=dtype)
+
+    def __call__(self, dr, Z_i, Z_j):
+        r0 = self.r0_scale * (self.covalent_radii[Z_i] + self.covalent_radii[Z_j])
+        return 0.5 * dr * (1.0 + jnp.tanh(self.alpha * (dr - r0)))
 
 
 class GaussianBasis(nn.Module):
@@ -88,6 +121,7 @@ def cosine_cutoff(dr, dr_max: float):
 class RadialFunction(nn.Module):
     n_radial: int = 5
     basis_fn: nn.Module = GaussianBasis()
+    radial_transform: nn.Module = IdentityRadialTransform()
     n_species: int = 119
     emb_init: str = "uniform"
     use_embed_norm: bool = True
@@ -129,8 +163,10 @@ class RadialFunction(nn.Module):
     def __call__(self, dr, Z_i, Z_j):
         dtype = str_to_dtype(self.dtype)
         dr = dr.astype(dtype)
+        # transformed distance for featurization; cutoff still uses physical dr
+        dr_feat = self.radial_transform(dr, Z_i, Z_j)
         # basis shape: neighbors x n_basis
-        basis = self.basis_fn(dr)
+        basis = self.basis_fn(dr_feat)
 
         if self.emb_init is None:
             radial_function = basis
@@ -155,4 +191,111 @@ class RadialFunction(nn.Module):
 
         assert radial_function.dtype == dtype
 
+        return radial_function
+
+
+class FactorizedRadialFunction(nn.Module):
+    """Rank-d CP factorization of the species-pair radial coefficients:
+    W[Z_centre, Z_nbr] = sum_k u_k(Z_centre) v_k(Z_nbr) C_k,  C_k: (n_basis, n_radial)
+    """
+
+    n_radial: int = 5
+    rank: int = 4
+    basis_fn: nn.Module = GaussianBasis()
+    radial_transform: nn.Module = IdentityRadialTransform()
+    n_species: int = 119
+    emb_jitter: float = 0.1
+    # "cp": u(Zc) * v(Zn); "centre": u(Zc) only; "nbr": v(Zn) only
+    factor_mode: str = "cp"
+    # dense per-pair residual on top of the factorisation (zero init; decay via
+    # the `pair_residual` optimizer group)
+    residual: bool = False
+    dtype: Any = jnp.float32
+
+    def setup(self):
+        dtype = str_to_dtype(self.dtype)
+        self.r_max = self.basis_fn.r_max
+        self._n_radial = self.n_radial
+        n_basis = self.basis_fn.n_basis
+
+        # u, v = 1 + jitter * N(0,1): pairs start near a shared radial function.
+        # C = 1/2 + sqrt(rank) * U[-1/2, 1/2] with norm 1/rank gives entries with
+        # mean 1/2, var 1/12 (matching RadialFunction's U[0,1] table).
+        def emb_init(key, shape, dtype):
+            return 1.0 + self.emb_jitter * jax.random.normal(key, shape, dtype)
+
+        half_width = 0.5 * np.sqrt(self.rank)
+        core_init = uniform_range(0.5 - half_width, 0.5 + half_width, dtype=dtype)
+        norm = 1.0 / self.rank
+
+        if self.factor_mode in ("cp", "centre"):
+            self.centre_emb = self.param(
+                "pair_emb_centre", emb_init, (self.n_species, self.rank), dtype
+            )
+        if self.factor_mode in ("cp", "nbr"):
+            self.nbr_emb = self.param(
+                "pair_emb_nbr", emb_init, (self.n_species, self.rank), dtype
+            )
+        # stored flat (checkpoint layout); viewed as (n_basis, rank, n_radial) in __call__
+        self.core = self.param(
+            "pair_core",
+            core_init,
+            (n_basis, self.rank * self.n_radial),
+            dtype,
+        )
+        self.norm = jnp.array(norm, dtype=dtype)
+        if self.residual:
+            self.pair_residual = self.param(
+                "pair_residual",
+                nn.initializers.zeros,
+                (self.n_species, self.n_species, self.n_radial, n_basis),
+                dtype,
+            )
+
+    def __call__(self, dr, Z_i, Z_j):
+        dtype = str_to_dtype(self.dtype)
+        dr = dr.astype(dtype)
+        dr_feat = self.radial_transform(dr, Z_i, Z_j)
+        # basis shape: neighbors x n_basis
+        basis = self.basis_fn(dr_feat)
+
+        core = self.core.reshape(-1, self.rank, self.n_radial)
+
+        # Z_j is the centre atom, matching RadialFunction's embeddings[Z_j, Z_i]
+        if self.factor_mode == "cp":
+            w = self.centre_emb[Z_j] * self.nbr_emb[Z_i]
+        elif self.factor_mode == "centre":
+            w = self.centre_emb[Z_j]
+        elif self.factor_mode == "nbr":
+            w = self.nbr_emb[Z_i]
+        else:
+            raise ValueError(f"unknown factor_mode: {self.factor_mode}")
+        # Contraction order matters for speed (sum over k = rank, b = basis, r = radial):
+        #   1. basis @ core per pair -> (P, k, r), then rank sum with w: flat GEMM became
+        #      a GPU custom call and writes a k*r-per-pair intermediate (112 MB, 582k pairs).
+        #   2. w @ core per pair -> (P, b, r), then basis sum: same FLOPs, intermediate b*r
+        #      independent of rank (opt_einsum picks this for rank >= 32; below that its
+        #      choice varies, hence one einsum here rather than a fixed path).
+        #   3. Faster on GPU (tested): build the element-pair table once,
+        #      table[a, b] = (1/rank) * (u[a] * v[b]) @ core  (~8 MFLOP, independent of P),
+        #      then per pair gather table[Z_j, Z_i] and contract with basis as in
+        #      RadialFunction (fused reduction, no matmul/TF32); per-pair cost drops by ~rank.
+        #      Caveat: its backward is a scatter-add of P*b*r into few rows (heavy atomic
+        #      contention when few species are present) - profile a full training step;
+        #      build the table only for present species.
+        radial_function = self.norm * jnp.einsum(
+            "pb,bkr,pk->pr", basis, core, w, precision=jax.lax.Precision.HIGHEST
+        )
+        if self.residual:
+            radial_function = radial_function + jnp.einsum(
+                "prb,pb->pr",
+                self.pair_residual[Z_j, Z_i],
+                basis,
+                precision=jax.lax.Precision.HIGHEST,
+            )
+
+        cos_cutoff = cosine_cutoff(dr, self.r_max)
+        radial_function = radial_function * cos_cutoff[:, None]
+
+        assert radial_function.dtype == dtype
         return radial_function

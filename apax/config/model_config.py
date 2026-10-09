@@ -112,6 +112,8 @@ class Correction(BaseModel, extra="forbid"):
 class ZBLRepulsion(Correction, extra="forbid"):
     name: Literal["zbl"]
     r_max: NonNegativeFloat = 1.5
+    # Coulomb constant e^2/(4*pi*eps0) = 14.4 eV*Ang (=1 in Hartree/Bohr).
+    initial_rep_scale: PositiveFloat = 14.4
 
 
 class ExponentialRepulsion(Correction, extra="forbid"):
@@ -126,7 +128,14 @@ class LatentEwald(Correction, extra="forbid"):
     use_property: str = "charges"
 
 
-EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion, LatentEwald]
+class NLHRepulsion(Correction, extra="forbid"):
+    name: Literal["nlh"]
+    r_max: PositiveFloat = 6.0
+    # path to triple-exponential coeffs; None -> bundled apax/data/nlh_coeffs.dat
+    coeffs_file: Optional[str] = None
+
+
+EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion, LatentEwald, NLHRepulsion]
 
 
 class PropertyHead(BaseModel, extra="forbid"):
@@ -175,6 +184,12 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     ----------
     basis : BasisConfig, default = GaussianBasisConfig()
         Configuration for primitive basis functions.
+    radial_transform : Literal["identity", "covalent"], default = "identity"
+        Transform applied to interatomic distances before featurization.
+        `"identity"` featurizes the physical distance unchanged (original
+        behavior). `"covalent"` applies a per-element-pair tanh transform
+        centered at the sum of covalent radii, reallocating basis resolution
+        toward the bonding region.
     nn : List[PositiveInt], default = [256, 256]
         Number of hidden layers and units in those layers.
     w_init : Literal["normal", "lecun"], default = "lecun"
@@ -207,12 +222,15 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     """
 
     basis: BasisConfig = Field(BesselBasisConfig(name="bessel"), discriminator="name")
+    radial_transform: Literal["identity", "covalent"] = "identity"
 
     nn: List[PositiveInt] = [256, 256]
     w_init: Literal["normal", "lecun"] = "lecun"
     b_init: Literal["normal", "zeros"] = "zeros"
     activation_fn: str = "variance_preserving_swish"
     use_ntk: bool = False
+    use_bias: bool = False
+    readout_activation: Literal["identity", "swish", "elu"] = "swish"
 
     ensemble: Optional[EnsembleConfig] = None
 
@@ -237,17 +255,29 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
     ----------
     n_radial : PositiveInt, default = 5
         Number of contracted basis functions.
+    n_radial_tensor : Optional[PositiveInt], default = None
+        If set, the l>0 moments use this many radial channels, a learned linear
+        combination of the `n_radial` channels (applied per pair). The l=0 moment
+        keeps all `n_radial`.
     n_contr : int, default = 8
         How many gaussian moment contractions to use.
     emb_init : Optional[str], default = "uniform"
         Initialization scheme for embedding layer weights.
+    radial_rank : Optional[PositiveInt], default = None
+        If set, replaces the dense species-pair radial coefficient table with a
+        rank-`radial_rank` CP factorization over per-element embeddings.
     """
 
     name: Literal["gmnn"] = "gmnn"
 
     n_radial: PositiveInt = 5
+    n_radial_tensor: Optional[PositiveInt] = None
     n_contr: int = 8
     emb_init: Optional[str] = "uniform"
+    radial_rank: Optional[PositiveInt] = None
+    radial_emb_jitter: NonNegativeFloat = 0.1
+    radial_factor_mode: Literal["cp", "centre", "nbr"] = "cp"
+    radial_residual: bool = False
 
     def get_builder(self):
         from apax.nn.builder import GMNNBuilder
