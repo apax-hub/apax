@@ -178,11 +178,16 @@ class NLHRepulsion(EmpiricalEnergyTerm):
     phi_ij(r) = sum_k a[Z_i,Z_j,k] * exp(-b[Z_i,Z_j,k] * r),  k = 1..3.
 
     Per-pair coefficients `a`, `b` (shape (n_species, n_species, 3)) are
-    injected by the builder (dependency injection); non-trainable for now.
+    injected by the builder (dependency injection); non-trainable.
+
+    With poly_degree K > 0 the pair energy is modulated by a learnable, strictly positive factor
+    p_ij(r) = exp(sum_{k=1..K} c_ij,k t^k), t = 1 - r/r_max, c_ij = (c_i + c_j)/2 per element (init 0 = plain NLH):
+    p = 1 at r_max, smooth and low-order below, and positive, so the wall can be rescaled but never turn attractive.
     """
 
     a: Any = None  # (n_species, n_species, 3), injected
     b: Any = None
+    poly_degree: int = 0
     r_max: float = 6.0
     rep_scale: float = 14.4  # e^2/(4 pi eps0) in eV*Ang
     apply_mask: bool = True
@@ -192,6 +197,8 @@ class NLHRepulsion(EmpiricalEnergyTerm):
         self.distance = vmap(space.distance, 0, 0)
         self._a = jnp.asarray(self.a, dtype=dtype)  # inject at module dtype (fp32)
         self._b = jnp.asarray(self.b, dtype=dtype)
+        if self.poly_degree > 0:
+            self.poly = self.param("nlh_poly", nn.initializers.zeros, (self._a.shape[0], self.poly_degree), dtype)
 
     def __call__(self, R, dr_vec, Z, idx, box, properties):
         dtype = str_to_dtype(self.dtype)
@@ -207,6 +214,11 @@ class NLHRepulsion(EmpiricalEnergyTerm):
         phi = jnp.sum(a_ij * jnp.exp(-b_ij * dr[:, None]), axis=-1)  # (neighbors,)
 
         E_ij = self.rep_scale * Z_i * Z_j / dr * phi * cos_cutoff
+        if self.poly_degree > 0:
+            c_ij = 0.5 * (self.poly[Z_i] + self.poly[Z_j])  # (neighbors, K)
+            t = 1.0 - dr / self.r_max
+            powers = t[:, None] ** jnp.arange(1, self.poly_degree + 1, dtype=dtype)
+            E_ij = E_ij * jnp.exp(jnp.sum(c_ij * powers, axis=-1))
         if self.apply_mask:
             E_ij = mask_by_neighbor(E_ij, idx, dr_vec)
         return 0.5 * fp64_sum(E_ij)
