@@ -1,3 +1,4 @@
+import warnings
 from typing import List, Literal, Optional, Union
 
 from pydantic import (
@@ -6,6 +7,7 @@ from pydantic import (
     NonNegativeFloat,
     PositiveFloat,
     PositiveInt,
+    model_validator,
 )
 
 
@@ -110,10 +112,27 @@ class Correction(BaseModel, extra="forbid"):
 
 
 class ZBLRepulsion(Correction, extra="forbid"):
+    """
+    .. deprecated::
+        Use the NLH repulsion (``name: nlh``) instead: it is strictly more expressive (per element-pair
+        triple-exponential screening instead of one universal ZBL screening function). Kept so existing models
+        still load.
+    """
+
     name: Literal["zbl"]
     r_max: NonNegativeFloat = 1.5
     # Coulomb constant e^2/(4*pi*eps0) = 14.4 eV*Ang (=1 in Hartree/Bohr).
     initial_rep_scale: PositiveFloat = 14.4
+
+    @model_validator(mode="after")
+    def _deprecated(self):
+        warnings.warn(
+            "The ZBL correction is deprecated: the NLH repulsion (name: nlh) is strictly more expressive. "
+            "Use it instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        return self
 
 
 class ExponentialRepulsion(Correction, extra="forbid"):
