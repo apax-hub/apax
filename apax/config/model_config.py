@@ -159,8 +159,8 @@ class NLHRepulsion(Correction, extra="forbid"):
 
 class PairEnvelope(Correction, extra="forbid"):
     """
-    Attractive pair envelope -X sum_pairs 0.5 (1 + cos(pi r / r_max)) with one learnable amplitude X,
-    least-squares initialised from the training data. With isolated-atom shifts it carries the bulk of the
+    Attractive pair envelope -sum_pairs X_ij 0.5 (1 + cos(pi r / r_max)), X_ij = (X_i + X_j) / 2 with learnable
+    per-element amplitudes, least-squares initialised from the training data. With isolated-atom shifts it carries the bulk of the
     cohesive energy, so the network learns a zero-centred residual.
     """
 

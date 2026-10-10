@@ -1,4 +1,6 @@
 import logging
+
+import numpy as np
 import os
 import sys
 from typing import List, Union
@@ -204,7 +206,7 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
     for corr in model_dict.get("empirical_corrections", []):
         if corr["name"] == "pair_envelope":  # least-squares init of the envelope amplitude
             corr["amp_init"] = fit_pair_envelope(load_data_files(config.data)[0], ds_stats.elemental_shift, corr["r_max"])
-            log.info(f"Pair envelope amplitude initialised by least squares: {corr['amp_init']:.4f} eV")
+            log.info("Pair envelope amplitudes initialised by least squares (median %.4f eV)", float(np.median(corr["amp_init"])))
     builder = Builder(model_dict)
     model = builder.build_energy_derivative_model(
         scale=ds_stats.elemental_scale,
