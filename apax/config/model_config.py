@@ -157,7 +157,19 @@ class NLHRepulsion(Correction, extra="forbid"):
     coeffs_file: Optional[str] = None
 
 
-EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion, LatentEwald, NLHRepulsion]
+class PairEnvelope(Correction, extra="forbid"):
+    """
+    Attractive pair envelope -X sum_pairs 0.5 (1 + cos(pi r / r_max)) with one learnable amplitude X,
+    least-squares initialised from the training data. With isolated-atom shifts it carries the bulk of the
+    cohesive energy, so the network learns a zero-centred residual.
+    """
+
+    name: Literal["pair_envelope"]
+    r_max: PositiveFloat = 5.0
+    trainable: bool = True
+
+
+EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion, LatentEwald, NLHRepulsion, PairEnvelope]
 
 
 class PropertyHead(BaseModel, extra="forbid"):

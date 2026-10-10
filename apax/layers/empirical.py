@@ -224,9 +224,52 @@ class NLHRepulsion(EmpiricalEnergyTerm):
         return 0.5 * fp64_sum(E_ij)
 
 
+class PairEnvelope(EmpiricalEnergyTerm):
+    """Attractive pair envelope E = -X sum_pairs 0.5 (1 + cos(pi r / r_max)): -X per pair at r = 0, 0 at r_max.
+
+    A smooth cohesive baseline under the network: with isolated-atom shifts it carries the bulk of the
+    bonding energy, so the network learns a zero-centred residual. Only the amplitude X is learnable (one scalar);
+    it is initialised by least squares on per-atom energies (amp_init, injected by the trainer).
+    """
+
+    r_max: float = 5.0
+    trainable: bool = True
+    amp_init: Any = None
+    apply_mask: bool = True
+
+    def setup(self):
+        dtype = str_to_dtype(self.dtype)
+        self.distance = vmap(space.distance, 0, 0)
+        init = (lambda *_: jnp.full((1,), self.amp_init, dtype)) if self.amp_init is not None else nn.initializers.zeros
+        self.amp = self.param("envelope_amp" if self.trainable else "envelope_amp_frozen", init, (1,), dtype)
+
+    def __call__(self, R, dr_vec, Z, idx, box, properties):
+        dtype = str_to_dtype(self.dtype)
+        dr = jnp.clip(self.distance(dr_vec).astype(dtype), max=self.r_max)
+        w = 0.5 * (1.0 + jnp.cos(np.pi * dr / self.r_max))
+        if self.apply_mask:
+            w = mask_by_neighbor(w, idx, dr_vec)
+        return -self.amp[0] * 0.5 * fp64_sum(w)  # each pair appears twice in the neighbour list
+
+
+def fit_pair_envelope(atoms_list, shift, r_max=5.0):
+    """least-squares X for per-atom (E - sum_i shift[Z_i]) ~ -X sum_pairs w(r) / n."""
+    from ase.neighborlist import neighbor_list
+
+    shift = np.asarray(shift).reshape(-1)
+    x, y = [], []
+    for a in atoms_list:
+        d = neighbor_list("d", a, r_max)
+        x.append(-0.25 * np.sum(1.0 + np.cos(np.pi * d / r_max)) / len(a))
+        y.append((a.get_potential_energy() - shift[a.numbers].sum()) / len(a))
+    x, y = np.asarray(x), np.asarray(y)
+    return float(x @ y / (x @ x))
+
+
 all_corrections = {
     "zbl": ZBLRepulsion,
     "exponential": ExponentialRepulsion,
     "latent_ewald": LatentEwald,
     "nlh": NLHRepulsion,
+    "pair_envelope": PairEnvelope,
 }

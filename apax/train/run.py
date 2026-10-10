@@ -7,6 +7,7 @@ import jax
 
 from apax.config import Config, LossConfig, parse_config
 from apax.data.initialization import load_data_files
+from apax.layers.empirical import fit_pair_envelope
 from apax.data.input_pipeline import dataset_dict
 from apax.data.statistics import compute_scale_shift_parameters
 from apax.optimizer import get_opt
@@ -199,7 +200,12 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
 
     sample_input, init_box = train_ds.init_input()
     Builder = config.model.get_builder()
-    builder = Builder(config.model.model_dump())
+    model_dict = config.model.model_dump()
+    for corr in model_dict.get("empirical_corrections", []):
+        if corr["name"] == "pair_envelope":  # least-squares init of the envelope amplitude
+            corr["amp_init"] = fit_pair_envelope(load_data_files(config.data)[0], ds_stats.elemental_shift, corr["r_max"])
+            log.info(f"Pair envelope amplitude initialised by least squares: {corr['amp_init']:.4f} eV")
+    builder = Builder(model_dict)
     model = builder.build_energy_derivative_model(
         scale=ds_stats.elemental_scale,
         shift=ds_stats.elemental_shift,
