@@ -343,6 +343,7 @@ class GMNNBuilder(ModelBuilder):
             radial_fn=radial_fn,
             n_contr=self.config["n_contr"],
             n_radial_tensor=self.config["n_radial_tensor"],
+            traceless=self.config.get("traceless_moments", False),
             dtype=self.config["descriptor_dtype"],
             apply_mask=apply_mask,
         )
