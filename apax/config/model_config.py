@@ -285,6 +285,15 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     scale_shift_dtype: Literal["fp32", "fp64"] = "fp64"
 
 
+def _drop_removed(values, key, off_value, what):
+    """Saved configs of older models still carry removed fields; accept them only if the feature was off."""
+    if isinstance(values, dict) and key in values:
+        if values[key] not in (off_value, None):
+            raise ValueError(f"`{key}` was removed ({what}); this config enables it and cannot be loaded.")
+        values = {k: v for k, v in values.items() if k != key}
+    return values
+
+
 class GMNNConfig(BaseModelConfig, extra="forbid"):
     """
     Configuration for the model.
@@ -316,6 +325,11 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
     radial_rank: Optional[PositiveInt] = None
     radial_emb_jitter: NonNegativeFloat = 0.1
     radial_factor_mode: Literal["cp", "centre", "nbr"] = "cp"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _removed_fields(cls, values):
+        return _drop_removed(values, "radial_residual", False, "the per-pair radial residual did nothing")
 
     def get_builder(self):
         from apax.nn.builder import GMNNBuilder
