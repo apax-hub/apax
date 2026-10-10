@@ -8,7 +8,7 @@ from jax import vmap
 from jax_md import space
 
 from apax.layers.descriptor.basis_functions import RadialFunction
-from apax.layers.descriptor.moments import detrace, geometric_moments
+from apax.layers.descriptor.moments import detrace, geometric_moments, geometric_moments_packed
 from apax.layers.descriptor.triangular_indices import tril_2d_indices, tril_3d_indices
 from apax.layers.masking import mask_by_neighbor
 from apax.utils.convert import str_to_dtype
@@ -19,6 +19,7 @@ class GaussianMomentDescriptor(nn.Module):
     n_contr: int = 8
     n_radial_tensor: Optional[int] = None
     traceless: bool = False
+    packed_moments: bool = False
     dtype: Any = jnp.float32
     apply_mask: bool = True
 
@@ -67,11 +68,12 @@ class GaussianMomentDescriptor(nn.Module):
         if self.apply_mask:
             radial_function = mask_by_neighbor(radial_function, neighbor_idxs, dr_vec)
 
+        moment_fn = geometric_moments_packed if self.packed_moments else geometric_moments
         if self.n_radial_tensor:
-            moments = geometric_moments(self.radial_compression(radial_function), dn, idx_j, n_atoms)
+            moments = moment_fn(self.radial_compression(radial_function), dn, idx_j, n_atoms)
             moments[0] = jax.ops.segment_sum(radial_function, idx_j, n_atoms)
         else:
-            moments = geometric_moments(radial_function, dn, idx_j, n_atoms)
+            moments = moment_fn(radial_function, dn, idx_j, n_atoms)
 
         if self.traceless:
             moments = detrace(moments)
