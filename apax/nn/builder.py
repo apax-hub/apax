@@ -123,7 +123,6 @@ class ModelBuilder:
                 n_species=self.n_species,
                 emb_jitter=self.config.get("radial_emb_jitter", 0.1),
                 factor_mode=self.config.get("radial_factor_mode", "cp"),
-                residual=self.config.get("radial_residual", False),
                 dtype=self.config["descriptor_dtype"],
             )
 

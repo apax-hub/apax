@@ -213,9 +213,6 @@ class FactorizedRadialFunction(nn.Module):
     emb_jitter: float = 0.1
     # "cp": u(Zc) * v(Zn); "centre": u(Zc) only; "nbr": v(Zn) only
     factor_mode: str = "cp"
-    # dense per-pair residual on top of the factorisation (zero init; decay via
-    # the `pair_residual` optimizer group)
-    residual: bool = False
     dtype: Any = jnp.float32
 
     def setup(self):
@@ -250,13 +247,6 @@ class FactorizedRadialFunction(nn.Module):
             dtype,
         )
         self.norm = jnp.array(norm, dtype=dtype)
-        if self.residual:
-            self.pair_residual = self.param(
-                "pair_residual",
-                nn.initializers.zeros,
-                (self.n_species, self.n_species, self.n_radial, n_basis),
-                dtype,
-            )
 
     def __call__(self, dr, Z_i, Z_j):
         dtype = str_to_dtype(self.dtype)
@@ -292,13 +282,6 @@ class FactorizedRadialFunction(nn.Module):
         radial_function = self.norm * jnp.einsum(
             "pb,bkr,pk->pr", basis, core, w, precision=jax.lax.Precision.HIGHEST
         )
-        if self.residual:
-            radial_function = radial_function + jnp.einsum(
-                "prb,pb->pr",
-                self.pair_residual[Z_j, Z_i],
-                basis,
-                precision=jax.lax.Precision.HIGHEST,
-            )
 
         cos_cutoff = cosine_cutoff(dr, self.r_max)
         radial_function = radial_function * cos_cutoff[:, None]

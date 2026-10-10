@@ -315,7 +315,6 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
     radial_rank: Optional[PositiveInt] = None
     radial_emb_jitter: NonNegativeFloat = 0.1
     radial_factor_mode: Literal["cp", "centre", "nbr"] = "cp"
-    radial_residual: bool = False
 
     def get_builder(self):
         from apax.nn.builder import GMNNBuilder
