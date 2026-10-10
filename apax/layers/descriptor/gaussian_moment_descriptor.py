@@ -20,6 +20,7 @@ class GaussianMomentDescriptor(nn.Module):
     n_radial_tensor: Optional[int] = None
     traceless: bool = False
     packed_moments: bool = False
+    drop_contractions: tuple = ()  # contraction blocks to leave out (XLA prunes their computation)
     dtype: Any = jnp.float32
     apply_mask: bool = True
 
@@ -123,6 +124,8 @@ class GaussianMomentDescriptor(nn.Module):
         ]
 
         # gaussian_moments shape: n_atoms x n_features
-        gaussian_moments = jnp.concatenate(gaussian_moments[: self.n_contr], axis=-1)
+        gaussian_moments = jnp.concatenate(
+            [g for k, g in enumerate(gaussian_moments[: self.n_contr]) if k not in self.drop_contractions], axis=-1
+        )
         assert gaussian_moments.dtype == dtype
         return gaussian_moments
