@@ -54,24 +54,3 @@ def geometric_moments(radial_function, dn, idx_i, n_atoms=None):
     moments = [zero_moment, first_moment, second_moment, third_moment]
 
     return moments
-
-
-def detrace(moments):
-    """Traceless parts of the (fully symmetric) rank-2 and rank-3 moments.
-
-    tr M2 = M0 (n.n = 1) and the rank-3 trace vector repeats M1, so the contractions of non-detraced moments
-    re-encode lower-order information. M2 -> M2 - tr(M2) I / 3; M3 -> M3 - (d_ij t_k + d_ik t_j + d_jk t_i) / 5,
-    t_k = sum_i M3_iik.
-    """
-    import jax.numpy as jnp
-
-    m0, m1, m2, m3 = moments
-    eye = jnp.eye(3, dtype=m2.dtype)
-    tr2 = jnp.einsum("...ii->...", m2)
-    m2 = m2 - tr2[..., None, None] * eye / 3.0
-    t = jnp.einsum("...iik->...k", m3)
-    m3 = m3 - (
-        jnp.einsum("ij,...k->...ijk", eye, t) + jnp.einsum("ik,...j->...ijk", eye, t)
-        + jnp.einsum("jk,...i->...ijk", eye, t)
-    ) / 5.0
-    return [m0, m1, m2, m3]

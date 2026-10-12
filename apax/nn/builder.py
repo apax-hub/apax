@@ -343,7 +343,6 @@ class GMNNBuilder(ModelBuilder):
             radial_fn=radial_fn,
             n_contr=self.config["n_contr"],
             n_radial_tensor=self.config["n_radial_tensor"],
-            traceless=self.config.get("traceless_moments", False),
             packed_moments=self.config.get("packed_moments", False),
             drop_contractions=tuple(self.config.get("drop_contractions", ())),
             dtype=self.config["descriptor_dtype"],

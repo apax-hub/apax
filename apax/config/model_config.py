@@ -319,7 +319,6 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
 
     n_radial: PositiveInt = 5
     n_radial_tensor: Optional[PositiveInt] = None
-    traceless_moments: bool = False
     packed_moments: bool = False
     drop_contractions: List[int] = []
     n_contr: int = 8
