@@ -153,6 +153,11 @@ class NLHRepulsion(Correction, extra="forbid"):
     # path to triple-exponential coeffs; None -> bundled apax/data/nlh_coeffs.dat
     coeffs_file: Optional[str] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _removed_fields(cls, values):
+        return _drop_removed(values, "poly_degree", 0, "the learnable NLH modulation was neutral")
+
 
 class PairEnvelope(Correction, extra="forbid"):
     """
@@ -327,7 +332,8 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
     @model_validator(mode="before")
     @classmethod
     def _removed_fields(cls, values):
-        return _drop_removed(values, "radial_residual", False, "the per-pair radial residual did nothing")
+        values = _drop_removed(values, "radial_residual", False, "the per-pair radial residual did nothing")
+        return _drop_removed(values, "traceless_moments", False, "traceless moments were accuracy-neutral and slower")
 
     def get_builder(self):
         from apax.nn.builder import GMNNBuilder
