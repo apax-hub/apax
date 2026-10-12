@@ -5,7 +5,6 @@ from pydantic import (
     BaseModel,
     Field,
     NonNegativeFloat,
-    NonNegativeInt,
     PositiveFloat,
     PositiveInt,
     model_validator,
@@ -150,8 +149,6 @@ class LatentEwald(Correction, extra="forbid"):
 
 class NLHRepulsion(Correction, extra="forbid"):
     name: Literal["nlh"]
-    # learnable positive modulation exp(poly of degree poly_degree in 1 - r/r_max); 0 = plain NLH
-    poly_degree: NonNegativeInt = 0
     r_max: PositiveFloat = 6.0
     # path to triple-exponential coeffs; None -> bundled apax/data/nlh_coeffs.dat
     coeffs_file: Optional[str] = None

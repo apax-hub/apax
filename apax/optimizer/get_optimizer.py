@@ -179,7 +179,6 @@ def get_opt(
         "exponents": zbl_opt,
         "rep_scale": rep_scale_opt,
         "rep_prefactor": rep_prefactor_opt,
-        "nlh_poly": zbl_opt,
         "envelope_amp": scale_opt,
         "envelope_amp_frozen": frozen_opt,
         "kernel": nn_opt,
