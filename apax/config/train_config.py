@@ -260,13 +260,15 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     )
     kwargs: Optional[dict[str, Any]] = Field(default_factory=dict)
 
-
     @model_validator(mode="before")
     @classmethod
     def _removed_fields(cls, values):
         from apax.config.model_config import _drop_removed
 
-        return _drop_removed(values, "residual_wd", 0.0, "the per-pair radial residual was removed")
+        return _drop_removed(
+            values, "residual_wd", 0.0, "the per-pair radial residual was removed"
+        )
+
 
 class MetricsConfig(BaseModel, extra="forbid"):
     """

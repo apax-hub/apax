@@ -22,7 +22,7 @@ def test_builder_feature_model():
 
     model = builder.build_feature_model(only_use_n_layers=0, init_box=box)
     out = model.apply(params, R, Z, idx, box, offsets)
-    assert out.shape == (360,)
+    assert out.shape == (206,)  # n_radial 12, n_radial_tensor 4
 
     model = builder.build_feature_model(only_use_n_layers=1, init_box=box)
     out = model.apply(params, R, Z, idx, box, offsets)

@@ -25,7 +25,7 @@ class AtomisticReadout(nn.Module):
     use_bias: bool = False
     n_shallow_ensemble: int = 0
     is_feature_fn: bool = False
-    output_activation: str = "swish"
+    output_activation: str = "elu"
     dtype: Any = jnp.float32
 
     def setup(self):

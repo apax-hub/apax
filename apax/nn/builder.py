@@ -109,16 +109,14 @@ class ModelBuilder:
             use_embed_norm = False
             one_sided_dist = True
 
-        rank = self.config.get("radial_rank")
-        if rank is not None:
+        if self.config["radial_function"] == "factorized":
             return FactorizedRadialFunction(
                 n_radial=self.config["n_radial"],
-                rank=rank,
+                rank=self.config["radial_rank"],
                 basis_fn=basis_fn,
                 radial_transform=radial_transform,
                 n_species=self.n_species,
-                emb_jitter=self.config.get("radial_emb_jitter", 0.1),
-                factor_mode=self.config.get("radial_factor_mode", "cp"),
+                emb_jitter=self.config["radial_emb_jitter"],
                 dtype=self.config["descriptor_dtype"],
             )
 
@@ -172,7 +170,7 @@ class ModelBuilder:
             w_init=head_config["w_init"],
             use_ntk=head_config["use_ntk"],
             use_bias=head_config.get("use_bias", False),
-            output_activation=head_config.get("readout_activation", "swish"),
+            output_activation=head_config.get("readout_activation", "elu"),
             is_feature_fn=is_feature_fn,
             n_shallow_ensemble=n_shallow_ensemble,
             dtype=dtype,

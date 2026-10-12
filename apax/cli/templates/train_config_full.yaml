@@ -38,7 +38,7 @@ model:
   name: gmnn
   basis:
     name: bessel
-    n_basis: 16
+    n_basis: 12
     r_max: 5.0
 
   ensemble: null
@@ -55,8 +55,12 @@ model:
   #  kind: shallow
   #  n_members: N
 
-  n_radial: 5
+  n_radial: 12
+  n_radial_tensor: 4
   n_contr: 8
+  radial_function: factorized  # or dense: one independent table per element pair
+  radial_rank: 8
+  radial_emb_jitter: 0.1
   nn: [256, 256]
 
   calc_stress: false
@@ -69,8 +73,10 @@ model:
   descriptor_dtype: fp32
   readout_dtype: fp32
   scale_shift_dtype: fp64
-  emb_init: uniform
+  emb_init: uniform  # dense radial function only
   use_ntk: false
+  use_bias: false
+  readout_activation: elu
 
 loss:
 - name: energy

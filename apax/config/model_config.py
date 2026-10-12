@@ -6,6 +6,7 @@ from pydantic import (
     NonNegativeFloat,
     PositiveFloat,
     PositiveInt,
+    model_validator,
 )
 
 
@@ -15,7 +16,7 @@ class GaussianBasisConfig(BaseModel, extra="forbid"):
 
     Parameters
     ----------
-    n_basis : PositiveInt, default = 7
+    n_basis : PositiveInt, default = 12
         Number of uncontracted basis functions.
     r_min : NonNegativeFloat, default = 0.5
         Position of the first uncontracted basis function's mean.
@@ -28,7 +29,7 @@ class GaussianBasisConfig(BaseModel, extra="forbid"):
     """
 
     name: Literal["gaussian"] = "gaussian"
-    n_basis: PositiveInt = 7
+    n_basis: PositiveInt = 12
     r_min: NonNegativeFloat = 0.5
     r_max: PositiveFloat = 6.0
     spacing: Literal["linear", "exponential"] = "linear"
@@ -40,14 +41,14 @@ class BesselBasisConfig(BaseModel, extra="forbid"):
 
     Parameters
     ----------
-    n_basis : PositiveInt, default = 16
+    n_basis : PositiveInt, default = 12
         Number of uncontracted basis functions.
     r_max : PositiveFloat, default = 5.0
         Cutoff radius of the descriptor.
     """
 
     name: Literal["bessel"] = "bessel"
-    n_basis: PositiveInt = 16
+    n_basis: PositiveInt = 12
     r_max: PositiveFloat = 5.0
 
 
@@ -182,7 +183,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
 
     Parameters
     ----------
-    basis : BasisConfig, default = GaussianBasisConfig()
+    basis : BasisConfig, default = BesselBasisConfig()
         Configuration for primitive basis functions.
     radial_transform : Literal["identity", "covalent"], default = "identity"
         Transform applied to interatomic distances before featurization.
@@ -203,6 +204,13 @@ class BaseModelConfig(BaseModel, extra="forbid"):
         input.
     use_ntk : bool, default = False
         Whether or not to use NTK parametrization.
+    use_bias : bool, default = False
+        Whether the readout layers have biases. Without biases an atom with no
+        neighbours gets exactly its isolated-atom energy shift.
+    readout_activation : Literal["identity", "swish", "elu"], default = "elu"
+        Activation applied to the readout output before the per-element scale.
+        All options are 0 at 0. `"elu"` is unbounded above and keeps the scale
+        small when isolated-atom energy shifts are used.
     ensemble : Optional[EnsembleConfig], default = None
         What kind of model ensemble to use (optional).
     property_heads : list[PropertyHead], default = []
@@ -230,7 +238,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
     activation_fn: str = "variance_preserving_swish"
     use_ntk: bool = False
     use_bias: bool = False
-    readout_activation: Literal["identity", "swish", "elu"] = "swish"
+    readout_activation: Literal["identity", "swish", "elu"] = "elu"
 
     ensemble: Optional[EnsembleConfig] = None
 
@@ -251,7 +259,9 @@ def _drop_removed(values, key, off_value, what):
     """Saved configs of older models still carry removed fields; accept them only if the feature was off."""
     if isinstance(values, dict) and key in values:
         if values[key] not in (off_value, None):
-            raise ValueError(f"`{key}` was removed ({what}); this config enables it and cannot be loaded.")
+            raise ValueError(
+                f"`{key}` was removed ({what}); this config enables it and cannot be loaded."
+            )
         values = {k: v for k, v in values.items() if k != key}
     return values
 
@@ -262,35 +272,58 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
 
     Parameters
     ----------
-    n_radial : PositiveInt, default = 5
-        Number of contracted basis functions.
-    n_radial_tensor : Optional[PositiveInt], default = None
-        If set, the l>0 moments use this many radial channels, a learned linear
-        combination of the `n_radial` channels (applied per pair). The l=0 moment
-        keeps all `n_radial`.
+    n_radial : PositiveInt, default = 12
+        Number of contracted radial channels (used by the l=0 moment).
+    n_radial_tensor : Optional[PositiveInt], default = 4
+        Radial channels for the l>0 moments, a learned linear combination of the
+        `n_radial` channels (applied per pair). None uses all `n_radial` channels.
     n_contr : int, default = 8
         How many gaussian moment contractions to use.
     emb_init : Optional[str], default = "uniform"
-        Initialization scheme for embedding layer weights.
-    radial_rank : Optional[PositiveInt], default = None
-        If set, replaces the dense species-pair radial coefficient table with a
-        rank-`radial_rank` CP factorization over per-element embeddings.
+        Initialization of the dense species-pair table (`radial_function: dense`).
+    radial_function : Literal["dense", "factorized"], default = "factorized"
+        How the radial coefficients depend on the element pair. `"dense"` learns an
+        independent table per element pair. `"factorized"` uses a rank-`radial_rank`
+        CP factorization over per-element embeddings, so pairs share radial shapes
+        (much better on unseen or rare element pairs; can underfit on data-rich
+        sets with few elements).
+    radial_rank : PositiveInt, default = 8
+        Rank of the factorized radial function.
+    radial_emb_jitter : NonNegativeFloat, default = 0.1
+        Spread of the factorized embeddings at init around 1, i.e. how far apart
+        the element pairs' radial functions start.
     """
 
     name: Literal["gmnn"] = "gmnn"
 
-    n_radial: PositiveInt = 5
-    n_radial_tensor: Optional[PositiveInt] = None
+    n_radial: PositiveInt = 12
+    n_radial_tensor: Optional[PositiveInt] = 4
     n_contr: int = 8
     emb_init: Optional[str] = "uniform"
-    radial_rank: Optional[PositiveInt] = None
+    radial_function: Literal["dense", "factorized"] = "factorized"
+    radial_rank: PositiveInt = 8
     radial_emb_jitter: NonNegativeFloat = 0.1
-    radial_factor_mode: Literal["cp", "centre", "nbr"] = "cp"
 
     @model_validator(mode="before")
     @classmethod
     def _removed_fields(cls, values):
-        return _drop_removed(values, "radial_residual", False, "the per-pair radial residual did nothing")
+        values = _drop_removed(
+            values, "radial_residual", False, "the per-pair radial residual did nothing"
+        )
+        values = _drop_removed(
+            values, "radial_factor_mode", "cp", "only the CP factorization is kept"
+        )
+        if (
+            isinstance(values, dict)
+            and "radial_rank" in values
+            and values["radial_rank"] is None
+        ):
+            # saved before `radial_function` existed: no rank meant the dense table
+            values = {k: v for k, v in values.items() if k != "radial_rank"}
+            values.setdefault("radial_function", "dense")
+        elif isinstance(values, dict) and "radial_rank" in values:
+            values.setdefault("radial_function", "factorized")
+        return values
 
     def get_builder(self):
         from apax.nn.builder import GMNNBuilder

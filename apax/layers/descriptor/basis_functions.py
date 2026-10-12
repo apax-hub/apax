@@ -205,8 +205,6 @@ class FactorizedRadialFunction(nn.Module):
     radial_transform: nn.Module = IdentityRadialTransform()
     n_species: int = 119
     emb_jitter: float = 0.1
-    # "cp": u(Zc) * v(Zn); "centre": u(Zc) only; "nbr": v(Zn) only
-    factor_mode: str = "cp"
     dtype: Any = jnp.float32
 
     def setup(self):
@@ -225,14 +223,12 @@ class FactorizedRadialFunction(nn.Module):
         core_init = uniform_range(0.5 - half_width, 0.5 + half_width, dtype=dtype)
         norm = 1.0 / self.rank
 
-        if self.factor_mode in ("cp", "centre"):
-            self.centre_emb = self.param(
-                "pair_emb_centre", emb_init, (self.n_species, self.rank), dtype
-            )
-        if self.factor_mode in ("cp", "nbr"):
-            self.nbr_emb = self.param(
-                "pair_emb_nbr", emb_init, (self.n_species, self.rank), dtype
-            )
+        self.centre_emb = self.param(
+            "pair_emb_centre", emb_init, (self.n_species, self.rank), dtype
+        )
+        self.nbr_emb = self.param(
+            "pair_emb_nbr", emb_init, (self.n_species, self.rank), dtype
+        )
         # stored flat (checkpoint layout); viewed as (n_basis, rank, n_radial) in __call__
         self.core = self.param(
             "pair_core",
@@ -252,14 +248,7 @@ class FactorizedRadialFunction(nn.Module):
         core = self.core.reshape(-1, self.rank, self.n_radial)
 
         # Z_j is the centre atom, matching RadialFunction's embeddings[Z_j, Z_i]
-        if self.factor_mode == "cp":
-            w = self.centre_emb[Z_j] * self.nbr_emb[Z_i]
-        elif self.factor_mode == "centre":
-            w = self.centre_emb[Z_j]
-        elif self.factor_mode == "nbr":
-            w = self.nbr_emb[Z_i]
-        else:
-            raise ValueError(f"unknown factor_mode: {self.factor_mode}")
+        w = self.centre_emb[Z_j] * self.nbr_emb[Z_i]
         # Contraction order matters for speed (sum over k = rank, b = basis, r = radial):
         #   1. basis @ core per pair -> (P, k, r), then rank sum with w: flat GEMM became
         #      a GPU custom call and writes a k*r-per-pair intermediate (112 MB, 582k pairs).
