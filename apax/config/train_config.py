@@ -80,12 +80,17 @@ class PBPDatset(DatasetConfig, extra="forbid"):
         | Next nearest integer to which to pad per-atom arrays (positions, forces, ...).
     nl_padding: int
         | Next nearest integer to which to pad neighborlists.
+    bucket_ratio : float, optional
+        | If set, batch structures of similar size together: geometric neighbour-pair
+        | buckets of this width ratio (e.g. 1.25), each padded to one fixed shape.
+        | `atom_padding` and `nl_padding` are then unused.
     """
 
     processing: Literal["pbp"] = "pbp"
     num_workers: PositiveInt = 10
     atom_padding: PositiveInt = 10
     nl_padding: PositiveInt = 2000
+    bucket_ratio: Optional[float] = Field(None, gt=1.0)
 
 
 class DataConfig(BaseModel, extra="forbid"):
