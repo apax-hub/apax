@@ -54,13 +54,14 @@ def create_params(model, rng_key, sample_input: tuple, n_models: int):
 
     log.info(f"Initializing {n_models} model(s)")
 
+    # jit: run eagerly, init compiles every primitive separately (~100 s on ROCm)
     if n_models == 1:
-        params = model.init(model_rng[0], *sample_input)
+        params = jax.jit(model.init)(model_rng[0], *sample_input)
     elif n_models > 1:
         num_args = len(sample_input)
         # vmap only over parameters, not over any data from the input
         in_axes = (0, *[None] * num_args)
-        params = jax.vmap(model.init, in_axes=in_axes)(model_rng, *sample_input)
+        params = jax.jit(jax.vmap(model.init, in_axes=in_axes))(model_rng, *sample_input)
     else:
         raise ValueError(f"n_models should be a positive integer, found {n_models}")
 
