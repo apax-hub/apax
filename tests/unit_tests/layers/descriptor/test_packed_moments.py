@@ -1,4 +1,3 @@
-import jax
 import numpy as np
 
 from apax.layers.descriptor.moments import geometric_moments, geometric_moments_packed

@@ -1,9 +1,7 @@
-import einops
-import jax
-
-
 import itertools
 
+import einops
+import jax
 import numpy as np
 
 # unique index tuples of fully symmetric rank-2 / rank-3 tensors, and the full -> unique gather maps
