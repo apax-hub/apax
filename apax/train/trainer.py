@@ -91,7 +91,7 @@ def fit(
         loss_fn, Metrics, model=state.apply_fn, is_ensemble=is_ensemble
     )
 
-    state, start_epoch = load_state(state, latest_dir)
+    state, start_epoch = load_state(state, latest_dir, ema_handler)
     if start_epoch >= n_epochs:
         print(
             f"Training has already completed ({start_epoch} >= {n_epochs}). Nothing to be done"
@@ -133,9 +133,6 @@ def fit(
                 epoch_start_time = time.time()
                 callbacks.on_epoch_begin(epoch=epoch + 1)
 
-                if ema_handler:
-                    ema_handler.update(state.params, epoch)
-
                 epoch_loss.update({"train_loss": 0.0})
                 train_batch_metrics = Metrics.empty()
 
@@ -160,6 +157,8 @@ def fit(
                         (state, train_batch_metrics),
                         batch,
                     )
+                    if ema_handler:
+                        ema_handler.update(state.params, epoch)
 
                     epoch_loss["train_loss"] += jnp.mean(batch_loss)
                     callbacks.on_train_batch_end(batch=batch_idx)
@@ -174,7 +173,6 @@ def fit(
                 }
 
                 if ema_handler:
-                    ema_handler.update(state.params, epoch)
                     val_params = ema_handler.ema_params
                 else:
                     val_params = state.params
@@ -216,6 +214,14 @@ def fit(
                 epoch_metrics.update({"epoch_time": epoch_end_time - epoch_start_time})
 
                 ckpt = {"model": state, "epoch": epoch}
+                if ema_handler:
+                    # "model" holds the parameters to use (the average), so inference loads it
+                    # unchanged; the raw ones are kept to resume training
+                    ckpt = {
+                        "model": state.replace(params=ema_handler.ema_params),
+                        "train_params": state.params,
+                        "epoch": epoch,
+                    }
                 if epoch % ckpt_interval == 0:
                     latest_ckpt_manager.save(epoch, args=ocp.args.StandardSave(ckpt))
 

@@ -70,10 +70,12 @@ def create_params(model, rng_key, sample_input: tuple, n_models: int):
     return params, rng_key
 
 
-def load_state(state, ckpt_dir):
+def load_state(state, ckpt_dir, ema_handler=None):
     ckpt_dir = Path(ckpt_dir)
     start_epoch = 0
     target = {"model": state, "epoch": 0}
+    if ema_handler:
+        target["train_params"] = state.params
     checkpoints_exist = ckpt_dir.is_dir()
     if checkpoints_exist:
         log.info("Loading checkpoint")
@@ -81,6 +83,10 @@ def load_state(state, ckpt_dir):
             restored = mngr.restore(step=None, args=ocp.args.StandardRestore(target))
 
         state = restored["model"]
+        if ema_handler:
+            # with averaging, "model" holds the average and "train_params" the raw parameters
+            ema_handler.ema_params = state.params
+            state = state.replace(params=restored["train_params"])
         start_epoch = restored["epoch"] + 1
         log.info("Successfully restored checkpoint from epoch %d", restored["epoch"])
 

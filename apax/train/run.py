@@ -236,7 +236,7 @@ def run(user_config: Union[str, os.PathLike, dict], log_level="error"):
 
     if config.weight_average:
         ema_handler = EMAParameters(
-            config.weight_average.ema_start, config.weight_average.alpha
+            config.weight_average.ema_start, config.weight_average.decay
         )
     else:
         ema_handler = None
