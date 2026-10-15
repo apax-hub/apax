@@ -423,10 +423,15 @@ class BatchProcessor:
         self.stress = stress
         self.additional_properties = additional_properties
 
-    def __call__(self, samples: list[dict]):
+    def __call__(self, samples: list[dict], shape: Optional[tuple[int, int]] = None):
+        """`shape` = (atoms, pairs) to pad to (size buckets); otherwise pad to the batch
+        maximum rounded up to `atom_padding` / `nl_padding`."""
         n_samples = len(samples)
-        max_atoms = np.max([inp[0]["n_atoms"] for inp in samples])
-        max_atoms = round_up_to_multiple(max_atoms, self.atom_padding)
+        if shape is None:
+            max_atoms = np.max([inp[0]["n_atoms"] for inp in samples])
+            max_atoms = round_up_to_multiple(max_atoms, self.atom_padding)
+        else:
+            max_atoms = shape[0]
 
         inputs = {
             "numbers": np.zeros((n_samples, max_atoms), dtype=np.int16),
@@ -474,8 +479,11 @@ class BatchProcessor:
                 else:
                     labels[name][i] = lab[name]
 
-        max_nbrs = np.max([idx.shape[1] for idx in idxs])
-        max_nbrs = round_up_to_multiple(max_nbrs, self.nl_padding)
+        if shape is None:
+            max_nbrs = np.max([idx.shape[1] for idx in idxs])
+            max_nbrs = round_up_to_multiple(max_nbrs, self.nl_padding)
+        else:
+            max_nbrs = shape[1]
 
         inputs["idx"] = np.zeros((n_samples, 2, max_nbrs), dtype=np.int16)
         inputs["offsets"] = np.zeros((n_samples, max_nbrs, 3), dtype=np.float64)
@@ -485,6 +493,31 @@ class BatchProcessor:
             inputs["offsets"][i, : offset.shape[0], :] = offset
 
         return inputs, labels
+
+
+def size_buckets(n_atoms, n_pairs, ratio, atom_quantile=0.99):
+    """Geometric pair-count buckets with one static (atoms, pairs) padding shape each.
+
+    Pairs pad to the bucket's upper edge. Atoms pad to the `atom_quantile` of the bucket,
+    made non-decreasing over buckets; structures with more atoms move to the next bucket
+    that fits them. Returns (bucket index per structure, list of (atoms, pairs) shapes).
+    """
+    n_atoms = np.asarray(n_atoms)
+    n_pairs = np.maximum(np.asarray(n_pairs), 1)
+    edges = [1]
+    while edges[-1] < n_pairs.max():
+        edges.append(max(edges[-1] + 1, int(np.ceil(edges[-1] * ratio))))
+    edges = np.array(edges)
+    bucket = np.searchsorted(edges, n_pairs)
+    atom_pad = np.zeros(len(edges), dtype=int)
+    for k in np.unique(bucket):
+        atom_pad[k] = int(np.ceil(np.quantile(n_atoms[bucket == k], atom_quantile)))
+    atom_pad = np.maximum.accumulate(atom_pad)
+    for k in range(len(edges) - 1):
+        bucket[(bucket == k) & (n_atoms > atom_pad[k])] = k + 1
+    atom_pad[-1] = max(atom_pad[-1], n_atoms[bucket == len(edges) - 1].max(initial=0))
+    shapes = [(int(a), int(p)) for a, p in zip(atom_pad, edges)]
+    return bucket, shapes
 
 
 class PerBatchPaddedDataset(InMemoryDataset):
@@ -505,6 +538,9 @@ class PerBatchPaddedDataset(InMemoryDataset):
         Pad extensive arrays (positions, etc.) to next multiple of this integer.
     nl_padding : int
         Pad neighborlist arrays to next multiple of this integer.
+    bucket_ratio : float, optional
+        If set, batch structures of similar size together: geometric neighbour-pair
+        buckets of this width ratio, each padded to one fixed shape (see `size_buckets`).
     """
 
     def __init__(
@@ -520,6 +556,7 @@ class PerBatchPaddedDataset(InMemoryDataset):
         energy_unit: str = "eV",
         additional_properties=[],
         pre_shuffle=False,
+        bucket_ratio: Optional[float] = None,
     ) -> None:
         self.cutoff = cutoff
         self.n_epochs = n_epochs
@@ -554,6 +591,21 @@ class PerBatchPaddedDataset(InMemoryDataset):
             cutoff, atom_padding, nl_padding, forces, stress, additional_properties
         )
 
+        self.bucket_shapes = None
+        if bucket_ratio is not None:
+            n_pairs = [
+                compute_nl(inp["positions"], inp["box"], cutoff)[0].shape[1]
+                for inp, _ in self.data
+            ]
+            n_atoms = [inp["n_atoms"] for inp, _ in self.data]
+            buckets, self.bucket_shapes = size_buckets(n_atoms, n_pairs, bucket_ratio)
+            self.data = [(inp, lab, int(b)) for (inp, lab), b in zip(self.data, buckets)]
+            used = sorted(set(buckets.tolist()))
+            log.info(
+                f"Size buckets: {len(used)} shapes {[self.bucket_shapes[k] for k in used]}"
+            )
+        self.epoch_batches = None
+
         self.count = 0
 
         self.max_count = self.n_epochs * self.steps_per_epoch()
@@ -581,19 +633,45 @@ class PerBatchPaddedDataset(InMemoryDataset):
                 self.enqueue(num_batches)
             self.needs_data.clear()  # Reset event
 
-    def enqueue(self, num_batches):
-        start = self.count * self.batch_size
+    def bucket_batches(self):
+        """One epoch of size-bucketed batches: full batches within each bucket; the
+        leftovers of all buckets, sorted by size, chunked and padded to the shape of their
+        largest member's bucket. Batch order is shuffled across buckets."""
+        bs = self.batch_size
+        by_bucket = {}
+        for inp, lab, b in self.data:  # self.data is already shuffled
+            by_bucket.setdefault(b, []).append((inp, lab))
+        batches, leftovers = [], []
+        for b, items in by_bucket.items():
+            n_full = len(items) // bs * bs
+            batches += [(items[i : i + bs], b) for i in range(0, n_full, bs)]
+            leftovers += [(it, b) for it in items[n_full:]]
+        leftovers.sort(key=lambda x: x[1])
+        for i in range(0, len(leftovers) // bs * bs, bs):
+            chunk = leftovers[i : i + bs]
+            batches.append(([it for it, _ in chunk], max(b for _, b in chunk)))
+        shuffle(batches)
+        return [(items, self.bucket_shapes[b]) for items, b in batches]
 
-        # Split data into chunks and submit tasks to the process pool
-        dataset_chunks = [
-            self.data[start + self.batch_size * i : start + self.batch_size * (i + 1)]
-            for i in range(num_batches)
-        ]
+    def enqueue(self, num_batches):
+        if self.bucket_shapes is not None:
+            chunks = self.epoch_batches[self.count : self.count + num_batches]
+        else:
+            start = self.count * self.batch_size
+            chunks = [
+                (
+                    self.data[
+                        start + self.batch_size * i : start + self.batch_size * (i + 1)
+                    ],
+                    None,
+                )
+                for i in range(num_batches)
+            ]
 
         # Using submit and as_completed for faster batch retrieval
         futures = [
-            self.process_pool.submit(self.prepare_batch, chunk)
-            for chunk in dataset_chunks
+            self.process_pool.submit(self.prepare_batch, chunk, shape)
+            for chunk, shape in chunks
         ]
         for future in as_completed(futures):
             batch = future.result()
@@ -609,6 +687,8 @@ class PerBatchPaddedDataset(InMemoryDataset):
 
             if self.should_shuffle:
                 shuffle(self.data)
+            if self.bucket_shapes is not None:
+                self.epoch_batches = self.bucket_batches()
 
             # Start pre-filling the buffer
             self.enqueue_future = self.thread_pool.submit(self.enqueue_batches)
@@ -648,7 +728,8 @@ class PerBatchPaddedDataset(InMemoryDataset):
     def cleanup(self):
         self.epoch_finished = True
         self.needs_data.set()
-        self.enqueue_future.result()
+        if self.enqueue_future is not None:  # None if the dataset was never iterated
+            self.enqueue_future.result()
         self.needs_data.clear()
         self.thread_pool.shutdown(wait=True, cancel_futures=True)
         self.process_pool.shutdown(wait=True, cancel_futures=True)
