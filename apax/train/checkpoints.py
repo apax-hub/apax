@@ -54,13 +54,14 @@ def create_params(model, rng_key, sample_input: tuple, n_models: int):
 
     log.info(f"Initializing {n_models} model(s)")
 
+    # jit: run eagerly, init compiles every primitive separately (~100 s on ROCm)
     if n_models == 1:
-        params = model.init(model_rng[0], *sample_input)
+        params = jax.jit(model.init)(model_rng[0], *sample_input)
     elif n_models > 1:
         num_args = len(sample_input)
         # vmap only over parameters, not over any data from the input
         in_axes = (0, *[None] * num_args)
-        params = jax.vmap(model.init, in_axes=in_axes)(model_rng, *sample_input)
+        params = jax.jit(jax.vmap(model.init, in_axes=in_axes))(model_rng, *sample_input)
     else:
         raise ValueError(f"n_models should be a positive integer, found {n_models}")
 
@@ -69,10 +70,12 @@ def create_params(model, rng_key, sample_input: tuple, n_models: int):
     return params, rng_key
 
 
-def load_state(state, ckpt_dir):
+def load_state(state, ckpt_dir, ema_handler=None):
     ckpt_dir = Path(ckpt_dir)
     start_epoch = 0
     target = {"model": state, "epoch": 0}
+    if ema_handler:
+        target["train_params"] = state.params
     checkpoints_exist = ckpt_dir.is_dir()
     if checkpoints_exist:
         log.info("Loading checkpoint")
@@ -80,6 +83,10 @@ def load_state(state, ckpt_dir):
             restored = mngr.restore(step=None, args=ocp.args.StandardRestore(target))
 
         state = restored["model"]
+        if ema_handler:
+            # with averaging, "model" holds the average and "train_params" the raw parameters
+            ema_handler.ema_params = state.params
+            state = state.replace(params=restored["train_params"])
         start_epoch = restored["epoch"] + 1
         log.info("Successfully restored checkpoint from epoch %d", restored["epoch"])
 

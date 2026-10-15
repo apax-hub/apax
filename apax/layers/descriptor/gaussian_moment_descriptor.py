@@ -1,13 +1,14 @@
-from typing import Any
+from typing import Any, Optional
 
 import einops
 import flax.linen as nn
+import jax
 import jax.numpy as jnp
 from jax import vmap
 from jax_md import space
 
 from apax.layers.descriptor.basis_functions import RadialFunction
-from apax.layers.descriptor.moments import geometric_moments
+from apax.layers.descriptor.moments import geometric_moments, geometric_moments_packed
 from apax.layers.descriptor.triangular_indices import tril_2d_indices, tril_3d_indices
 from apax.layers.masking import mask_by_neighbor
 from apax.utils.convert import str_to_dtype
@@ -16,6 +17,9 @@ from apax.utils.convert import str_to_dtype
 class GaussianMomentDescriptor(nn.Module):
     radial_fn: nn.Module = RadialFunction()
     n_contr: int = 8
+    n_radial_tensor: Optional[int] = None
+    packed_moments: bool = False
+    drop_contractions: tuple = ()  # contraction blocks to leave out (XLA prunes their computation)
     dtype: Any = jnp.float32
     apply_mask: bool = True
 
@@ -25,8 +29,21 @@ class GaussianMomentDescriptor(nn.Module):
 
         self.distance = vmap(space.distance, 0, 0)
 
-        self.triang_idxs_2d = tril_2d_indices(self.n_radial)
-        self.triang_idxs_3d = tril_3d_indices(self.n_radial)
+        n_tensor = self.n_radial_tensor or self.n_radial
+        if self.n_radial_tensor:
+            # one learned map from the radial channels to the (fewer) channels of all l>0 moments,
+            # applied per pair; initialised to keep the first n_radial_tensor channels
+            self.radial_compression = nn.Dense(
+                n_tensor,
+                use_bias=False,
+                kernel_init=lambda key, shape, dtype: jnp.eye(*shape, dtype=dtype),
+                dtype=str_to_dtype(self.dtype),
+                param_dtype=str_to_dtype(self.dtype),
+                precision=jax.lax.Precision.HIGHEST,
+            )
+
+        self.triang_idxs_2d = tril_2d_indices(n_tensor)
+        self.triang_idxs_3d = tril_3d_indices(n_tensor)
 
     def __call__(self, dr_vec, Z, neighbor_idxs):
         dtype = str_to_dtype(self.dtype)
@@ -49,9 +66,16 @@ class GaussianMomentDescriptor(nn.Module):
 
         radial_function = self.radial_fn(dr, Z_i, Z_j)
         if self.apply_mask:
-            radial_function = mask_by_neighbor(radial_function, neighbor_idxs)
+            radial_function = mask_by_neighbor(radial_function, neighbor_idxs, dr_vec)
 
-        moments = geometric_moments(radial_function, dn, idx_j, n_atoms)
+        moment_fn = geometric_moments_packed if self.packed_moments else geometric_moments
+        if self.n_radial_tensor:
+            moments = moment_fn(
+                self.radial_compression(radial_function), dn, idx_j, n_atoms
+            )
+            moments[0] = jax.ops.segment_sum(radial_function, idx_j, n_atoms)
+        else:
+            moments = moment_fn(radial_function, dn, idx_j, n_atoms)
 
         contr_0 = moments[0]
         contr_1 = jnp.einsum("ari, asi -> ars", moments[1], moments[1])  # noqa: E501
@@ -98,6 +122,8 @@ class GaussianMomentDescriptor(nn.Module):
         ]
 
         # gaussian_moments shape: n_atoms x n_features
-        gaussian_moments = jnp.concatenate(gaussian_moments[: self.n_contr], axis=-1)
+        gaussian_moments = jnp.concatenate(
+            [g for k, g in enumerate(gaussian_moments[: self.n_contr]) if k not in self.drop_contractions], axis=-1
+        )
         assert gaussian_moments.dtype == dtype
         return gaussian_moments

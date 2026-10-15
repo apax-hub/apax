@@ -80,12 +80,17 @@ class PBPDatset(DatasetConfig, extra="forbid"):
         | Next nearest integer to which to pad per-atom arrays (positions, forces, ...).
     nl_padding: int
         | Next nearest integer to which to pad neighborlists.
+    bucket_ratio : float, optional
+        | If set, batch structures of similar size together: geometric neighbour-pair
+        | buckets of this width ratio (e.g. 1.25), each padded to one fixed shape.
+        | `atom_padding` and `nl_padding` are then unused.
     """
 
     processing: Literal["pbp"] = "pbp"
     num_workers: PositiveInt = 10
     atom_padding: PositiveInt = 10
     nl_padding: PositiveInt = 2000
+    bucket_ratio: Optional[float] = Field(None, gt=1.0)
 
 
 class DataConfig(BaseModel, extra="forbid"):
@@ -260,6 +265,15 @@ class OptimizerConfig(BaseModel, frozen=True, extra="forbid"):
     )
     kwargs: Optional[dict[str, Any]] = Field(default_factory=dict)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _removed_fields(cls, values):
+        from apax.config.model_config import _drop_removed
+
+        return _drop_removed(
+            values, "residual_wd", 0.0, "the per-pair radial residual was removed"
+        )
+
 
 class MetricsConfig(BaseModel, extra="forbid"):
     """
@@ -420,18 +434,29 @@ class TransferLearningConfig(BaseModel, extra="forbid"):
 
 
 class WeightAverage(BaseModel, extra="forbid"):
-    """Applies an exponential moving average to model parameters.
+    """Exponential moving average of the model parameters, updated after every
+    optimizer step. Validation, best-model selection and checkpoints use the
+    averaged parameters; training resumes from the raw ones.
 
     Parameters
     ----------
-    ema_start : int, default = 1
-        Epoch at which to start averaging models.
-    alpha : float, default = 0.9
-        How much of the new model to use. 1.0 would mean no averaging, 0.0 no updates.
+    ema_start : int, default = 0
+        Epoch from which to average. Before it, the average follows the raw parameters.
+    decay : float, default = 0.999
+        Per-step weight of the running average; it averages over about 1 / (1 - decay) steps.
     """
 
     ema_start: int = 0
-    alpha: float = 0.9
+    decay: float = Field(0.999, ge=0.0, lt=1.0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _removed_alpha(cls, values):
+        # `alpha` was a per-epoch weight, applied twice per epoch; it has no per-step equivalent
+        if isinstance(values, dict) and "alpha" in values:
+            log.warning("weight_average.alpha is no longer used; averaging is per step with `decay`.")
+            values = {k: v for k, v in values.items() if k != "alpha"}
+        return values
 
 
 class Config(BaseModel, frozen=True, extra="forbid"):

@@ -1,5 +1,30 @@
+import itertools
+
 import einops
 import jax
+import numpy as np
+
+# unique index tuples of fully symmetric rank-2 / rank-3 tensors, and the full -> unique gather maps
+_U2 = list(itertools.combinations_with_replacement(range(3), 2))  # 6
+_U3 = list(itertools.combinations_with_replacement(range(3), 3))  # 10
+_G2 = np.array([[_U2.index(tuple(sorted((i, j)))) for j in range(3)] for i in range(3)])
+_G3 = np.array([[[_U3.index(tuple(sorted((i, j, k)))) for k in range(3)] for j in range(3)] for i in range(3)])
+
+
+def geometric_moments_packed(radial_function, dn, idx_i, n_atoms=None):
+    """Same moments as `geometric_moments`, but each pair stores only the unique components of the symmetric
+    rank-2 / rank-3 products (3 + 6 + 10 instead of 3 + 9 + 27 per channel); full tensors are rebuilt per atom
+    after the scatter-sum. Identical results up to floating-point summation order."""
+    import jax.numpy as jnp
+
+    u2 = jnp.stack([dn[:, a] * dn[:, b] for a, b in _U2], axis=-1)  # (pairs, 6)
+    u3 = jnp.stack([dn[:, a] * dn[:, b] * dn[:, c] for a, b, c in _U3], axis=-1)  # (pairs, 10)
+    r = radial_function[..., None]
+    m0 = jax.ops.segment_sum(radial_function, idx_i, n_atoms)
+    m1 = jax.ops.segment_sum(r * dn[:, None, :], idx_i, n_atoms)
+    p2 = jax.ops.segment_sum(r * u2[:, None, :], idx_i, n_atoms)  # (atoms, channels, 6)
+    p3 = jax.ops.segment_sum(r * u3[:, None, :], idx_i, n_atoms)  # (atoms, channels, 10)
+    return [m0, m1, p2[..., _G2], p3[..., _G3]]
 
 
 def geometric_moments(radial_function, dn, idx_i, n_atoms=None):

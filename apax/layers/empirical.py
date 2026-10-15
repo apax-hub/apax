@@ -24,6 +24,9 @@ class EmpiricalEnergyTerm(nn.Module):
 
 class ZBLRepulsion(EmpiricalEnergyTerm):
     r_max: float = 2.0
+    # Coulomb constant e^2/(4*pi*eps0) = 14.4 eV*Ang; the physical prefactor for
+    # the screened Z_i*Z_j/r nuclear repulsion (=1 in Hartree/Bohr units).
+    initial_rep_scale: float = 14.4
     apply_mask: bool = True
 
     def setup(self):
@@ -31,7 +34,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
 
         coeffs = jnp.array([0.18175, 0.50986, 0.28022, 0.02817])[:, None]
         coeffs_isp = inverse_softplus(coeffs)
-        rep_scale_isp = inverse_softplus(0.1)
+        rep_scale_isp = inverse_softplus(self.initial_rep_scale)
 
         self.a_exp = 0.23
         self.a_num = 0.46850
@@ -76,7 +79,7 @@ class ZBLRepulsion(EmpiricalEnergyTerm):
 
         E_ij = Z_i * Z_j / dr * f * cos_cutoff
         if self.apply_mask:
-            E_ij = mask_by_neighbor(E_ij, idx)
+            E_ij = mask_by_neighbor(E_ij, idx, dr_vec)
         E = 0.5 * rep_scale * fp64_sum(E_ij)
         return E
 
@@ -121,7 +124,7 @@ class ExponentialRepulsion(EmpiricalEnergyTerm):
 
         E_ij = f * cos_cutoff
         if self.apply_mask:
-            E_ij = mask_by_neighbor(E_ij, idx)
+            E_ij = mask_by_neighbor(E_ij, idx, dr_vec)
         E = fp64_sum(E_ij)
         return E
 
@@ -168,8 +171,107 @@ class LatentEwald(EmpiricalEnergyTerm):
         return E_lr
 
 
+class NLHRepulsion(EmpiricalEnergyTerm):
+    """Triple-exponential screened nuclear repulsion.
+
+    V_ij(r) = 14.4 * Z_i Z_j / r * phi_ij(r),
+    phi_ij(r) = sum_k a[Z_i,Z_j,k] * exp(-b[Z_i,Z_j,k] * r),  k = 1..3.
+
+    Per-pair coefficients `a`, `b` (shape (n_species, n_species, 3)) are
+    injected by the builder (dependency injection); non-trainable for now.
+    """
+
+    a: Any = None  # (n_species, n_species, 3), injected
+    b: Any = None
+    r_max: float = 6.0
+    rep_scale: float = 14.4  # e^2/(4 pi eps0) in eV*Ang
+    apply_mask: bool = True
+
+    def setup(self):
+        dtype = str_to_dtype(self.dtype)
+        self.distance = vmap(space.distance, 0, 0)
+        self._a = jnp.asarray(self.a, dtype=dtype)  # inject at module dtype (fp32)
+        self._b = jnp.asarray(self.b, dtype=dtype)
+
+    def __call__(self, R, dr_vec, Z, idx, box, properties):
+        dtype = str_to_dtype(self.dtype)
+        idx_i, idx_j = idx[0], idx[1]
+        Z_i, Z_j = Z[idx_i, ...], Z[idx_j, ...]
+
+        dr = self.distance(dr_vec).astype(dtype)
+        dr = jnp.clip(dr, min=0.02, max=self.r_max)
+        cos_cutoff = 0.5 * (jnp.cos(np.pi * dr / self.r_max) + 1.0)
+
+        a_ij = self._a[Z_i, Z_j]  # (neighbors, 3)
+        b_ij = self._b[Z_i, Z_j]
+        phi = jnp.sum(a_ij * jnp.exp(-b_ij * dr[:, None]), axis=-1)  # (neighbors,)
+
+        E_ij = self.rep_scale * Z_i * Z_j / dr * phi * cos_cutoff
+        if self.apply_mask:
+            E_ij = mask_by_neighbor(E_ij, idx, dr_vec)
+        return 0.5 * fp64_sum(E_ij)
+
+
+class PairEnvelope(EmpiricalEnergyTerm):
+    """Attractive pair envelope E = -sum_pairs X_ij 0.5 (1 + cos(pi r / r_max)), X_ij = (X_i + X_j) / 2.
+
+    A smooth cohesive baseline under the network: with isolated-atom shifts it carries the bulk of the
+    bonding energy, so the network learns a zero-centred residual. Only the per-element amplitudes X are learnable;
+    they are initialised by least squares on per-atom energies (amp_init, injected by the trainer).
+    """
+
+    r_max: float = 5.0
+    trainable: bool = True
+    amp_init: Any = None
+    apply_mask: bool = True
+
+    def setup(self):
+        dtype = str_to_dtype(self.dtype)
+        self.distance = vmap(space.distance, 0, 0)
+        n_species = len(data.covalent_radii)
+        init = (lambda *_: jnp.asarray(self.amp_init, dtype)) if self.amp_init is not None else nn.initializers.zeros
+        self.amp = self.param("envelope_amp" if self.trainable else "envelope_amp_frozen", init, (n_species,), dtype)
+
+    def __call__(self, R, dr_vec, Z, idx, box, properties):
+        dtype = str_to_dtype(self.dtype)
+        dr = jnp.clip(self.distance(dr_vec).astype(dtype), max=self.r_max)
+        x_ij = 0.5 * (self.amp[Z[idx[0]]] + self.amp[Z[idx[1]]])
+        w = x_ij * 0.5 * (1.0 + jnp.cos(np.pi * dr / self.r_max))
+        if self.apply_mask:
+            w = mask_by_neighbor(w, idx, dr_vec)
+        return -0.5 * fp64_sum(w)  # each pair appears twice in the neighbour list
+
+
+def fit_pair_envelope(atoms_list, shift, r_max=5.0, ridge=1e-2):
+    """least-squares per-element X for per-atom (E - sum_i shift[Z_i]) ~ -sum_pairs X_ij w(r) / n.
+
+    Elements absent from the data get the single global least-squares amplitude."""
+    from ase.neighborlist import neighbor_list
+
+    shift = np.asarray(shift).reshape(-1)
+    n_species = len(data.covalent_radii)
+    X, y = np.zeros((len(atoms_list), n_species)), np.zeros(len(atoms_list))
+    for f, a in enumerate(atoms_list):
+        i, j, d = neighbor_list("ijd", a, r_max)
+        w = 0.25 * (1.0 + np.cos(np.pi * d / r_max)) / len(a)  # 0.5 (pair double count) x 0.5 (X_ij average)
+        np.add.at(X[f], a.numbers[i], -w)
+        np.add.at(X[f], a.numbers[j], -w)
+        y[f] = (a.get_potential_energy() - shift[a.numbers].sum()) / len(a)
+    s = X.sum(1)
+    x_global = float(s @ y / (s @ s))
+    seen = np.abs(X).sum(0) > 0
+    G = X[:, seen].T @ X[:, seen]
+    lam = ridge * np.trace(G) / len(G)
+    coef = np.linalg.solve(G + lam * np.eye(len(G)), X[:, seen].T @ y + lam * x_global)  # shrink toward global
+    amp = np.full(n_species, x_global)
+    amp[seen] = coef
+    return amp
+
+
 all_corrections = {
     "zbl": ZBLRepulsion,
     "exponential": ExponentialRepulsion,
     "latent_ewald": LatentEwald,
+    "nlh": NLHRepulsion,
+    "pair_envelope": PairEnvelope,
 }

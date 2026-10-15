@@ -7,6 +7,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from jax import vmap
 from vesin import NeighborList
 
+from apax.data.input_pipeline import PerBatchPaddedDataset, size_buckets
 from apax.data.preprocessing import compute_nl
 from apax.layers.distances import disp_fn
 from apax.utils.convert import atoms_to_inputs, atoms_to_labels
@@ -210,3 +211,46 @@ def test_neighbors_and_displacements(pbc, calc_results, cell):
     assert Counter(vesin_dists) == Counter(apax_dist)
     assert np.all(vesin_dists < r_max)
     assert np.all(apax_dist < r_max)
+
+
+def test_size_buckets_shapes_fit():
+    rng = np.random.default_rng(0)
+    n_pairs = np.round(np.exp(rng.uniform(0, 8, 500))).astype(int)
+    n_atoms = np.maximum(1, (n_pairs / rng.uniform(5, 40, 500)).astype(int))
+    bucket, shapes = size_buckets(n_atoms, n_pairs, 1.25)
+
+    atom_pad = np.array([shapes[b][0] for b in bucket])
+    pair_pad = np.array([shapes[b][1] for b in bucket])
+    assert np.all(n_atoms <= atom_pad)
+    assert np.all(np.maximum(n_pairs, 1) <= pair_pad)
+    pads = np.array(shapes)
+    assert np.all(np.diff(pads, axis=0) >= 0)  # shapes grow with the bucket index
+
+
+def test_bucket_batches_epoch():
+    from tests.conftest import create_example_atoms
+
+    seed_py_np_tf(0)
+    atoms_list = [
+        create_example_atoms(n, pbc=False, calc_results=["energy", "forces"])
+        for n in [2, 3, 3, 5, 8, 8, 12, 20, 20, 30, 40, 50, 60, 4, 6, 7, 9, 15, 25, 35]
+    ]
+    ds = PerBatchPaddedDataset(atoms_list, 5.0, 4, 1, num_workers=1, bucket_ratio=1.25)
+    try:
+        batches = ds.bucket_batches()
+        assert len(batches) == ds.steps_per_epoch() == len(atoms_list) // 4
+        seen = [id(inp) for items, _ in batches for inp, _ in items]
+        assert len(seen) == len(set(seen)) == len(batches) * 4
+        n_pairs = {
+            id(inp): compute_nl(inp["positions"], inp["box"], 5.0)[0].shape[1]
+            for inp, _, _ in ds.data
+        }
+        for items, (atom_pad, pair_pad) in batches:
+            assert (atom_pad, pair_pad) in ds.bucket_shapes
+            for inp, _ in items:
+                assert inp["n_atoms"] <= atom_pad and n_pairs[id(inp)] <= pair_pad
+            inputs, _ = ds.prepare_batch(items, (atom_pad, pair_pad))
+            assert inputs["positions"].shape == (4, atom_pad, 3)
+            assert inputs["idx"].shape == (4, 2, pair_pad)
+    finally:
+        ds.cleanup()

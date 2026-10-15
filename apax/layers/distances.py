@@ -9,15 +9,10 @@ def canonicalize_neighbors(neighbor):
 
 
 def disp_fn(ri, rj, perturbation, box):
+    # `perturbation` is accepted for signature compatibility but applied in
+    # `compute_distances`, after the periodic-image offsets are added.
     dR = space.pairwise_displacement(ri, rj)
     dR = space.transform(box, dR)
-
-    if perturbation is not None:
-        dR = dR + space.raw_transform(perturbation, dR)
-        # https://github.com/mir-group/nequip/blob/c56f48fcc9b4018a84e1ed28f762fadd5bc763f1/nequip/nn/_grad_output.py#L267
-        # https://github.com/sirmarcel/glp/blob/main/glp/calculators/utils.py
-        # other codes do R = R + strain, not dR
-        # can be implemented for efficiency
     return dR
 
 
@@ -61,8 +56,12 @@ def make_distance_fn(init_box, inference_disp_fn=None):
             dr_vec = displacement(Rj, Ri)
         else:
             # distance vector for training on periodic systems
-            dr_vec = displacement(Rj, Ri, perturbation, box)
+            dr_vec = displacement(Rj, Ri, None, box)
             dr_vec += offsets
+            if perturbation is not None:
+                # homogeneous deformation F = I + strain of the full pair vector,
+                # periodic-image shift included (jax_md convention: F replaces dR)
+                dr_vec = space.raw_transform(perturbation, dr_vec)
         return dr_vec, idx
 
     return compute_distances
