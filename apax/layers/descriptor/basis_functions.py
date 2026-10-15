@@ -22,13 +22,15 @@ class IdentityRadialTransform(nn.Module):
 
 
 class CovalentRadialTransform(nn.Module):
-    """Maps r -> r2 = 0.5 r + 0.5 r tanh(alpha (r - r0)) before featurization.
+    """Maps r -> r2 = r_max g(r) / g(r_max), g(r) = 0.5 r (1 + tanh(alpha (r - r0))), before featurization.
 
-    Decays to 0 near r=0 much faster than r (flat well below r0) and
-    approaches r for r >> r0, where r0 is the sum of the covalent radii of
-    the two elements at distance r.
+    Decays to 0 near r=0 much faster than r, with vanishing slope (flat well below r0): the descriptor, and hence the
+    NN energy, is constant in r there, so a repulsive correction cannot be overridden. r0 = r0_scale x the sum of the
+    covalent radii of the pair. The normalisation pins r2(r_max) = r_max for every pair, so the cutoff still acts at
+    the physical r_max (without it, heavy pairs with r0 ~ r_max never reach the cutoff).
     """
 
+    r_max: float
     alpha: float = 4.0
     r0_scale: float = 1.0
     dtype: Any = jnp.float32
@@ -39,7 +41,11 @@ class CovalentRadialTransform(nn.Module):
 
     def __call__(self, dr, Z_i, Z_j):
         r0 = self.r0_scale * (self.covalent_radii[Z_i] + self.covalent_radii[Z_j])
-        return 0.5 * dr * (1.0 + jnp.tanh(self.alpha * (dr - r0)))
+
+        def g(r):
+            return 0.5 * r * (1.0 + jnp.tanh(self.alpha * (r - r0)))
+
+        return self.r_max * g(dr) / g(self.r_max)
 
 
 class GaussianBasis(nn.Module):

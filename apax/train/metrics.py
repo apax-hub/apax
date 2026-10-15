@@ -25,57 +25,70 @@ class RootAverage(Averagefp64):
         return jnp.sqrt(self.total / self.count)
 
 
+def _mask(inputs: dict, values: jnp.array) -> jnp.array:
+    """
+    Mask of real (non-padding) entries along the leading two axes of `values`.
+    Per-atom arrays (batch, max_atoms, ...) are masked by padded atom slots,
+    structure-level arrays (batch, ...) are left unmasked.
+    """
+    numbers = inputs["numbers"]
+    if values.ndim >= 2 and values.shape[:2] == numbers.shape:
+        return numbers > 0
+    return jnp.ones(values.shape[:1], dtype=bool)
+
+
 def mae_fn(
     inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str
-) -> jnp.array:
+) -> dict:
     """
-    Computes the Mean Absolute Error of two arrays.
+    Computes the Mean Absolute Error of two arrays, ignoring padded atoms.
     """
-    return jnp.mean(jnp.abs(label[key] - prediction[key]))
+    values = jnp.abs(label[key] - prediction[key])
+    return dict(values=values, mask=_mask(inputs, values))
 
 
 def mse_fn(
     inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str
-) -> jnp.array:
+) -> dict:
     """
-    Computes the Mean Squared Error of two arrays.
+    Computes the Mean Squared Error of two arrays, ignoring padded atoms.
     """
-    return jnp.mean((label[key] - prediction[key]) ** 2)
+    values = (label[key] - prediction[key]) ** 2
+    return dict(values=values, mask=_mask(inputs, values))
 
 
 def cosine_sim(
     inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str
-) -> jnp.array:
+) -> dict:
     """
-    Computes the cosine similarity of two arrays.
+    Computes the cosine similarity of two arrays, ignoring padded atoms.
     """
-    dotp = normed_dotp(label[key], prediction[key])
-    F_angle_loss = jnp.mean(1.0 - dotp)
-    return F_angle_loss
+    values = 1.0 - normed_dotp(label[key], prediction[key])
+    return dict(values=values, mask=_mask(inputs, values))
 
 
 def per_atom_mae_fn(
     inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str
-) -> jnp.array:
+) -> dict:
     """
     Computes the per atom Mean Absolute Error of two arrays.
     Only reasanable when using with structural
     properties like 'energy'.
     """
-    err_abs = jnp.abs(label[key] - prediction[key])
-    return jnp.sum(err_abs) / jnp.sum(inputs["n_atoms"])
+    values = jnp.abs(label[key] - prediction[key]) / inputs["n_atoms"]
+    return dict(values=values, mask=_mask(inputs, values))
 
 
 def per_atom_mse_fn(
     inputs: dict, label: dict[jnp.array], prediction: dict[jnp.array], key: str
-) -> jnp.array:
+) -> dict:
     """
     Computes the per atom Mean Squared Error of two arrays.
     Only reasanable when using with structural
     properties like 'energy'.
     """
-    err_sq = (label[key] - prediction[key]) ** 2
-    return jnp.sum(err_sq) / jnp.sum(inputs["n_atoms"])
+    values = ((label[key] - prediction[key]) / inputs["n_atoms"]) ** 2
+    return dict(values=values, mask=_mask(inputs, values))
 
 
 def make_single_metric(key: str, reduction: str) -> metrics.Average:

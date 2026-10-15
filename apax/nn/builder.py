@@ -94,7 +94,11 @@ class ModelBuilder:
         if name == "identity":
             return IdentityRadialTransform()
         elif name == "covalent":
-            return CovalentRadialTransform(dtype=self.config["descriptor_dtype"])
+            return CovalentRadialTransform(
+                r_max=self.config["basis"]["r_max"],
+                r0_scale=self.config.get("covalent_r0_scale", 1.0),
+                dtype=self.config["descriptor_dtype"],
+            )
         else:
             raise ValueError(f"unknown radial transform requested: {name}")
 
@@ -337,6 +341,8 @@ class GMNNBuilder(ModelBuilder):
             radial_fn=radial_fn,
             n_contr=self.config["n_contr"],
             n_radial_tensor=self.config["n_radial_tensor"],
+            packed_moments=self.config.get("packed_moments", False),
+            drop_contractions=tuple(self.config.get("drop_contractions", ())),
             dtype=self.config["descriptor_dtype"],
             apply_mask=apply_mask,
         )

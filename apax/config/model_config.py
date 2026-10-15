@@ -1,3 +1,4 @@
+import warnings
 from typing import List, Literal, Optional, Union
 
 from pydantic import (
@@ -111,10 +112,27 @@ class Correction(BaseModel, extra="forbid"):
 
 
 class ZBLRepulsion(Correction, extra="forbid"):
+    """
+    .. deprecated::
+        Use the NLH repulsion (``name: nlh``) instead: it is strictly more expressive (per element-pair
+        triple-exponential screening instead of one universal ZBL screening function). Kept so existing models
+        still load.
+    """
+
     name: Literal["zbl"]
     r_max: NonNegativeFloat = 1.5
     # Coulomb constant e^2/(4*pi*eps0) = 14.4 eV*Ang (=1 in Hartree/Bohr).
     initial_rep_scale: PositiveFloat = 14.4
+
+    @model_validator(mode="after")
+    def _deprecated(self):
+        warnings.warn(
+            "The ZBL correction is deprecated: the NLH repulsion (name: nlh) is strictly more expressive. "
+            "Use it instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        return self
 
 
 class ExponentialRepulsion(Correction, extra="forbid"):
@@ -135,8 +153,25 @@ class NLHRepulsion(Correction, extra="forbid"):
     # path to triple-exponential coeffs; None -> bundled apax/data/nlh_coeffs.dat
     coeffs_file: Optional[str] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _removed_fields(cls, values):
+        return _drop_removed(values, "poly_degree", 0, "the learnable NLH modulation was neutral")
 
-EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion, LatentEwald, NLHRepulsion]
+
+class PairEnvelope(Correction, extra="forbid"):
+    """
+    Attractive pair envelope -sum_pairs X_ij 0.5 (1 + cos(pi r / r_max)), X_ij = (X_i + X_j) / 2 with learnable
+    per-element amplitudes, least-squares initialised from the training data. With isolated-atom shifts it carries the bulk of the
+    cohesive energy, so the network learns a zero-centred residual.
+    """
+
+    name: Literal["pair_envelope"]
+    r_max: PositiveFloat = 5.0
+    trainable: bool = True
+
+
+EmpiricalCorrection = Union[ZBLRepulsion, ExponentialRepulsion, LatentEwald, NLHRepulsion, PairEnvelope]
 
 
 class PropertyHead(BaseModel, extra="forbid"):
@@ -191,6 +226,9 @@ class BaseModelConfig(BaseModel, extra="forbid"):
         behavior). `"covalent"` applies a per-element-pair tanh transform
         centered at the sum of covalent radii, reallocating basis resolution
         toward the bonding region.
+    covalent_r0_scale : PositiveFloat, default = 1.0
+        Centre of the covalent transform as a multiple of the summed covalent radii; the descriptor is flat in r
+        below roughly this distance minus 0.5 Å.
     nn : List[PositiveInt], default = [256, 256]
         Number of hidden layers and units in those layers.
     w_init : Literal["normal", "lecun"], default = "lecun"
@@ -231,6 +269,7 @@ class BaseModelConfig(BaseModel, extra="forbid"):
 
     basis: BasisConfig = Field(BesselBasisConfig(name="bessel"), discriminator="name")
     radial_transform: Literal["identity", "covalent"] = "identity"
+    covalent_r0_scale: PositiveFloat = 1.0
 
     nn: List[PositiveInt] = [256, 256]
     w_init: Literal["normal", "lecun"] = "lecun"
@@ -298,6 +337,8 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
 
     n_radial: PositiveInt = 12
     n_radial_tensor: Optional[PositiveInt] = 4
+    packed_moments: bool = False
+    drop_contractions: List[int] = []
     n_contr: int = 8
     emb_init: Optional[str] = "uniform"
     radial_function: Literal["dense", "factorized"] = "factorized"
@@ -323,7 +364,12 @@ class GMNNConfig(BaseModelConfig, extra="forbid"):
             values.setdefault("radial_function", "dense")
         elif isinstance(values, dict) and "radial_rank" in values:
             values.setdefault("radial_function", "factorized")
-        return values
+        return _drop_removed(
+            values,
+            "traceless_moments",
+            False,
+            "traceless moments were accuracy-neutral and slower",
+        )
 
     def get_builder(self):
         from apax.nn.builder import GMNNBuilder
