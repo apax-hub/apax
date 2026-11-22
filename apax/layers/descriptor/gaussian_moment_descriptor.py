@@ -49,7 +49,7 @@ class GaussianMomentDescriptor(nn.Module):
 
         radial_function = self.radial_fn(dr, Z_i, Z_j)
         if self.apply_mask:
-            radial_function = mask_by_neighbor(radial_function, neighbor_idxs)
+            radial_function = mask_by_neighbor(radial_function, neighbor_idxs, dr_vec)
 
         moments = geometric_moments(radial_function, dn, idx_j, n_atoms)
 

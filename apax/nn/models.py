@@ -153,22 +153,24 @@ class EnergyDerivativeModel(nn.Module):
         offsets,
     ):
         energy_only_model = make_energy_only_model(self.energy_model)
-        ef_function = jax.value_and_grad(self.energy_model, has_aux=True)
-        (energy, properties), neg_forces = ef_function(R, Z, neighbor, box, offsets)
-        forces = -neg_forces
-        prediction = {"energy": energy, "forces": forces}
-        prediction.update(properties)
-
         if self.calc_stress:
-            stress = stress_times_vol(
-                energy_only_model,
-                R,
-                box,
-                Z=Z,
-                neighbor=neighbor,
-                offsets=offsets,
-            )
-            prediction["stress"] = stress
+            # forces and stress from one backward pass: differentiate w.r.t. the
+            # positions and a deformation gradient F evaluated at the identity.
+            # dE/dF at F = I is the stress times the cell volume.
+            def energy_fn(R, F):
+                return self.energy_model(R, Z, neighbor, box, offsets, F)
+
+            ef_function = jax.value_and_grad(energy_fn, argnums=(0, 1), has_aux=True)
+            identity = jnp.eye(R.shape[1], dtype=R.dtype)
+            (energy, properties), (neg_forces, dE_dF) = ef_function(R, identity)
+            prediction = {"energy": energy, "forces": -neg_forces}
+            prediction.update(properties)
+            prediction["stress"] = 0.5 * (dE_dF + dE_dF.T)
+        else:
+            ef_function = jax.value_and_grad(self.energy_model, has_aux=True)
+            (energy, properties), neg_forces = ef_function(R, Z, neighbor, box, offsets)
+            prediction = {"energy": energy, "forces": -neg_forces}
+            prediction.update(properties)
 
         if self.calc_hessian:
             hessian = jax.hessian(energy_only_model)(R, Z, neighbor, box, offsets)
