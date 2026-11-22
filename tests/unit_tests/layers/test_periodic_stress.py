@@ -36,11 +36,15 @@ def test_small_cell_self_images_and_stress():
 
         def energy(a):
             inp = _inputs(a)
-            return float(builder.build_energy_model(init_box=inp[3]).apply(eparams, *inp)[0])
+            return float(
+                builder.build_energy_model(init_box=inp[3]).apply(eparams, *inp)[0]
+            )
 
         # energy per atom must not depend on the choice of cell
         sc = atoms.repeat(3)
-        np.testing.assert_allclose(energy(atoms) / len(atoms), energy(sc) / len(sc), atol=1e-10)
+        np.testing.assert_allclose(
+            energy(atoms) / len(atoms), energy(sc) / len(sc), atol=1e-10
+        )
 
         # stress * volume must be dE/dstrain (central finite differences of a real cell strain)
         stress = np.asarray(model.apply(params, R, Z, idx, box, off)["stress"])
